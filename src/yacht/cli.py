@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from yacht.regatta import ConfigError, run_regatta
+from yacht.regatta import ConfigError, load_regatta, run_regatta
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,6 +25,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory where wake artifacts and scorecards are written.",
     )
 
+    validate_parser = subcommands.add_parser(
+        "validate",
+        help="Validate a regatta config without running it.",
+    )
+    validate_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+
     return parser
 
 
@@ -39,6 +49,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
         print(json.dumps(scorecard, indent=2))
+        return 0
+
+    if args.command == "validate":
+        try:
+            regatta = load_regatta(args.config)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(f"valid regatta config: {regatta.name}")
         return 0
 
     parser.error(f"unknown command: {args.command}")

@@ -131,6 +131,43 @@ class RegattaTests(unittest.TestCase):
             self.assertNotIn("Traceback", stderr.getvalue())
             self.assertFalse(logbook_dir.exists())
 
+    def test_cli_validate_prints_valid_regatta_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            config_path = workspace / "regatta.toml"
+            config_path.write_text(REGATTA_CONFIG, encoding="utf-8")
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(["validate", str(config_path)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(
+                stdout.getvalue(),
+                "valid regatta config: memory-smoke-test\n",
+            )
+            self.assertEqual(stderr.getvalue(), "")
+
+    def test_cli_validate_prints_config_errors_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            config_path = workspace / "regatta.toml"
+            config_path.write_text(INVALID_REGATTA_CONFIG, encoding="utf-8")
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(["validate", str(config_path)])
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn(
+                "error: invalid regatta config: course.tasks must contain at least one task",
+                stderr.getvalue(),
+            )
+            self.assertNotIn("Traceback", stderr.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
