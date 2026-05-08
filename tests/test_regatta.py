@@ -33,9 +33,24 @@ class RegattaTests(unittest.TestCase):
             self.assertEqual(len(wake_files), 4)
 
             wake = json.loads(wake_files[0].read_text(encoding="utf-8"))
-            self.assertEqual(wake["course"], "tiny-course")
-            self.assertIn("duration_seconds", wake["metrics"])
-            self.assertIn("tokens", wake["metrics"])
+            self.assertEqual(
+                wake,
+                {
+                    "course": "tiny-course",
+                    "metrics": {
+                        "duration_seconds": 11.5,
+                        "tokens": 850,
+                    },
+                    "model": "mock-fast",
+                    "passed": True,
+                    "regatta": "memory-smoke-test",
+                    "rigging": [],
+                    "schema": "yacht.wake.v1",
+                    "task_id": "task-1",
+                    "task_title": "Fix a failing test",
+                    "vessel": "baseline",
+                },
+            )
 
             saved_scorecard = json.loads(
                 (logbook_dir / "scorecard.json").read_text(encoding="utf-8")
