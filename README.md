@@ -43,6 +43,7 @@ Run the sample regatta:
 
 ```sh
 uv run yacht validate examples/memory-smoke-test.toml
+uv run yacht validate examples/memory-smoke-test.toml --format json
 uv run yacht run examples/memory-smoke-test.toml --logbook logbook
 ```
 
