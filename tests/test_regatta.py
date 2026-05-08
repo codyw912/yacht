@@ -168,6 +168,48 @@ class RegattaTests(unittest.TestCase):
             )
             self.assertNotIn("Traceback", stderr.getvalue())
 
+    def test_cli_validate_json_prints_machine_readable_success(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            config_path = workspace / "regatta.toml"
+            config_path.write_text(REGATTA_CONFIG, encoding="utf-8")
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(["validate", str(config_path), "--format", "json"])
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(
+                json.loads(stdout.getvalue()),
+                {
+                    "valid": True,
+                    "regatta": "memory-smoke-test",
+                },
+            )
+
+    def test_cli_validate_json_prints_machine_readable_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            config_path = workspace / "regatta.toml"
+            config_path.write_text(INVALID_REGATTA_CONFIG, encoding="utf-8")
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(["validate", str(config_path), "--format", "json"])
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertEqual(
+                json.loads(stdout.getvalue()),
+                {
+                    "valid": False,
+                    "error": "course.tasks must contain at least one task",
+                },
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
