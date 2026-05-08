@@ -35,6 +35,23 @@ The tone is intentionally cheeky, because yes, this is yet another eval harness.
 | Logbook | Persisted reports and historical run records. |
 | Scorecard | Final results view comparing outcomes across vessels. |
 
+## First Executable Slice
+
+YACHT currently includes a minimal CLI that can run a deterministic mock regatta from a TOML config. This is not a real agent backend yet; it is the harness skeleton for loading a course, comparing vessels, writing wake artifacts, and producing a scorecard.
+
+Run the sample regatta:
+
+```sh
+uv run yacht run examples/memory-smoke-test.toml --logbook logbook
+```
+
+The command writes:
+
+- `logbook/wake/*.json` for per-vessel, per-task trace evidence
+- `logbook/scorecard.json` for the aggregate comparison
+
+The bundled sample compares a baseline mock vessel against the same mock vessel with `memory` rigging. The deterministic mock runner models that rigging as lower token usage with slightly longer runtime, giving the scorecard something concrete to compare before real agent integrations exist.
+
 ## Evaluation Goals
 
 YACHT should make it straightforward to compare setups on:

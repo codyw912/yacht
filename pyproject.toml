@@ -1,0 +1,17 @@
+[project]
+name = "yacht"
+version = "0.1.0"
+description = "Yet Another Coding Harness Testbed"
+readme = "README.md"
+authors = [
+    { name = "codyw912", email = "32690983+codyw912@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+yacht = "yacht.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.4,<0.12.0"]
+build-backend = "uv_build"

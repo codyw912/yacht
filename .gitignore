@@ -1,0 +1,4 @@
+.venv/
+logbook/
+__pycache__/
+*.py[cod]

@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Sequence
+
+from yacht.regatta import run_regatta
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="yacht",
+        description="Run reproducible agentic coding harness regattas.",
+    )
+    subcommands = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = subcommands.add_parser("run", help="Run a regatta config.")
+    run_parser.add_argument("config", type=Path, help="Path to a regatta TOML file.")
+    run_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory where wake artifacts and scorecards are written.",
+    )
+
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.command == "run":
+        scorecard = run_regatta(args.config, args.logbook)
+        print(json.dumps(scorecard, indent=2))
+        return 0
+
+    parser.error(f"unknown command: {args.command}")
+    return 2
