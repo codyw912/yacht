@@ -4,7 +4,7 @@ import json
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from yacht.schemas import (
     SCORECARD_SCHEMA,
@@ -125,14 +125,50 @@ class Scorecard:
         }
 
 
-def run_regatta(config_path: Path, logbook_dir: Path) -> dict[str, Any]:
+class TaskRunner(Protocol):
+    def run_task(self, regatta: str, course: str, vessel: Vessel, task: Task) -> Wake:
+        ...
+
+
+class MockTaskRunner:
+    def run_task(self, regatta: str, course: str, vessel: Vessel, task: Task) -> Wake:
+        token_multiplier = 0.82 if "memory" in vessel.rigging else 1.0
+        duration_multiplier = 1.12 if "memory" in vessel.rigging else 1.0
+        base_tokens = 600 + (task.difficulty * 250)
+        base_duration = 8.0 + (task.difficulty * 3.5)
+
+        return Wake(
+            regatta=regatta,
+            course=course,
+            vessel=vessel.name,
+            model=vessel.model,
+            rigging=vessel.rigging,
+            task_id=task.id,
+            task_title=task.title,
+            passed=True,
+            metrics=Metrics(
+                tokens=round(base_tokens * token_multiplier),
+                duration_seconds=round(base_duration * duration_multiplier, 2),
+            ),
+        )
+
+
+def run_regatta(
+    config_path: Path,
+    logbook_dir: Path,
+    runner: TaskRunner | None = None,
+) -> dict[str, Any]:
     regatta = load_regatta(config_path)
+    task_runner = runner or MockTaskRunner()
     wake_dir = logbook_dir / "wake"
     wake_dir.mkdir(parents=True, exist_ok=True)
 
     vessel_results = []
     for vessel in regatta.vessels:
-        wakes = [_run_task(regatta, vessel, task) for task in regatta.course.tasks]
+        wakes = [
+            task_runner.run_task(regatta.name, regatta.course.name, vessel, task)
+            for task in regatta.course.tasks
+        ]
         for wake in wakes:
             wake_path = wake_dir / f"{wake.vessel}__{wake.task_id}.json"
             _write_json(wake_path, wake.to_json())
@@ -178,28 +214,6 @@ def load_regatta(config_path: Path) -> Regatta:
         for vessel in raw["vessels"]
     )
     return Regatta(name=str(raw["regatta"]["name"]), course=course, vessels=vessels)
-
-
-def _run_task(regatta: Regatta, vessel: Vessel, task: Task) -> Wake:
-    token_multiplier = 0.82 if "memory" in vessel.rigging else 1.0
-    duration_multiplier = 1.12 if "memory" in vessel.rigging else 1.0
-    base_tokens = 600 + (task.difficulty * 250)
-    base_duration = 8.0 + (task.difficulty * 3.5)
-
-    return Wake(
-        regatta=regatta.name,
-        course=regatta.course.name,
-        vessel=vessel.name,
-        model=vessel.model,
-        rigging=vessel.rigging,
-        task_id=task.id,
-        task_title=task.title,
-        passed=True,
-        metrics=Metrics(
-            tokens=round(base_tokens * token_multiplier),
-            duration_seconds=round(base_duration * duration_multiplier, 2),
-        ),
-    )
 
 
 def _summarize_vessel(vessel: Vessel, wakes: list[Wake]) -> VesselScore:
