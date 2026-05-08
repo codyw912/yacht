@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.wake.v1.schema.json",
+  "title": "YACHT Wake",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "regatta",
+    "course",
+    "vessel",
+    "model",
+    "rigging",
+    "task_id",
+    "task_title",
+    "passed",
+    "metrics"
+  ],
+  "properties": {
+    "schema": {
+      "const": "yacht.wake.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vessel": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rigging": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens", "duration_seconds"],
+      "properties": {
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

@@ -52,6 +52,16 @@ The command writes:
 
 The bundled sample compares a baseline mock vessel against the same mock vessel with `memory` rigging. The deterministic mock runner models that rigging as lower token usage with slightly longer runtime, giving the scorecard something concrete to compare before real agent integrations exist.
 
+## Schema Contract
+
+YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
+
+- `yacht.regatta.v1.schema.json` for regatta configuration
+- `yacht.wake.v1.schema.json` for per-task trace artifacts
+- `yacht.scorecard.v1.schema.json` for aggregate results
+
+Generated wake and scorecard JSON documents include a `schema` field such as `yacht.wake.v1` or `yacht.scorecard.v1`. The Python runner validates the current config and generated artifacts, but the persisted contract is intentionally language-neutral so future vessels, runners, and analysis tools do not need to be Python programs.
+
 ## Evaluation Goals
 
 YACHT should make it straightforward to compare setups on:

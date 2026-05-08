@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.scorecard.v1.schema.json",
+  "title": "YACHT Scorecard",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "regatta", "course", "vessels"],
+  "properties": {
+    "schema": {
+      "const": "yacht.scorecard.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vessels": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "model",
+          "rigging",
+          "tasks_total",
+          "tasks_passed",
+          "success_rate",
+          "total_tokens",
+          "total_duration_seconds"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rigging": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tasks_total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tasks_passed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "success_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "total_tokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_duration_seconds": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

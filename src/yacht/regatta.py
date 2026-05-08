@@ -6,6 +6,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from yacht.schemas import (
+    SCORECARD_SCHEMA,
+    WAKE_SCHEMA,
+    SchemaValidationError,
+    validate_regatta_document,
+    validate_scorecard_document,
+    validate_wake_document,
+)
+
+
+class ConfigError(ValueError):
+    """Raised when a regatta configuration is invalid."""
+
 
 @dataclass(frozen=True)
 class Task:
@@ -49,10 +62,12 @@ def run_regatta(config_path: Path, logbook_dir: Path) -> dict[str, Any]:
         vessel_results.append(_summarize_vessel(vessel, wakes))
 
     scorecard = {
+        "schema": SCORECARD_SCHEMA,
         "regatta": regatta.name,
         "course": regatta.course.name,
         "vessels": vessel_results,
     }
+    validate_scorecard_document(scorecard)
     _write_json(logbook_dir / "scorecard.json", scorecard)
     return scorecard
 
@@ -60,6 +75,10 @@ def run_regatta(config_path: Path, logbook_dir: Path) -> dict[str, Any]:
 def load_regatta(config_path: Path) -> Regatta:
     with config_path.open("rb") as config_file:
         raw = tomllib.load(config_file)
+    try:
+        validate_regatta_document(raw)
+    except SchemaValidationError as error:
+        raise ConfigError(str(error)) from error
 
     course = Course(
         name=str(raw["course"]["name"]),
@@ -90,6 +109,7 @@ def _run_task(regatta: Regatta, vessel: Vessel, task: Task) -> dict[str, Any]:
     base_duration = 8.0 + (task.difficulty * 3.5)
 
     return {
+        "schema": WAKE_SCHEMA,
         "regatta": regatta.name,
         "course": regatta.course.name,
         "vessel": vessel.name,
@@ -124,6 +144,11 @@ def _summarize_vessel(vessel: Vessel, wakes: list[dict[str, Any]]) -> dict[str, 
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    if payload.get("schema") == WAKE_SCHEMA:
+        validate_wake_document(payload)
+    if payload.get("schema") == SCORECARD_SCHEMA:
+        validate_scorecard_document(payload)
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
