@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Sequence
 
-from yacht.regatta import run_regatta
+from yacht.regatta import ConfigError, run_regatta
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,7 +33,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
-        scorecard = run_regatta(args.config, args.logbook)
+        try:
+            scorecard = run_regatta(args.config, args.logbook)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
         print(json.dumps(scorecard, indent=2))
         return 0
 
