@@ -1,0 +1,192 @@
+import json
+import tempfile
+import unittest
+from dataclasses import replace
+from pathlib import Path
+
+from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from yacht.preflight import CommandResult, execute_machine_preflight
+from yacht.regatta import load_regatta
+from yacht.runtime_backend import HostNixRuntimeBackend
+from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
+
+
+class MachinePreflightTests(unittest.TestCase):
+    def test_execute_machine_preflight_writes_passing_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            regatta, instance = _prepared_runtime(root, vessel_index=1)
+            artifact_path = root / "logbook" / "preflight" / "pi-plus-fff.json"
+            commands = []
+
+            def command_runner(
+                argv: tuple[str, ...],
+                env: dict[str, str],
+                cwd: Path,
+            ) -> CommandResult:
+                commands.append((argv, env, cwd))
+                return CommandResult(exit_code=0, stdout="pi 1.0\n", stderr="")
+
+            artifact = execute_machine_preflight(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                instance=instance,
+                artifact_path=artifact_path,
+                comparison=regatta.comparisons[0],
+                command_runner=command_runner,
+            )
+
+            validate_preflight_document(artifact)
+            self.assertEqual(artifact["schema"], PREFLIGHT_SCHEMA)
+            self.assertEqual(artifact["status"], "passed")
+            self.assertEqual(artifact["comparison"], "pi-vs-pi-fff")
+            self.assertEqual(artifact["vessel"], "pi-plus-fff")
+            self.assertEqual(artifact["runtime"], "pi")
+            self.assertEqual(
+                artifact["secret_refs"],
+                [
+                    {
+                        "name": "anthropic",
+                        "source": "env",
+                        "ref": "ANTHROPIC_API_KEY",
+                        "redacted": True,
+                    }
+                ],
+            )
+            self.assertEqual(
+                [check["name"] for check in artifact["checks"]],
+                ["pi-present", "runtime-home-isolated", "fff-mode", "fff-state-isolated"],
+            )
+            self.assertEqual(
+                commands[0][0],
+                (
+                    "nix",
+                    "develop",
+                    "github:example/yacht-runtimes#pi",
+                    "--command",
+                    "pi",
+                    "--version",
+                ),
+            )
+            self.assertEqual(commands[0][1]["HOME"], str(instance.temp_home))
+            self.assertEqual(commands[0][2], instance.workspace_path)
+            saved = json.loads(artifact_path.read_text(encoding="utf-8"))
+            self.assertEqual(saved, artifact)
+
+    def test_execute_machine_preflight_fails_missing_env_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            regatta, instance = _prepared_runtime(root, vessel_index=1)
+            env = dict(instance.env)
+            del env["PI_FFF_MODE"]
+            instance = replace(instance, env=env)
+
+            artifact = execute_machine_preflight(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                instance=instance,
+                artifact_path=root / "logbook" / "preflight" / "pi-plus-fff.json",
+                command_runner=_passing_command,
+            )
+
+            self.assertEqual(artifact["status"], "failed")
+            fff_mode = _check_by_name(artifact, "fff-mode")
+            self.assertEqual(fff_mode["status"], "failed")
+            self.assertEqual(fff_mode["evidence"]["missing_env"], ["PI_FFF_MODE"])
+
+    def test_execute_machine_preflight_fails_path_outside_trial_home(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            regatta, instance = _prepared_runtime(root, vessel_index=1)
+            env = dict(instance.env)
+            env["FFF_HISTORY_DB"] = str(root / "shared" / "fff-history.sqlite")
+            instance = replace(instance, env=env)
+
+            artifact = execute_machine_preflight(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                instance=instance,
+                artifact_path=root / "logbook" / "preflight" / "pi-plus-fff.json",
+                command_runner=_passing_command,
+            )
+
+            self.assertEqual(artifact["status"], "failed")
+            state_check = _check_by_name(artifact, "fff-state-isolated")
+            self.assertEqual(state_check["status"], "failed")
+            self.assertEqual(
+                state_check["evidence"]["outside_trial_home"],
+                {"FFF_HISTORY_DB": str(root / "shared" / "fff-history.sqlite")},
+            )
+
+    def test_execute_machine_preflight_honors_optional_recipe(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            "[riggings.pi-fff.preflight]\nrequired = true",
+            "[riggings.pi-fff.preflight]\nrequired = false",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            config_path.write_text(config, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+            instance = HostNixRuntimeBackend().prepare(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                trial_root=root / "trial",
+                workspace_path=workspace_path,
+                secret_values={"anthropic": "test-secret"},
+            )
+            env = dict(instance.env)
+            del env["PI_FFF_MODE"]
+            instance = replace(instance, env=env)
+
+            artifact = execute_machine_preflight(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                instance=instance,
+                artifact_path=root / "logbook" / "preflight" / "pi-plus-fff.json",
+                command_runner=_passing_command,
+            )
+
+            self.assertEqual(artifact["status"], "passed")
+            fff_mode = _check_by_name(artifact, "fff-mode")
+            self.assertEqual(fff_mode["status"], "failed")
+            self.assertFalse(fff_mode["required"])
+
+
+def _prepared_runtime(root: Path, vessel_index: int):
+    config_path = root / "regatta.toml"
+    workspace_path = root / "workspace"
+    config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+    workspace_path.mkdir()
+    regatta = load_regatta(config_path)
+    instance = HostNixRuntimeBackend().prepare(
+        regatta=regatta,
+        vessel=regatta.vessels[vessel_index],
+        trial_root=root / "trial",
+        workspace_path=workspace_path,
+        secret_values={"anthropic": "test-secret"},
+    )
+    return regatta, instance
+
+
+def _passing_command(
+    argv: tuple[str, ...],
+    env: dict[str, str],
+    cwd: Path,
+) -> CommandResult:
+    return CommandResult(exit_code=0, stdout="ok\n", stderr="")
+
+
+def _check_by_name(artifact: dict[str, object], name: str) -> dict[str, object]:
+    checks = artifact["checks"]
+    assert isinstance(checks, list)
+    for check in checks:
+        if check["name"] == name:
+            return check
+    raise AssertionError(f"missing check {name}")
+
+
+if __name__ == "__main__":
+    unittest.main()

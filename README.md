@@ -72,6 +72,9 @@ launch agents, install rigging, execute preflight checks, or write a logbook.
 The initial `HostNixRuntimeBackend` can prepare those isolated runtime
 directories and explicit env-secret injections for a trial; launching the agent
 inside that prepared runtime is a later slice.
+Machine-only preflight execution can now validate `command`, `env`, and
+`path-isolation` checks against a prepared runtime and write
+`yacht.preflight.v1` evidence artifacts.
 
 ## Schema Contract
 
