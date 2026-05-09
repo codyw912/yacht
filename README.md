@@ -63,7 +63,12 @@ executing SWE-bench:
 
 ```sh
 uv run yacht validate examples/pi-fff-provisioning.toml
+uv run yacht plan examples/pi-fff-provisioning.toml
 ```
+
+`yacht plan` is a dry run. It prints the resolved runtime and preflight plan
+with isolated runtime placeholders and redacted secret references, but does not
+launch agents, install rigging, execute preflight checks, or write a logbook.
 
 ## Schema Contract
 
