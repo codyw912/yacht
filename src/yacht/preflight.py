@@ -20,6 +20,7 @@ from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
 MACHINE_CHECK_KINDS = {"command", "env", "path-isolation"}
+AGENT_CHECK_KINDS = {"agent-prompt"}
 
 
 @dataclass(frozen=True)
@@ -30,12 +31,21 @@ class CommandResult:
 
 
 @dataclass(frozen=True)
-class MachineCheck:
+class AgentPromptResult:
+    exit_code: int
+    response: str
+    tool_calls: tuple[str, ...]
+    transcript_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class EffectiveCheck:
     check: PreflightCheck
     required: bool
 
 
 CommandRunner = Callable[[tuple[str, ...], dict[str, str], Path], CommandResult]
+AgentPromptRunner = Callable[[str, dict[str, str], Path], AgentPromptResult]
 
 
 def execute_machine_preflight(
@@ -47,12 +57,57 @@ def execute_machine_preflight(
     comparison: Comparison | None = None,
     command_runner: CommandRunner | None = None,
 ) -> dict[str, object]:
+    return _execute_preflight(
+        regatta=regatta,
+        vessel=vessel,
+        instance=instance,
+        artifact_path=artifact_path,
+        comparison=comparison,
+        command_runner=command_runner,
+        agent_prompt_runner=None,
+        include_agent_checks=False,
+    )
+
+
+def execute_preflight(
+    *,
+    regatta: Regatta,
+    vessel: Vessel,
+    instance: RuntimeInstance,
+    artifact_path: Path,
+    comparison: Comparison | None = None,
+    command_runner: CommandRunner | None = None,
+    agent_prompt_runner: AgentPromptRunner | None = None,
+) -> dict[str, object]:
+    return _execute_preflight(
+        regatta=regatta,
+        vessel=vessel,
+        instance=instance,
+        artifact_path=artifact_path,
+        comparison=comparison,
+        command_runner=command_runner,
+        agent_prompt_runner=agent_prompt_runner,
+        include_agent_checks=True,
+    )
+
+
+def _execute_preflight(
+    *,
+    regatta: Regatta,
+    vessel: Vessel,
+    instance: RuntimeInstance,
+    artifact_path: Path,
+    comparison: Comparison | None,
+    command_runner: CommandRunner | None,
+    agent_prompt_runner: AgentPromptRunner | None,
+    include_agent_checks: bool,
+) -> dict[str, object]:
     runner = command_runner or _run_command
     runtime = instance.runtime
     riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
-    checks = _machine_checks(runtime, riggings)
+    checks = _preflight_checks(runtime, riggings, include_agent_checks)
     check_results = [
-        _execute_check(check, instance, runner)
+        _execute_check(check, instance, runner, agent_prompt_runner)
         for check in checks
     ]
     artifact = {
@@ -100,54 +155,64 @@ def _run_command(
     )
 
 
-def _machine_checks(
+def _preflight_checks(
     runtime: RuntimeRecipe,
     riggings: tuple[RiggingRecipe, ...],
-) -> list[MachineCheck]:
+    include_agent_checks: bool,
+) -> list[EffectiveCheck]:
+    kinds = set(MACHINE_CHECK_KINDS)
+    if include_agent_checks:
+        kinds.update(AGENT_CHECK_KINDS)
     checks = [
-        MachineCheck(check=check, required=runtime.preflight.required and check.required)
+        EffectiveCheck(
+            check=check,
+            required=runtime.preflight.required and check.required,
+        )
         for check in runtime.preflight.checks
-        if check.kind in MACHINE_CHECK_KINDS
+        if check.kind in kinds
     ]
     for rigging in riggings:
         checks.extend(
-            MachineCheck(
+            EffectiveCheck(
                 check=check,
                 required=rigging.preflight.required and check.required,
             )
             for check in rigging.preflight.checks
-            if check.kind in MACHINE_CHECK_KINDS
+            if check.kind in kinds
         )
     return checks
 
 
 def _execute_check(
-    machine_check: MachineCheck,
+    effective_check: EffectiveCheck,
     instance: RuntimeInstance,
     command_runner: CommandRunner,
+    agent_prompt_runner: AgentPromptRunner | None,
 ) -> dict[str, object]:
-    check = machine_check.check
+    check = effective_check.check
     if check.kind == "command":
-        return _execute_command_check(machine_check, instance, command_runner)
+        return _execute_command_check(effective_check, instance, command_runner)
     if check.kind == "env":
-        return _execute_env_check(machine_check, instance)
+        return _execute_env_check(effective_check, instance)
     if check.kind == "path-isolation":
-        return _execute_path_isolation_check(machine_check, instance)
-    raise ValueError(f"unsupported machine preflight check kind {check.kind}")
+        return _execute_path_isolation_check(effective_check, instance)
+    if check.kind == "agent-prompt":
+        return _execute_agent_prompt_check(effective_check, instance, agent_prompt_runner)
+    raise ValueError(f"unsupported preflight check kind {check.kind}")
 
 
 def _execute_command_check(
-    machine_check: MachineCheck,
+    effective_check: EffectiveCheck,
     instance: RuntimeInstance,
     command_runner: CommandRunner,
 ) -> dict[str, object]:
-    check = machine_check.check
+    check = effective_check.check
     argv = instance.command_prefix + check.command
     result = command_runner(argv, instance.env, instance.workspace_path)
     return {
         "name": check.name,
         "kind": check.kind,
-        "required": machine_check.required,
+        "required": effective_check.required,
         "status": "passed" if result.exit_code == 0 else "failed",
         "evidence": {
             "argv": list(argv),
@@ -159,10 +224,10 @@ def _execute_command_check(
 
 
 def _execute_env_check(
-    machine_check: MachineCheck,
+    effective_check: EffectiveCheck,
     instance: RuntimeInstance,
 ) -> dict[str, object]:
-    check = machine_check.check
+    check = effective_check.check
     missing = [name for name in check.env if name not in instance.env]
     present = {
         name: instance.env[name]
@@ -175,17 +240,17 @@ def _execute_env_check(
     return {
         "name": check.name,
         "kind": check.kind,
-        "required": machine_check.required,
+        "required": effective_check.required,
         "status": "failed" if missing else "passed",
         "evidence": evidence,
     }
 
 
 def _execute_path_isolation_check(
-    machine_check: MachineCheck,
+    effective_check: EffectiveCheck,
     instance: RuntimeInstance,
 ) -> dict[str, object]:
-    check = machine_check.check
+    check = effective_check.check
     missing = [name for name in check.env if name not in instance.env]
     resolved_paths = {
         name: instance.env[name]
@@ -206,7 +271,54 @@ def _execute_path_isolation_check(
     return {
         "name": check.name,
         "kind": check.kind,
-        "required": machine_check.required,
+        "required": effective_check.required,
+        "status": status,
+        "evidence": evidence,
+    }
+
+
+def _execute_agent_prompt_check(
+    effective_check: EffectiveCheck,
+    instance: RuntimeInstance,
+    agent_prompt_runner: AgentPromptRunner | None,
+) -> dict[str, object]:
+    check = effective_check.check
+    if agent_prompt_runner is None:
+        return {
+            "name": check.name,
+            "kind": check.kind,
+            "required": effective_check.required,
+            "status": "error",
+            "evidence": {
+                "prompt": check.prompt or "",
+                "tool_calls": [],
+                "error": "agent prompt runner not configured",
+            },
+        }
+
+    result = agent_prompt_runner(
+        check.prompt or "",
+        instance.env,
+        instance.workspace_path,
+    )
+    missing_tool_calls = [
+        name for name in check.expect_tool_calls if name not in result.tool_calls
+    ]
+    evidence: dict[str, object] = {
+        "prompt": check.prompt or "",
+        "exit_code": result.exit_code,
+        "response": result.response,
+        "tool_calls": list(result.tool_calls),
+    }
+    if result.transcript_path is not None:
+        evidence["transcript_path"] = str(result.transcript_path)
+    if missing_tool_calls:
+        evidence["missing_tool_calls"] = missing_tool_calls
+    status = "passed" if result.exit_code == 0 and not missing_tool_calls else "failed"
+    return {
+        "name": check.name,
+        "kind": check.kind,
+        "required": effective_check.required,
         "status": status,
         "evidence": evidence,
     }

@@ -78,6 +78,9 @@ Machine-only preflight execution can now validate `command`, `env`, and
 `yacht.preflight.v1` evidence artifacts. This still does not run benchmark
 tasks; it only proves the configured runtime and machine-checkable rigging are
 ready enough to spend task-run tokens.
+Agent-surface `agent-prompt` checks can also be executed through an injected
+runner that returns response, transcript, and tool-call evidence; wiring that to
+the Pi adapter is a later slice.
 
 ## Schema Contract
 
