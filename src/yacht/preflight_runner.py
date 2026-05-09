@@ -1,11 +1,24 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from yacht.preflight import execute_machine_preflight
-from yacht.regatta import Comparison, ConfigError, Regatta, Vessel, load_regatta
+from yacht.preflight import (
+    AgentPromptRunner,
+    execute_machine_preflight,
+    execute_preflight,
+)
+from yacht.regatta import (
+    Comparison,
+    ConfigError,
+    Regatta,
+    RuntimeInstance,
+    Vessel,
+    load_regatta,
+)
 from yacht.runtime_backend import HostNixRuntimeBackend, RuntimePreparationError
+
+AgentPromptRunnerFactory = Callable[[RuntimeInstance, Path], AgentPromptRunner]
 
 
 def run_preflight(
@@ -13,6 +26,7 @@ def run_preflight(
     logbook_dir: Path,
     workspace_path: Path,
     secret_values: dict[str, str],
+    agent_prompt_runner_factory: AgentPromptRunnerFactory | None = None,
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
     if not regatta.comparisons:
@@ -25,6 +39,7 @@ def run_preflight(
             logbook_dir=logbook_dir,
             workspace_path=workspace_path,
             secret_values=secret_values,
+            agent_prompt_runner_factory=agent_prompt_runner_factory,
         )
         for comparison in regatta.comparisons
     ]
@@ -59,6 +74,7 @@ def _run_comparison_preflight(
     logbook_dir: Path,
     workspace_path: Path,
     secret_values: dict[str, str],
+    agent_prompt_runner_factory: AgentPromptRunnerFactory | None,
 ) -> dict[str, Any]:
     vessel_results = [
         _run_vessel_preflight(
@@ -68,6 +84,7 @@ def _run_comparison_preflight(
             logbook_dir=logbook_dir,
             workspace_path=workspace_path,
             secret_values=secret_values,
+            agent_prompt_runner_factory=agent_prompt_runner_factory,
         )
         for vessel_name in comparison.vessels
     ]
@@ -87,6 +104,7 @@ def _run_vessel_preflight(
     logbook_dir: Path,
     workspace_path: Path,
     secret_values: dict[str, str],
+    agent_prompt_runner_factory: AgentPromptRunnerFactory | None,
 ) -> dict[str, str]:
     try:
         instance = HostNixRuntimeBackend().prepare(
@@ -96,15 +114,29 @@ def _run_vessel_preflight(
             workspace_path=workspace_path,
             secret_values=secret_values,
         )
-        artifact = execute_machine_preflight(
-            regatta=regatta,
-            vessel=vessel,
-            instance=instance,
-            artifact_path=(
-                logbook_dir / "preflight" / comparison.name / f"{vessel.name}.json"
-            ),
-            comparison=comparison,
+        artifact_path = (
+            logbook_dir / "preflight" / comparison.name / f"{vessel.name}.json"
         )
+        if agent_prompt_runner_factory is None:
+            artifact = execute_machine_preflight(
+                regatta=regatta,
+                vessel=vessel,
+                instance=instance,
+                artifact_path=artifact_path,
+                comparison=comparison,
+            )
+        else:
+            artifact = execute_preflight(
+                regatta=regatta,
+                vessel=vessel,
+                instance=instance,
+                artifact_path=artifact_path,
+                comparison=comparison,
+                agent_prompt_runner=agent_prompt_runner_factory(
+                    instance,
+                    logbook_dir / "transcripts" / comparison.name / vessel.name,
+                ),
+            )
         status = str(artifact["status"])
     except RuntimePreparationError as error:
         raise ConfigError(str(error)) from error

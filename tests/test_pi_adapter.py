@@ -1,9 +1,15 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
-from yacht.pi_adapter import PiAdapter, PiAdapterNotConfigured, PiPromptRequest
+from yacht.pi_adapter import (
+    PiAdapter,
+    PiAdapterNotConfigured,
+    PiPromptRequest,
+    SubprocessPiPromptLauncher,
+)
 from yacht.preflight import AgentPromptResult, CommandResult, execute_preflight
 from yacht.regatta import load_regatta
 from yacht.runtime_backend import HostNixRuntimeBackend
@@ -102,6 +108,45 @@ class PiAdapterTests(unittest.TestCase):
                 agent_check["evidence"]["transcript_path"],
                 str(root / "transcripts" / "pi-headless-prompt.json"),
             )
+
+    def test_subprocess_launcher_captures_prompt_result_and_transcript(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            requests = []
+
+            def runner(request: PiPromptRequest) -> CommandResult:
+                requests.append(request)
+                return CommandResult(
+                    exit_code=0,
+                    stdout='{"available": true, "tool_calls": ["fff"]}\n',
+                    stderr="",
+                )
+
+            request = PiPromptRequest(
+                prompt="Confirm fff availability.",
+                argv=("pi",),
+                env={"HOME": str(root / "home")},
+                cwd=root,
+                transcript_path=root / "transcripts" / "pi.json",
+            )
+
+            result = SubprocessPiPromptLauncher(runner=runner)(request)
+
+            self.assertEqual(requests, [request])
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.response, '{"available": true, "tool_calls": ["fff"]}\n')
+            self.assertEqual(result.tool_calls, ("fff",))
+            self.assertEqual(result.transcript_path, request.transcript_path)
+
+            transcript = json.loads(
+                request.transcript_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(transcript["prompt"], "Confirm fff availability.")
+            self.assertEqual(transcript["argv"], ["pi"])
+            self.assertEqual(transcript["cwd"], str(root))
+            self.assertEqual(transcript["exit_code"], 0)
+            self.assertEqual(transcript["stdout"], result.response)
+            self.assertEqual(transcript["tool_calls"], ["fff"])
 
 
 def _prepared_runtime(root: Path):
