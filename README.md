@@ -54,6 +54,17 @@ The command writes:
 
 The bundled sample compares a baseline mock vessel against the same mock vessel with `memory` rigging. The deterministic mock runner models that rigging as lower token usage with slightly longer runtime, giving the scorecard something concrete to compare before real agent integrations exist.
 
+YACHT also accepts a config-only provisioning scaffold for future real agent
+runs. `examples/pi-fff-provisioning.toml` describes a baseline Pi vessel and a
+Pi+fff vessel using an explicit `host-nix` runtime recipe, a named fff rigging
+recipe, preflight smoke checks, a comparison group, and explicit secret
+references. Validation checks the model without running Pi, installing fff, or
+executing SWE-bench:
+
+```sh
+uv run yacht validate examples/pi-fff-provisioning.toml
+```
+
 ## Schema Contract
 
 YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
@@ -61,8 +72,21 @@ YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
 - `yacht.regatta.v1.schema.json` for regatta configuration
 - `yacht.wake.v1.schema.json` for per-task trace artifacts
 - `yacht.scorecard.v1.schema.json` for aggregate results
+- `yacht.preflight.v1.schema.json` for runtime and rigging trust evidence
 
 Generated wake and scorecard JSON documents include a `schema` field such as `yacht.wake.v1` or `yacht.scorecard.v1`. The Python runner validates the current config and generated artifacts, but the persisted contract is intentionally language-neutral so future vessels, runners, and analysis tools do not need to be Python programs.
+
+Regatta configs may optionally include provisioning sections:
+
+- `secrets` names explicit env/file secret references without storing values.
+- `runtimes` defines agent runtime recipes such as `host-nix` plus a flake and command.
+- `riggings` defines named setup and environment changes that vessels can reference.
+- `preflight` defines the regatta-level failure policy for required checks.
+- `comparisons` defines which vessels must be interpreted together.
+
+The default preflight failure policy is `abort-group`: if any required preflight
+check fails for a vessel in a comparison, YACHT should skip task execution for
+that comparison group rather than spend tokens on an invalid paired result.
 
 ## Evaluation Goals
 

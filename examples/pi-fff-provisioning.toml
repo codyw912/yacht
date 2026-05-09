@@ -1,0 +1,61 @@
+[regatta]
+name = "pi-fff-comparison"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "swe-bench-lite"
+tasks = [
+  { id = "django__django-11099", title = "Fix a regression", difficulty = 3 },
+]
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.pi]
+backend = "host-nix"
+flake = "github:example/yacht-runtimes#pi"
+command = ["pi"]
+required_secrets = ["anthropic"]
+
+[runtimes.pi.preflight]
+required = true
+checks = [
+  { name = "pi-present", kind = "command", command = ["pi", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[riggings.pi-fff]
+install = ["npm:@ff-labs/pi-fff"]
+instructions = "Use fff for codebase memory and navigation."
+
+[riggings.pi-fff.env]
+PI_FFF_MODE = "required"
+FFF_FRECENCY_DB = "{trial_state}/fff-frecency.sqlite"
+FFF_HISTORY_DB = "{trial_state}/fff-history.sqlite"
+
+[riggings.pi-fff.preflight]
+required = true
+checks = [
+  { name = "fff-mode", kind = "env", env = ["PI_FFF_MODE"] },
+  { name = "fff-state-isolated", kind = "path-isolation", env = ["FFF_FRECENCY_DB", "FFF_HISTORY_DB"] },
+  { name = "fff-headless-smoke", kind = "agent-prompt", prompt = "preflights/pi-fff.md", expect_tool_calls = ["fff"] },
+]
+
+[[vessels]]
+name = "pi-baseline"
+model = "claude-sonnet"
+runtime = "pi"
+
+[[vessels]]
+name = "pi-plus-fff"
+model = "claude-sonnet"
+runtime = "pi"
+rigging = ["pi-fff"]
+
+[[comparisons]]
+name = "pi-vs-pi-fff"
+course = "swe-bench-lite"
+vessels = ["pi-baseline", "pi-plus-fff"]

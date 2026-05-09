@@ -5,9 +5,11 @@ from pathlib import Path
 
 from yacht.regatta import ConfigError, run_regatta
 from yacht.schemas import (
+    PREFLIGHT_SCHEMA,
     REGATTA_SCHEMA,
     SCORECARD_SCHEMA,
     WAKE_SCHEMA,
+    validate_preflight_document,
     validate_scorecard_document,
     validate_wake_document,
 )
@@ -47,7 +49,12 @@ class SchemaTests(unittest.TestCase):
     def test_contract_schemas_are_json_schema_documents(self) -> None:
         schema_dir = Path("schemas")
 
-        for schema_name in (REGATTA_SCHEMA, WAKE_SCHEMA, SCORECARD_SCHEMA):
+        for schema_name in (
+            REGATTA_SCHEMA,
+            WAKE_SCHEMA,
+            SCORECARD_SCHEMA,
+            PREFLIGHT_SCHEMA,
+        ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
 
@@ -61,6 +68,27 @@ class SchemaTests(unittest.TestCase):
             )
             self.assertEqual(schema["type"], "object")
             self.assertFalse(schema["additionalProperties"])
+
+    def test_preflight_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": PREFLIGHT_SCHEMA,
+            "regatta": "schema-smoke-test",
+            "vessel": "baseline",
+            "status": "passed",
+            "failure_policy": "abort-group",
+            "secret_refs": [],
+            "checks": [
+                {
+                    "name": "runtime-present",
+                    "kind": "command",
+                    "required": True,
+                    "status": "passed",
+                    "evidence": {"command": ["mock", "--version"]},
+                }
+            ],
+        }
+
+        validate_preflight_document(document)
 
     def test_wake_and_scorecard_documents_include_schema_versions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

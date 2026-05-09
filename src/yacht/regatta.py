@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -34,10 +34,85 @@ class Course:
 
 
 @dataclass(frozen=True)
+class SecretReference:
+    source: str
+    name: str | None = None
+    path: str | None = None
+
+
+@dataclass(frozen=True)
+class PreflightCheck:
+    name: str
+    kind: str
+    required: bool = True
+    command: tuple[str, ...] = ()
+    env: tuple[str, ...] = ()
+    prompt: str | None = None
+    expect_tool_calls: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class PreflightRecipe:
+    required: bool = True
+    checks: tuple[PreflightCheck, ...] = ()
+
+
+@dataclass(frozen=True)
+class PreflightConfig:
+    failure_policy: str = "abort-group"
+
+
+@dataclass(frozen=True)
+class Comparison:
+    name: str
+    course: str
+    vessels: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RuntimeRecipe:
+    name: str
+    backend: str
+    flake: str
+    command: tuple[str, ...]
+    env: dict[str, str] = field(default_factory=dict)
+    required_secrets: tuple[str, ...] = ()
+    mounts: tuple[str, ...] = ()
+    preflight: PreflightRecipe = field(default_factory=PreflightRecipe)
+
+
+@dataclass(frozen=True)
+class RiggingRecipe:
+    name: str
+    install: tuple[str, ...] = ()
+    env: dict[str, str] = field(default_factory=dict)
+    required_secrets: tuple[str, ...] = ()
+    instructions: str = ""
+    preflight: PreflightRecipe = field(default_factory=PreflightRecipe)
+
+
+@dataclass(frozen=True)
+class RuntimeInstance:
+    runtime: RuntimeRecipe
+    temp_home: Path
+    workspace_path: Path
+    env: dict[str, str]
+    command_prefix: tuple[str, ...]
+    cleanup_paths: tuple[Path, ...]
+
+
+@dataclass(frozen=True)
+class CourseAdapter:
+    name: str
+    kind: str
+
+
+@dataclass(frozen=True)
 class Vessel:
     name: str
     model: str
     rigging: tuple[str, ...]
+    runtime: str | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +120,11 @@ class Regatta:
     name: str
     course: Course
     vessels: tuple[Vessel, ...]
+    preflight: PreflightConfig = field(default_factory=PreflightConfig)
+    comparisons: tuple[Comparison, ...] = ()
+    secrets: dict[str, SecretReference] = field(default_factory=dict)
+    runtime_recipes: dict[str, RuntimeRecipe] = field(default_factory=dict)
+    rigging_recipes: dict[str, RiggingRecipe] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -210,10 +290,108 @@ def load_regatta(config_path: Path) -> Regatta:
             name=str(vessel["name"]),
             model=str(vessel["model"]),
             rigging=tuple(str(item) for item in vessel.get("rigging", ())),
+            runtime=str(vessel["runtime"]) if "runtime" in vessel else None,
         )
         for vessel in raw["vessels"]
     )
-    return Regatta(name=str(raw["regatta"]["name"]), course=course, vessels=vessels)
+    return Regatta(
+        name=str(raw["regatta"]["name"]),
+        course=course,
+        vessels=vessels,
+        preflight=_parse_preflight_config(raw),
+        comparisons=_parse_comparisons(raw, course.name),
+        secrets=_parse_secrets(raw),
+        runtime_recipes=_parse_runtime_recipes(raw),
+        rigging_recipes=_parse_rigging_recipes(raw),
+    )
+
+
+def _parse_preflight_config(raw: dict[str, Any]) -> PreflightConfig:
+    preflight = raw.get("preflight", {})
+    return PreflightConfig(
+        failure_policy=str(preflight.get("failure_policy", "abort-group")),
+    )
+
+
+def _parse_comparisons(raw: dict[str, Any], course_name: str) -> tuple[Comparison, ...]:
+    return tuple(
+        Comparison(
+            name=str(comparison["name"]),
+            course=str(comparison.get("course", course_name)),
+            vessels=tuple(str(item) for item in comparison["vessels"]),
+        )
+        for comparison in raw.get("comparisons", ())
+    )
+
+
+def _parse_secrets(raw: dict[str, Any]) -> dict[str, SecretReference]:
+    return {
+        str(name): SecretReference(
+            source=str(secret["source"]),
+            name=str(secret["name"]) if "name" in secret else None,
+            path=str(secret["path"]) if "path" in secret else None,
+        )
+        for name, secret in raw.get("secrets", {}).items()
+    }
+
+
+def _parse_runtime_recipes(raw: dict[str, Any]) -> dict[str, RuntimeRecipe]:
+    return {
+        str(name): RuntimeRecipe(
+            name=str(name),
+            backend=str(runtime["backend"]),
+            flake=str(runtime["flake"]),
+            command=tuple(str(item) for item in runtime["command"]),
+            env={
+                str(key): str(value)
+                for key, value in runtime.get("env", {}).items()
+            },
+            required_secrets=tuple(
+                str(item) for item in runtime.get("required_secrets", ())
+            ),
+            mounts=tuple(str(item) for item in runtime.get("mounts", ())),
+            preflight=_parse_preflight_recipe(runtime.get("preflight", {})),
+        )
+        for name, runtime in raw.get("runtimes", {}).items()
+    }
+
+
+def _parse_rigging_recipes(raw: dict[str, Any]) -> dict[str, RiggingRecipe]:
+    return {
+        str(name): RiggingRecipe(
+            name=str(name),
+            install=tuple(str(item) for item in rigging.get("install", ())),
+            env={
+                str(key): str(value)
+                for key, value in rigging.get("env", {}).items()
+            },
+            required_secrets=tuple(
+                str(item) for item in rigging.get("required_secrets", ())
+            ),
+            instructions=str(rigging.get("instructions", "")),
+            preflight=_parse_preflight_recipe(rigging.get("preflight", {})),
+        )
+        for name, rigging in raw.get("riggings", {}).items()
+    }
+
+
+def _parse_preflight_recipe(raw: dict[str, Any]) -> PreflightRecipe:
+    return PreflightRecipe(
+        required=bool(raw.get("required", True)),
+        checks=tuple(_parse_preflight_check(check) for check in raw.get("checks", ())),
+    )
+
+
+def _parse_preflight_check(raw: dict[str, Any]) -> PreflightCheck:
+    return PreflightCheck(
+        name=str(raw["name"]),
+        kind=str(raw["kind"]),
+        required=bool(raw.get("required", True)),
+        command=tuple(str(item) for item in raw.get("command", ())),
+        env=tuple(str(item) for item in raw.get("env", ())),
+        prompt=str(raw["prompt"]) if "prompt" in raw else None,
+        expect_tool_calls=tuple(str(item) for item in raw.get("expect_tool_calls", ())),
+    )
 
 
 def _summarize_vessel(vessel: Vessel, wakes: list[Wake]) -> VesselScore:
