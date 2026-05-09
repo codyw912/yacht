@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.preflight.v1.schema.json",
+  "title": "YACHT Preflight",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "regatta",
+    "vessel",
+    "status",
+    "failure_policy",
+    "secret_refs",
+    "checks"
+  ],
+  "properties": {
+    "schema": {
+      "const": "yacht.preflight.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "comparison": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vessel": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runtime": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["passed", "failed", "error", "skipped"]
+    },
+    "failure_policy": {
+      "type": "string",
+      "enum": ["abort-group", "skip-vessel", "abort-regatta", "warn"]
+    },
+    "secret_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "source", "ref", "redacted"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "enum": ["env", "file"]
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "redacted": {
+            "const": true
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "required", "status", "evidence"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "agent-prompt",
+              "artifact",
+              "command",
+              "env",
+              "mcp-server",
+              "path-isolation",
+              "tool-call"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["passed", "failed", "error", "skipped"]
+          },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "prompt": {
+                "type": "string"
+              },
+              "tool_calls": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

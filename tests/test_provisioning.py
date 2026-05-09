@@ -1,0 +1,234 @@
+import tempfile
+import unittest
+from pathlib import Path
+
+from yacht.regatta import ConfigError, load_regatta
+from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
+
+
+PI_WITH_FFF_CONFIG = """
+[regatta]
+name = "pi-fff-comparison"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "swe-bench-lite"
+tasks = [
+  { id = "django__django-11099", title = "Fix a regression", difficulty = 3 },
+]
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.pi]
+backend = "host-nix"
+flake = "github:example/yacht-runtimes#pi"
+command = ["pi"]
+required_secrets = ["anthropic"]
+
+[runtimes.pi.preflight]
+required = true
+checks = [
+  { name = "pi-present", kind = "command", command = ["pi", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[riggings.pi-fff]
+install = ["npm:@ff-labs/pi-fff"]
+instructions = "Use fff for codebase memory and navigation."
+
+[riggings.pi-fff.env]
+PI_FFF_MODE = "required"
+FFF_FRECENCY_DB = "{trial_state}/fff-frecency.sqlite"
+FFF_HISTORY_DB = "{trial_state}/fff-history.sqlite"
+
+[riggings.pi-fff.preflight]
+required = true
+checks = [
+  { name = "fff-mode", kind = "env", env = ["PI_FFF_MODE"] },
+  { name = "fff-state-isolated", kind = "path-isolation", env = ["FFF_FRECENCY_DB", "FFF_HISTORY_DB"] },
+  { name = "fff-headless-smoke", kind = "agent-prompt", prompt = "preflights/pi-fff.md", expect_tool_calls = ["fff"] },
+]
+
+[[vessels]]
+name = "pi-baseline"
+model = "claude-sonnet"
+runtime = "pi"
+
+[[vessels]]
+name = "pi-plus-fff"
+model = "claude-sonnet"
+runtime = "pi"
+rigging = ["pi-fff"]
+
+[[comparisons]]
+name = "pi-vs-pi-fff"
+course = "swe-bench-lite"
+vessels = ["pi-baseline", "pi-plus-fff"]
+"""
+
+
+class ProvisioningConfigTests(unittest.TestCase):
+    def test_loads_baseline_and_rigged_vessels_on_the_same_course(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+
+            self.assertEqual(regatta.course.name, "swe-bench-lite")
+            self.assertEqual(
+                [vessel.name for vessel in regatta.vessels],
+                ["pi-baseline", "pi-plus-fff"],
+            )
+            self.assertEqual(
+                [vessel.runtime for vessel in regatta.vessels],
+                ["pi", "pi"],
+            )
+            self.assertEqual(regatta.vessels[0].rigging, ())
+            self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))
+            self.assertEqual(regatta.runtime_recipes["pi"].backend, "host-nix")
+            self.assertEqual(regatta.runtime_recipes["pi"].command, ("pi",))
+            self.assertEqual(
+                regatta.rigging_recipes["pi-fff"].env["PI_FFF_MODE"],
+                "required",
+            )
+            self.assertEqual(regatta.secrets["anthropic"].name, "ANTHROPIC_API_KEY")
+            self.assertEqual(regatta.preflight.failure_policy, "abort-group")
+            self.assertEqual(
+                [comparison.name for comparison in regatta.comparisons],
+                ["pi-vs-pi-fff"],
+            )
+            self.assertEqual(
+                regatta.comparisons[0].vessels,
+                ("pi-baseline", "pi-plus-fff"),
+            )
+            self.assertEqual(
+                regatta.runtime_recipes["pi"].preflight.checks[0].kind,
+                "command",
+            )
+            self.assertEqual(
+                regatta.rigging_recipes["pi-fff"].preflight.checks[2].prompt,
+                "preflights/pi-fff.md",
+            )
+
+    def test_runtime_recipe_requires_backend_flake_and_command(self) -> None:
+        cases = {
+            "backend": ('backend = "host-nix"\n', ""),
+            "flake": ('flake = "github:example/yacht-runtimes#pi"\n', ""),
+            "command": ('command = ["pi"]\n', ""),
+        }
+
+        for field, (old, new) in cases.items():
+            with self.subTest(field=field):
+                config = PI_WITH_FFF_CONFIG.replace(old, new)
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    config_path = Path(temp_dir) / "regatta.toml"
+                    config_path.write_text(config, encoding="utf-8")
+
+                    with self.assertRaisesRegex(
+                        ConfigError,
+                        f"runtimes.pi.{field} is required",
+                    ):
+                        load_regatta(config_path)
+
+    def test_secret_references_must_be_explicitly_provided(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            '[secrets.anthropic]\nsource = "env"\nname = "ANTHROPIC_API_KEY"\n\n',
+            "",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "runtimes.pi.required_secrets references undefined secret anthropic",
+            ):
+                load_regatta(config_path)
+
+    def test_comparison_vessels_must_reference_configured_vessels(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            'vessels = ["pi-baseline", "pi-plus-fff"]',
+            'vessels = ["pi-baseline", "missing-vessel"]',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "comparisons\\[0\\].vessels references undefined vessel missing-vessel",
+            ):
+                load_regatta(config_path)
+
+    def test_preflight_checks_validate_required_fields_for_their_kind(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            '{ name = "pi-present", kind = "command", command = ["pi", "--version"] }',
+            '{ name = "pi-present", kind = "command" }',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "runtimes.pi.preflight.checks\\[0\\].command must contain",
+            ):
+                load_regatta(config_path)
+
+    def test_preflight_artifact_records_redacted_machine_and_agent_evidence(self) -> None:
+        artifact = {
+            "schema": PREFLIGHT_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "comparison": "pi-vs-pi-fff",
+            "vessel": "pi-plus-fff",
+            "runtime": "pi",
+            "status": "passed",
+            "failure_policy": "abort-group",
+            "secret_refs": [
+                {
+                    "name": "anthropic",
+                    "source": "env",
+                    "ref": "ANTHROPIC_API_KEY",
+                    "redacted": True,
+                },
+            ],
+            "checks": [
+                {
+                    "name": "fff-headless-smoke",
+                    "kind": "agent-prompt",
+                    "required": True,
+                    "status": "passed",
+                    "evidence": {
+                        "prompt": "preflights/pi-fff.md",
+                        "tool_calls": ["fff"],
+                    },
+                },
+            ],
+        }
+
+        validate_preflight_document(artifact)
+
+        with self.assertRaisesRegex(ConfigError, "secret_refs\\[0\\].redacted"):
+            invalid = artifact | {
+                "secret_refs": [
+                    {
+                        "name": "anthropic",
+                        "source": "env",
+                        "ref": "actual-secret-value",
+                        "redacted": False,
+                    },
+                ],
+            }
+            try:
+                validate_preflight_document(invalid)
+            except ValueError as error:
+                raise ConfigError(str(error)) from error
+
+
+if __name__ == "__main__":
+    unittest.main()

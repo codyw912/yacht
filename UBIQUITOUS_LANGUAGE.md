@@ -10,6 +10,8 @@
 | **Rigging** | The configurable enhancements attached to a vessel, such as tools, skills, prompts, memory systems, MCP servers, and policies. | Add-ons, enhancements, plugins, gear |
 | **Sea Trial** | A single controlled experiment run of a vessel on a course. | Run, experiment, trial |
 | **Regatta** | A comparison run that evaluates multiple vessels or rigging variants against the same course. | Comparison, batch run, tournament |
+| **Comparison** | A named group of vessels whose outcomes must be interpreted together, usually a baseline plus one or more variants. | Pairing, cohort, treatment group |
+| **Preflight** | Required checks that prove a runtime or rigging is available, configured, and isolated before task execution. | Smoke test, readiness check |
 | **Wake** | The traces, telemetry, logs, artifacts, and evidence produced by a sea trial or regatta. | Trace, telemetry, logs |
 | **Logbook** | The persisted store of reports, historical runs, scorecards, and supporting evidence. | Reports, history, archive |
 | **Scorecard** | The final results view that compares outcomes across vessels, courses, and rigging variants. | Dashboard, leaderboard, report |
@@ -26,6 +28,9 @@
 ## Relationships
 
 - A **Regatta** contains two or more **Sea Trials**.
+- A **Regatta** may define one or more **Comparisons**.
+- A **Comparison** contains two or more **Vessels**.
+- A **Comparison** should not produce valid task observations unless required **Preflight** checks pass for every included vessel.
 - A **Sea Trial** runs exactly one **Vessel** against exactly one **Course**.
 - A **Vessel** may have zero or more **Rigging** items.
 - A **Course** may be reused across many **Regattas**.
