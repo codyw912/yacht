@@ -69,6 +69,9 @@ uv run yacht plan examples/pi-fff-provisioning.toml
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
 with isolated runtime placeholders and redacted secret references, but does not
 launch agents, install rigging, execute preflight checks, or write a logbook.
+The initial `HostNixRuntimeBackend` can prepare those isolated runtime
+directories and explicit env-secret injections for a trial; launching the agent
+inside that prepared runtime is a later slice.
 
 ## Schema Contract
 
