@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from yacht.regatta import ConfigError, load_regatta, run_regatta
+from yacht.runtime_plan import build_runtime_plan
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,6 +42,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format for validation results.",
     )
 
+    plan_parser = subcommands.add_parser(
+        "plan",
+        help="Print a redacted runtime/preflight plan without launching agents.",
+    )
+    plan_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+
     return parser
 
 
@@ -70,6 +81,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print_json({"valid": True, "regatta": regatta.name})
             return 0
         print(f"valid regatta config: {regatta.name}")
+        return 0
+
+    if args.command == "plan":
+        try:
+            plan = build_runtime_plan(args.config)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(plan, indent=2))
         return 0
 
     parser.error(f"unknown command: {args.command}")
