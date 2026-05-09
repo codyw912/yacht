@@ -64,6 +64,7 @@ executing SWE-bench:
 ```sh
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
+uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 ```
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
@@ -74,7 +75,9 @@ directories and explicit env-secret injections for a trial; launching the agent
 inside that prepared runtime is a later slice.
 Machine-only preflight execution can now validate `command`, `env`, and
 `path-isolation` checks against a prepared runtime and write
-`yacht.preflight.v1` evidence artifacts.
+`yacht.preflight.v1` evidence artifacts. This still does not run benchmark
+tasks; it only proves the configured runtime and machine-checkable rigging are
+ready enough to spend task-run tokens.
 
 ## Schema Contract
 
