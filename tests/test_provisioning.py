@@ -180,6 +180,19 @@ class ProvisioningConfigTests(unittest.TestCase):
             ):
                 load_regatta(config_path)
 
+    def test_example_agent_prompt_paths_exist(self) -> None:
+        regatta = load_regatta(Path("examples/pi-fff-provisioning.toml"))
+        prompt_paths = [
+            check.prompt
+            for rigging in regatta.rigging_recipes.values()
+            for check in rigging.preflight.checks
+            if check.kind == "agent-prompt" and check.prompt is not None
+        ]
+
+        self.assertEqual(prompt_paths, ["preflights/pi-fff.md"])
+        for prompt_path in prompt_paths:
+            self.assertTrue(Path(prompt_path).is_file(), prompt_path)
+
     def test_preflight_artifact_records_redacted_machine_and_agent_evidence(self) -> None:
         artifact = {
             "schema": PREFLIGHT_SCHEMA,

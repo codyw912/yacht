@@ -43,7 +43,7 @@ class PiAdapterTests(unittest.TestCase):
                 requests.append(request)
                 return AgentPromptResult(
                     exit_code=0,
-                    response='{"available": true}',
+                    response='{"available": true, "configured": true}',
                     tool_calls=("fff",),
                     transcript_path=request.transcript_path,
                 )
@@ -83,7 +83,7 @@ class PiAdapterTests(unittest.TestCase):
             def launcher(request: PiPromptRequest) -> AgentPromptResult:
                 return AgentPromptResult(
                     exit_code=0,
-                    response='{"available": true}',
+                    response='{"available": true, "configured": true}',
                     tool_calls=("fff",),
                     transcript_path=request.transcript_path,
                 )
@@ -118,7 +118,10 @@ class PiAdapterTests(unittest.TestCase):
                 requests.append(request)
                 return CommandResult(
                     exit_code=0,
-                    stdout='{"available": true, "tool_calls": ["fff"]}\n',
+                    stdout=(
+                        '{"available": true, "configured": true, '
+                        '"tool_calls": ["fff"]}\n'
+                    ),
                     stderr="",
                 )
 
@@ -134,7 +137,10 @@ class PiAdapterTests(unittest.TestCase):
 
             self.assertEqual(requests, [request])
             self.assertEqual(result.exit_code, 0)
-            self.assertEqual(result.response, '{"available": true, "tool_calls": ["fff"]}\n')
+            self.assertEqual(
+                result.response,
+                '{"available": true, "configured": true, "tool_calls": ["fff"]}\n',
+            )
             self.assertEqual(result.tool_calls, ("fff",))
             self.assertEqual(result.transcript_path, request.transcript_path)
 

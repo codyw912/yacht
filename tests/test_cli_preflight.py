@@ -165,7 +165,7 @@ class CliPreflightTests(unittest.TestCase):
                     calls.append((prompt, env, cwd, transcript_dir))
                     return AgentPromptResult(
                         exit_code=0,
-                        response='{"available": true}',
+                        response='{"available": true, "configured": true}',
                         tool_calls=("fff",),
                         transcript_path=transcript_dir / "pi-headless-prompt.json",
                     )

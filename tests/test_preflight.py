@@ -173,7 +173,7 @@ class MachinePreflightTests(unittest.TestCase):
                 calls.append((prompt, env, cwd))
                 return AgentPromptResult(
                     exit_code=0,
-                    response='{"available": true}',
+                    response='{"available": true, "configured": true}',
                     tool_calls=("fff",),
                     transcript_path=root / "transcripts" / "fff.json",
                 )
@@ -196,7 +196,11 @@ class MachinePreflightTests(unittest.TestCase):
                 {
                     "prompt": "preflights/pi-fff.md",
                     "exit_code": 0,
-                    "response": '{"available": true}',
+                    "response": '{"available": true, "configured": true}',
+                    "response_json": {
+                        "available": True,
+                        "configured": True,
+                    },
                     "tool_calls": ["fff"],
                     "transcript_path": str(root / "transcripts" / "fff.json"),
                 },
@@ -217,7 +221,9 @@ class MachinePreflightTests(unittest.TestCase):
             ) -> AgentPromptResult:
                 return AgentPromptResult(
                     exit_code=0,
-                    response='{"available": false}',
+                    response=(
+                        '{"available": true, "configured": true, "tool_calls": []}'
+                    ),
                     tool_calls=(),
                     transcript_path=None,
                 )
@@ -235,6 +241,42 @@ class MachinePreflightTests(unittest.TestCase):
             agent_check = _check_by_name(artifact, "fff-headless-smoke")
             self.assertEqual(agent_check["status"], "failed")
             self.assertEqual(agent_check["evidence"]["missing_tool_calls"], ["fff"])
+
+    def test_execute_preflight_fails_agent_prompt_without_configured_contract(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            regatta, instance = _prepared_runtime(root, vessel_index=1)
+
+            def agent_runner(
+                prompt: str,
+                env: dict[str, str],
+                cwd: Path,
+            ) -> AgentPromptResult:
+                return AgentPromptResult(
+                    exit_code=0,
+                    response='{"available": true}',
+                    tool_calls=("fff",),
+                    transcript_path=None,
+                )
+
+            artifact = execute_preflight(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                instance=instance,
+                artifact_path=root / "logbook" / "preflight" / "pi-plus-fff.json",
+                command_runner=_passing_command,
+                agent_prompt_runner=agent_runner,
+            )
+
+            self.assertEqual(artifact["status"], "failed")
+            agent_check = _check_by_name(artifact, "fff-headless-smoke")
+            self.assertEqual(agent_check["status"], "failed")
+            self.assertEqual(
+                agent_check["evidence"]["response_contract_errors"],
+                ["response.configured must be true"],
+            )
 
     def test_execute_preflight_marks_required_agent_prompt_error_without_runner(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

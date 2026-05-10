@@ -84,7 +84,9 @@ runner that returns response, transcript, and tool-call evidence. The Pi adapter
 exposes that runner boundary through an injected headless prompt launcher and a
 subprocess launcher that writes transcript evidence. CLI preflight remains
 machine-only by default; pass `--agent-preflight pi` to opt into `agent-prompt`
-checks through the Pi subprocess launcher.
+checks through the Pi subprocess launcher. Agent-prompt responses must be JSON
+objects with `available: true` and `configured: true`; YACHT records the parsed
+response and fails the preflight if that contract is not met.
 
 ## Schema Contract
 
