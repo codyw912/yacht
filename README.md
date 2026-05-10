@@ -77,6 +77,7 @@ uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht handoff examples/pi-fff-provisioning.toml --logbook logbook
 uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-fff-predictions.json --logbook logbook
+uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/pi-fff-native-report.json --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
@@ -95,6 +96,10 @@ course handoff task ids, writes the native candidate patch JSONL file at
 `logbook/course-handoff/swe-bench/candidate-patches.jsonl`, and still does not
 invoke Docker or grade tasks. Input records must include `instance_id`,
 `model_name_or_path`, and `model_patch`.
+`yacht grading-report` validates a native SWE-bench report JSON against the
+course handoff and candidate patch ids, then writes the normalized report to
+`logbook/course-handoff/swe-bench/grading-report.json`. This is still a contract
+check only; YACHT does not run the native harness in this slice.
 `yacht preflight --dry-run` prints the resolved preflight execution plan for the
 selected preflight mode, including which checks would be included or omitted and
 where artifacts/transcripts would be written.
@@ -128,14 +133,16 @@ YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
 - `yacht.preflight.v1.schema.json` for runtime and rigging trust evidence
 - `yacht.preflight-summary.v1.schema.json` for preflight CLI summary output
 - `yacht.course-handoff.v1.schema.json` for native benchmark handoff artifacts
+- `yacht.swe-bench-grading.v1.schema.json` for validated SWE-bench grading reports
 
 Generated wake, scorecard, preflight evidence, preflight summary, and course
 handoff JSON documents include a `schema` field such as `yacht.wake.v1`,
 `yacht.scorecard.v1`, `yacht.preflight-summary.v1`, or
-`yacht.course-handoff.v1`. The Python runner validates the current config and
-generated artifacts, but the persisted contract is intentionally
-language-neutral so future vessels, runners, and analysis tools do not need to
-be Python programs.
+`yacht.course-handoff.v1`. Validated SWE-bench grading reports include
+`yacht.swe-bench-grading.v1`. The Python runner validates the current config and
+generated artifacts, but the persisted contract is intentionally language-neutral
+so future vessels, runners, and analysis tools do not need to be Python
+programs.
 
 Regatta configs may optionally include provisioning sections:
 

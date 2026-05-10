@@ -17,6 +17,7 @@ from yacht.preflight_runner import (
 )
 from yacht.regatta import ConfigError, load_regatta, run_regatta
 from yacht.runtime_plan import build_runtime_plan
+from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
 
 
@@ -98,6 +99,28 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("logbook"),
         help="Directory where candidate patch predictions are written.",
+    )
+
+    grading_report_parser = subcommands.add_parser(
+        "grading-report",
+        help="Validate and write a SWE-bench grading report artifact.",
+    )
+    grading_report_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    grading_report_parser.add_argument(
+        "--input",
+        required=True,
+        type=Path,
+        help="JSON report produced by the SWE-bench harness.",
+    )
+    grading_report_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing candidate patches and receiving the report.",
     )
 
     preflight_parser = subcommands.add_parser(
@@ -194,6 +217,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             summary = write_swe_bench_predictions(
                 config_path=args.config,
                 predictions_path=args.input,
+                logbook_dir=args.logbook,
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(summary, indent=2))
+        return 0
+
+    if args.command == "grading-report":
+        try:
+            summary = write_swe_bench_grading_report(
+                config_path=args.config,
+                native_report_path=args.input,
                 logbook_dir=args.logbook,
             )
         except ConfigError as error:
