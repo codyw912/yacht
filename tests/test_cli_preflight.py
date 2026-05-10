@@ -240,6 +240,91 @@ class CliPreflightTests(unittest.TestCase):
                 run_preflight_mock.call_args.kwargs["agent_prompt_runner_factory"]
             )
 
+    def test_preflight_dry_run_omits_agent_prompt_checks_by_default(self) -> None:
+        config = AGENT_PREFLIGHT_CONFIG.replace(
+            'name = "rigged"\nmodel = "mock"\nruntime = "mock"',
+            'name = "rigged"\nmodel = "mock"\nruntime = "mock"\nrigging = ["agent-check"]',
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, logbook_dir, workspace_dir = _write_preflight_inputs(
+                config,
+                root,
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "preflight",
+                        str(config_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_dir),
+                        "--dry-run",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertFalse(logbook_dir.exists())
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["mode"], "dry-run")
+            self.assertEqual(payload["agent_preflight"], "none")
+            rigged = payload["comparisons"][0]["vessels"][1]
+            agent_check = _check_by_name(rigged, "agent-tool-smoke")
+            self.assertFalse(agent_check["included"])
+            self.assertEqual(
+                agent_check["omitted_reason"],
+                "agent preflight disabled",
+            )
+            self.assertEqual(agent_check["artifact_path"], None)
+
+    def test_preflight_dry_run_includes_agent_prompt_checks_when_enabled(self) -> None:
+        config = AGENT_PREFLIGHT_CONFIG.replace(
+            'name = "rigged"\nmodel = "mock"\nruntime = "mock"',
+            'name = "rigged"\nmodel = "mock"\nruntime = "mock"\nrigging = ["agent-check"]',
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, logbook_dir, workspace_dir = _write_preflight_inputs(
+                config,
+                root,
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "preflight",
+                        str(config_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_dir),
+                        "--agent-preflight",
+                        "pi",
+                        "--dry-run",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["agent_preflight"], "pi")
+            rigged = payload["comparisons"][0]["vessels"][1]
+            agent_check = _check_by_name(rigged, "agent-tool-smoke")
+            self.assertTrue(agent_check["included"])
+            self.assertEqual(
+                agent_check["transcript_dir"],
+                str(logbook_dir / "transcripts" / "baseline-vs-rigged" / "rigged"),
+            )
+            self.assertEqual(
+                agent_check["artifact_path"],
+                str(logbook_dir / "preflight" / "baseline-vs-rigged" / "rigged.json"),
+            )
+
 
 class CliResult:
     def __init__(self, exit_code: int, stdout: str, stderr: str) -> None:
@@ -281,7 +366,9 @@ def _write_preflight_inputs(config: str, root: Path) -> tuple[Path, Path, Path]:
 
 
 def _check_by_name(artifact: dict[str, object], name: str) -> dict[str, object]:
-    checks = artifact["checks"]
+    checks = (
+        artifact["checks"] if "checks" in artifact else artifact["preflight_checks"]
+    )
     assert isinstance(checks, list)
     for check in checks:
         if check["name"] == name:

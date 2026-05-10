@@ -64,6 +64,7 @@ executing SWE-bench:
 ```sh
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
+uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 ```
@@ -71,6 +72,9 @@ uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
 with isolated runtime placeholders and redacted secret references, but does not
 launch agents, install rigging, execute preflight checks, or write a logbook.
+`yacht preflight --dry-run` prints the resolved preflight execution plan for the
+selected preflight mode, including which checks would be included or omitted and
+where artifacts/transcripts would be written.
 The initial `HostNixRuntimeBackend` can prepare those isolated runtime
 directories and explicit env-secret injections for a trial; launching the agent
 inside that prepared runtime is a later slice.

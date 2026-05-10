@@ -9,6 +9,7 @@ from typing import Sequence
 from yacht.pi_adapter import PiAdapter, SubprocessPiPromptLauncher
 from yacht.preflight_runner import (
     AgentPromptRunnerFactory,
+    build_preflight_execution_plan,
     parse_secret_values,
     run_preflight,
 )
@@ -92,6 +93,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="none",
         help="Opt into agent-prompt preflight checks with the selected adapter.",
     )
+    preflight_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the resolved preflight execution plan without running checks.",
+    )
 
     return parser
 
@@ -135,6 +141,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "preflight":
         try:
+            if args.dry_run:
+                summary = build_preflight_execution_plan(
+                    args.config,
+                    args.logbook,
+                    args.workspace,
+                    args.agent_preflight,
+                )
+                print(json.dumps(summary, indent=2))
+                return 0
             summary = run_preflight(
                 args.config,
                 args.logbook,
