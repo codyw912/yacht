@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.preflight-summary.v1.schema.json",
+  "title": "YACHT Preflight Summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "regatta",
+    "course",
+    "status",
+    "preflight_failure_policy",
+    "comparisons"
+  ],
+  "properties": {
+    "schema": {
+      "const": "yacht.preflight-summary.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["passed", "failed", "invalid"]
+    },
+    "preflight_failure_policy": {
+      "type": "string",
+      "enum": ["abort-group", "skip-vessel", "abort-regatta", "warn"]
+    },
+    "comparisons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "vessels"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["passed", "failed", "invalid"]
+          },
+          "vessels": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "status", "checks"],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["passed", "failed", "error", "skipped"]
+                },
+                "checks": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "kind",
+                      "required",
+                      "included",
+                      "status"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "agent-prompt",
+                          "artifact",
+                          "command",
+                          "env",
+                          "mcp-server",
+                          "path-isolation",
+                          "tool-call"
+                        ]
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "included": {
+                        "type": "boolean"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": ["passed", "failed", "error", "skipped", "omitted"]
+                      },
+                      "omitted_reason": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

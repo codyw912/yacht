@@ -23,6 +23,10 @@ from yacht.regatta import (
     load_regatta,
 )
 from yacht.runtime_backend import HostNixRuntimeBackend, RuntimePreparationError
+from yacht.schemas import (
+    PREFLIGHT_SUMMARY_SCHEMA,
+    validate_preflight_summary_document,
+)
 
 AgentPromptRunnerFactory = Callable[[RuntimeInstance, Path], AgentPromptRunner]
 AGENT_PREFLIGHT_ADAPTERS = {"none", "pi", "local-smoke"}
@@ -129,13 +133,16 @@ def run_preflight(
     status = "invalid" if any(
         comparison["status"] == "invalid" for comparison in comparison_results
     ) else "passed"
-    return {
+    summary = {
+        "schema": PREFLIGHT_SUMMARY_SCHEMA,
         "regatta": regatta.name,
         "course": regatta.course.name,
         "status": status,
         "preflight_failure_policy": regatta.preflight.failure_policy,
         "comparisons": comparison_results,
     }
+    validate_preflight_summary_document(summary)
+    return summary
 
 
 def build_preflight_execution_plan(

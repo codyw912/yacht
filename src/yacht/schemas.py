@@ -7,6 +7,7 @@ REGATTA_SCHEMA = "yacht.regatta.v1"
 WAKE_SCHEMA = "yacht.wake.v1"
 SCORECARD_SCHEMA = "yacht.scorecard.v1"
 PREFLIGHT_SCHEMA = "yacht.preflight.v1"
+PREFLIGHT_SUMMARY_SCHEMA = "yacht.preflight-summary.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 PREFLIGHT_CHECK_KINDS = {
@@ -19,6 +20,8 @@ PREFLIGHT_CHECK_KINDS = {
     "tool-call",
 }
 PREFLIGHT_STATUSES = {"passed", "failed", "error", "skipped"}
+PREFLIGHT_SUMMARY_STATUSES = {"passed", "failed", "invalid"}
+PREFLIGHT_SUMMARY_CHECK_STATUSES = PREFLIGHT_STATUSES | {"omitted"}
 
 
 class SchemaValidationError(ValueError):
@@ -217,6 +220,99 @@ def validate_preflight_document(document: dict[str, Any]) -> None:
             evidence.get("tool_calls", []),
             f"checks[{index}].evidence.tool_calls",
         )
+
+
+def validate_preflight_summary_document(document: dict[str, Any]) -> None:
+    _require_object(document, "preflight summary")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "regatta",
+            "course",
+            "status",
+            "preflight_failure_policy",
+            "comparisons",
+        ),
+        "preflight summary",
+    )
+    _require_schema(document, PREFLIGHT_SUMMARY_SCHEMA, "preflight summary")
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], key)
+    _require_allowed_value(
+        document["status"],
+        PREFLIGHT_SUMMARY_STATUSES,
+        "status",
+    )
+    _require_allowed_value(
+        document["preflight_failure_policy"],
+        PREFLIGHT_FAILURE_POLICIES,
+        "preflight_failure_policy",
+    )
+
+    comparisons = _require_list(document["comparisons"], "comparisons")
+    if not comparisons:
+        raise SchemaValidationError("comparisons must contain at least one comparison")
+    for comparison_index, comparison_value in enumerate(comparisons):
+        comparison_path = f"comparisons[{comparison_index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(comparison, ("name", "status", "vessels"), comparison_path)
+        _require_non_empty_string(comparison.get("name"), f"{comparison_path}.name")
+        _require_allowed_value(
+            comparison.get("status"),
+            PREFLIGHT_SUMMARY_STATUSES,
+            f"{comparison_path}.status",
+        )
+        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
+        if not vessels:
+            raise SchemaValidationError(
+                f"{comparison_path}.vessels must contain at least one vessel"
+            )
+        for vessel_index, vessel_value in enumerate(vessels):
+            vessel_path = f"{comparison_path}.vessels[{vessel_index}]"
+            vessel = _require_object(vessel_value, vessel_path)
+            _require_keys(vessel, ("name", "status", "checks"), vessel_path)
+            _require_non_empty_string(vessel.get("name"), f"{vessel_path}.name")
+            _require_allowed_value(
+                vessel.get("status"),
+                PREFLIGHT_STATUSES,
+                f"{vessel_path}.status",
+            )
+            _validate_preflight_summary_checks(vessel["checks"], vessel_path)
+
+
+def _validate_preflight_summary_checks(value: Any, path: str) -> None:
+    checks = _require_list(value, f"{path}.checks")
+    if not checks:
+        raise SchemaValidationError(f"{path}.checks must contain at least one check")
+    for check_index, check_value in enumerate(checks):
+        check_path = f"{path}.checks[{check_index}]"
+        check = _require_object(check_value, check_path)
+        _require_keys(
+            check,
+            ("name", "kind", "required", "included", "status"),
+            check_path,
+        )
+        _require_non_empty_string(check.get("name"), f"{check_path}.name")
+        _require_allowed_value(
+            check.get("kind"),
+            PREFLIGHT_CHECK_KINDS,
+            f"{check_path}.kind",
+        )
+        if not isinstance(check.get("required"), bool):
+            raise SchemaValidationError(f"{check_path}.required must be a boolean")
+        if not isinstance(check.get("included"), bool):
+            raise SchemaValidationError(f"{check_path}.included must be a boolean")
+        _require_allowed_value(
+            check.get("status"),
+            PREFLIGHT_SUMMARY_CHECK_STATUSES,
+            f"{check_path}.status",
+        )
+        if "omitted_reason" in check:
+            _require_non_empty_string(
+                check["omitted_reason"],
+                f"{check_path}.omitted_reason",
+            )
 
 
 def _require_object(value: Any, path: str) -> dict[str, Any]:
