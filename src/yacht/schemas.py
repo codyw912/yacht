@@ -9,6 +9,7 @@ SCORECARD_SCHEMA = "yacht.scorecard.v1"
 PREFLIGHT_SCHEMA = "yacht.preflight.v1"
 PREFLIGHT_SUMMARY_SCHEMA = "yacht.preflight-summary.v1"
 COURSE_HANDOFF_SCHEMA = "yacht.course-handoff.v1"
+BENCHMARK_SCORECARD_SCHEMA = "yacht.benchmark-scorecard.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
@@ -25,6 +26,8 @@ PREFLIGHT_CHECK_KINDS = {
 PREFLIGHT_STATUSES = {"passed", "failed", "error", "skipped"}
 PREFLIGHT_SUMMARY_STATUSES = {"passed", "failed", "invalid"}
 PREFLIGHT_SUMMARY_CHECK_STATUSES = PREFLIGHT_STATUSES | {"omitted"}
+BENCHMARK_SCORECARD_STATUSES = {"complete", "partial", "empty"}
+BENCHMARK_SCORECARD_VESSEL_STATUSES = {"measured", "missing"}
 
 
 class SchemaValidationError(ValueError):
@@ -316,6 +319,28 @@ def validate_course_handoff_document(document: dict[str, Any]) -> None:
     _validate_course_handoff_grading(document["grading"])
 
 
+def validate_benchmark_scorecard_document(document: dict[str, Any]) -> None:
+    _require_object(document, "benchmark scorecard")
+    _require_keys(
+        document,
+        ("schema", "regatta", "course", "adapter", "status", "comparisons"),
+        "benchmark scorecard",
+    )
+    _require_schema(document, BENCHMARK_SCORECARD_SCHEMA, "benchmark scorecard")
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], key)
+    _validate_course_adapter_summary(
+        _require_object(document["adapter"], "adapter"),
+        "adapter",
+    )
+    _require_allowed_value(
+        document["status"],
+        BENCHMARK_SCORECARD_STATUSES,
+        "status",
+    )
+    _validate_benchmark_scorecard_comparisons(document["comparisons"])
+
+
 def _validate_course_handoff_tasks(value: Any) -> None:
     tasks = _require_list(value, "tasks")
     if not tasks:
@@ -379,6 +404,57 @@ def _validate_course_handoff_grading(value: Any) -> None:
         "grading.execution",
     )
     _require_allowed_value(grading.get("status"), {"planned"}, "grading.status")
+
+
+def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
+    comparisons = _require_list(value, "comparisons")
+    if not comparisons:
+        raise SchemaValidationError("comparisons must contain at least one comparison")
+    for comparison_index, comparison_value in enumerate(comparisons):
+        comparison_path = f"comparisons[{comparison_index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(comparison, ("name", "course", "vessels"), comparison_path)
+        _require_non_empty_string(comparison.get("name"), f"{comparison_path}.name")
+        _require_non_empty_string(comparison.get("course"), f"{comparison_path}.course")
+        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
+        if not vessels:
+            raise SchemaValidationError(
+                f"{comparison_path}.vessels must contain at least one vessel"
+            )
+        for vessel_index, vessel_value in enumerate(vessels):
+            vessel_path = f"{comparison_path}.vessels[{vessel_index}]"
+            vessel = _require_object(vessel_value, vessel_path)
+            _require_keys(
+                vessel,
+                (
+                    "name",
+                    "status",
+                    "submitted_instances",
+                    "resolved_instances",
+                    "resolution_rate",
+                ),
+                vessel_path,
+            )
+            _require_non_empty_string(vessel.get("name"), f"{vessel_path}.name")
+            _require_allowed_value(
+                vessel.get("status"),
+                BENCHMARK_SCORECARD_VESSEL_STATUSES,
+                f"{vessel_path}.status",
+            )
+            for key in ("submitted_instances", "resolved_instances"):
+                value = vessel.get(key)
+                if not isinstance(value, int) or value < 0:
+                    raise SchemaValidationError(
+                        f"{vessel_path}.{key} must be an integer >= 0"
+                    )
+            rate = vessel.get("resolution_rate")
+            if not isinstance(rate, int | float) or rate < 0:
+                raise SchemaValidationError(
+                    f"{vessel_path}.resolution_rate must be a number >= 0"
+                )
+            for key in ("resolved_ids", "unresolved_ids"):
+                if key in vessel:
+                    _require_string_list(vessel[key], f"{vessel_path}.{key}")
 
 
 def _validate_preflight_summary_checks(value: Any, path: str) -> None:
@@ -489,6 +565,13 @@ def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
         COURSE_ADAPTER_HARNESSES,
         f"{path}.harness",
     )
+
+
+def _validate_course_adapter_summary(adapter: dict[str, Any], path: str) -> None:
+    _require_keys(adapter, ("kind", "dataset", "split"), path)
+    _require_allowed_value(adapter.get("kind"), COURSE_ADAPTER_KINDS, f"{path}.kind")
+    for key in ("dataset", "split"):
+        _require_non_empty_string(adapter.get(key), f"{path}.{key}")
 
 
 def _validate_secret_references(document: dict[str, Any]) -> set[str]:
