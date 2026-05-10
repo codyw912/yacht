@@ -301,6 +301,7 @@ def _execute_agent_prompt_check(
         instance.env,
         instance.workspace_path,
     )
+    response_contract = _agent_response_contract(result.response)
     missing_tool_calls = [
         name for name in check.expect_tool_calls if name not in result.tool_calls
     ]
@@ -310,11 +311,21 @@ def _execute_agent_prompt_check(
         "response": result.response,
         "tool_calls": list(result.tool_calls),
     }
+    if response_contract.response_json is not None:
+        evidence["response_json"] = response_contract.response_json
     if result.transcript_path is not None:
         evidence["transcript_path"] = str(result.transcript_path)
+    if response_contract.errors:
+        evidence["response_contract_errors"] = response_contract.errors
     if missing_tool_calls:
         evidence["missing_tool_calls"] = missing_tool_calls
-    status = "passed" if result.exit_code == 0 and not missing_tool_calls else "failed"
+    status = (
+        "passed"
+        if result.exit_code == 0
+        and not missing_tool_calls
+        and not response_contract.errors
+        else "failed"
+    )
     return {
         "name": check.name,
         "kind": check.kind,
@@ -322,6 +333,34 @@ def _execute_agent_prompt_check(
         "status": status,
         "evidence": evidence,
     }
+
+
+@dataclass(frozen=True)
+class AgentResponseContract:
+    response_json: dict[str, object] | None
+    errors: list[str]
+
+
+def _agent_response_contract(response: str) -> AgentResponseContract:
+    try:
+        payload = json.loads(response)
+    except json.JSONDecodeError:
+        return AgentResponseContract(
+            response_json=None,
+            errors=["response must be a JSON object"],
+        )
+    if not isinstance(payload, dict):
+        return AgentResponseContract(
+            response_json=None,
+            errors=["response must be a JSON object"],
+        )
+
+    errors = []
+    if payload.get("available") is not True:
+        errors.append("response.available must be true")
+    if payload.get("configured") is not True:
+        errors.append("response.configured must be true")
+    return AgentResponseContract(response_json=payload, errors=errors)
 
 
 def _is_under(parent: Path, child: Path) -> bool:
