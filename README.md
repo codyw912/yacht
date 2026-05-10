@@ -54,6 +54,12 @@ The command writes:
 
 The bundled sample compares a baseline mock vessel against the same mock vessel with `memory` rigging. The deterministic mock runner models that rigging as lower token usage with slightly longer runtime, giving the scorecard something concrete to compare before real agent integrations exist.
 
+For preflight development, `examples/local-agent-preflight-smoke.toml` provides
+a tiny baseline-vs-rigged fixture that can exercise the full preflight path with
+an injected agent runner. It avoids command checks, Docker, SWE-bench, Pi, and
+Nix execution while still validating isolated runtime state plus an
+`agent-prompt` check.
+
 YACHT also accepts a config-only provisioning scaffold for future real agent
 runs. `examples/pi-fff-provisioning.toml` describes a baseline Pi vessel and a
 Pi+fff vessel using an explicit `host-nix` runtime recipe, a named fff rigging
