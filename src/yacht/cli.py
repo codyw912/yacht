@@ -6,7 +6,12 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from yacht.preflight_runner import parse_secret_values, run_preflight
+from yacht.pi_adapter import PiAdapter, SubprocessPiPromptLauncher
+from yacht.preflight_runner import (
+    AgentPromptRunnerFactory,
+    parse_secret_values,
+    run_preflight,
+)
 from yacht.regatta import ConfigError, load_regatta, run_regatta
 from yacht.runtime_plan import build_runtime_plan
 
@@ -81,6 +86,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME=VALUE",
         help="Explicit secret value to inject for a configured secret reference.",
     )
+    preflight_parser.add_argument(
+        "--agent-preflight",
+        choices=("none", "pi"),
+        default="none",
+        help="Opt into agent-prompt preflight checks with the selected adapter.",
+    )
 
     return parser
 
@@ -129,6 +140,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.logbook,
                 args.workspace,
                 parse_secret_values(args.secret),
+                agent_prompt_runner_factory=_agent_prompt_runner_factory(
+                    args.agent_preflight
+                ),
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
@@ -142,3 +156,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _print_json(payload: dict[str, object]) -> None:
     print(json.dumps(payload, indent=2))
+
+
+def _agent_prompt_runner_factory(
+    adapter_name: str,
+) -> AgentPromptRunnerFactory | None:
+    if adapter_name == "none":
+        return None
+    if adapter_name == "pi":
+        adapter = PiAdapter(launcher=SubprocessPiPromptLauncher())
+        return lambda instance, transcript_dir: adapter.agent_prompt_runner(
+            instance=instance,
+            transcript_dir=transcript_dir,
+        )
+    raise ConfigError(f"unsupported agent preflight adapter {adapter_name}")

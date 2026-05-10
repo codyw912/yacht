@@ -65,6 +65,7 @@ executing SWE-bench:
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
+uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 ```
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
@@ -80,9 +81,10 @@ tasks; it only proves the configured runtime and machine-checkable rigging are
 ready enough to spend task-run tokens.
 Agent-surface `agent-prompt` checks can also be executed through an injected
 runner that returns response, transcript, and tool-call evidence. The Pi adapter
-currently exposes that runner boundary through an injected headless prompt
-launcher; without an injected launcher it refuses to run, so this remains
-non-operational by default.
+exposes that runner boundary through an injected headless prompt launcher and a
+subprocess launcher that writes transcript evidence. CLI preflight remains
+machine-only by default; pass `--agent-preflight pi` to opt into `agent-prompt`
+checks through the Pi subprocess launcher.
 
 ## Schema Contract
 
