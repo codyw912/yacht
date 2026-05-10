@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from yacht.course_handoff import write_course_handoff
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
 from yacht.pi_adapter import PiAdapter, SubprocessPiPromptLauncher
 from yacht.preflight_runner import (
@@ -58,6 +59,22 @@ def build_parser() -> argparse.ArgumentParser:
         "config",
         type=Path,
         help="Path to a regatta TOML file.",
+    )
+
+    handoff_parser = subcommands.add_parser(
+        "handoff",
+        help="Write a planned course adapter handoff artifact without running it.",
+    )
+    handoff_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    handoff_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory where the course handoff artifact is written.",
     )
 
     preflight_parser = subcommands.add_parser(
@@ -138,6 +155,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
         print(json.dumps(plan, indent=2))
+        return 0
+
+    if args.command == "handoff":
+        try:
+            handoff = write_course_handoff(args.config, args.logbook)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(handoff, indent=2))
         return 0
 
     if args.command == "preflight":
