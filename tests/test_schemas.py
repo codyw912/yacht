@@ -6,10 +6,12 @@ from pathlib import Path
 from yacht.regatta import ConfigError, run_regatta
 from yacht.schemas import (
     PREFLIGHT_SCHEMA,
+    PREFLIGHT_SUMMARY_SCHEMA,
     REGATTA_SCHEMA,
     SCORECARD_SCHEMA,
     WAKE_SCHEMA,
     validate_preflight_document,
+    validate_preflight_summary_document,
     validate_scorecard_document,
     validate_wake_document,
 )
@@ -54,6 +56,7 @@ class SchemaTests(unittest.TestCase):
             WAKE_SCHEMA,
             SCORECARD_SCHEMA,
             PREFLIGHT_SCHEMA,
+            PREFLIGHT_SUMMARY_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -89,6 +92,74 @@ class SchemaTests(unittest.TestCase):
         }
 
         validate_preflight_document(document)
+
+    def test_preflight_summary_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": PREFLIGHT_SUMMARY_SCHEMA,
+            "regatta": "schema-smoke-test",
+            "course": "tiny-course",
+            "status": "passed",
+            "preflight_failure_policy": "abort-group",
+            "comparisons": [
+                {
+                    "name": "baseline-vs-rigged",
+                    "status": "passed",
+                    "vessels": [
+                        {
+                            "name": "baseline",
+                            "status": "passed",
+                            "checks": [
+                                {
+                                    "name": "runtime-present",
+                                    "kind": "command",
+                                    "required": True,
+                                    "included": True,
+                                    "status": "passed",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        validate_preflight_summary_document(document)
+
+    def test_preflight_summary_rejects_unknown_check_status(self) -> None:
+        document = {
+            "schema": PREFLIGHT_SUMMARY_SCHEMA,
+            "regatta": "schema-smoke-test",
+            "course": "tiny-course",
+            "status": "passed",
+            "preflight_failure_policy": "abort-group",
+            "comparisons": [
+                {
+                    "name": "baseline-vs-rigged",
+                    "status": "passed",
+                    "vessels": [
+                        {
+                            "name": "baseline",
+                            "status": "passed",
+                            "checks": [
+                                {
+                                    "name": "runtime-present",
+                                    "kind": "command",
+                                    "required": True,
+                                    "included": True,
+                                    "status": "unknown",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "comparisons\\[0\\].vessels\\[0\\].checks\\[0\\].status",
+        ):
+            validate_preflight_summary_document(document)
 
     def test_wake_and_scorecard_documents_include_schema_versions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

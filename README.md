@@ -114,8 +114,14 @@ YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
 - `yacht.wake.v1.schema.json` for per-task trace artifacts
 - `yacht.scorecard.v1.schema.json` for aggregate results
 - `yacht.preflight.v1.schema.json` for runtime and rigging trust evidence
+- `yacht.preflight-summary.v1.schema.json` for preflight CLI summary output
 
-Generated wake and scorecard JSON documents include a `schema` field such as `yacht.wake.v1` or `yacht.scorecard.v1`. The Python runner validates the current config and generated artifacts, but the persisted contract is intentionally language-neutral so future vessels, runners, and analysis tools do not need to be Python programs.
+Generated wake, scorecard, preflight evidence, and preflight summary JSON
+documents include a `schema` field such as `yacht.wake.v1`,
+`yacht.scorecard.v1`, or `yacht.preflight-summary.v1`. The Python runner
+validates the current config and generated artifacts, but the persisted contract
+is intentionally language-neutral so future vessels, runners, and analysis tools
+do not need to be Python programs.
 
 Regatta configs may optionally include provisioning sections:
 

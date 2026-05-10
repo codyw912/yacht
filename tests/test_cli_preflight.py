@@ -10,6 +10,7 @@ from unittest.mock import patch
 from yacht.preflight import AgentPromptResult
 from yacht.preflight_runner import run_preflight
 from yacht.cli import main
+from yacht.schemas import PREFLIGHT_SUMMARY_SCHEMA
 
 
 PASSING_PREFLIGHT_CONFIG = """
@@ -88,6 +89,7 @@ class CliPreflightTests(unittest.TestCase):
             self.assertEqual(result.stderr, "")
             self.assertFalse((logbook_dir / "scorecard.json").exists())
             summary = json.loads(result.stdout)
+            self.assertEqual(summary["schema"], PREFLIGHT_SUMMARY_SCHEMA)
             self.assertEqual(summary["status"], "passed")
             comparison = summary["comparisons"][0]
             self.assertEqual(comparison["name"], "baseline-vs-rigged")
@@ -191,6 +193,7 @@ class CliPreflightTests(unittest.TestCase):
                 agent_prompt_runner_factory=runner_factory,
             )
 
+            self.assertEqual(summary["schema"], PREFLIGHT_SUMMARY_SCHEMA)
             self.assertEqual(summary["status"], "passed")
             self.assertEqual(len(calls), 1)
             rigged = summary["comparisons"][0]["vessels"][1]

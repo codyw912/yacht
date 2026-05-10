@@ -9,6 +9,7 @@ from yacht.cli import main
 from yacht.preflight import AgentPromptResult
 from yacht.preflight_runner import run_preflight
 from yacht.regatta import load_regatta
+from yacht.schemas import PREFLIGHT_SUMMARY_SCHEMA
 
 
 class LocalAgentPreflightSmokeTests(unittest.TestCase):
@@ -41,6 +42,7 @@ class LocalAgentPreflightSmokeTests(unittest.TestCase):
             )
 
             self.assertEqual(summary["status"], "passed")
+            self.assertEqual(summary["schema"], PREFLIGHT_SUMMARY_SCHEMA)
             baseline = summary["comparisons"][0]["vessels"][0]
             self.assertEqual(baseline["name"], "local-baseline")
             self.assertEqual(
@@ -109,6 +111,7 @@ class LocalAgentPreflightSmokeTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             summary = json.loads(stdout.getvalue())
             self.assertEqual(summary["status"], "passed")
+            self.assertEqual(summary["schema"], PREFLIGHT_SUMMARY_SCHEMA)
             rigged = summary["comparisons"][0]["vessels"][1]
             agent_check = _check_by_name(rigged, "local-agent-smoke")
             self.assertEqual(agent_check["status"], "passed")
