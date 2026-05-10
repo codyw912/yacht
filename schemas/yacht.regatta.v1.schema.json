@@ -124,6 +124,29 @@
               }
             }
           }
+        },
+        "adapter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "dataset", "split", "harness"],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["swe-bench"]
+            },
+            "dataset": {
+              "type": "string",
+              "minLength": 1
+            },
+            "split": {
+              "type": "string",
+              "minLength": 1
+            },
+            "harness": {
+              "type": "string",
+              "enum": ["docker"]
+            }
+          }
         }
       }
     },

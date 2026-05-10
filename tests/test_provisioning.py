@@ -19,6 +19,12 @@ tasks = [
   { id = "django__django-11099", title = "Fix a regression", difficulty = 3 },
 ]
 
+[course.adapter]
+kind = "swe-bench"
+dataset = "princeton-nlp/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+
 [secrets.anthropic]
 source = "env"
 name = "ANTHROPIC_API_KEY"
@@ -114,6 +120,35 @@ class ProvisioningConfigTests(unittest.TestCase):
                 regatta.rigging_recipes["pi-fff"].preflight.checks[2].prompt,
                 "preflights/pi-fff.md",
             )
+            self.assertIsNotNone(regatta.course.adapter)
+            assert regatta.course.adapter is not None
+            self.assertEqual(regatta.course.adapter.kind, "swe-bench")
+            self.assertEqual(
+                regatta.course.adapter.dataset,
+                "princeton-nlp/SWE-bench_Lite",
+            )
+            self.assertEqual(regatta.course.adapter.split, "test")
+            self.assertEqual(regatta.course.adapter.harness, "docker")
+
+    def test_swe_bench_course_adapter_requires_dataset_split_and_harness(self) -> None:
+        cases = {
+            "dataset": ('dataset = "princeton-nlp/SWE-bench_Lite"\n', ""),
+            "split": ('split = "test"\n', ""),
+            "harness": ('harness = "docker"\n', ""),
+        }
+
+        for field, (old, new) in cases.items():
+            with self.subTest(field=field):
+                config = PI_WITH_FFF_CONFIG.replace(old, new)
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    config_path = Path(temp_dir) / "regatta.toml"
+                    config_path.write_text(config, encoding="utf-8")
+
+                    with self.assertRaisesRegex(
+                        ConfigError,
+                        f"course.adapter.{field} is required",
+                    ):
+                        load_regatta(config_path)
 
     def test_runtime_recipe_requires_backend_flake_and_command(self) -> None:
         cases = {

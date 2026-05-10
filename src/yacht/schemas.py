@@ -10,6 +10,8 @@ PREFLIGHT_SCHEMA = "yacht.preflight.v1"
 PREFLIGHT_SUMMARY_SCHEMA = "yacht.preflight-summary.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
+COURSE_ADAPTER_KINDS = {"swe-bench"}
+COURSE_ADAPTER_HARNESSES = {"docker"}
 PREFLIGHT_CHECK_KINDS = {
     "agent-prompt",
     "artifact",
@@ -54,6 +56,7 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
             raise SchemaValidationError(
                 f"course.tasks[{index}].difficulty must be an integer >= 1"
             )
+    _validate_course_adapter(course)
 
     vessels = _require_list(document["vessels"], "vessels")
     if not vessels:
@@ -357,6 +360,31 @@ def _validate_preflight_config(document: dict[str, Any]) -> None:
         policy,
         PREFLIGHT_FAILURE_POLICIES,
         "preflight.failure_policy",
+    )
+
+
+def _validate_course_adapter(course: dict[str, Any]) -> None:
+    adapter_value = course.get("adapter")
+    if adapter_value is None:
+        return
+
+    adapter = _require_object(adapter_value, "course.adapter")
+    _require_keys(
+        adapter,
+        ("kind", "dataset", "split", "harness"),
+        "course.adapter",
+    )
+    _require_allowed_value(
+        adapter.get("kind"),
+        COURSE_ADAPTER_KINDS,
+        "course.adapter.kind",
+    )
+    for key in ("dataset", "split"):
+        _require_non_empty_string(adapter.get(key), f"course.adapter.{key}")
+    _require_allowed_value(
+        adapter.get("harness"),
+        COURSE_ADAPTER_HARNESSES,
+        "course.adapter.harness",
     )
 
 

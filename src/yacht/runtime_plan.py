@@ -6,6 +6,7 @@ from typing import Any
 from yacht.regatta import (
     Comparison,
     ConfigError,
+    CourseAdapter,
     PreflightCheck,
     PreflightRecipe,
     Regatta,
@@ -27,16 +28,22 @@ ISOLATED_ENV = {
 
 def build_runtime_plan(config_path: Path) -> dict[str, Any]:
     regatta = load_regatta(config_path)
-    return {
+    plan: dict[str, Any] = {
         "regatta": regatta.name,
         "course": regatta.course.name,
-        "preflight_failure_policy": regatta.preflight.failure_policy,
-        "comparisons": [
-            _comparison_to_json(regatta, comparison)
-            for comparison in regatta.comparisons
-        ],
-        "vessels": [_vessel_to_json(regatta, vessel) for vessel in regatta.vessels],
     }
+    if regatta.course.adapter is not None:
+        plan["course_adapter"] = _course_adapter_to_json(
+            regatta.course.adapter,
+            task_ids=tuple(task.id for task in regatta.course.tasks),
+        )
+    plan["preflight_failure_policy"] = regatta.preflight.failure_policy
+    plan["comparisons"] = [
+        _comparison_to_json(regatta, comparison)
+        for comparison in regatta.comparisons
+    ]
+    plan["vessels"] = [_vessel_to_json(regatta, vessel) for vessel in regatta.vessels]
+    return plan
 
 
 def _comparison_to_json(regatta: Regatta, comparison: Comparison) -> dict[str, Any]:
@@ -64,6 +71,24 @@ def _vessel_to_json(regatta: Regatta, vessel: Vessel) -> dict[str, Any]:
             _secret_ref_to_json(name, regatta.secrets[name]) for name in required_secrets
         ],
         "preflight_checks": _preflight_checks_to_json(runtime, riggings),
+    }
+
+
+def _course_adapter_to_json(
+    adapter: CourseAdapter,
+    task_ids: tuple[str, ...],
+) -> dict[str, Any]:
+    return {
+        "kind": adapter.kind,
+        "dataset": adapter.dataset,
+        "split": adapter.split,
+        "harness": adapter.harness,
+        "task_ids": list(task_ids),
+        "grading": {
+            "delegated_to": adapter.kind,
+            "execution": f"{adapter.harness}-harness",
+            "status": "planned",
+        },
     }
 
 
