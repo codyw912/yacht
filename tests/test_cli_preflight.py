@@ -89,16 +89,27 @@ class CliPreflightTests(unittest.TestCase):
             self.assertFalse((logbook_dir / "scorecard.json").exists())
             summary = json.loads(result.stdout)
             self.assertEqual(summary["status"], "passed")
+            comparison = summary["comparisons"][0]
+            self.assertEqual(comparison["name"], "baseline-vs-rigged")
+            self.assertEqual(comparison["status"], "passed")
             self.assertEqual(
-                summary["comparisons"][0],
-                {
-                    "name": "baseline-vs-rigged",
-                    "status": "passed",
-                    "vessels": [
-                        {"name": "baseline", "status": "passed"},
-                        {"name": "rigged", "status": "passed"},
-                    ],
-                },
+                [
+                    (vessel["name"], vessel["status"])
+                    for vessel in comparison["vessels"]
+                ],
+                [("baseline", "passed"), ("rigged", "passed")],
+            )
+            self.assertEqual(
+                comparison["vessels"][0]["checks"],
+                [
+                    {
+                        "name": "runtime-home-isolated",
+                        "kind": "path-isolation",
+                        "required": True,
+                        "included": True,
+                        "status": "passed",
+                    },
+                ],
             )
 
             artifact_path = (
@@ -128,11 +139,11 @@ class CliPreflightTests(unittest.TestCase):
             self.assertEqual(summary["status"], "invalid")
             self.assertEqual(summary["comparisons"][0]["status"], "invalid")
             self.assertEqual(
-                summary["comparisons"][0]["vessels"],
                 [
-                    {"name": "baseline", "status": "passed"},
-                    {"name": "rigged", "status": "failed"},
+                    (vessel["name"], vessel["status"])
+                    for vessel in summary["comparisons"][0]["vessels"]
                 ],
+                [("baseline", "passed"), ("rigged", "failed")],
             )
 
             artifact_path = (
@@ -182,6 +193,10 @@ class CliPreflightTests(unittest.TestCase):
 
             self.assertEqual(summary["status"], "passed")
             self.assertEqual(len(calls), 1)
+            rigged = summary["comparisons"][0]["vessels"][1]
+            agent_check = _check_by_name(rigged, "agent-tool-smoke")
+            self.assertTrue(agent_check["included"])
+            self.assertEqual(agent_check["status"], "passed")
             self.assertEqual(calls[0][0], "confirm tool")
             self.assertEqual(
                 calls[0][3],
@@ -200,6 +215,49 @@ class CliPreflightTests(unittest.TestCase):
             agent_check = _check_by_name(artifact, "agent-tool-smoke")
             self.assertEqual(agent_check["status"], "passed")
             self.assertEqual(agent_check["evidence"]["tool_calls"], ["fff"])
+
+    def test_run_preflight_summary_reports_omitted_agent_prompt_checks_by_default(
+        self,
+    ) -> None:
+        config = AGENT_PREFLIGHT_CONFIG.replace(
+            'name = "rigged"\nmodel = "mock"\nruntime = "mock"',
+            'name = "rigged"\nmodel = "mock"\nruntime = "mock"\nrigging = ["agent-check"]',
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, logbook_dir, workspace_dir = _write_preflight_inputs(
+                config,
+                root,
+            )
+
+            summary = run_preflight(
+                config_path,
+                logbook_dir,
+                workspace_dir,
+                {"token": "test-secret"},
+            )
+
+            rigged = summary["comparisons"][0]["vessels"][1]
+            agent_check = _check_by_name(rigged, "agent-tool-smoke")
+            self.assertEqual(agent_check["status"], "omitted")
+            self.assertFalse(agent_check["included"])
+            self.assertEqual(
+                agent_check["omitted_reason"],
+                "agent preflight disabled",
+            )
+
+            artifact_path = (
+                logbook_dir
+                / "preflight"
+                / "baseline-vs-rigged"
+                / "rigged.json"
+            )
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                [check["name"] for check in artifact["checks"]],
+                ["runtime-home-isolated"],
+            )
 
     def test_preflight_cli_can_opt_into_pi_agent_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

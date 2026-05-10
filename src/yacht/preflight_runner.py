@@ -306,8 +306,11 @@ def _run_vessel_preflight(
     workspace_path: Path,
     secret_values: dict[str, str],
     agent_prompt_runner_factory: AgentPromptRunnerFactory | None,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     try:
+        runtime = _runtime_for_vessel(regatta, vessel)
+        riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
+        include_agent_checks = agent_prompt_runner_factory is not None
         instance = HostNixRuntimeBackend().prepare(
             regatta=regatta,
             vessel=vessel,
@@ -341,12 +344,63 @@ def _run_vessel_preflight(
         status = str(artifact["status"])
     except RuntimePreparationError as error:
         raise ConfigError(str(error)) from error
-    return {"name": vessel.name, "status": status}
+    return {
+        "name": vessel.name,
+        "status": status,
+        "checks": _summary_checks(
+            runtime=runtime,
+            riggings=riggings,
+            artifact=artifact,
+            artifact_path=artifact_path,
+            transcript_dir=logbook_dir / "transcripts" / comparison.name / vessel.name,
+            include_agent_checks=include_agent_checks,
+        ),
+    }
+
+
+def _summary_checks(
+    *,
+    runtime: RuntimeRecipe,
+    riggings: tuple[RiggingRecipe, ...],
+    artifact: dict[str, Any],
+    artifact_path: Path,
+    transcript_dir: Path,
+    include_agent_checks: bool,
+) -> list[dict[str, Any]]:
+    status_by_name = {
+        str(check["name"]): str(check["status"])
+        for check in artifact["checks"]
+    }
+    checks = _preflight_check_execution_plan(
+        runtime=runtime,
+        riggings=riggings,
+        artifact_path=artifact_path,
+        transcript_dir=transcript_dir,
+        include_agent_checks=include_agent_checks,
+    )
+    return [_summary_check(check, status_by_name) for check in checks]
+
+
+def _summary_check(
+    check: dict[str, Any],
+    status_by_name: dict[str, str],
+) -> dict[str, Any]:
+    status = status_by_name.get(str(check["name"]), "omitted")
+    payload = {
+        "name": check["name"],
+        "kind": check["kind"],
+        "required": check["required"],
+        "included": check["included"],
+        "status": status,
+    }
+    if "omitted_reason" in check:
+        payload["omitted_reason"] = check["omitted_reason"]
+    return payload
 
 
 def _comparison_status(
     failure_policy: str,
-    vessel_results: list[dict[str, str]],
+    vessel_results: list[dict[str, Any]],
 ) -> str:
     if any(vessel["status"] != "passed" for vessel in vessel_results):
         if failure_policy == "abort-group":
