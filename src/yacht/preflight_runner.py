@@ -25,7 +25,7 @@ from yacht.regatta import (
 from yacht.runtime_backend import HostNixRuntimeBackend, RuntimePreparationError
 
 AgentPromptRunnerFactory = Callable[[RuntimeInstance, Path], AgentPromptRunner]
-AGENT_PREFLIGHT_ADAPTERS = {"none", "pi"}
+AGENT_PREFLIGHT_ADAPTERS = {"none", "pi", "local-smoke"}
 
 
 @dataclass(frozen=True)

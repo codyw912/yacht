@@ -56,9 +56,14 @@ The bundled sample compares a baseline mock vessel against the same mock vessel 
 
 For preflight development, `examples/local-agent-preflight-smoke.toml` provides
 a tiny baseline-vs-rigged fixture that can exercise the full preflight path with
-an injected agent runner. It avoids command checks, Docker, SWE-bench, Pi, and
-Nix execution while still validating isolated runtime state plus an
-`agent-prompt` check.
+the built-in `local-smoke` agent preflight adapter:
+
+```sh
+uv run yacht preflight examples/local-agent-preflight-smoke.toml --agent-preflight local-smoke --logbook logbook
+```
+
+It avoids command checks, Docker, SWE-bench, Pi, and Nix execution while still
+validating isolated runtime state plus an `agent-prompt` check.
 
 YACHT also accepts a config-only provisioning scaffold for future real agent
 runs. `examples/pi-fff-provisioning.toml` describes a baseline Pi vessel and a
@@ -96,7 +101,8 @@ runner that returns response, transcript, and tool-call evidence. The Pi adapter
 exposes that runner boundary through an injected headless prompt launcher and a
 subprocess launcher that writes transcript evidence. CLI preflight remains
 machine-only by default; pass `--agent-preflight pi` to opt into `agent-prompt`
-checks through the Pi subprocess launcher. Agent-prompt responses must be JSON
+checks through the Pi subprocess launcher, or `--agent-preflight local-smoke`
+for the built-in local development fixture. Agent-prompt responses must be JSON
 objects with `available: true` and `configured: true`; YACHT records the parsed
 response and fails the preflight if that contract is not met.
 

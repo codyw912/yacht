@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
 from yacht.pi_adapter import PiAdapter, SubprocessPiPromptLauncher
 from yacht.preflight_runner import (
     AgentPromptRunnerFactory,
@@ -89,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     preflight_parser.add_argument(
         "--agent-preflight",
-        choices=("none", "pi"),
+        choices=("none", "pi", "local-smoke"),
         default="none",
         help="Opt into agent-prompt preflight checks with the selected adapter.",
     )
@@ -180,6 +181,12 @@ def _agent_prompt_runner_factory(
         return None
     if adapter_name == "pi":
         adapter = PiAdapter(launcher=SubprocessPiPromptLauncher())
+        return lambda instance, transcript_dir: adapter.agent_prompt_runner(
+            instance=instance,
+            transcript_dir=transcript_dir,
+        )
+    if adapter_name == "local-smoke":
+        adapter = LocalSmokeAgentAdapter()
         return lambda instance, transcript_dir: adapter.agent_prompt_runner(
             instance=instance,
             transcript_dir=transcript_dir,
