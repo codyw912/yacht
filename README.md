@@ -76,6 +76,7 @@ running Pi, installing fff, or executing SWE-bench:
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht handoff examples/pi-fff-provisioning.toml --logbook logbook
+uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-fff-predictions.json --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
@@ -89,6 +90,11 @@ preflight checks, invoke Docker, or write a logbook.
 contract for the native benchmark harness handoff. It records adapter inputs,
 tasks, comparison vessels, expected future output paths, and delegated grading
 metadata without invoking Docker or SWE-bench.
+`yacht predictions` validates explicit SWE-bench prediction records against the
+course handoff task ids, writes the native candidate patch JSONL file at
+`logbook/course-handoff/swe-bench/candidate-patches.jsonl`, and still does not
+invoke Docker or grade tasks. Input records must include `instance_id`,
+`model_name_or_path`, and `model_patch`.
 `yacht preflight --dry-run` prints the resolved preflight execution plan for the
 selected preflight mode, including which checks would be included or omitted and
 where artifacts/transcripts would be written.
