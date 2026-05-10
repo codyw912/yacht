@@ -5,6 +5,7 @@ from pathlib import Path
 
 from yacht.regatta import ConfigError, run_regatta
 from yacht.schemas import (
+    COURSE_HANDOFF_SCHEMA,
     PREFLIGHT_SCHEMA,
     PREFLIGHT_SUMMARY_SCHEMA,
     REGATTA_SCHEMA,
@@ -57,6 +58,7 @@ class SchemaTests(unittest.TestCase):
             SCORECARD_SCHEMA,
             PREFLIGHT_SCHEMA,
             PREFLIGHT_SUMMARY_SCHEMA,
+            COURSE_HANDOFF_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))

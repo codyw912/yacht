@@ -8,6 +8,7 @@ WAKE_SCHEMA = "yacht.wake.v1"
 SCORECARD_SCHEMA = "yacht.scorecard.v1"
 PREFLIGHT_SCHEMA = "yacht.preflight.v1"
 PREFLIGHT_SUMMARY_SCHEMA = "yacht.preflight-summary.v1"
+COURSE_HANDOFF_SCHEMA = "yacht.course-handoff.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
@@ -284,6 +285,102 @@ def validate_preflight_summary_document(document: dict[str, Any]) -> None:
             _validate_preflight_summary_checks(vessel["checks"], vessel_path)
 
 
+def validate_course_handoff_document(document: dict[str, Any]) -> None:
+    _require_object(document, "course handoff")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "regatta",
+            "course",
+            "status",
+            "adapter",
+            "tasks",
+            "comparisons",
+            "expected_outputs",
+            "grading",
+        ),
+        "course handoff",
+    )
+    _require_schema(document, COURSE_HANDOFF_SCHEMA, "course handoff")
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], key)
+    _require_allowed_value(document["status"], {"planned"}, "status")
+    _validate_course_adapter_fields(
+        _require_object(document["adapter"], "adapter"),
+        "adapter",
+    )
+    _validate_course_handoff_tasks(document["tasks"])
+    _validate_course_handoff_comparisons(document["comparisons"])
+    _validate_expected_course_handoff_outputs(document["expected_outputs"])
+    _validate_course_handoff_grading(document["grading"])
+
+
+def _validate_course_handoff_tasks(value: Any) -> None:
+    tasks = _require_list(value, "tasks")
+    if not tasks:
+        raise SchemaValidationError("tasks must contain at least one task")
+    for index, task_value in enumerate(tasks):
+        task = _require_object(task_value, f"tasks[{index}]")
+        _require_keys(task, ("id", "title", "difficulty"), f"tasks[{index}]")
+        _require_non_empty_string(task.get("id"), f"tasks[{index}].id")
+        _require_non_empty_string(task.get("title"), f"tasks[{index}].title")
+        difficulty = task.get("difficulty")
+        if not isinstance(difficulty, int) or difficulty < 1:
+            raise SchemaValidationError(
+                f"tasks[{index}].difficulty must be an integer >= 1"
+            )
+
+
+def _validate_course_handoff_comparisons(value: Any) -> None:
+    comparisons = _require_list(value, "comparisons")
+    if not comparisons:
+        raise SchemaValidationError("comparisons must contain at least one comparison")
+    for index, comparison_value in enumerate(comparisons):
+        comparison = _require_object(comparison_value, f"comparisons[{index}]")
+        _require_keys(comparison, ("name", "course", "vessels"), f"comparisons[{index}]")
+        _require_non_empty_string(comparison.get("name"), f"comparisons[{index}].name")
+        _require_non_empty_string(
+            comparison.get("course"),
+            f"comparisons[{index}].course",
+        )
+        vessels = _require_list(
+            comparison.get("vessels"),
+            f"comparisons[{index}].vessels",
+        )
+        if len(vessels) < 2:
+            raise SchemaValidationError(
+                f"comparisons[{index}].vessels must contain at least two vessels"
+            )
+        for vessel in vessels:
+            _require_non_empty_string(vessel, f"comparisons[{index}].vessels")
+
+
+def _validate_expected_course_handoff_outputs(value: Any) -> None:
+    expected_outputs = _require_object(value, "expected_outputs")
+    for key in ("candidate_patches", "grading_report"):
+        _require_non_empty_string(
+            expected_outputs.get(key),
+            f"expected_outputs.{key}",
+        )
+
+
+def _validate_course_handoff_grading(value: Any) -> None:
+    grading = _require_object(value, "grading")
+    _require_keys(grading, ("delegated_to", "execution", "status"), "grading")
+    _require_allowed_value(
+        grading.get("delegated_to"),
+        COURSE_ADAPTER_KINDS,
+        "grading.delegated_to",
+    )
+    _require_allowed_value(
+        grading.get("execution"),
+        {"docker-harness"},
+        "grading.execution",
+    )
+    _require_allowed_value(grading.get("status"), {"planned"}, "grading.status")
+
+
 def _validate_preflight_summary_checks(value: Any, path: str) -> None:
     checks = _require_list(value, f"{path}.checks")
     if not checks:
@@ -368,23 +465,29 @@ def _validate_course_adapter(course: dict[str, Any]) -> None:
     if adapter_value is None:
         return
 
-    adapter = _require_object(adapter_value, "course.adapter")
+    _validate_course_adapter_fields(
+        _require_object(adapter_value, "course.adapter"),
+        "course.adapter",
+    )
+
+
+def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
     _require_keys(
         adapter,
         ("kind", "dataset", "split", "harness"),
-        "course.adapter",
+        path,
     )
     _require_allowed_value(
         adapter.get("kind"),
         COURSE_ADAPTER_KINDS,
-        "course.adapter.kind",
+        f"{path}.kind",
     )
     for key in ("dataset", "split"):
-        _require_non_empty_string(adapter.get(key), f"course.adapter.{key}")
+        _require_non_empty_string(adapter.get(key), f"{path}.{key}")
     _require_allowed_value(
         adapter.get("harness"),
         COURSE_ADAPTER_HARNESSES,
-        "course.adapter.harness",
+        f"{path}.harness",
     )
 
 
