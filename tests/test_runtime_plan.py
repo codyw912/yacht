@@ -25,6 +25,21 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(plan["course"], "swe-bench-lite")
             self.assertEqual(plan["preflight_failure_policy"], "abort-group")
             self.assertEqual(
+                plan["course_adapter"],
+                {
+                    "kind": "swe-bench",
+                    "dataset": "princeton-nlp/SWE-bench_Lite",
+                    "split": "test",
+                    "harness": "docker",
+                    "task_ids": ["django__django-11099"],
+                    "grading": {
+                        "delegated_to": "swe-bench",
+                        "execution": "docker-harness",
+                        "status": "planned",
+                    },
+                },
+            )
+            self.assertEqual(
                 plan["comparisons"],
                 [
                     {

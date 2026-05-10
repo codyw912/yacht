@@ -68,9 +68,9 @@ validating isolated runtime state plus an `agent-prompt` check.
 YACHT also accepts a config-only provisioning scaffold for future real agent
 runs. `examples/pi-fff-provisioning.toml` describes a baseline Pi vessel and a
 Pi+fff vessel using an explicit `host-nix` runtime recipe, a named fff rigging
-recipe, preflight smoke checks, a comparison group, and explicit secret
-references. Validation checks the model without running Pi, installing fff, or
-executing SWE-bench:
+recipe, preflight smoke checks, a SWE-bench Lite course adapter, a comparison
+group, and explicit secret references. Validation checks the model without
+running Pi, installing fff, or executing SWE-bench:
 
 ```sh
 uv run yacht validate examples/pi-fff-provisioning.toml
@@ -81,8 +81,9 @@ uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --
 ```
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
-with isolated runtime placeholders and redacted secret references, but does not
-launch agents, install rigging, execute preflight checks, or write a logbook.
+with isolated runtime placeholders, redacted secret references, and any
+benchmark handoff metadata, but does not launch agents, install rigging, execute
+preflight checks, invoke Docker, or write a logbook.
 `yacht preflight --dry-run` prints the resolved preflight execution plan for the
 selected preflight mode, including which checks would be included or omitted and
 where artifacts/transcripts would be written.
@@ -128,6 +129,7 @@ Regatta configs may optionally include provisioning sections:
 - `secrets` names explicit env/file secret references without storing values.
 - `runtimes` defines agent runtime recipes such as `host-nix` plus a flake and command.
 - `riggings` defines named setup and environment changes that vessels can reference.
+- `course.adapter` optionally records a native benchmark harness such as SWE-bench.
 - `preflight` defines the regatta-level failure policy for required checks.
 - `comparisons` defines which vessels must be interpreted together.
 

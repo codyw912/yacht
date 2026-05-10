@@ -28,9 +28,18 @@ class Task:
 
 
 @dataclass(frozen=True)
+class CourseAdapter:
+    kind: str
+    dataset: str
+    split: str
+    harness: str
+
+
+@dataclass(frozen=True)
 class Course:
     name: str
     tasks: tuple[Task, ...]
+    adapter: CourseAdapter | None = None
 
 
 @dataclass(frozen=True)
@@ -99,12 +108,6 @@ class RuntimeInstance:
     env: dict[str, str]
     command_prefix: tuple[str, ...]
     cleanup_paths: tuple[Path, ...]
-
-
-@dataclass(frozen=True)
-class CourseAdapter:
-    name: str
-    kind: str
 
 
 @dataclass(frozen=True)
@@ -284,6 +287,7 @@ def load_regatta(config_path: Path) -> Regatta:
             )
             for task in raw["course"]["tasks"]
         ),
+        adapter=_parse_course_adapter(raw["course"]),
     )
     vessels = tuple(
         Vessel(
@@ -310,6 +314,19 @@ def _parse_preflight_config(raw: dict[str, Any]) -> PreflightConfig:
     preflight = raw.get("preflight", {})
     return PreflightConfig(
         failure_policy=str(preflight.get("failure_policy", "abort-group")),
+    )
+
+
+def _parse_course_adapter(raw_course: dict[str, Any]) -> CourseAdapter | None:
+    if "adapter" not in raw_course:
+        return None
+
+    adapter = raw_course["adapter"]
+    return CourseAdapter(
+        kind=str(adapter["kind"]),
+        dataset=str(adapter["dataset"]),
+        split=str(adapter["split"]),
+        harness=str(adapter["harness"]),
     )
 
 
