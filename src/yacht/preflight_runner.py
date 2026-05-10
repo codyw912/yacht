@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
@@ -25,6 +26,82 @@ from yacht.runtime_backend import HostNixRuntimeBackend, RuntimePreparationError
 
 AgentPromptRunnerFactory = Callable[[RuntimeInstance, Path], AgentPromptRunner]
 AGENT_PREFLIGHT_ADAPTERS = {"none", "pi"}
+
+
+@dataclass(frozen=True)
+class PlannedPreflightCheck:
+    name: str
+    kind: str
+    origin: str
+    origin_name: str
+    required: bool
+    included: bool
+    artifact_path: Path | None
+    omitted_reason: str | None = None
+    command: tuple[str, ...] = ()
+    env: tuple[str, ...] = ()
+    prompt: str | None = None
+    expect_tool_calls: tuple[str, ...] = ()
+    transcript_dir: Path | None = None
+
+    def to_execution_json(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "name": self.name,
+            "kind": self.kind,
+            "origin": self.origin,
+            "origin_name": self.origin_name,
+            "required": self.required,
+            "included": self.included,
+            "artifact_path": (
+                str(self.artifact_path) if self.artifact_path is not None else None
+            ),
+        }
+        if self.omitted_reason is not None:
+            payload["omitted_reason"] = self.omitted_reason
+        if self.command:
+            payload["command"] = list(self.command)
+        if self.env:
+            payload["env"] = list(self.env)
+        if self.prompt is not None:
+            payload["prompt"] = self.prompt
+        if self.expect_tool_calls:
+            payload["expect_tool_calls"] = list(self.expect_tool_calls)
+        if self.transcript_dir is not None:
+            payload["transcript_dir"] = str(self.transcript_dir)
+        return payload
+
+    def to_summary_json(self, status: str) -> dict[str, Any]:
+        payload = {
+            "name": self.name,
+            "kind": self.kind,
+            "required": self.required,
+            "included": self.included,
+            "status": status,
+        }
+        if self.omitted_reason is not None:
+            payload["omitted_reason"] = self.omitted_reason
+        return payload
+
+
+@dataclass(frozen=True)
+class PlannedVesselPreflight:
+    vessel: Vessel
+    runtime: RuntimeRecipe
+    checks: tuple[PlannedPreflightCheck, ...]
+    workspace_path: Path
+    trial_root: Path
+    artifact_path: Path
+    transcript_dir: Path
+
+    def to_execution_json(self) -> dict[str, Any]:
+        return {
+            "name": self.vessel.name,
+            "runtime": self.runtime.name,
+            "workspace_path": str(self.workspace_path),
+            "trial_root": str(self.trial_root),
+            "artifact_path": str(self.artifact_path),
+            "preflight_checks": [check.to_execution_json() for check in self.checks],
+        }
 
 
 def run_preflight(
@@ -141,24 +218,15 @@ def _vessel_execution_plan(
     workspace_path: Path,
     include_agent_checks: bool,
 ) -> dict[str, Any]:
-    runtime = _runtime_for_vessel(regatta, vessel)
-    riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
-    artifact_path = logbook_dir / "preflight" / comparison.name / f"{vessel.name}.json"
-    transcript_dir = logbook_dir / "transcripts" / comparison.name / vessel.name
-    return {
-        "name": vessel.name,
-        "runtime": runtime.name,
-        "workspace_path": str(workspace_path),
-        "trial_root": str(logbook_dir / "runtime" / comparison.name / vessel.name),
-        "artifact_path": str(artifact_path),
-        "preflight_checks": _preflight_check_execution_plan(
-            runtime=runtime,
-            riggings=riggings,
-            artifact_path=artifact_path,
-            transcript_dir=transcript_dir,
-            include_agent_checks=include_agent_checks,
-        ),
-    }
+    plan = _planned_vessel_preflight(
+        regatta=regatta,
+        comparison=comparison,
+        vessel=vessel,
+        logbook_dir=logbook_dir,
+        workspace_path=workspace_path,
+        include_agent_checks=include_agent_checks,
+    )
+    return plan.to_execution_json()
 
 
 def _runtime_for_vessel(regatta: Regatta, vessel: Vessel) -> RuntimeRecipe:
@@ -167,15 +235,46 @@ def _runtime_for_vessel(regatta: Regatta, vessel: Vessel) -> RuntimeRecipe:
     return regatta.runtime_recipes[vessel.runtime]
 
 
-def _preflight_check_execution_plan(
+def _planned_vessel_preflight(
+    *,
+    regatta: Regatta,
+    comparison: Comparison,
+    vessel: Vessel,
+    logbook_dir: Path,
+    workspace_path: Path,
+    include_agent_checks: bool,
+) -> PlannedVesselPreflight:
+    runtime = _runtime_for_vessel(regatta, vessel)
+    riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
+    artifact_path = logbook_dir / "preflight" / comparison.name / f"{vessel.name}.json"
+    transcript_dir = logbook_dir / "transcripts" / comparison.name / vessel.name
+    checks = _planned_preflight_checks(
+        runtime=runtime,
+        riggings=riggings,
+        artifact_path=artifact_path,
+        transcript_dir=transcript_dir,
+        include_agent_checks=include_agent_checks,
+    )
+    return PlannedVesselPreflight(
+        vessel=vessel,
+        runtime=runtime,
+        checks=tuple(checks),
+        workspace_path=workspace_path,
+        trial_root=logbook_dir / "runtime" / comparison.name / vessel.name,
+        artifact_path=artifact_path,
+        transcript_dir=transcript_dir,
+    )
+
+
+def _planned_preflight_checks(
     *,
     runtime: RuntimeRecipe,
     riggings: tuple[RiggingRecipe, ...],
     artifact_path: Path,
     transcript_dir: Path,
     include_agent_checks: bool,
-) -> list[dict[str, Any]]:
-    checks = _checks_from_recipe(
+) -> list[PlannedPreflightCheck]:
+    checks = _planned_checks_from_recipe(
         origin="runtime",
         origin_name=runtime.name,
         recipe_required=runtime.preflight.required,
@@ -186,7 +285,7 @@ def _preflight_check_execution_plan(
     )
     for rigging in riggings:
         checks.extend(
-            _checks_from_recipe(
+            _planned_checks_from_recipe(
                 origin="rigging",
                 origin_name=rigging.name,
                 recipe_required=rigging.preflight.required,
@@ -199,7 +298,7 @@ def _preflight_check_execution_plan(
     return checks
 
 
-def _checks_from_recipe(
+def _planned_checks_from_recipe(
     *,
     origin: str,
     origin_name: str,
@@ -208,9 +307,9 @@ def _checks_from_recipe(
     artifact_path: Path,
     transcript_dir: Path,
     include_agent_checks: bool,
-) -> list[dict[str, Any]]:
+) -> list[PlannedPreflightCheck]:
     return [
-        _check_execution_plan(
+        _planned_check(
             origin=origin,
             origin_name=origin_name,
             recipe_required=recipe_required,
@@ -223,7 +322,7 @@ def _checks_from_recipe(
     ]
 
 
-def _check_execution_plan(
+def _planned_check(
     *,
     origin: str,
     origin_name: str,
@@ -232,30 +331,25 @@ def _check_execution_plan(
     artifact_path: Path,
     transcript_dir: Path,
     include_agent_checks: bool,
-) -> dict[str, Any]:
+) -> PlannedPreflightCheck:
     included, omitted_reason = _check_inclusion(check.kind, include_agent_checks)
-    payload: dict[str, Any] = {
-        "name": check.name,
-        "kind": check.kind,
-        "origin": origin,
-        "origin_name": origin_name,
-        "required": recipe_required and check.required,
-        "included": included,
-        "artifact_path": str(artifact_path) if included else None,
-    }
-    if omitted_reason is not None:
-        payload["omitted_reason"] = omitted_reason
-    if check.command:
-        payload["command"] = list(check.command)
-    if check.env:
-        payload["env"] = list(check.env)
-    if check.prompt is not None:
-        payload["prompt"] = check.prompt
-    if check.expect_tool_calls:
-        payload["expect_tool_calls"] = list(check.expect_tool_calls)
-    if check.kind in AGENT_CHECK_KINDS and included:
-        payload["transcript_dir"] = str(transcript_dir)
-    return payload
+    return PlannedPreflightCheck(
+        name=check.name,
+        kind=check.kind,
+        origin=origin,
+        origin_name=origin_name,
+        required=recipe_required and check.required,
+        included=included,
+        artifact_path=artifact_path if included else None,
+        omitted_reason=omitted_reason,
+        command=check.command,
+        env=check.env,
+        prompt=check.prompt,
+        expect_tool_calls=check.expect_tool_calls,
+        transcript_dir=(
+            transcript_dir if check.kind in AGENT_CHECK_KINDS and included else None
+        ),
+    )
 
 
 def _check_inclusion(kind: str, include_agent_checks: bool) -> tuple[bool, str | None]:
@@ -308,9 +402,15 @@ def _run_vessel_preflight(
     agent_prompt_runner_factory: AgentPromptRunnerFactory | None,
 ) -> dict[str, Any]:
     try:
-        runtime = _runtime_for_vessel(regatta, vessel)
-        riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
         include_agent_checks = agent_prompt_runner_factory is not None
+        plan = _planned_vessel_preflight(
+            regatta=regatta,
+            comparison=comparison,
+            vessel=vessel,
+            logbook_dir=logbook_dir,
+            workspace_path=workspace_path,
+            include_agent_checks=include_agent_checks,
+        )
         instance = HostNixRuntimeBackend().prepare(
             regatta=regatta,
             vessel=vessel,
@@ -318,15 +418,12 @@ def _run_vessel_preflight(
             workspace_path=workspace_path,
             secret_values=secret_values,
         )
-        artifact_path = (
-            logbook_dir / "preflight" / comparison.name / f"{vessel.name}.json"
-        )
         if agent_prompt_runner_factory is None:
             artifact = execute_machine_preflight(
                 regatta=regatta,
                 vessel=vessel,
                 instance=instance,
-                artifact_path=artifact_path,
+                artifact_path=plan.artifact_path,
                 comparison=comparison,
             )
         else:
@@ -334,11 +431,11 @@ def _run_vessel_preflight(
                 regatta=regatta,
                 vessel=vessel,
                 instance=instance,
-                artifact_path=artifact_path,
+                artifact_path=plan.artifact_path,
                 comparison=comparison,
                 agent_prompt_runner=agent_prompt_runner_factory(
                     instance,
-                    logbook_dir / "transcripts" / comparison.name / vessel.name,
+                    plan.transcript_dir,
                 ),
             )
         status = str(artifact["status"])
@@ -348,54 +445,30 @@ def _run_vessel_preflight(
         "name": vessel.name,
         "status": status,
         "checks": _summary_checks(
-            runtime=runtime,
-            riggings=riggings,
+            checks=plan.checks,
             artifact=artifact,
-            artifact_path=artifact_path,
-            transcript_dir=logbook_dir / "transcripts" / comparison.name / vessel.name,
-            include_agent_checks=include_agent_checks,
         ),
     }
 
 
 def _summary_checks(
     *,
-    runtime: RuntimeRecipe,
-    riggings: tuple[RiggingRecipe, ...],
+    checks: tuple[PlannedPreflightCheck, ...],
     artifact: dict[str, Any],
-    artifact_path: Path,
-    transcript_dir: Path,
-    include_agent_checks: bool,
 ) -> list[dict[str, Any]]:
     status_by_name = {
         str(check["name"]): str(check["status"])
         for check in artifact["checks"]
     }
-    checks = _preflight_check_execution_plan(
-        runtime=runtime,
-        riggings=riggings,
-        artifact_path=artifact_path,
-        transcript_dir=transcript_dir,
-        include_agent_checks=include_agent_checks,
-    )
     return [_summary_check(check, status_by_name) for check in checks]
 
 
 def _summary_check(
-    check: dict[str, Any],
+    check: PlannedPreflightCheck,
     status_by_name: dict[str, str],
 ) -> dict[str, Any]:
-    status = status_by_name.get(str(check["name"]), "omitted")
-    payload = {
-        "name": check["name"],
-        "kind": check["kind"],
-        "required": check["required"],
-        "included": check["included"],
-        "status": status,
-    }
-    if "omitted_reason" in check:
-        payload["omitted_reason"] = check["omitted_reason"]
-    return payload
+    status = status_by_name.get(check.name, "omitted")
+    return check.to_summary_json(status)
 
 
 def _comparison_status(
