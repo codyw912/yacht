@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.swe-bench-grading.v1.schema.json",
+  "title": "YACHT SWE-bench Grading",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "regatta",
+    "course",
+    "adapter",
+    "dataset",
+    "split",
+    "status",
+    "source_report_path",
+    "candidate_patches_path",
+    "submitted_instances",
+    "resolved_instances",
+    "resolution_rate",
+    "native_report"
+  ],
+  "properties": {
+    "schema": {
+      "const": "yacht.swe-bench-grading.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter": {
+      "const": "swe-bench"
+    },
+    "dataset": {
+      "type": "string",
+      "minLength": 1
+    },
+    "split": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "const": "validated"
+    },
+    "source_report_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_patches_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "submitted_instances": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resolved_instances": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resolution_rate": {
+      "type": "number",
+      "minimum": 0
+    },
+    "native_report": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

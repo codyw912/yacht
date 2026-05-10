@@ -59,6 +59,7 @@ class SchemaTests(unittest.TestCase):
             PREFLIGHT_SCHEMA,
             PREFLIGHT_SUMMARY_SCHEMA,
             COURSE_HANDOFF_SCHEMA,
+            "yacht.swe-bench-grading.v1",
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
