@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.preflight-evidence-report.v1.schema.json",
+  "title": "YACHT Preflight Evidence Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "regatta", "course", "status", "comparisons"],
+  "properties": {
+    "schema": {
+      "const": "yacht.preflight-evidence-report.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["blocked", "ready"]
+    },
+    "comparisons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "course", "status", "vessels"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "course": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["blocked", "ready"]
+          },
+          "vessels": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "status",
+                "eligible_for_benchmark",
+                "reason",
+                "preflight_artifact_path",
+                "preflight_artifact_present",
+                "preflight_status"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "eligible",
+                    "missing-preflight",
+                    "preflight-error",
+                    "preflight-failed",
+                    "preflight-invalid",
+                    "preflight-skipped"
+                  ]
+                },
+                "eligible_for_benchmark": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "preflight_artifact_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "preflight_artifact_present": {
+                  "type": "boolean"
+                },
+                "preflight_status": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "error": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

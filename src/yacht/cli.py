@@ -12,6 +12,7 @@ from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.course_handoff import write_course_handoff
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
+from yacht.preflight_evidence_report import write_preflight_evidence_report
 from yacht.pi_adapter import PiAdapter, SubprocessPiPromptLauncher
 from yacht.preflight_runner import (
     AgentPromptRunnerFactory,
@@ -189,6 +190,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Python executable prefix to include in generated SWE-bench commands.",
     )
 
+    preflight_report_parser = subcommands.add_parser(
+        "preflight-report",
+        help="Write a preflight evidence eligibility report without running checks.",
+    )
+    preflight_report_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing handoff and preflight artifacts.",
+    )
+
     preflight_parser = subcommands.add_parser(
         "preflight",
         help="Run machine preflight checks without running benchmark tasks.",
@@ -346,6 +358,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
         print(json.dumps(launcher_handoff, indent=2))
+        return 0
+
+    if args.command == "preflight-report":
+        try:
+            report = write_preflight_evidence_report(args.logbook)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(report, indent=2))
         return 0
 
     if args.command == "preflight":

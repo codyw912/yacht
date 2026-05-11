@@ -8,6 +8,7 @@ WAKE_SCHEMA = "yacht.wake.v1"
 SCORECARD_SCHEMA = "yacht.scorecard.v1"
 PREFLIGHT_SCHEMA = "yacht.preflight.v1"
 PREFLIGHT_SUMMARY_SCHEMA = "yacht.preflight-summary.v1"
+PREFLIGHT_EVIDENCE_REPORT_SCHEMA = "yacht.preflight-evidence-report.v1"
 COURSE_HANDOFF_SCHEMA = "yacht.course-handoff.v1"
 BENCHMARK_SCORECARD_SCHEMA = "yacht.benchmark-scorecard.v1"
 BENCHMARK_EXECUTION_PLAN_SCHEMA = "yacht.benchmark-execution-plan.v1"
@@ -28,6 +29,15 @@ PREFLIGHT_CHECK_KINDS = {
 PREFLIGHT_STATUSES = {"passed", "failed", "error", "skipped"}
 PREFLIGHT_SUMMARY_STATUSES = {"passed", "failed", "invalid"}
 PREFLIGHT_SUMMARY_CHECK_STATUSES = PREFLIGHT_STATUSES | {"omitted"}
+PREFLIGHT_EVIDENCE_REPORT_STATUSES = {"blocked", "ready"}
+PREFLIGHT_EVIDENCE_REPORT_VESSEL_STATUSES = {
+    "eligible",
+    "missing-preflight",
+    "preflight-error",
+    "preflight-failed",
+    "preflight-invalid",
+    "preflight-skipped",
+}
 BENCHMARK_SCORECARD_STATUSES = {"complete", "partial", "empty"}
 BENCHMARK_SCORECARD_VESSEL_STATUSES = {"measured", "missing"}
 BENCHMARK_EXECUTION_PLAN_STATUSES = {
@@ -771,6 +781,84 @@ def _validate_preflight_summary_checks(value: Any, path: str) -> None:
                 check["omitted_reason"],
                 f"{check_path}.omitted_reason",
             )
+
+
+def validate_preflight_evidence_report_document(document: dict[str, Any]) -> None:
+    _require_object(document, "preflight evidence report")
+    _require_keys(
+        document,
+        ("schema", "regatta", "course", "status", "comparisons"),
+        "preflight evidence report",
+    )
+    _require_schema(
+        document,
+        PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
+        "preflight evidence report",
+    )
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], key)
+    _require_allowed_value(
+        document["status"],
+        PREFLIGHT_EVIDENCE_REPORT_STATUSES,
+        "status",
+    )
+    comparisons = _require_list(document["comparisons"], "comparisons")
+    if not comparisons:
+        raise SchemaValidationError("comparisons must contain at least one comparison")
+    for comparison_index, comparison_value in enumerate(comparisons):
+        comparison_path = f"comparisons[{comparison_index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(
+            comparison,
+            ("name", "course", "status", "vessels"),
+            comparison_path,
+        )
+        _require_non_empty_string(comparison.get("name"), f"{comparison_path}.name")
+        _require_non_empty_string(comparison.get("course"), f"{comparison_path}.course")
+        _require_allowed_value(
+            comparison.get("status"),
+            PREFLIGHT_EVIDENCE_REPORT_STATUSES,
+            f"{comparison_path}.status",
+        )
+        _validate_preflight_evidence_report_vessels(
+            comparison["vessels"],
+            comparison_path,
+        )
+
+
+def _validate_preflight_evidence_report_vessels(value: Any, path: str) -> None:
+    vessels = _require_list(value, f"{path}.vessels")
+    if not vessels:
+        raise SchemaValidationError(f"{path}.vessels must contain at least one vessel")
+    for vessel_index, vessel_value in enumerate(vessels):
+        vessel_path = f"{path}.vessels[{vessel_index}]"
+        vessel = _require_object(vessel_value, vessel_path)
+        _require_keys(
+            vessel,
+            (
+                "name",
+                "status",
+                "eligible_for_benchmark",
+                "reason",
+                "preflight_artifact_path",
+                "preflight_artifact_present",
+                "preflight_status",
+            ),
+            vessel_path,
+        )
+        _require_non_empty_string(vessel.get("name"), f"{vessel_path}.name")
+        _require_allowed_value(
+            vessel.get("status"),
+            PREFLIGHT_EVIDENCE_REPORT_VESSEL_STATUSES,
+            f"{vessel_path}.status",
+        )
+        for key in ("reason", "preflight_artifact_path", "preflight_status"):
+            _require_non_empty_string(vessel.get(key), f"{vessel_path}.{key}")
+        for key in ("eligible_for_benchmark", "preflight_artifact_present"):
+            if not isinstance(vessel.get(key), bool):
+                raise SchemaValidationError(f"{vessel_path}.{key} must be a boolean")
+        if "error" in vessel:
+            _require_non_empty_string(vessel["error"], f"{vessel_path}.error")
 
 
 def _require_object(value: Any, path: str) -> dict[str, Any]:
