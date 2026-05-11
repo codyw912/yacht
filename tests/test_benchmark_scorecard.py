@@ -275,6 +275,39 @@ class BenchmarkScorecardTests(unittest.TestCase):
             self.assertEqual(payload["schema"], "yacht.benchmark-scorecard.v1")
             self.assertEqual(payload["status"], "partial")
 
+    def test_benchmark_report_command_prints_comparison_table(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(
+                stdout.getvalue(),
+                "\n".join(
+                    [
+                        "Benchmark scorecard: pi-fff-comparison / swe-bench-lite",
+                        "Status: complete",
+                        "Comparisons: 1 | Vessels: 2 | Measured: 2 | Missing: 0",
+                        "",
+                        "comparison | baseline | challenger | resolved_delta | "
+                        "rate_delta | measured | missing | eligible",
+                        "pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +1.000 | "
+                        "2/2 | 0 | 0",
+                        "",
+                    ]
+                ),
+            )
+
     def test_benchmark_scorecard_command_reports_errors_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
