@@ -119,12 +119,15 @@ to read the expected report path from `logbook/benchmark-launcher-handoff.json`.
 `yacht benchmark-plan` reads the handoff and per-vessel benchmark artifact paths,
 then writes `logbook/benchmark-execution-plan.json`, a dry-run readiness report
 showing which vessels are missing candidate patches, ready for native grading, or
-already graded. It does not invoke agents, Docker, or the native benchmark
-harness.
+already graded. A vessel with candidate patches is not ready until its
+comparison-scoped preflight evidence artifact exists, validates, matches the
+vessel, and has `status: passed`. It does not invoke agents, Docker, or the
+native benchmark harness.
 `yacht benchmark-launcher` writes `logbook/benchmark-launcher-handoff.json`, an
 artifact-only native harness handoff containing the exact
 `python -m swebench.harness.run_evaluation` command YACHT expects for every
-ready vessel. It includes dataset, split, predictions path, max workers, run id,
+ready vessel. It applies the same preflight evidence gate before emitting native
+commands. It includes dataset, split, predictions path, max workers, run id,
 report directory, and instance ids, but does not run Docker or SWE-bench.
 `yacht benchmark-scorecard` reads the handoff and validated grading artifacts
 and writes `logbook/benchmark-scorecard.json`, a benchmark-result summary shaped

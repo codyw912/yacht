@@ -40,7 +40,7 @@
     },
     "status": {
       "type": "string",
-      "enum": ["complete", "mixed", "missing-inputs", "ready-for-grading"]
+      "enum": ["blocked", "complete", "mixed", "missing-inputs", "ready-for-grading"]
     },
     "comparisons": {
       "type": "array",
@@ -60,7 +60,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["complete", "mixed", "missing-inputs", "ready-for-grading"]
+            "enum": ["blocked", "complete", "mixed", "missing-inputs", "ready-for-grading"]
           },
           "vessels": {
             "type": "array",
@@ -74,7 +74,10 @@
                 "candidate_patches_path",
                 "candidate_patches_present",
                 "grading_report_path",
-                "grading_report_present"
+                "grading_report_present",
+                "preflight_artifact_path",
+                "preflight_artifact_present",
+                "preflight_status"
               ],
               "properties": {
                 "name": {
@@ -86,6 +89,8 @@
                   "enum": [
                     "graded",
                     "missing-candidate-patches",
+                    "missing-preflight",
+                    "preflight-failed",
                     "ready-for-grading"
                   ]
                 },
@@ -102,6 +107,17 @@
                 },
                 "grading_report_present": {
                   "type": "boolean"
+                },
+                "preflight_artifact_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "preflight_artifact_present": {
+                  "type": "boolean"
+                },
+                "preflight_status": {
+                  "type": "string",
+                  "minLength": 1
                 }
               }
             }

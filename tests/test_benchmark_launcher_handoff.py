@@ -6,6 +6,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
+from tests.preflight_artifacts import write_preflight_artifact
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
 from yacht.course_handoff import write_course_handoff
@@ -32,6 +33,12 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             vessel = handoff["comparisons"][0]["vessels"][0]
             self.assertEqual(vessel["name"], "pi-baseline")
             self.assertEqual(vessel["status"], "ready-to-launch")
+            self.assertEqual(
+                vessel["preflight_artifact_path"],
+                str(logbook_dir / "preflight/pi-vs-pi-fff/pi-baseline.json"),
+            )
+            self.assertTrue(vessel["preflight_artifact_present"])
+            self.assertEqual(vessel["preflight_status"], "passed")
             self.assertEqual(
                 vessel["command"],
                 [
@@ -95,10 +102,54 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             vessels = handoff["comparisons"][0]["vessels"]
             self.assertEqual(vessels[0]["name"], "pi-baseline")
             self.assertEqual(vessels[0]["status"], "missing-candidate-patches")
+            self.assertEqual(vessels[0]["preflight_status"], "missing")
             self.assertNotIn("command", vessels[0])
             self.assertEqual(vessels[1]["name"], "pi-plus-fff")
             self.assertEqual(vessels[1]["status"], "already-graded")
             self.assertNotIn("command", vessels[1])
+
+    def test_launcher_handoff_blocks_candidate_without_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            write_swe_bench_predictions(
+                config_path=Path("examples/pi-fff-provisioning.toml"),
+                predictions_path=Path("examples/pi-baseline-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-baseline",
+            )
+
+            handoff = write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
+
+            vessel = handoff["comparisons"][0]["vessels"][0]
+            self.assertEqual(vessel["name"], "pi-baseline")
+            self.assertEqual(vessel["status"], "missing-preflight")
+            self.assertFalse(vessel["preflight_artifact_present"])
+            self.assertEqual(vessel["preflight_status"], "missing")
+            self.assertNotIn("command", vessel)
+
+    def test_launcher_handoff_blocks_failed_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            write_swe_bench_predictions(
+                config_path=Path("examples/pi-fff-provisioning.toml"),
+                predictions_path=Path("examples/pi-baseline-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-baseline",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-baseline",
+                status="failed",
+            )
+
+            handoff = write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
+
+            vessel = handoff["comparisons"][0]["vessels"][0]
+            self.assertEqual(vessel["status"], "preflight-failed")
+            self.assertTrue(vessel["preflight_artifact_present"])
+            self.assertEqual(vessel["preflight_status"], "failed")
+            self.assertNotIn("command", vessel)
 
     def test_launcher_handoff_command_writes_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -169,11 +220,23 @@ def _prepared_ready_logbook(root: Path) -> Path:
         logbook_dir=logbook_dir,
         vessel_name="pi-baseline",
     )
+    write_preflight_artifact(
+        logbook_dir=logbook_dir,
+        comparison_name="pi-vs-pi-fff",
+        vessel_name="pi-baseline",
+        status="passed",
+    )
     write_swe_bench_predictions(
         config_path=Path("examples/pi-fff-provisioning.toml"),
         predictions_path=Path("examples/pi-fff-predictions.json"),
         logbook_dir=logbook_dir,
         vessel_name="pi-plus-fff",
+    )
+    write_preflight_artifact(
+        logbook_dir=logbook_dir,
+        comparison_name="pi-vs-pi-fff",
+        vessel_name="pi-plus-fff",
+        status="passed",
     )
     return logbook_dir
 

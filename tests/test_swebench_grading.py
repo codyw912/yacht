@@ -6,6 +6,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
+from tests.preflight_artifacts import write_preflight_artifact
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
@@ -242,6 +243,12 @@ class SweBenchGradingTests(unittest.TestCase):
                 logbook_dir=logbook_dir,
                 vessel_name="pi-plus-fff",
             )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-plus-fff",
+                status="passed",
+            )
             launcher_handoff = write_benchmark_launcher_handoff(
                 logbook_dir=logbook_dir,
                 python_executable="uv run python",
@@ -294,6 +301,12 @@ class SweBenchGradingTests(unittest.TestCase):
                 predictions_path=Path("examples/pi-fff-predictions.json"),
                 logbook_dir=logbook_dir,
                 vessel_name="pi-plus-fff",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-plus-fff",
+                status="passed",
             )
             write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
 
