@@ -168,6 +168,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("logbook"),
         help="Directory containing benchmark-scorecard.json.",
     )
+    benchmark_report_parser.add_argument(
+        "--format",
+        choices=("text", "markdown"),
+        default="text",
+        help="Output format for the rendered benchmark report.",
+    )
 
     benchmark_plan_parser = subcommands.add_parser(
         "benchmark-plan",
@@ -352,7 +358,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "benchmark-report":
         try:
-            report = render_benchmark_report(args.logbook)
+            report = render_benchmark_report(args.logbook, args.format)
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1

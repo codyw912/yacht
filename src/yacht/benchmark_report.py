@@ -10,7 +10,7 @@ from yacht.schemas import SchemaValidationError
 from yacht.schemas import validate_benchmark_scorecard_document
 
 
-def render_benchmark_report(logbook_dir: Path) -> str:
+def render_benchmark_report(logbook_dir: Path, output_format: str = "text") -> str:
     scorecard_path = logbook_dir / BENCHMARK_SCORECARD_PATH
     if not scorecard_path.exists():
         raise ConfigError(f"benchmark scorecard artifact not found: {scorecard_path}")
@@ -21,6 +21,8 @@ def render_benchmark_report(logbook_dir: Path) -> str:
         raise ConfigError(
             f"benchmark scorecard artifact is invalid: {error}"
         ) from error
+    if output_format == "markdown":
+        return _render_scorecard_markdown(scorecard)
     return _render_scorecard(scorecard)
 
 
@@ -54,6 +56,29 @@ def _render_scorecard(scorecard: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _render_scorecard_markdown(scorecard: dict[str, Any]) -> str:
+    summary = scorecard["summary"]
+    lines = [
+        "## Benchmark scorecard",
+        "",
+        f"- Regatta: {scorecard['regatta']}",
+        f"- Course: {scorecard['course']}",
+        f"- Status: {scorecard['status']}",
+        f"- Comparisons: {summary['total_comparisons']}",
+        f"- Vessels: {summary['total_vessels']}",
+        f"- Measured: {summary['measured_vessels']}",
+        f"- Missing: {summary['missing_result_vessels']}",
+        "",
+        "| Comparison | Baseline | Challenger | Resolved delta | Rate delta | "
+        "Measured | Missing | Eligible |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    lines.extend(
+        _comparison_markdown_row(comparison) for comparison in scorecard["comparisons"]
+    )
+    return "\n".join(lines) + "\n"
+
+
 def _comparison_row(comparison: dict[str, Any]) -> str:
     delta = comparison["delta"]
     summary = comparison["summary"]
@@ -66,6 +91,21 @@ def _comparison_row(comparison: dict[str, Any]) -> str:
         f"{summary['measured_vessels']}/{summary['total_vessels']} | "
         f"{summary['missing_result_vessels']} | "
         f"{summary['eligible_vessels']}"
+    )
+
+
+def _comparison_markdown_row(comparison: dict[str, Any]) -> str:
+    delta = comparison["delta"]
+    summary = comparison["summary"]
+    return (
+        f"| {comparison['name']} | "
+        f"{delta['baseline_vessel']} | "
+        f"{delta['challenger_vessel']} | "
+        f"{_signed_int(delta['resolved_instances_delta'])} | "
+        f"{_signed_float(delta['resolution_rate_delta'])} | "
+        f"{summary['measured_vessels']}/{summary['total_vessels']} | "
+        f"{summary['missing_result_vessels']} | "
+        f"{summary['eligible_vessels']} |"
     )
 
 

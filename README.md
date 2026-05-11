@@ -88,6 +88,7 @@ uv run yacht preflight-report --logbook logbook
 uv run yacht grading-report examples/pi-fff-provisioning.toml --from-launcher --logbook logbook --vessel pi-plus-fff
 uv run yacht benchmark-scorecard --logbook logbook
 uv run yacht benchmark-report --logbook logbook
+uv run yacht benchmark-report --logbook logbook --format markdown
 uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
@@ -146,7 +147,8 @@ counts for total, eligible, blocked, measured, and missing-result vessels. The
 comparison also includes a baseline-to-challenger delta for resolved instances
 and resolution rate. The scorecard also includes top-level aggregate counts
 across all comparisons. `yacht benchmark-report` reads that scorecard and prints
-a compact human-readable comparison table.
+a compact human-readable comparison table, with optional Markdown output for
+publishing or PR notes.
 `yacht preflight --dry-run` prints the resolved preflight execution plan for the
 selected preflight mode, including which checks would be included or omitted and
 where artifacts/transcripts would be written.
