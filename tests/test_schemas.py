@@ -9,6 +9,7 @@ from yacht.schemas import (
     BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
     BENCHMARK_SCORECARD_SCHEMA,
     COURSE_HANDOFF_SCHEMA,
+    PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
     PREFLIGHT_SCHEMA,
     PREFLIGHT_SUMMARY_SCHEMA,
     REGATTA_SCHEMA,
@@ -18,6 +19,7 @@ from yacht.schemas import (
     validate_benchmark_launcher_handoff_document,
     validate_benchmark_scorecard_document,
     validate_preflight_document,
+    validate_preflight_evidence_report_document,
     validate_preflight_summary_document,
     validate_scorecard_document,
     validate_wake_document,
@@ -64,6 +66,7 @@ class SchemaTests(unittest.TestCase):
             SCORECARD_SCHEMA,
             PREFLIGHT_SCHEMA,
             PREFLIGHT_SUMMARY_SCHEMA,
+            PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
             COURSE_HANDOFF_SCHEMA,
             "yacht.swe-bench-grading.v1",
             BENCHMARK_SCORECARD_SCHEMA,
@@ -146,6 +149,43 @@ class SchemaTests(unittest.TestCase):
         }
 
         validate_preflight_summary_document(document)
+
+    def test_preflight_evidence_report_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
+            "regatta": "schema-smoke-test",
+            "course": "tiny-course",
+            "status": "blocked",
+            "comparisons": [
+                {
+                    "name": "baseline-vs-rigged",
+                    "course": "tiny-course",
+                    "status": "blocked",
+                    "vessels": [
+                        {
+                            "name": "baseline",
+                            "status": "eligible",
+                            "eligible_for_benchmark": True,
+                            "reason": "preflight-passed",
+                            "preflight_artifact_path": "preflight/baseline.json",
+                            "preflight_artifact_present": True,
+                            "preflight_status": "passed",
+                        },
+                        {
+                            "name": "rigged",
+                            "status": "missing-preflight",
+                            "eligible_for_benchmark": False,
+                            "reason": "preflight-missing",
+                            "preflight_artifact_path": "preflight/rigged.json",
+                            "preflight_artifact_present": False,
+                            "preflight_status": "missing",
+                        },
+                    ],
+                }
+            ],
+        }
+
+        validate_preflight_evidence_report_document(document)
 
     def test_preflight_summary_rejects_unknown_check_status(self) -> None:
         document = {
