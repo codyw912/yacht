@@ -7,6 +7,7 @@ from io import StringIO
 from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
 from yacht.regatta import ConfigError
 from yacht.swebench_grading import write_swe_bench_grading_report
@@ -227,6 +228,126 @@ class SweBenchGradingTests(unittest.TestCase):
                 ),
             )
 
+    def test_grading_report_command_can_read_native_report_from_launcher(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            logbook_dir = root / "logbook"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            write_swe_bench_predictions(
+                config_path=config_path,
+                predictions_path=Path("examples/pi-fff-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-plus-fff",
+            )
+            launcher_handoff = write_benchmark_launcher_handoff(
+                logbook_dir=logbook_dir,
+                python_executable="uv run python",
+            )
+            native_report_path = _expected_launcher_native_report_path(
+                launcher_handoff,
+                "pi-plus-fff",
+            )
+            native_report_path.parent.mkdir(parents=True, exist_ok=True)
+            native_report_path.write_text(
+                json.dumps(VALID_NATIVE_REPORT),
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "grading-report",
+                        str(config_path),
+                        "--from-launcher",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--vessel",
+                        "pi-plus-fff",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["vessel"], "pi-plus-fff")
+            self.assertEqual(payload["resolved_instances"], 1)
+            grading_path = (
+                logbook_dir
+                / "course-handoff/swe-bench/vessels/pi-plus-fff/grading-report.json"
+            )
+            artifact = json.loads(grading_path.read_text(encoding="utf-8"))
+            self.assertEqual(artifact["source_report_path"], str(native_report_path))
+
+    def test_grading_report_from_launcher_reports_missing_native_report(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            logbook_dir = root / "logbook"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            write_swe_bench_predictions(
+                config_path=config_path,
+                predictions_path=Path("examples/pi-fff-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-plus-fff",
+            )
+            write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "grading-report",
+                        str(config_path),
+                        "--from-launcher",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--vessel",
+                        "pi-plus-fff",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn(
+                "error: invalid regatta config: native SWE-bench report not found",
+                stderr.getvalue(),
+            )
+            self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_grading_report_from_launcher_requires_vessel(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            logbook_dir = root / "logbook"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "grading-report",
+                        str(config_path),
+                        "--from-launcher",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn(
+                "error: invalid regatta config: --from-launcher requires --vessel",
+                stderr.getvalue(),
+            )
+            self.assertNotIn("Traceback", stderr.getvalue())
+
     def test_grading_report_command_reports_config_errors_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -278,6 +399,22 @@ class SweBenchGradingTests(unittest.TestCase):
 
             self.assertEqual(summary["resolved_instances"], 1)
             self.assertEqual(summary["resolution_rate"], 1.0)
+
+
+def _expected_launcher_native_report_path(
+    launcher_handoff: dict[str, object],
+    vessel_name: str,
+) -> Path:
+    for comparison in launcher_handoff["comparisons"]:
+        for vessel in comparison["vessels"]:
+            if vessel["name"] == vessel_name:
+                command = vessel["command"]
+                run_id = command[command.index("--run_id") + 1]
+                return (
+                    Path(vessel["native_report_dir"])
+                    / f"{vessel_name}.{run_id}.json"
+                )
+    raise AssertionError(f"missing vessel {vessel_name}")
 
 
 if __name__ == "__main__":

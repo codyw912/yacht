@@ -84,6 +84,7 @@ uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-f
 uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/pi-fff-native-report.json --logbook logbook --vessel pi-plus-fff
 uv run yacht benchmark-plan --logbook logbook
 uv run yacht benchmark-launcher --logbook logbook --max-workers 1
+uv run yacht grading-report examples/pi-fff-provisioning.toml --from-launcher --logbook logbook --vessel pi-plus-fff
 uv run yacht benchmark-scorecard --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
@@ -112,6 +113,9 @@ course handoff and candidate patch ids, then writes the normalized report to
 check only; YACHT does not run the native harness in this slice. Pass
 `--vessel <name>` to validate against that vessel's candidate patch file and
 write `logbook/course-handoff/swe-bench/vessels/<name>/grading-report.json`.
+After a native launcher handoff has been written and the SWE-bench command has
+produced its report, pass `--from-launcher --vessel <name>` instead of `--input`
+to read the expected report path from `logbook/benchmark-launcher-handoff.json`.
 `yacht benchmark-plan` reads the handoff and per-vessel benchmark artifact paths,
 then writes `logbook/benchmark-execution-plan.json`, a dry-run readiness report
 showing which vessels are missing candidate patches, ready for native grading, or
