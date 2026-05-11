@@ -9,6 +9,7 @@ from typing import Sequence
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
+from yacht.benchmark_report import render_benchmark_report
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.course_handoff import write_course_handoff
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
@@ -155,6 +156,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("logbook"),
         help="Directory containing handoff and grading artifacts.",
+    )
+
+    benchmark_report_parser = subcommands.add_parser(
+        "benchmark-report",
+        help="Print a human-readable benchmark scorecard report.",
+    )
+    benchmark_report_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing benchmark-scorecard.json.",
     )
 
     benchmark_plan_parser = subcommands.add_parser(
@@ -336,6 +348,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
         print(json.dumps(scorecard, indent=2))
+        return 0
+
+    if args.command == "benchmark-report":
+        try:
+            report = render_benchmark_report(args.logbook)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(report, end="")
         return 0
 
     if args.command == "benchmark-plan":
