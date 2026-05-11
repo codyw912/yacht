@@ -8,6 +8,7 @@ from typing import Any
 from yacht.course_handoff import COURSE_HANDOFF_PATH
 from yacht.preflight_gate import PreflightGate, preflight_gate
 from yacht.regatta import ConfigError
+from yacht.runtime_snapshot_gate import RuntimeSnapshotGate, runtime_snapshot_gate
 from yacht.schemas import (
     BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
     SchemaValidationError,
@@ -201,10 +202,18 @@ def _vessel_to_json(
         comparison_name=comparison_name,
         vessel_name=vessel_name,
     )
+    snapshot_gate = runtime_snapshot_gate(
+        logbook_dir=logbook_dir,
+        regatta_name=str(handoff["regatta"]),
+        course_name=str(handoff["course"]),
+        comparison_name=comparison_name,
+        vessel_name=vessel_name,
+    )
     status = _vessel_status(
         candidate_present=candidate_present,
         grading_present=grading_present,
         gate=gate,
+        snapshot_gate=snapshot_gate,
     )
     vessel = {
         "name": vessel_name,
@@ -216,6 +225,9 @@ def _vessel_to_json(
         "preflight_artifact_path": str(gate.artifact_path),
         "preflight_artifact_present": gate.artifact_present,
         "preflight_status": gate.status,
+        "runtime_instances_artifact_path": str(snapshot_gate.artifact_path),
+        "runtime_instances_artifact_present": snapshot_gate.artifact_present,
+        "runtime_snapshot_status": snapshot_gate.status,
         "native_report_dir": str(
             vessel_artifact_dir(
                 logbook_dir=logbook_dir,
@@ -311,6 +323,7 @@ def _vessel_status(
     candidate_present: bool,
     grading_present: bool,
     gate: PreflightGate,
+    snapshot_gate: RuntimeSnapshotGate,
 ) -> str:
     if grading_present:
         return "already-graded"
@@ -320,6 +333,8 @@ def _vessel_status(
         return "missing-preflight"
     if not gate.passed:
         return "preflight-failed"
+    if not snapshot_gate.matched:
+        return "missing-runtime-snapshot"
     return "ready-to-launch"
 
 
@@ -329,7 +344,13 @@ def _aggregate_status(statuses: list[str]) -> str:
     if all(status == "ready-to-launch" for status in statuses):
         return "ready-to-launch"
     if all(
-        status in {"missing-candidate-patches", "missing-preflight", "missing-inputs"}
+        status
+        in {
+            "missing-candidate-patches",
+            "missing-preflight",
+            "missing-runtime-snapshot",
+            "missing-inputs",
+        }
         for status in statuses
     ):
         return "missing-inputs"
