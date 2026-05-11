@@ -9,6 +9,7 @@ from yacht.course_handoff import COURSE_HANDOFF_PATH
 from yacht.regatta import ConfigError
 from yacht.schemas import (
     BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
+    SchemaValidationError,
     validate_benchmark_launcher_handoff_document,
 )
 from yacht.swebench_artifacts import candidate_patches_path, grading_report_path
@@ -16,6 +17,58 @@ from yacht.swebench_artifacts import vessel_artifact_dir
 
 
 BENCHMARK_LAUNCHER_HANDOFF_PATH = Path("benchmark-launcher-handoff.json")
+
+
+def native_report_path_from_launcher_handoff(
+    *,
+    logbook_dir: Path,
+    vessel_name: str,
+) -> Path:
+    launcher_path = logbook_dir / BENCHMARK_LAUNCHER_HANDOFF_PATH
+    if not launcher_path.exists():
+        raise ConfigError(
+            f"benchmark launcher handoff artifact not found: {launcher_path}"
+        )
+
+    launcher_handoff = _load_json_object(
+        launcher_path,
+        "benchmark launcher handoff artifact",
+    )
+    try:
+        validate_benchmark_launcher_handoff_document(launcher_handoff)
+    except SchemaValidationError as error:
+        raise ConfigError(str(error)) from error
+
+    matches = [
+        vessel
+        for comparison in launcher_handoff["comparisons"]
+        for vessel in comparison["vessels"]
+        if vessel["name"] == vessel_name
+    ]
+    if not matches:
+        raise ConfigError(
+            f"benchmark launcher handoff does not contain vessel {vessel_name}"
+        )
+    if len(matches) > 1:
+        raise ConfigError(
+            "benchmark launcher handoff contains multiple entries for vessel "
+            f"{vessel_name}; pass --input explicitly"
+        )
+
+    vessel = matches[0]
+    command = vessel.get("command")
+    if command is None:
+        raise ConfigError(
+            "benchmark launcher handoff does not include a launch command for "
+            f"vessel {vessel_name}; pass --input explicitly"
+        )
+    run_id = _command_option_value(command, "--run_id", vessel_name)
+    native_report_path = (
+        Path(str(vessel["native_report_dir"])) / f"{vessel_name}.{run_id}.json"
+    )
+    if not native_report_path.exists():
+        raise ConfigError(f"native SWE-bench report not found: {native_report_path}")
+    return native_report_path
 
 
 def write_benchmark_launcher_handoff(
@@ -212,6 +265,30 @@ def _run_id(*, regatta: str, comparison_name: str, vessel_name: str) -> str:
     return "__".join(
         value.replace("/", "__").replace(" ", "_")
         for value in (regatta, comparison_name, vessel_name)
+    )
+
+
+def _command_option_value(
+    command: object,
+    option: str,
+    vessel_name: str,
+) -> str:
+    if not isinstance(command, list):
+        raise ConfigError(
+            "benchmark launcher handoff launch command for vessel "
+            f"{vessel_name} must be a list"
+        )
+    for index, value in enumerate(command):
+        if value == option:
+            if index + 1 >= len(command) or not isinstance(command[index + 1], str):
+                raise ConfigError(
+                    "benchmark launcher handoff launch command for vessel "
+                    f"{vessel_name} is missing a value for {option}"
+                )
+            return command[index + 1]
+    raise ConfigError(
+        "benchmark launcher handoff launch command for vessel "
+        f"{vessel_name} is missing {option}"
     )
 
 

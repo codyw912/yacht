@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
+from yacht.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.course_handoff import write_course_handoff
@@ -117,11 +118,21 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Path to a regatta TOML file.",
     )
-    grading_report_parser.add_argument(
+    grading_report_source = grading_report_parser.add_mutually_exclusive_group(
+        required=True
+    )
+    grading_report_source.add_argument(
         "--input",
-        required=True,
         type=Path,
         help="JSON report produced by the SWE-bench harness.",
+    )
+    grading_report_source.add_argument(
+        "--from-launcher",
+        action="store_true",
+        help=(
+            "Read the expected SWE-bench report path from the benchmark launcher "
+            "handoff for the selected vessel."
+        ),
     )
     grading_report_parser.add_argument(
         "--logbook",
@@ -283,9 +294,20 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "grading-report":
         try:
+            native_report_path = args.input
+            if args.from_launcher:
+                if not args.vessel:
+                    raise ConfigError(
+                        "--from-launcher requires --vessel because launcher handoffs "
+                        "are per vessel"
+                    )
+                native_report_path = native_report_path_from_launcher_handoff(
+                    logbook_dir=args.logbook,
+                    vessel_name=args.vessel,
+                )
             summary = write_swe_bench_grading_report(
                 config_path=args.config,
-                native_report_path=args.input,
+                native_report_path=native_report_path,
                 logbook_dir=args.logbook,
                 vessel_name=args.vessel,
             )
