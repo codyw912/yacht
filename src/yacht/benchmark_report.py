@@ -50,7 +50,7 @@ def _render_scorecard(scorecard: dict[str, Any]) -> str:
         f"Missing: {summary['missing_result_vessels']}",
         "",
         "comparison | baseline | challenger | resolved_delta | rate_delta | "
-        "measured | missing | eligible",
+        "measured | missing | eligible | preflight",
     ]
     lines.extend(_comparison_row(comparison) for comparison in scorecard["comparisons"])
     return "\n".join(lines) + "\n"
@@ -70,8 +70,8 @@ def _render_scorecard_markdown(scorecard: dict[str, Any]) -> str:
         f"- Missing: {summary['missing_result_vessels']}",
         "",
         "| Comparison | Baseline | Challenger | Resolved delta | Rate delta | "
-        "Measured | Missing | Eligible |",
-        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        "Measured | Missing | Eligible | Preflight |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     lines.extend(
         _comparison_markdown_row(comparison) for comparison in scorecard["comparisons"]
@@ -90,7 +90,8 @@ def _comparison_row(comparison: dict[str, Any]) -> str:
         f"{_signed_float(delta['resolution_rate_delta'])} | "
         f"{summary['measured_vessels']}/{summary['total_vessels']} | "
         f"{summary['missing_result_vessels']} | "
-        f"{summary['eligible_vessels']}"
+        f"{summary['eligible_vessels']} | "
+        f"{_preflight_reasons(comparison)}"
     )
 
 
@@ -105,7 +106,8 @@ def _comparison_markdown_row(comparison: dict[str, Any]) -> str:
         f"{_signed_float(delta['resolution_rate_delta'])} | "
         f"{summary['measured_vessels']}/{summary['total_vessels']} | "
         f"{summary['missing_result_vessels']} | "
-        f"{summary['eligible_vessels']} |"
+        f"{summary['eligible_vessels']} | "
+        f"{_preflight_reasons(comparison)} |"
     )
 
 
@@ -115,3 +117,11 @@ def _signed_int(value: int) -> str:
 
 def _signed_float(value: float) -> str:
     return f"{value:+.3f}"
+
+
+def _preflight_reasons(comparison: dict[str, Any]) -> str:
+    counts: dict[str, int] = {}
+    for vessel in comparison["vessels"]:
+        reason = str(vessel["preflight_reason"])
+        counts[reason] = counts.get(reason, 0) + 1
+    return ", ".join(f"{reason}:{count}" for reason, count in counts.items())

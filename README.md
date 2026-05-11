@@ -148,9 +148,9 @@ counts for total, eligible, blocked, measured, and missing-result vessels. The
 comparison also includes a baseline-to-challenger delta for resolved instances
 and resolution rate. The scorecard also includes top-level aggregate counts
 across all comparisons. `yacht benchmark-report` reads that scorecard and prints
-a compact human-readable comparison table, with optional Markdown output for
-publishing or PR notes. Pass `--output` to write the rendered report as a
-durable artifact.
+a compact human-readable comparison table, including preflight reason counts for
+each comparison. It supports optional Markdown output for publishing or PR
+notes. Pass `--output` to write the rendered report as a durable artifact.
 `yacht preflight --dry-run` prints the resolved preflight execution plan for the
 selected preflight mode, including which checks would be included or omitted and
 where artifacts/transcripts would be written.
