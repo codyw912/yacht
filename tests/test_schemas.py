@@ -330,6 +330,30 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "benchmark scorecard.summary"):
             validate_benchmark_scorecard_document(document)
 
+    def test_benchmark_scorecard_rejects_inconsistent_comparison_summary(
+        self,
+    ) -> None:
+        document = _valid_benchmark_scorecard_document()
+        document["comparisons"][0]["summary"]["measured_vessels"] = 2
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "comparisons\\[0\\].summary.measured_vessels",
+        ):
+            validate_benchmark_scorecard_document(document)
+
+    def test_benchmark_scorecard_rejects_inconsistent_top_level_summary(
+        self,
+    ) -> None:
+        document = _valid_benchmark_scorecard_document()
+        document["summary"]["missing_result_vessels"] = 0
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "benchmark scorecard.summary.missing_result_vessels",
+        ):
+            validate_benchmark_scorecard_document(document)
+
     def test_benchmark_scorecard_rejects_unknown_vessel_status(self) -> None:
         document = {
             "schema": BENCHMARK_SCORECARD_SCHEMA,
@@ -584,6 +608,67 @@ class SchemaTests(unittest.TestCase):
                 run_regatta(config_path, logbook_dir)
 
             self.assertFalse(logbook_dir.exists())
+
+
+def _valid_benchmark_scorecard_document() -> dict[str, object]:
+    return {
+        "schema": BENCHMARK_SCORECARD_SCHEMA,
+        "regatta": "pi-fff-comparison",
+        "course": "swe-bench-lite",
+        "adapter": {
+            "kind": "swe-bench",
+            "dataset": "princeton-nlp/SWE-bench_Lite",
+            "split": "test",
+        },
+        "status": "partial",
+        "summary": {
+            "total_comparisons": 1,
+            "total_vessels": 2,
+            "eligible_vessels": 1,
+            "blocked_vessels": 1,
+            "measured_vessels": 1,
+            "missing_result_vessels": 1,
+        },
+        "comparisons": [
+            {
+                "name": "pi-vs-pi-fff",
+                "course": "swe-bench-lite",
+                "summary": {
+                    "total_vessels": 2,
+                    "eligible_vessels": 1,
+                    "blocked_vessels": 1,
+                    "measured_vessels": 1,
+                    "missing_result_vessels": 1,
+                },
+                "vessels": [
+                    {
+                        "name": "pi-baseline",
+                        "status": "missing",
+                        "submitted_instances": 0,
+                        "resolved_instances": 0,
+                        "resolution_rate": 0.0,
+                        "eligible_for_benchmark": False,
+                        "preflight_status": "missing",
+                        "preflight_reason": "preflight-missing",
+                        "preflight_artifact_path": "preflight/pi-baseline.json",
+                    },
+                    {
+                        "name": "pi-plus-fff",
+                        "status": "measured",
+                        "submitted_instances": 1,
+                        "resolved_instances": 1,
+                        "resolution_rate": 1.0,
+                        "resolved_ids": ["django__django-11099"],
+                        "unresolved_ids": [],
+                        "eligible_for_benchmark": True,
+                        "preflight_status": "passed",
+                        "preflight_reason": "preflight-passed",
+                        "preflight_artifact_path": "preflight/pi-plus-fff.json",
+                    },
+                ],
+            }
+        ],
+    }
 
 
 if __name__ == "__main__":
