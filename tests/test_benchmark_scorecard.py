@@ -300,9 +300,9 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "Comparisons: 1 | Vessels: 2 | Measured: 2 | Missing: 0",
                         "",
                         "comparison | baseline | challenger | resolved_delta | "
-                        "rate_delta | measured | missing | eligible",
+                        "rate_delta | measured | missing | eligible | preflight",
                         "pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +1.000 | "
-                        "2/2 | 0 | 0",
+                        "2/2 | 0 | 0 | preflight-missing:2",
                         "",
                     ]
                 ),
@@ -341,10 +341,10 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "- Missing: 0",
                         "",
                         "| Comparison | Baseline | Challenger | Resolved delta | "
-                        "Rate delta | Measured | Missing | Eligible |",
-                        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+                        "Rate delta | Measured | Missing | Eligible | Preflight |",
+                        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
                         "| pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +1.000 | "
-                        "2/2 | 0 | 0 |",
+                        "2/2 | 0 | 0 | preflight-missing:2 |",
                         "",
                     ]
                 ),
@@ -388,10 +388,10 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "- Missing: 0",
                         "",
                         "| Comparison | Baseline | Challenger | Resolved delta | "
-                        "Rate delta | Measured | Missing | Eligible |",
-                        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+                        "Rate delta | Measured | Missing | Eligible | Preflight |",
+                        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
                         "| pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +1.000 | "
-                        "2/2 | 0 | 0 |",
+                        "2/2 | 0 | 0 | preflight-missing:2 |",
                         "",
                     ]
                 ),
