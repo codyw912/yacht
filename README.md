@@ -75,6 +75,7 @@ running Pi, installing fff, or executing SWE-bench:
 ```sh
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
+uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace .
 uv run yacht handoff examples/pi-fff-provisioning.toml --logbook logbook
 uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-fff-predictions.json --logbook logbook
 uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/pi-fff-native-report.json --logbook logbook
@@ -99,6 +100,10 @@ uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --
 with isolated runtime placeholders, redacted secret references, and any
 benchmark handoff metadata, but does not launch agents, install rigging, execute
 preflight checks, invoke Docker, or write a logbook.
+`yacht runtime-instances` is also a dry run. It resolves each comparison
+vessel's concrete host runtime paths, Nix command prefix, runtime command,
+isolated environment, cleanup paths, and redacted secret placeholders without
+creating runtime directories or launching an agent.
 `yacht handoff` writes `logbook/course-handoff.json`, a versioned planned
 contract for the native benchmark harness handoff. It records adapter inputs,
 tasks, comparison vessels, expected future output paths, and delegated grading

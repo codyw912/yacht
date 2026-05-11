@@ -10,10 +10,84 @@ from tests.fixtures import REGATTA_CONFIG
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.cli import main
 from yacht.preflight_runner import build_preflight_execution_plan
+from yacht.runtime_instances import build_runtime_instances_plan
 from yacht.runtime_plan import build_runtime_plan
 
 
 class RuntimePlanTests(unittest.TestCase):
+    def test_build_runtime_instances_plan_resolves_host_nix_paths_and_env(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            logbook_dir = root / "logbook"
+            workspace_path = root / "workspace"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+
+            plan = build_runtime_instances_plan(
+                config_path,
+                logbook_dir,
+                workspace_path,
+            )
+
+            self.assertEqual(plan["regatta"], "pi-fff-comparison")
+            self.assertEqual(plan["course"], "swe-bench-lite")
+            self.assertEqual(plan["mode"], "dry-run")
+            comparison = plan["comparisons"][0]
+            self.assertEqual(comparison["name"], "pi-vs-pi-fff")
+            rigged = comparison["vessels"][1]
+            self.assertEqual(rigged["name"], "pi-plus-fff")
+            self.assertEqual(rigged["runtime"], "pi")
+            self.assertEqual(rigged["backend"], "host-nix")
+            self.assertEqual(
+                rigged["command_prefix"],
+                ["nix", "develop", "github:example/yacht-runtimes#pi", "--command"],
+            )
+            self.assertEqual(rigged["command"], ["pi"])
+            self.assertEqual(
+                rigged["trial_root"],
+                str(logbook_dir / "runtime" / "pi-vs-pi-fff" / "pi-plus-fff"),
+            )
+            self.assertEqual(
+                rigged["temp_home"],
+                str(logbook_dir / "runtime" / "pi-vs-pi-fff" / "pi-plus-fff" / "home"),
+            )
+            self.assertEqual(rigged["workspace_path"], str(workspace_path))
+            self.assertEqual(
+                rigged["cleanup_paths"],
+                [str(logbook_dir / "runtime" / "pi-vs-pi-fff" / "pi-plus-fff")],
+            )
+            self.assertEqual(
+                rigged["env"]["HOME"],
+                str(logbook_dir / "runtime" / "pi-vs-pi-fff" / "pi-plus-fff" / "home"),
+            )
+            self.assertEqual(rigged["env"]["PI_FFF_MODE"], "required")
+            self.assertEqual(
+                rigged["env"]["FFF_HISTORY_DB"],
+                str(
+                    logbook_dir
+                    / "runtime"
+                    / "pi-vs-pi-fff"
+                    / "pi-plus-fff"
+                    / "home"
+                    / ".local"
+                    / "state"
+                    / "fff-history.sqlite"
+                ),
+            )
+            self.assertEqual(rigged["env"]["ANTHROPIC_API_KEY"], "{secret:anthropic}")
+            self.assertEqual(
+                rigged["secret_refs"],
+                [
+                    {
+                        "name": "anthropic",
+                        "source": "env",
+                        "ref": "ANTHROPIC_API_KEY",
+                        "redacted": True,
+                    }
+                ],
+            )
+            self.assertFalse(logbook_dir.exists())
+
     def test_build_runtime_plan_redacts_secrets_and_merges_rigging_env(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "regatta.toml"
@@ -109,6 +183,36 @@ class RuntimePlanTests(unittest.TestCase):
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["regatta"], "pi-fff-comparison")
             self.assertEqual(payload["vessels"][0]["name"], "pi-baseline")
+
+    def test_runtime_instances_command_prints_dry_run_without_logbook(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            logbook_dir = root / "logbook"
+            workspace_path = root / "workspace"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "runtime-instances",
+                        str(config_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertFalse(logbook_dir.exists())
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["mode"], "dry-run")
+            self.assertEqual(
+                payload["comparisons"][0]["vessels"][1]["env"]["ANTHROPIC_API_KEY"],
+                "{secret:anthropic}",
+            )
 
     def test_plan_command_reports_missing_runtime_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
