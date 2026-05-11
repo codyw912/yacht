@@ -174,6 +174,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="text",
         help="Output format for the rendered benchmark report.",
     )
+    benchmark_report_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write the rendered benchmark report.",
+    )
 
     benchmark_plan_parser = subcommands.add_parser(
         "benchmark-plan",
@@ -362,6 +367,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(report, encoding="utf-8")
+            return 0
         print(report, end="")
         return 0
 
