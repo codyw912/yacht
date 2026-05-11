@@ -191,6 +191,11 @@ def validate_preflight_document(document: dict[str, Any]) -> None:
             "schema",
             "regatta",
             "vessel",
+            "runtime",
+            "workspace_path",
+            "temp_home",
+            "command_prefix",
+            "cleanup_paths",
             "status",
             "failure_policy",
             "checks",
@@ -199,8 +204,17 @@ def validate_preflight_document(document: dict[str, Any]) -> None:
         "preflight",
     )
     _require_schema(document, PREFLIGHT_SCHEMA, "preflight")
-    for key in ("regatta", "vessel", "failure_policy"):
+    for key in (
+        "regatta",
+        "vessel",
+        "runtime",
+        "workspace_path",
+        "temp_home",
+        "failure_policy",
+    ):
         _require_non_empty_string(document[key], key)
+    _require_string_list(document["command_prefix"], "command_prefix")
+    _require_string_list(document["cleanup_paths"], "cleanup_paths")
     _require_allowed_value(
         document["status"],
         PREFLIGHT_STATUSES,
@@ -211,7 +225,7 @@ def validate_preflight_document(document: dict[str, Any]) -> None:
         PREFLIGHT_FAILURE_POLICIES,
         "failure_policy",
     )
-    for key in ("comparison", "runtime"):
+    for key in ("comparison",):
         if key in document:
             _require_non_empty_string(document[key], key)
 
@@ -230,10 +244,27 @@ def validate_preflight_document(document: dict[str, Any]) -> None:
         check = _require_object(check_value, f"checks[{index}]")
         _require_keys(
             check,
-            ("name", "kind", "required", "status", "evidence"),
+            (
+                "name",
+                "kind",
+                "origin",
+                "origin_name",
+                "required",
+                "status",
+                "evidence",
+            ),
             f"checks[{index}]",
         )
         _require_non_empty_string(check.get("name"), f"checks[{index}].name")
+        _require_allowed_value(
+            check.get("origin"),
+            {"runtime", "rigging"},
+            f"checks[{index}].origin",
+        )
+        _require_non_empty_string(
+            check.get("origin_name"),
+            f"checks[{index}].origin_name",
+        )
         _require_allowed_value(
             check.get("kind"),
             PREFLIGHT_CHECK_KINDS,
@@ -302,8 +333,16 @@ def validate_preflight_summary_document(document: dict[str, Any]) -> None:
         for vessel_index, vessel_value in enumerate(vessels):
             vessel_path = f"{comparison_path}.vessels[{vessel_index}]"
             vessel = _require_object(vessel_value, vessel_path)
-            _require_keys(vessel, ("name", "status", "checks"), vessel_path)
+            _require_keys(
+                vessel,
+                ("name", "status", "evidence_artifact_path", "checks"),
+                vessel_path,
+            )
             _require_non_empty_string(vessel.get("name"), f"{vessel_path}.name")
+            _require_non_empty_string(
+                vessel.get("evidence_artifact_path"),
+                f"{vessel_path}.evidence_artifact_path",
+            )
             _require_allowed_value(
                 vessel.get("status"),
                 PREFLIGHT_STATUSES,
@@ -665,10 +704,27 @@ def _validate_preflight_summary_checks(value: Any, path: str) -> None:
         check = _require_object(check_value, check_path)
         _require_keys(
             check,
-            ("name", "kind", "required", "included", "status"),
+            (
+                "name",
+                "kind",
+                "origin",
+                "origin_name",
+                "required",
+                "included",
+                "status",
+            ),
             check_path,
         )
         _require_non_empty_string(check.get("name"), f"{check_path}.name")
+        _require_allowed_value(
+            check.get("origin"),
+            {"runtime", "rigging"},
+            f"{check_path}.origin",
+        )
+        _require_non_empty_string(
+            check.get("origin_name"),
+            f"{check_path}.origin_name",
+        )
         _require_allowed_value(
             check.get("kind"),
             PREFLIGHT_CHECK_KINDS,

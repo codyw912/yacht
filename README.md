@@ -143,7 +143,9 @@ Machine-only preflight execution can now validate `command`, `env`, and
 tasks; it only proves the configured runtime and machine-checkable rigging are
 ready enough to spend task-run tokens. Preflight summaries include every
 configured check and mark agent-prompt checks as omitted when agent preflight is
-not enabled.
+not enabled. Each summary vessel points to its `yacht.preflight.v1` evidence
+artifact, and that artifact records the runtime context plus each check's
+runtime or rigging origin.
 Agent-surface `agent-prompt` checks can also be executed through an injected
 runner that returns response, transcript, and tool-call evidence. The Pi adapter
 exposes that runner boundary through an injected headless prompt launcher and a

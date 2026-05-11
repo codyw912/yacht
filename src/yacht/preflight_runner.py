@@ -78,6 +78,8 @@ class PlannedPreflightCheck:
         payload = {
             "name": self.name,
             "kind": self.kind,
+            "origin": self.origin,
+            "origin_name": self.origin_name,
             "required": self.required,
             "included": self.included,
             "status": status,
@@ -451,6 +453,7 @@ def _run_vessel_preflight(
     return {
         "name": vessel.name,
         "status": status,
+        "evidence_artifact_path": str(plan.artifact_path),
         "checks": _summary_checks(
             checks=plan.checks,
             artifact=artifact,

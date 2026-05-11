@@ -235,6 +235,15 @@ class ProvisioningConfigTests(unittest.TestCase):
             "comparison": "pi-vs-pi-fff",
             "vessel": "pi-plus-fff",
             "runtime": "pi",
+            "workspace_path": "/tmp/workspace",
+            "temp_home": "/tmp/home",
+            "command_prefix": [
+                "nix",
+                "develop",
+                "github:example/yacht-runtimes#pi",
+                "--command",
+            ],
+            "cleanup_paths": ["/tmp/home"],
             "status": "passed",
             "failure_policy": "abort-group",
             "secret_refs": [
@@ -249,6 +258,8 @@ class ProvisioningConfigTests(unittest.TestCase):
                 {
                     "name": "fff-headless-smoke",
                     "kind": "agent-prompt",
+                    "origin": "rigging",
+                    "origin_name": "pi-fff",
                     "required": True,
                     "status": "passed",
                     "evidence": {

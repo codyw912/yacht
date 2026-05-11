@@ -107,11 +107,22 @@ class CliPreflightTests(unittest.TestCase):
                     {
                         "name": "runtime-home-isolated",
                         "kind": "path-isolation",
+                        "origin": "runtime",
+                        "origin_name": "mock",
                         "required": True,
                         "included": True,
                         "status": "passed",
                     },
                 ],
+            )
+            self.assertEqual(
+                comparison["vessels"][0]["evidence_artifact_path"],
+                str(
+                    logbook_dir
+                    / "preflight"
+                    / "baseline-vs-rigged"
+                    / "baseline.json"
+                ),
             )
 
             artifact_path = (
@@ -197,8 +208,19 @@ class CliPreflightTests(unittest.TestCase):
             self.assertEqual(summary["status"], "passed")
             self.assertEqual(len(calls), 1)
             rigged = summary["comparisons"][0]["vessels"][1]
+            self.assertEqual(
+                rigged["evidence_artifact_path"],
+                str(
+                    logbook_dir
+                    / "preflight"
+                    / "baseline-vs-rigged"
+                    / "rigged.json"
+                ),
+            )
             agent_check = _check_by_name(rigged, "agent-tool-smoke")
             self.assertTrue(agent_check["included"])
+            self.assertEqual(agent_check["origin"], "rigging")
+            self.assertEqual(agent_check["origin_name"], "agent-check")
             self.assertEqual(agent_check["status"], "passed")
             self.assertEqual(calls[0][0], "confirm tool")
             self.assertEqual(

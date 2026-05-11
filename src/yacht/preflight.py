@@ -42,6 +42,8 @@ class AgentPromptResult:
 class EffectiveCheck:
     check: PreflightCheck
     required: bool
+    origin: str
+    origin_name: str
 
 
 CommandRunner = Callable[[tuple[str, ...], dict[str, str], Path], CommandResult]
@@ -115,6 +117,10 @@ def _execute_preflight(
         "regatta": regatta.name,
         "vessel": vessel.name,
         "runtime": runtime.name,
+        "workspace_path": str(instance.workspace_path),
+        "temp_home": str(instance.temp_home),
+        "command_prefix": list(instance.command_prefix),
+        "cleanup_paths": [str(path) for path in instance.cleanup_paths],
         "status": _artifact_status(check_results),
         "failure_policy": regatta.preflight.failure_policy,
         "secret_refs": [
@@ -167,6 +173,8 @@ def _preflight_checks(
         EffectiveCheck(
             check=check,
             required=runtime.preflight.required and check.required,
+            origin="runtime",
+            origin_name=runtime.name,
         )
         for check in runtime.preflight.checks
         if check.kind in kinds
@@ -176,6 +184,8 @@ def _preflight_checks(
             EffectiveCheck(
                 check=check,
                 required=rigging.preflight.required and check.required,
+                origin="rigging",
+                origin_name=rigging.name,
             )
             for check in rigging.preflight.checks
             if check.kind in kinds
@@ -210,9 +220,7 @@ def _execute_command_check(
     argv = instance.command_prefix + check.command
     result = command_runner(argv, instance.env, instance.workspace_path)
     return {
-        "name": check.name,
-        "kind": check.kind,
-        "required": effective_check.required,
+        **_check_result_base(effective_check),
         "status": "passed" if result.exit_code == 0 else "failed",
         "evidence": {
             "argv": list(argv),
@@ -238,9 +246,7 @@ def _execute_env_check(
     if missing:
         evidence["missing_env"] = missing
     return {
-        "name": check.name,
-        "kind": check.kind,
-        "required": effective_check.required,
+        **_check_result_base(effective_check),
         "status": "failed" if missing else "passed",
         "evidence": evidence,
     }
@@ -269,9 +275,7 @@ def _execute_path_isolation_check(
         evidence["outside_trial_home"] = outside_trial_home
     status = "failed" if missing or outside_trial_home else "passed"
     return {
-        "name": check.name,
-        "kind": check.kind,
-        "required": effective_check.required,
+        **_check_result_base(effective_check),
         "status": status,
         "evidence": evidence,
     }
@@ -285,9 +289,7 @@ def _execute_agent_prompt_check(
     check = effective_check.check
     if agent_prompt_runner is None:
         return {
-            "name": check.name,
-            "kind": check.kind,
-            "required": effective_check.required,
+            **_check_result_base(effective_check),
             "status": "error",
             "evidence": {
                 "prompt": check.prompt or "",
@@ -327,11 +329,20 @@ def _execute_agent_prompt_check(
         else "failed"
     )
     return {
-        "name": check.name,
-        "kind": check.kind,
-        "required": effective_check.required,
+        **_check_result_base(effective_check),
         "status": status,
         "evidence": evidence,
+    }
+
+
+def _check_result_base(effective_check: EffectiveCheck) -> dict[str, object]:
+    check = effective_check.check
+    return {
+        "name": check.name,
+        "kind": check.kind,
+        "origin": effective_check.origin,
+        "origin_name": effective_check.origin_name,
+        "required": effective_check.required,
     }
 
 

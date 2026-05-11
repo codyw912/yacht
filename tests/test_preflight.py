@@ -47,6 +47,16 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(artifact["comparison"], "pi-vs-pi-fff")
             self.assertEqual(artifact["vessel"], "pi-plus-fff")
             self.assertEqual(artifact["runtime"], "pi")
+            self.assertEqual(artifact["workspace_path"], str(instance.workspace_path))
+            self.assertEqual(artifact["temp_home"], str(instance.temp_home))
+            self.assertEqual(
+                artifact["command_prefix"],
+                ["nix", "develop", "github:example/yacht-runtimes#pi", "--command"],
+            )
+            self.assertEqual(
+                artifact["cleanup_paths"],
+                [str(path) for path in instance.cleanup_paths],
+            )
             self.assertEqual(
                 artifact["secret_refs"],
                 [
@@ -61,6 +71,15 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(
                 [check["name"] for check in artifact["checks"]],
                 ["pi-present", "runtime-home-isolated", "fff-mode", "fff-state-isolated"],
+            )
+            self.assertEqual(_check_by_name(artifact, "pi-present")["origin"], "runtime")
+            self.assertEqual(
+                _check_by_name(artifact, "fff-mode")["origin"],
+                "rigging",
+            )
+            self.assertEqual(
+                _check_by_name(artifact, "fff-mode")["origin_name"],
+                "pi-fff",
             )
             self.assertEqual(
                 commands[0][0],
@@ -191,6 +210,8 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(artifact["status"], "passed")
             agent_check = _check_by_name(artifact, "fff-headless-smoke")
             self.assertEqual(agent_check["status"], "passed")
+            self.assertEqual(agent_check["origin"], "rigging")
+            self.assertEqual(agent_check["origin_name"], "pi-fff")
             self.assertEqual(
                 agent_check["evidence"],
                 {
