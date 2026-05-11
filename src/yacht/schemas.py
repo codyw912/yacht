@@ -10,6 +10,7 @@ PREFLIGHT_SCHEMA = "yacht.preflight.v1"
 PREFLIGHT_SUMMARY_SCHEMA = "yacht.preflight-summary.v1"
 COURSE_HANDOFF_SCHEMA = "yacht.course-handoff.v1"
 BENCHMARK_SCORECARD_SCHEMA = "yacht.benchmark-scorecard.v1"
+BENCHMARK_EXECUTION_PLAN_SCHEMA = "yacht.benchmark-execution-plan.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
@@ -28,6 +29,17 @@ PREFLIGHT_SUMMARY_STATUSES = {"passed", "failed", "invalid"}
 PREFLIGHT_SUMMARY_CHECK_STATUSES = PREFLIGHT_STATUSES | {"omitted"}
 BENCHMARK_SCORECARD_STATUSES = {"complete", "partial", "empty"}
 BENCHMARK_SCORECARD_VESSEL_STATUSES = {"measured", "missing"}
+BENCHMARK_EXECUTION_PLAN_STATUSES = {
+    "complete",
+    "mixed",
+    "missing-inputs",
+    "ready-for-grading",
+}
+BENCHMARK_EXECUTION_PLAN_VESSEL_STATUSES = {
+    "graded",
+    "missing-candidate-patches",
+    "ready-for-grading",
+}
 
 
 class SchemaValidationError(ValueError):
@@ -341,6 +353,32 @@ def validate_benchmark_scorecard_document(document: dict[str, Any]) -> None:
     _validate_benchmark_scorecard_comparisons(document["comparisons"])
 
 
+def validate_benchmark_execution_plan_document(document: dict[str, Any]) -> None:
+    _require_object(document, "benchmark execution plan")
+    _require_keys(
+        document,
+        ("schema", "regatta", "course", "adapter", "status", "comparisons"),
+        "benchmark execution plan",
+    )
+    _require_schema(
+        document,
+        BENCHMARK_EXECUTION_PLAN_SCHEMA,
+        "benchmark execution plan",
+    )
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], key)
+    _validate_course_adapter_fields(
+        _require_object(document["adapter"], "adapter"),
+        "adapter",
+    )
+    _require_allowed_value(
+        document["status"],
+        BENCHMARK_EXECUTION_PLAN_STATUSES,
+        "status",
+    )
+    _validate_benchmark_execution_plan_comparisons(document["comparisons"])
+
+
 def _validate_course_handoff_tasks(value: Any) -> None:
     tasks = _require_list(value, "tasks")
     if not tasks:
@@ -455,6 +493,60 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
             for key in ("resolved_ids", "unresolved_ids"):
                 if key in vessel:
                     _require_string_list(vessel[key], f"{vessel_path}.{key}")
+
+
+def _validate_benchmark_execution_plan_comparisons(value: Any) -> None:
+    comparisons = _require_list(value, "comparisons")
+    if not comparisons:
+        raise SchemaValidationError("comparisons must contain at least one comparison")
+    for comparison_index, comparison_value in enumerate(comparisons):
+        comparison_path = f"comparisons[{comparison_index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(
+            comparison,
+            ("name", "course", "status", "vessels"),
+            comparison_path,
+        )
+        _require_non_empty_string(comparison.get("name"), f"{comparison_path}.name")
+        _require_non_empty_string(comparison.get("course"), f"{comparison_path}.course")
+        _require_allowed_value(
+            comparison.get("status"),
+            BENCHMARK_EXECUTION_PLAN_STATUSES,
+            f"{comparison_path}.status",
+        )
+        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
+        if not vessels:
+            raise SchemaValidationError(
+                f"{comparison_path}.vessels must contain at least one vessel"
+            )
+        for vessel_index, vessel_value in enumerate(vessels):
+            vessel_path = f"{comparison_path}.vessels[{vessel_index}]"
+            vessel = _require_object(vessel_value, vessel_path)
+            _require_keys(
+                vessel,
+                (
+                    "name",
+                    "status",
+                    "candidate_patches_path",
+                    "candidate_patches_present",
+                    "grading_report_path",
+                    "grading_report_present",
+                ),
+                vessel_path,
+            )
+            _require_non_empty_string(vessel.get("name"), f"{vessel_path}.name")
+            _require_allowed_value(
+                vessel.get("status"),
+                BENCHMARK_EXECUTION_PLAN_VESSEL_STATUSES,
+                f"{vessel_path}.status",
+            )
+            for key in ("candidate_patches_path", "grading_report_path"):
+                _require_non_empty_string(vessel.get(key), f"{vessel_path}.{key}")
+            for key in ("candidate_patches_present", "grading_report_present"):
+                if not isinstance(vessel.get(key), bool):
+                    raise SchemaValidationError(
+                        f"{vessel_path}.{key} must be a boolean"
+                    )
 
 
 def _validate_preflight_summary_checks(value: Any, path: str) -> None:

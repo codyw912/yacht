@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.benchmark-execution-plan.v1.schema.json",
+  "title": "YACHT Benchmark Execution Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "regatta", "course", "adapter", "status", "comparisons"],
+  "properties": {
+    "schema": {
+      "const": "yacht.benchmark-execution-plan.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "dataset", "split", "harness"],
+      "properties": {
+        "kind": {
+          "const": "swe-bench"
+        },
+        "dataset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "split": {
+          "type": "string",
+          "minLength": 1
+        },
+        "harness": {
+          "const": "docker"
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["complete", "mixed", "missing-inputs", "ready-for-grading"]
+    },
+    "comparisons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "course", "status", "vessels"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "course": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["complete", "mixed", "missing-inputs", "ready-for-grading"]
+          },
+          "vessels": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "status",
+                "candidate_patches_path",
+                "candidate_patches_present",
+                "grading_report_path",
+                "grading_report_present"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "graded",
+                    "missing-candidate-patches",
+                    "ready-for-grading"
+                  ]
+                },
+                "candidate_patches_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "candidate_patches_present": {
+                  "type": "boolean"
+                },
+                "grading_report_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "grading_report_present": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

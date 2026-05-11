@@ -5,6 +5,7 @@ from pathlib import Path
 
 from yacht.regatta import ConfigError, run_regatta
 from yacht.schemas import (
+    BENCHMARK_EXECUTION_PLAN_SCHEMA,
     BENCHMARK_SCORECARD_SCHEMA,
     COURSE_HANDOFF_SCHEMA,
     PREFLIGHT_SCHEMA,
@@ -12,6 +13,7 @@ from yacht.schemas import (
     REGATTA_SCHEMA,
     SCORECARD_SCHEMA,
     WAKE_SCHEMA,
+    validate_benchmark_execution_plan_document,
     validate_benchmark_scorecard_document,
     validate_preflight_document,
     validate_preflight_summary_document,
@@ -63,6 +65,7 @@ class SchemaTests(unittest.TestCase):
             COURSE_HANDOFF_SCHEMA,
             "yacht.swe-bench-grading.v1",
             BENCHMARK_SCORECARD_SCHEMA,
+            BENCHMARK_EXECUTION_PLAN_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -239,6 +242,84 @@ class SchemaTests(unittest.TestCase):
             "comparisons\\[0\\].vessels\\[0\\].status",
         ):
             validate_benchmark_scorecard_document(document)
+
+    def test_benchmark_execution_plan_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": BENCHMARK_EXECUTION_PLAN_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "swe-bench-lite",
+            "adapter": {
+                "kind": "swe-bench",
+                "dataset": "princeton-nlp/SWE-bench_Lite",
+                "split": "test",
+                "harness": "docker",
+            },
+            "status": "mixed",
+            "comparisons": [
+                {
+                    "name": "pi-vs-pi-fff",
+                    "course": "swe-bench-lite",
+                    "status": "mixed",
+                    "vessels": [
+                        {
+                            "name": "pi-baseline",
+                            "status": "ready-for-grading",
+                            "candidate_patches_path": "candidate-patches.jsonl",
+                            "candidate_patches_present": True,
+                            "grading_report_path": "grading-report.json",
+                            "grading_report_present": False,
+                        },
+                        {
+                            "name": "pi-plus-fff",
+                            "status": "graded",
+                            "candidate_patches_path": "candidate-patches.jsonl",
+                            "candidate_patches_present": True,
+                            "grading_report_path": "grading-report.json",
+                            "grading_report_present": True,
+                        },
+                    ],
+                }
+            ],
+        }
+
+        validate_benchmark_execution_plan_document(document)
+
+    def test_benchmark_execution_plan_rejects_unknown_vessel_status(self) -> None:
+        document = {
+            "schema": BENCHMARK_EXECUTION_PLAN_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "swe-bench-lite",
+            "adapter": {
+                "kind": "swe-bench",
+                "dataset": "princeton-nlp/SWE-bench_Lite",
+                "split": "test",
+                "harness": "docker",
+            },
+            "status": "mixed",
+            "comparisons": [
+                {
+                    "name": "pi-vs-pi-fff",
+                    "course": "swe-bench-lite",
+                    "status": "mixed",
+                    "vessels": [
+                        {
+                            "name": "pi-plus-fff",
+                            "status": "unknown",
+                            "candidate_patches_path": "candidate-patches.jsonl",
+                            "candidate_patches_present": True,
+                            "grading_report_path": "grading-report.json",
+                            "grading_report_present": True,
+                        },
+                    ],
+                }
+            ],
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "comparisons\\[0\\].vessels\\[0\\].status",
+        ):
+            validate_benchmark_execution_plan_document(document)
 
     def test_wake_and_scorecard_documents_include_schema_versions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
