@@ -6,6 +6,7 @@ from typing import Any
 
 from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.regatta import ConfigError
+from yacht.schemas import SchemaValidationError
 from yacht.schemas import validate_benchmark_scorecard_document
 
 
@@ -14,7 +15,12 @@ def render_benchmark_report(logbook_dir: Path) -> str:
     if not scorecard_path.exists():
         raise ConfigError(f"benchmark scorecard artifact not found: {scorecard_path}")
     scorecard = _load_scorecard(scorecard_path)
-    validate_benchmark_scorecard_document(scorecard)
+    try:
+        validate_benchmark_scorecard_document(scorecard)
+    except SchemaValidationError as error:
+        raise ConfigError(
+            f"benchmark scorecard artifact is invalid: {error}"
+        ) from error
     return _render_scorecard(scorecard)
 
 
