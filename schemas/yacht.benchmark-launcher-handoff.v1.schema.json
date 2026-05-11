@@ -40,7 +40,7 @@
     },
     "status": {
       "type": "string",
-      "enum": ["complete", "mixed", "missing-inputs", "ready-to-launch"]
+      "enum": ["blocked", "complete", "mixed", "missing-inputs", "ready-to-launch"]
     },
     "comparisons": {
       "type": "array",
@@ -60,7 +60,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["complete", "mixed", "missing-inputs", "ready-to-launch"]
+            "enum": ["blocked", "complete", "mixed", "missing-inputs", "ready-to-launch"]
           },
           "vessels": {
             "type": "array",
@@ -75,6 +75,9 @@
                 "candidate_patches_present",
                 "expected_yacht_grading_report_path",
                 "grading_report_present",
+                "preflight_artifact_path",
+                "preflight_artifact_present",
+                "preflight_status",
                 "native_report_dir"
               ],
               "properties": {
@@ -87,6 +90,8 @@
                   "enum": [
                     "already-graded",
                     "missing-candidate-patches",
+                    "missing-preflight",
+                    "preflight-failed",
                     "ready-to-launch"
                   ]
                 },
@@ -103,6 +108,17 @@
                 },
                 "grading_report_present": {
                   "type": "boolean"
+                },
+                "preflight_artifact_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "preflight_artifact_present": {
+                  "type": "boolean"
+                },
+                "preflight_status": {
+                  "type": "string",
+                  "minLength": 1
                 },
                 "native_report_dir": {
                   "type": "string",

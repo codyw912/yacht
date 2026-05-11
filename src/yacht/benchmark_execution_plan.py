@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.course_handoff import COURSE_HANDOFF_PATH
+from yacht.preflight_gate import PreflightGate, preflight_gate
 from yacht.regatta import ConfigError
 from yacht.schemas import (
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
@@ -69,7 +70,12 @@ def _comparison_to_json(
     comparison: dict[str, Any],
 ) -> dict[str, Any]:
     vessels = [
-        _vessel_to_json(logbook_dir, handoff, str(vessel_name))
+        _vessel_to_json(
+            logbook_dir=logbook_dir,
+            handoff=handoff,
+            comparison_name=str(comparison["name"]),
+            vessel_name=str(vessel_name),
+        )
         for vessel_name in comparison["vessels"]
     ]
     return {
@@ -81,8 +87,10 @@ def _comparison_to_json(
 
 
 def _vessel_to_json(
+    *,
     logbook_dir: Path,
     handoff: dict[str, Any],
+    comparison_name: str,
     vessel_name: str,
 ) -> dict[str, Any]:
     candidate_path = candidate_patches_path(
@@ -97,22 +105,44 @@ def _vessel_to_json(
     )
     candidate_present = candidate_path.exists()
     grading_present = grading_path.exists()
+    gate = preflight_gate(
+        logbook_dir=logbook_dir,
+        regatta_name=str(handoff["regatta"]),
+        comparison_name=comparison_name,
+        vessel_name=vessel_name,
+    )
     return {
         "name": vessel_name,
-        "status": _vessel_status(candidate_present, grading_present),
+        "status": _vessel_status(
+            candidate_present=candidate_present,
+            grading_present=grading_present,
+            gate=gate,
+        ),
         "candidate_patches_path": str(candidate_path),
         "candidate_patches_present": candidate_present,
         "grading_report_path": str(grading_path),
         "grading_report_present": grading_present,
+        "preflight_artifact_path": str(gate.artifact_path),
+        "preflight_artifact_present": gate.artifact_present,
+        "preflight_status": gate.status,
     }
 
 
-def _vessel_status(candidate_present: bool, grading_present: bool) -> str:
+def _vessel_status(
+    *,
+    candidate_present: bool,
+    grading_present: bool,
+    gate: PreflightGate,
+) -> str:
     if grading_present:
         return "graded"
-    if candidate_present:
-        return "ready-for-grading"
-    return "missing-candidate-patches"
+    if not candidate_present:
+        return "missing-candidate-patches"
+    if not gate.artifact_present:
+        return "missing-preflight"
+    if not gate.passed:
+        return "preflight-failed"
+    return "ready-for-grading"
 
 
 def _aggregate_status(statuses: list[str]) -> str:
@@ -121,10 +151,12 @@ def _aggregate_status(statuses: list[str]) -> str:
     if all(status == "ready-for-grading" for status in statuses):
         return "ready-for-grading"
     if all(
-        status in {"missing-candidate-patches", "missing-inputs"}
+        status in {"missing-candidate-patches", "missing-preflight", "missing-inputs"}
         for status in statuses
     ):
         return "missing-inputs"
+    if all(status in {"preflight-failed", "blocked"} for status in statuses):
+        return "blocked"
     return "mixed"
 
 

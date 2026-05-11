@@ -6,6 +6,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
+from tests.preflight_artifacts import write_preflight_artifact
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.cli import main
 from yacht.course_handoff import write_course_handoff
@@ -50,6 +51,12 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
                                     / "course-handoff/swe-bench/vessels/pi-baseline/grading-report.json"
                                 ),
                                 "grading_report_present": False,
+                                "preflight_artifact_path": str(
+                                    logbook_dir
+                                    / "preflight/pi-vs-pi-fff/pi-baseline.json"
+                                ),
+                                "preflight_artifact_present": False,
+                                "preflight_status": "missing",
                             },
                             {
                                 "name": "pi-plus-fff",
@@ -64,6 +71,12 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
                                     / "course-handoff/swe-bench/vessels/pi-plus-fff/grading-report.json"
                                 ),
                                 "grading_report_present": False,
+                                "preflight_artifact_path": str(
+                                    logbook_dir
+                                    / "preflight/pi-vs-pi-fff/pi-plus-fff.json"
+                                ),
+                                "preflight_artifact_present": False,
+                                "preflight_status": "missing",
                             },
                         ],
                     }
@@ -88,10 +101,53 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
             self.assertEqual(vessels[0]["status"], "ready-for-grading")
             self.assertTrue(vessels[0]["candidate_patches_present"])
             self.assertFalse(vessels[0]["grading_report_present"])
+            self.assertTrue(vessels[0]["preflight_artifact_present"])
+            self.assertEqual(vessels[0]["preflight_status"], "passed")
             self.assertEqual(vessels[1]["name"], "pi-plus-fff")
             self.assertEqual(vessels[1]["status"], "graded")
             self.assertTrue(vessels[1]["candidate_patches_present"])
             self.assertTrue(vessels[1]["grading_report_present"])
+
+    def test_benchmark_execution_plan_blocks_candidate_without_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            write_swe_bench_predictions(
+                config_path=Path("examples/pi-fff-provisioning.toml"),
+                predictions_path=Path("examples/pi-baseline-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-baseline",
+            )
+
+            plan = write_benchmark_execution_plan(logbook_dir)
+
+            vessels = plan["comparisons"][0]["vessels"]
+            self.assertEqual(vessels[0]["name"], "pi-baseline")
+            self.assertEqual(vessels[0]["status"], "missing-preflight")
+            self.assertFalse(vessels[0]["preflight_artifact_present"])
+            self.assertEqual(vessels[0]["preflight_status"], "missing")
+
+    def test_benchmark_execution_plan_blocks_failed_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            write_swe_bench_predictions(
+                config_path=Path("examples/pi-fff-provisioning.toml"),
+                predictions_path=Path("examples/pi-baseline-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-baseline",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-baseline",
+                status="failed",
+            )
+
+            plan = write_benchmark_execution_plan(logbook_dir)
+
+            vessels = plan["comparisons"][0]["vessels"]
+            self.assertEqual(vessels[0]["status"], "preflight-failed")
+            self.assertTrue(vessels[0]["preflight_artifact_present"])
+            self.assertEqual(vessels[0]["preflight_status"], "failed")
 
     def test_benchmark_execution_plan_command_writes_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -156,6 +212,12 @@ def _prepared_mixed_logbook(root: Path) -> Path:
         predictions_path=Path("examples/pi-baseline-predictions.json"),
         logbook_dir=logbook_dir,
         vessel_name="pi-baseline",
+    )
+    write_preflight_artifact(
+        logbook_dir=logbook_dir,
+        comparison_name="pi-vs-pi-fff",
+        vessel_name="pi-baseline",
+        status="passed",
     )
     write_swe_bench_predictions(
         config_path=Path("examples/pi-fff-provisioning.toml"),

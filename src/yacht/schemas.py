@@ -31,6 +31,7 @@ PREFLIGHT_SUMMARY_CHECK_STATUSES = PREFLIGHT_STATUSES | {"omitted"}
 BENCHMARK_SCORECARD_STATUSES = {"complete", "partial", "empty"}
 BENCHMARK_SCORECARD_VESSEL_STATUSES = {"measured", "missing"}
 BENCHMARK_EXECUTION_PLAN_STATUSES = {
+    "blocked",
     "complete",
     "mixed",
     "missing-inputs",
@@ -39,9 +40,12 @@ BENCHMARK_EXECUTION_PLAN_STATUSES = {
 BENCHMARK_EXECUTION_PLAN_VESSEL_STATUSES = {
     "graded",
     "missing-candidate-patches",
+    "missing-preflight",
+    "preflight-failed",
     "ready-for-grading",
 }
 BENCHMARK_LAUNCHER_HANDOFF_STATUSES = {
+    "blocked",
     "complete",
     "mixed",
     "missing-inputs",
@@ -50,6 +54,8 @@ BENCHMARK_LAUNCHER_HANDOFF_STATUSES = {
 BENCHMARK_LAUNCHER_HANDOFF_VESSEL_STATUSES = {
     "already-graded",
     "missing-candidate-patches",
+    "missing-preflight",
+    "preflight-failed",
     "ready-to-launch",
 }
 
@@ -608,6 +614,9 @@ def _validate_benchmark_execution_plan_comparisons(value: Any) -> None:
                     "candidate_patches_present",
                     "grading_report_path",
                     "grading_report_present",
+                    "preflight_artifact_path",
+                    "preflight_artifact_present",
+                    "preflight_status",
                 ),
                 vessel_path,
             )
@@ -617,9 +626,18 @@ def _validate_benchmark_execution_plan_comparisons(value: Any) -> None:
                 BENCHMARK_EXECUTION_PLAN_VESSEL_STATUSES,
                 f"{vessel_path}.status",
             )
-            for key in ("candidate_patches_path", "grading_report_path"):
+            for key in (
+                "candidate_patches_path",
+                "grading_report_path",
+                "preflight_artifact_path",
+                "preflight_status",
+            ):
                 _require_non_empty_string(vessel.get(key), f"{vessel_path}.{key}")
-            for key in ("candidate_patches_present", "grading_report_present"):
+            for key in (
+                "candidate_patches_present",
+                "grading_report_present",
+                "preflight_artifact_present",
+            ):
                 if not isinstance(vessel.get(key), bool):
                     raise SchemaValidationError(
                         f"{vessel_path}.{key} must be a boolean"
@@ -668,6 +686,9 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
             "candidate_patches_present",
             "expected_yacht_grading_report_path",
             "grading_report_present",
+            "preflight_artifact_path",
+            "preflight_artifact_present",
+            "preflight_status",
             "native_report_dir",
         ),
         path,
@@ -681,10 +702,16 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
     for key in (
         "candidate_patches_path",
         "expected_yacht_grading_report_path",
+        "preflight_artifact_path",
+        "preflight_status",
         "native_report_dir",
     ):
         _require_non_empty_string(vessel.get(key), f"{path}.{key}")
-    for key in ("candidate_patches_present", "grading_report_present"):
+    for key in (
+        "candidate_patches_present",
+        "grading_report_present",
+        "preflight_artifact_present",
+    ):
         if not isinstance(vessel.get(key), bool):
             raise SchemaValidationError(f"{path}.{key} must be a boolean")
     if "command" in vessel:
