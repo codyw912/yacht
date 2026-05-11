@@ -350,6 +350,53 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 ),
             )
 
+    def test_benchmark_report_command_writes_output_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook_dir = _prepared_multi_vessel_logbook(root)
+            output_path = root / "reports" / "benchmark.md"
+            write_benchmark_scorecard(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--format",
+                        "markdown",
+                        "--output",
+                        str(output_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertEqual(
+                output_path.read_text(encoding="utf-8"),
+                "\n".join(
+                    [
+                        "## Benchmark scorecard",
+                        "",
+                        "- Regatta: pi-fff-comparison",
+                        "- Course: swe-bench-lite",
+                        "- Status: complete",
+                        "- Comparisons: 1",
+                        "- Vessels: 2",
+                        "- Measured: 2",
+                        "- Missing: 0",
+                        "",
+                        "| Comparison | Baseline | Challenger | Resolved delta | "
+                        "Rate delta | Measured | Missing | Eligible |",
+                        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+                        "| pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +1.000 | "
+                        "2/2 | 0 | 0 |",
+                        "",
+                    ]
+                ),
+            )
+
     def test_benchmark_report_command_reports_missing_scorecard(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
