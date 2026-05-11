@@ -6,13 +6,18 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from tests.preflight_artifacts import write_preflight_artifact
+from tests.benchmark_fixtures import PI_FFF_CONFIG_PATH
+from tests.benchmark_fixtures import PI_FFF_PREDICTIONS_PATH
+from tests.benchmark_fixtures import write_pi_fff_config
+from tests.benchmark_fixtures import write_runtime_snapshot
+from tests.benchmark_fixtures import write_vessel_candidate
+from tests.benchmark_fixtures import write_vessel_preflight
+from tests.benchmark_fixtures import write_vessel_ready_inputs
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
 from yacht.course_handoff import write_course_handoff
 from yacht.regatta import ConfigError
 from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
-from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
 
@@ -113,9 +118,8 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
     def test_launcher_handoff_blocks_candidate_without_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
-            write_swe_bench_predictions(
-                config_path=Path("examples/pi-fff-provisioning.toml"),
-                predictions_path=Path("examples/pi-baseline-predictions.json"),
+            write_vessel_candidate(
+                config_path=PI_FFF_CONFIG_PATH,
                 logbook_dir=logbook_dir,
                 vessel_name="pi-baseline",
             )
@@ -132,18 +136,12 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
     def test_launcher_handoff_blocks_candidate_without_runtime_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
-            write_swe_bench_predictions(
-                config_path=Path("examples/pi-fff-provisioning.toml"),
-                predictions_path=Path("examples/pi-baseline-predictions.json"),
+            write_vessel_candidate(
+                config_path=PI_FFF_CONFIG_PATH,
                 logbook_dir=logbook_dir,
                 vessel_name="pi-baseline",
             )
-            write_preflight_artifact(
-                logbook_dir=logbook_dir,
-                comparison_name="pi-vs-pi-fff",
-                vessel_name="pi-baseline",
-                status="passed",
-            )
+            write_vessel_preflight(logbook_dir=logbook_dir, vessel_name="pi-baseline")
 
             handoff = write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
 
@@ -163,26 +161,12 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             root = Path(temp_dir)
             config_path = root / "regatta.toml"
             logbook_dir = root / "logbook"
-            config_path.write_text(
-                Path("examples/pi-fff-provisioning.toml").read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
-            write_swe_bench_predictions(
-                config_path=config_path,
-                predictions_path=Path("examples/pi-baseline-predictions.json"),
-                logbook_dir=logbook_dir,
-                vessel_name="pi-baseline",
-            )
-            write_preflight_artifact(
-                logbook_dir=logbook_dir,
-                comparison_name="pi-vs-pi-fff",
-                vessel_name="pi-baseline",
-                status="passed",
-            )
-            write_runtime_instances_plan(
+            write_pi_fff_config(config_path)
+            write_vessel_ready_inputs(
                 config_path=config_path,
                 logbook_dir=logbook_dir,
                 workspace_path=root / "workspace",
+                vessel_name="pi-baseline",
             )
             snapshot_path = logbook_dir / RUNTIME_INSTANCES_PLAN_PATH
             snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
@@ -213,15 +197,13 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
     def test_launcher_handoff_blocks_failed_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
-            write_swe_bench_predictions(
-                config_path=Path("examples/pi-fff-provisioning.toml"),
-                predictions_path=Path("examples/pi-baseline-predictions.json"),
+            write_vessel_candidate(
+                config_path=PI_FFF_CONFIG_PATH,
                 logbook_dir=logbook_dir,
                 vessel_name="pi-baseline",
             )
-            write_preflight_artifact(
+            write_vessel_preflight(
                 logbook_dir=logbook_dir,
-                comparison_name="pi-vs-pi-fff",
                 vessel_name="pi-baseline",
                 status="failed",
             )
@@ -297,49 +279,38 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
 
 def _prepared_ready_logbook(root: Path) -> Path:
     logbook_dir = root / "logbook"
-    write_swe_bench_predictions(
-        config_path=Path("examples/pi-fff-provisioning.toml"),
-        predictions_path=Path("examples/pi-baseline-predictions.json"),
+    write_vessel_candidate(
+        config_path=PI_FFF_CONFIG_PATH,
         logbook_dir=logbook_dir,
         vessel_name="pi-baseline",
     )
-    write_runtime_instances_plan(
-        config_path=Path("examples/pi-fff-provisioning.toml"),
+    write_runtime_snapshot(
+        config_path=PI_FFF_CONFIG_PATH,
         logbook_dir=logbook_dir,
         workspace_path=root / "workspace",
     )
-    write_preflight_artifact(
-        logbook_dir=logbook_dir,
-        comparison_name="pi-vs-pi-fff",
-        vessel_name="pi-baseline",
-        status="passed",
-    )
+    write_vessel_preflight(logbook_dir=logbook_dir, vessel_name="pi-baseline")
     write_swe_bench_predictions(
-        config_path=Path("examples/pi-fff-provisioning.toml"),
-        predictions_path=Path("examples/pi-fff-predictions.json"),
+        config_path=PI_FFF_CONFIG_PATH,
+        predictions_path=PI_FFF_PREDICTIONS_PATH,
         logbook_dir=logbook_dir,
         vessel_name="pi-plus-fff",
     )
-    write_preflight_artifact(
-        logbook_dir=logbook_dir,
-        comparison_name="pi-vs-pi-fff",
-        vessel_name="pi-plus-fff",
-        status="passed",
-    )
+    write_vessel_preflight(logbook_dir=logbook_dir, vessel_name="pi-plus-fff")
     return logbook_dir
 
 
 def _prepared_mixed_logbook(root: Path) -> Path:
     logbook_dir = root / "logbook"
-    write_course_handoff(Path("examples/pi-fff-provisioning.toml"), logbook_dir)
+    write_course_handoff(PI_FFF_CONFIG_PATH, logbook_dir)
     write_swe_bench_predictions(
-        config_path=Path("examples/pi-fff-provisioning.toml"),
-        predictions_path=Path("examples/pi-fff-predictions.json"),
+        config_path=PI_FFF_CONFIG_PATH,
+        predictions_path=PI_FFF_PREDICTIONS_PATH,
         logbook_dir=logbook_dir,
         vessel_name="pi-plus-fff",
     )
     write_swe_bench_grading_report(
-        config_path=Path("examples/pi-fff-provisioning.toml"),
+        config_path=PI_FFF_CONFIG_PATH,
         native_report_path=Path("examples/pi-fff-native-report.json"),
         logbook_dir=logbook_dir,
         vessel_name="pi-plus-fff",

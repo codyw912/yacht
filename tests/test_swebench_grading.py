@@ -6,12 +6,11 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from tests.preflight_artifacts import write_preflight_artifact
+from tests.benchmark_fixtures import write_vessel_ready_inputs
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
 from yacht.regatta import ConfigError
-from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
 
@@ -238,22 +237,11 @@ class SweBenchGradingTests(unittest.TestCase):
             config_path = root / "regatta.toml"
             logbook_dir = root / "logbook"
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
-            write_swe_bench_predictions(
-                config_path=config_path,
-                predictions_path=Path("examples/pi-fff-predictions.json"),
-                logbook_dir=logbook_dir,
-                vessel_name="pi-plus-fff",
-            )
-            write_preflight_artifact(
-                logbook_dir=logbook_dir,
-                comparison_name="pi-vs-pi-fff",
-                vessel_name="pi-plus-fff",
-                status="passed",
-            )
-            write_runtime_instances_plan(
+            write_vessel_ready_inputs(
                 config_path=config_path,
                 logbook_dir=logbook_dir,
                 workspace_path=root / "workspace",
+                vessel_name="pi-plus-fff",
             )
             launcher_handoff = write_benchmark_launcher_handoff(
                 logbook_dir=logbook_dir,
@@ -302,22 +290,11 @@ class SweBenchGradingTests(unittest.TestCase):
             config_path = root / "regatta.toml"
             logbook_dir = root / "logbook"
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
-            write_swe_bench_predictions(
-                config_path=config_path,
-                predictions_path=Path("examples/pi-fff-predictions.json"),
-                logbook_dir=logbook_dir,
-                vessel_name="pi-plus-fff",
-            )
-            write_preflight_artifact(
-                logbook_dir=logbook_dir,
-                comparison_name="pi-vs-pi-fff",
-                vessel_name="pi-plus-fff",
-                status="passed",
-            )
-            write_runtime_instances_plan(
+            write_vessel_ready_inputs(
                 config_path=config_path,
                 logbook_dir=logbook_dir,
                 workspace_path=root / "workspace",
+                vessel_name="pi-plus-fff",
             )
             write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
 
