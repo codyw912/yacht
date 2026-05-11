@@ -3,11 +3,54 @@ import unittest
 from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from yacht.host_nix_runtime import resolve_host_nix_runtime
 from yacht.regatta import load_regatta
 from yacht.runtime_backend import HostNixRuntimeBackend, RuntimePreparationError
 
 
 class HostNixRuntimeBackendTests(unittest.TestCase):
+    def test_resolver_provides_host_nix_env_for_dry_run_and_prepare(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            instance_root = root / "trial" / "pi-plus-fff"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            regatta = load_regatta(config_path)
+            vessel = regatta.vessels[1]
+
+            resolution = resolve_host_nix_runtime(
+                regatta=regatta,
+                vessel=vessel,
+                instance_root=instance_root,
+                workspace_path=workspace_path,
+            )
+
+            self.assertEqual(resolution.runtime.name, "pi")
+            self.assertEqual(resolution.temp_home, instance_root / "home")
+            self.assertEqual(
+                resolution.command_prefix,
+                ("nix", "develop", "github:example/yacht-runtimes#pi", "--command"),
+            )
+            self.assertEqual(resolution.command, ("pi",))
+            self.assertEqual(resolution.cleanup_paths, (instance_root,))
+            self.assertEqual(
+                resolution.env["FFF_HISTORY_DB"],
+                str(instance_root / "home" / ".local" / "state" / "fff-history.sqlite"),
+            )
+            self.assertEqual(
+                resolution.env_with_secret_placeholders(regatta)["ANTHROPIC_API_KEY"],
+                "{secret:anthropic}",
+            )
+            self.assertEqual(
+                resolution.env_with_secret_values(
+                    regatta,
+                    {"anthropic": "test-secret"},
+                )["ANTHROPIC_API_KEY"],
+                "test-secret",
+            )
+            self.assertFalse(instance_root.exists())
+
     def test_prepare_creates_isolated_runtime_instance_with_explicit_secret(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
