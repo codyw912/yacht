@@ -59,6 +59,7 @@ BENCHMARK_EXECUTION_PLAN_VESSEL_STATUSES = {
     "graded",
     "missing-candidate-patches",
     "missing-preflight",
+    "missing-runtime-snapshot",
     "preflight-failed",
     "ready-for-grading",
 }
@@ -73,6 +74,7 @@ BENCHMARK_LAUNCHER_HANDOFF_VESSEL_STATUSES = {
     "already-graded",
     "missing-candidate-patches",
     "missing-preflight",
+    "missing-runtime-snapshot",
     "preflight-failed",
     "ready-to-launch",
 }
@@ -841,6 +843,9 @@ def _validate_benchmark_execution_plan_comparisons(value: Any) -> None:
                     "preflight_artifact_path",
                     "preflight_artifact_present",
                     "preflight_status",
+                    "runtime_instances_artifact_path",
+                    "runtime_instances_artifact_present",
+                    "runtime_snapshot_status",
                 ),
                 vessel_path,
             )
@@ -855,12 +860,15 @@ def _validate_benchmark_execution_plan_comparisons(value: Any) -> None:
                 "grading_report_path",
                 "preflight_artifact_path",
                 "preflight_status",
+                "runtime_instances_artifact_path",
+                "runtime_snapshot_status",
             ):
                 _require_non_empty_string(vessel.get(key), f"{vessel_path}.{key}")
             for key in (
                 "candidate_patches_present",
                 "grading_report_present",
                 "preflight_artifact_present",
+                "runtime_instances_artifact_present",
             ):
                 if not isinstance(vessel.get(key), bool):
                     raise SchemaValidationError(
@@ -913,6 +921,9 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
             "preflight_artifact_path",
             "preflight_artifact_present",
             "preflight_status",
+            "runtime_instances_artifact_path",
+            "runtime_instances_artifact_present",
+            "runtime_snapshot_status",
             "native_report_dir",
         ),
         path,
@@ -928,6 +939,8 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
         "expected_yacht_grading_report_path",
         "preflight_artifact_path",
         "preflight_status",
+        "runtime_instances_artifact_path",
+        "runtime_snapshot_status",
         "native_report_dir",
     ):
         _require_non_empty_string(vessel.get(key), f"{path}.{key}")
@@ -935,6 +948,7 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
         "candidate_patches_present",
         "grading_report_present",
         "preflight_artifact_present",
+        "runtime_instances_artifact_present",
     ):
         if not isinstance(vessel.get(key), bool):
             raise SchemaValidationError(f"{path}.{key} must be a boolean")

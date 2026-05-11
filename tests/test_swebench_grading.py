@@ -11,6 +11,7 @@ from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
 from yacht.regatta import ConfigError
+from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
 
@@ -249,6 +250,11 @@ class SweBenchGradingTests(unittest.TestCase):
                 vessel_name="pi-plus-fff",
                 status="passed",
             )
+            write_runtime_instances_plan(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                workspace_path=root / "workspace",
+            )
             launcher_handoff = write_benchmark_launcher_handoff(
                 logbook_dir=logbook_dir,
                 python_executable="uv run python",
@@ -307,6 +313,11 @@ class SweBenchGradingTests(unittest.TestCase):
                 comparison_name="pi-vs-pi-fff",
                 vessel_name="pi-plus-fff",
                 status="passed",
+            )
+            write_runtime_instances_plan(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                workspace_path=root / "workspace",
             )
             write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
 

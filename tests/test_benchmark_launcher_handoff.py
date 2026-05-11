@@ -11,6 +11,7 @@ from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
 from yacht.course_handoff import write_course_handoff
 from yacht.regatta import ConfigError
+from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
 
@@ -127,6 +128,35 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             self.assertEqual(vessel["preflight_status"], "missing")
             self.assertNotIn("command", vessel)
 
+    def test_launcher_handoff_blocks_candidate_without_runtime_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            write_swe_bench_predictions(
+                config_path=Path("examples/pi-fff-provisioning.toml"),
+                predictions_path=Path("examples/pi-baseline-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-baseline",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-baseline",
+                status="passed",
+            )
+
+            handoff = write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
+
+            vessel = handoff["comparisons"][0]["vessels"][0]
+            self.assertEqual(vessel["name"], "pi-baseline")
+            self.assertEqual(vessel["status"], "missing-runtime-snapshot")
+            self.assertEqual(
+                vessel["runtime_instances_artifact_path"],
+                str(logbook_dir / "runtime-instances.json"),
+            )
+            self.assertFalse(vessel["runtime_instances_artifact_present"])
+            self.assertEqual(vessel["runtime_snapshot_status"], "missing")
+            self.assertNotIn("command", vessel)
+
     def test_launcher_handoff_blocks_failed_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
@@ -219,6 +249,11 @@ def _prepared_ready_logbook(root: Path) -> Path:
         predictions_path=Path("examples/pi-baseline-predictions.json"),
         logbook_dir=logbook_dir,
         vessel_name="pi-baseline",
+    )
+    write_runtime_instances_plan(
+        config_path=Path("examples/pi-fff-provisioning.toml"),
+        logbook_dir=logbook_dir,
+        workspace_path=root / "workspace",
     )
     write_preflight_artifact(
         logbook_dir=logbook_dir,

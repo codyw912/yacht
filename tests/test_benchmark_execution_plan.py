@@ -11,6 +11,7 @@ from yacht.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.cli import main
 from yacht.course_handoff import write_course_handoff
 from yacht.regatta import ConfigError
+from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
 
@@ -57,6 +58,11 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
                                 ),
                                 "preflight_artifact_present": False,
                                 "preflight_status": "missing",
+                                "runtime_instances_artifact_path": str(
+                                    logbook_dir / "runtime-instances.json"
+                                ),
+                                "runtime_instances_artifact_present": False,
+                                "runtime_snapshot_status": "missing",
                             },
                             {
                                 "name": "pi-plus-fff",
@@ -77,6 +83,11 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
                                 ),
                                 "preflight_artifact_present": False,
                                 "preflight_status": "missing",
+                                "runtime_instances_artifact_path": str(
+                                    logbook_dir / "runtime-instances.json"
+                                ),
+                                "runtime_instances_artifact_present": False,
+                                "runtime_snapshot_status": "missing",
                             },
                         ],
                     }
@@ -125,6 +136,36 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
             self.assertEqual(vessels[0]["status"], "missing-preflight")
             self.assertFalse(vessels[0]["preflight_artifact_present"])
             self.assertEqual(vessels[0]["preflight_status"], "missing")
+
+    def test_benchmark_execution_plan_blocks_candidate_without_runtime_snapshot(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            write_swe_bench_predictions(
+                config_path=Path("examples/pi-fff-provisioning.toml"),
+                predictions_path=Path("examples/pi-baseline-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-baseline",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-baseline",
+                status="passed",
+            )
+
+            plan = write_benchmark_execution_plan(logbook_dir)
+
+            vessels = plan["comparisons"][0]["vessels"]
+            self.assertEqual(vessels[0]["name"], "pi-baseline")
+            self.assertEqual(vessels[0]["status"], "missing-runtime-snapshot")
+            self.assertEqual(
+                vessels[0]["runtime_instances_artifact_path"],
+                str(logbook_dir / "runtime-instances.json"),
+            )
+            self.assertFalse(vessels[0]["runtime_instances_artifact_present"])
+            self.assertEqual(vessels[0]["runtime_snapshot_status"], "missing")
 
     def test_benchmark_execution_plan_blocks_failed_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -212,6 +253,11 @@ def _prepared_mixed_logbook(root: Path) -> Path:
         predictions_path=Path("examples/pi-baseline-predictions.json"),
         logbook_dir=logbook_dir,
         vessel_name="pi-baseline",
+    )
+    write_runtime_instances_plan(
+        config_path=Path("examples/pi-fff-provisioning.toml"),
+        logbook_dir=logbook_dir,
+        workspace_path=root / "workspace",
     )
     write_preflight_artifact(
         logbook_dir=logbook_dir,

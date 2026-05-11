@@ -133,14 +133,16 @@ then writes `logbook/benchmark-execution-plan.json`, a dry-run readiness report
 showing which vessels are missing candidate patches, ready for native grading, or
 already graded. A vessel with candidate patches is not ready until its
 comparison-scoped preflight evidence artifact exists, validates, matches the
-vessel, and has `status: passed`. It does not invoke agents, Docker, or the
+vessel, has `status: passed`, and the logbook contains a matching
+`runtime-instances.json` snapshot. It does not invoke agents, Docker, or the
 native benchmark harness.
 `yacht benchmark-launcher` writes `logbook/benchmark-launcher-handoff.json`, an
 artifact-only native harness handoff containing the exact
 `python -m swebench.harness.run_evaluation` command YACHT expects for every
-ready vessel. It applies the same preflight evidence gate before emitting native
-commands. It includes dataset, split, predictions path, max workers, run id,
-report directory, and instance ids, but does not run Docker or SWE-bench.
+ready vessel. It applies the same preflight evidence and runtime snapshot gates
+before emitting native commands. It includes dataset, split, predictions path,
+max workers, run id, report directory, and instance ids, but does not run Docker
+or SWE-bench.
 `yacht preflight-report` writes `logbook/preflight-evidence-report.json`, a
 human-auditable eligibility report for each comparison vessel. It explains
 whether the preflight artifact is missing, failed, invalid, or passed without

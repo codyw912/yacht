@@ -78,6 +78,9 @@
                 "preflight_artifact_path",
                 "preflight_artifact_present",
                 "preflight_status",
+                "runtime_instances_artifact_path",
+                "runtime_instances_artifact_present",
+                "runtime_snapshot_status",
                 "native_report_dir"
               ],
               "properties": {
@@ -91,6 +94,7 @@
                     "already-graded",
                     "missing-candidate-patches",
                     "missing-preflight",
+                    "missing-runtime-snapshot",
                     "preflight-failed",
                     "ready-to-launch"
                   ]
@@ -117,6 +121,17 @@
                   "type": "boolean"
                 },
                 "preflight_status": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "runtime_instances_artifact_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "runtime_instances_artifact_present": {
+                  "type": "boolean"
+                },
+                "runtime_snapshot_status": {
                   "type": "string",
                   "minLength": 1
                 },
