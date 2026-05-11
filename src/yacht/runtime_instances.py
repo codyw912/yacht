@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,11 @@ from yacht.regatta import (
     Vessel,
     load_regatta,
 )
+from yacht.schemas import RUNTIME_INSTANCES_SCHEMA
+from yacht.schemas import validate_runtime_instances_document
+
+
+RUNTIME_INSTANCES_PLAN_PATH = Path("runtime-instances.json")
 
 
 def build_runtime_instances_plan(
@@ -23,6 +29,7 @@ def build_runtime_instances_plan(
     if not regatta.comparisons:
         raise ConfigError("runtime instances require at least one comparison")
     return {
+        "schema": RUNTIME_INSTANCES_SCHEMA,
         "regatta": regatta.name,
         "course": regatta.course.name,
         "mode": "dry-run",
@@ -37,6 +44,17 @@ def build_runtime_instances_plan(
             for comparison in regatta.comparisons
         ],
     }
+
+
+def write_runtime_instances_plan(
+    config_path: Path,
+    logbook_dir: Path,
+    workspace_path: Path,
+) -> dict[str, Any]:
+    plan = build_runtime_instances_plan(config_path, logbook_dir, workspace_path)
+    validate_runtime_instances_document(plan)
+    _write_json(logbook_dir / RUNTIME_INSTANCES_PLAN_PATH, plan)
+    return plan
 
 
 def _comparison_to_json(
@@ -101,3 +119,11 @@ def _vessel_by_name(regatta: Regatta, name: str) -> Vessel:
         if vessel.name == name:
             return vessel
     raise ConfigError(f"comparison references undefined vessel {name}")
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )

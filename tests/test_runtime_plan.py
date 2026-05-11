@@ -10,7 +10,9 @@ from tests.fixtures import REGATTA_CONFIG
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.cli import main
 from yacht.preflight_runner import build_preflight_execution_plan
+from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.runtime_instances import build_runtime_instances_plan
+from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.runtime_plan import build_runtime_plan
 
 
@@ -87,6 +89,30 @@ class RuntimePlanTests(unittest.TestCase):
                 ],
             )
             self.assertFalse(logbook_dir.exists())
+
+    def test_write_runtime_instances_plan_persists_redacted_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            logbook_dir = root / "logbook"
+            workspace_path = root / "workspace"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+
+            plan = write_runtime_instances_plan(
+                config_path,
+                logbook_dir,
+                workspace_path,
+            )
+
+            artifact_path = logbook_dir / RUNTIME_INSTANCES_PLAN_PATH
+            saved = json.loads(artifact_path.read_text(encoding="utf-8"))
+            self.assertEqual(saved, plan)
+            self.assertEqual(plan["schema"], "yacht.runtime-instances.v1")
+            self.assertEqual(
+                plan["comparisons"][0]["vessels"][1]["env"]["ANTHROPIC_API_KEY"],
+                "{secret:anthropic}",
+            )
+            self.assertFalse((logbook_dir / "runtime").exists())
 
     def test_build_runtime_plan_redacts_secrets_and_merges_rigging_env(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -213,6 +239,37 @@ class RuntimePlanTests(unittest.TestCase):
                 payload["comparisons"][0]["vessels"][1]["env"]["ANTHROPIC_API_KEY"],
                 "{secret:anthropic}",
             )
+
+    def test_runtime_instances_command_writes_logbook_artifact_when_requested(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            logbook_dir = root / "logbook"
+            workspace_path = root / "workspace"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "runtime-instances",
+                        str(config_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_path),
+                        "--write-logbook",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            artifact_path = logbook_dir / RUNTIME_INSTANCES_PLAN_PATH
+            saved = json.loads(artifact_path.read_text(encoding="utf-8"))
+            self.assertEqual(saved, json.loads(stdout.getvalue()))
+            self.assertEqual(saved["schema"], "yacht.runtime-instances.v1")
+            self.assertFalse((logbook_dir / "runtime").exists())
 
     def test_plan_command_reports_missing_runtime_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

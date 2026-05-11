@@ -14,6 +14,7 @@ from yacht.schemas import (
     PREFLIGHT_SCHEMA,
     PREFLIGHT_SUMMARY_SCHEMA,
     REGATTA_SCHEMA,
+    RUNTIME_INSTANCES_SCHEMA,
     SCORECARD_SCHEMA,
     WAKE_SCHEMA,
     validate_benchmark_execution_plan_document,
@@ -22,6 +23,7 @@ from yacht.schemas import (
     validate_preflight_document,
     validate_preflight_evidence_report_document,
     validate_preflight_summary_document,
+    validate_runtime_instances_document,
     validate_scorecard_document,
     validate_wake_document,
 )
@@ -73,6 +75,7 @@ class SchemaTests(unittest.TestCase):
             BENCHMARK_SCORECARD_SCHEMA,
             BENCHMARK_EXECUTION_PLAN_SCHEMA,
             BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
+            RUNTIME_INSTANCES_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -87,6 +90,48 @@ class SchemaTests(unittest.TestCase):
             )
             self.assertEqual(schema["type"], "object")
             self.assertFalse(schema["additionalProperties"])
+
+    def test_runtime_instances_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": RUNTIME_INSTANCES_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "swe-bench-lite",
+            "mode": "dry-run",
+            "workspace_path": "/tmp/workspace",
+            "comparisons": [
+                {
+                    "name": "pi-vs-pi-fff",
+                    "course": "swe-bench-lite",
+                    "vessels": [
+                        {
+                            "name": "pi-plus-fff",
+                            "runtime": "pi",
+                            "backend": "host-nix",
+                            "trial_root": "/tmp/logbook/runtime/pi/pi-plus-fff",
+                            "temp_home": "/tmp/logbook/runtime/pi/pi-plus-fff/home",
+                            "workspace_path": "/tmp/workspace",
+                            "command_prefix": ["nix", "develop", "flake", "--command"],
+                            "command": ["pi"],
+                            "env": {
+                                "HOME": "/tmp/logbook/runtime/pi/pi-plus-fff/home",
+                                "ANTHROPIC_API_KEY": "{secret:anthropic}",
+                            },
+                            "secret_refs": [
+                                {
+                                    "name": "anthropic",
+                                    "source": "env",
+                                    "ref": "ANTHROPIC_API_KEY",
+                                    "redacted": True,
+                                }
+                            ],
+                            "cleanup_paths": ["/tmp/logbook/runtime/pi/pi-plus-fff"],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        validate_runtime_instances_document(document)
 
     def test_preflight_documents_include_schema_version(self) -> None:
         document = {
