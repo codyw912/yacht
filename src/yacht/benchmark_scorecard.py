@@ -97,6 +97,7 @@ def _build_scorecard(
             "split": str(handoff["adapter"]["split"]),
         },
         "status": _scorecard_status(comparisons),
+        "summary": _scorecard_summary(comparisons),
         "comparisons": comparisons,
     }
     return scorecard
@@ -229,6 +230,23 @@ def _comparison_summary(vessels: list[dict[str, Any]]) -> dict[str, int]:
         "missing_result_vessels": sum(
             1 for vessel in vessels if vessel["status"] == "missing"
         ),
+    }
+
+
+def _scorecard_summary(comparisons: list[dict[str, Any]]) -> dict[str, int]:
+    summary_keys = (
+        "total_vessels",
+        "eligible_vessels",
+        "blocked_vessels",
+        "measured_vessels",
+        "missing_result_vessels",
+    )
+    return {
+        "total_comparisons": len(comparisons),
+        **{
+            key: sum(comparison["summary"][key] for comparison in comparisons)
+            for key in summary_keys
+        },
     }
 
 

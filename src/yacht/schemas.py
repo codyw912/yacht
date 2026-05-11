@@ -40,6 +40,13 @@ PREFLIGHT_EVIDENCE_REPORT_VESSEL_STATUSES = {
 }
 BENCHMARK_SCORECARD_STATUSES = {"complete", "partial", "empty"}
 BENCHMARK_SCORECARD_VESSEL_STATUSES = {"measured", "missing"}
+BENCHMARK_SCORECARD_SUMMARY_KEYS = (
+    "total_vessels",
+    "eligible_vessels",
+    "blocked_vessels",
+    "measured_vessels",
+    "missing_result_vessels",
+)
 BENCHMARK_EXECUTION_PLAN_STATUSES = {
     "blocked",
     "complete",
@@ -402,7 +409,15 @@ def validate_benchmark_scorecard_document(document: dict[str, Any]) -> None:
     _require_object(document, "benchmark scorecard")
     _require_keys(
         document,
-        ("schema", "regatta", "course", "adapter", "status", "comparisons"),
+        (
+            "schema",
+            "regatta",
+            "course",
+            "adapter",
+            "status",
+            "summary",
+            "comparisons",
+        ),
         "benchmark scorecard",
     )
     _require_schema(document, BENCHMARK_SCORECARD_SCHEMA, "benchmark scorecard")
@@ -417,6 +432,7 @@ def validate_benchmark_scorecard_document(document: dict[str, Any]) -> None:
         BENCHMARK_SCORECARD_STATUSES,
         "status",
     )
+    _validate_benchmark_scorecard_top_level_summary(document["summary"])
     _validate_benchmark_scorecard_comparisons(document["comparisons"])
 
 
@@ -619,26 +635,29 @@ def _validate_benchmark_scorecard_summary(value: Any, path: str) -> None:
     summary = _require_object(value, f"{path}.summary")
     _require_keys(
         summary,
-        (
-            "total_vessels",
-            "eligible_vessels",
-            "blocked_vessels",
-            "measured_vessels",
-            "missing_result_vessels",
-        ),
+        BENCHMARK_SCORECARD_SUMMARY_KEYS,
         f"{path}.summary",
     )
-    for key in (
-        "total_vessels",
-        "eligible_vessels",
-        "blocked_vessels",
-        "measured_vessels",
-        "missing_result_vessels",
-    ):
+    for key in BENCHMARK_SCORECARD_SUMMARY_KEYS:
         value = summary.get(key)
         if not isinstance(value, int) or value < 0:
             raise SchemaValidationError(
                 f"{path}.summary.{key} must be an integer >= 0"
+            )
+
+
+def _validate_benchmark_scorecard_top_level_summary(value: Any) -> None:
+    summary = _require_object(value, "benchmark scorecard.summary")
+    _require_keys(
+        summary,
+        ("total_comparisons", *BENCHMARK_SCORECARD_SUMMARY_KEYS),
+        "benchmark scorecard.summary",
+    )
+    for key in ("total_comparisons", *BENCHMARK_SCORECARD_SUMMARY_KEYS):
+        value = summary.get(key)
+        if not isinstance(value, int) or value < 0:
+            raise SchemaValidationError(
+                f"benchmark scorecard.summary.{key} must be an integer >= 0"
             )
 
 
