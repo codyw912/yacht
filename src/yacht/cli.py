@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from yacht.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.course_handoff import write_course_handoff
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
@@ -143,6 +144,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory containing handoff and grading artifacts.",
     )
 
+    benchmark_plan_parser = subcommands.add_parser(
+        "benchmark-plan",
+        help="Write a dry-run benchmark execution readiness plan.",
+    )
+    benchmark_plan_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing handoff and benchmark artifacts.",
+    )
+
     preflight_parser = subcommands.add_parser(
         "preflight",
         help="Run machine preflight checks without running benchmark tasks.",
@@ -267,6 +279,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
         print(json.dumps(scorecard, indent=2))
+        return 0
+
+    if args.command == "benchmark-plan":
+        try:
+            plan = write_benchmark_execution_plan(args.logbook)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(plan, indent=2))
         return 0
 
     if args.command == "preflight":
