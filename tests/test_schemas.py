@@ -239,6 +239,13 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "benchmark scorecard.summary"):
             validate_benchmark_scorecard_document(document)
 
+    def test_benchmark_scorecard_requires_comparison_delta(self) -> None:
+        document = _valid_benchmark_scorecard_document()
+        del document["comparisons"][0]["delta"]
+
+        with self.assertRaisesRegex(ValueError, "comparisons\\[0\\].delta"):
+            validate_benchmark_scorecard_document(document)
+
     def test_benchmark_scorecard_rejects_inconsistent_comparison_summary(
         self,
     ) -> None:
@@ -248,6 +255,18 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(
             ValueError,
             "comparisons\\[0\\].summary.measured_vessels",
+        ):
+            validate_benchmark_scorecard_document(document)
+
+    def test_benchmark_scorecard_rejects_inconsistent_comparison_delta(
+        self,
+    ) -> None:
+        document = _valid_benchmark_scorecard_document()
+        document["comparisons"][0]["delta"]["resolved_instances_delta"] = 2
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "comparisons\\[0\\].delta.resolved_instances_delta",
         ):
             validate_benchmark_scorecard_document(document)
 
@@ -505,6 +524,12 @@ def _valid_benchmark_scorecard_document() -> dict[str, Any]:
                     "blocked_vessels": 1,
                     "measured_vessels": 1,
                     "missing_result_vessels": 1,
+                },
+                "delta": {
+                    "baseline_vessel": "pi-baseline",
+                    "challenger_vessel": "pi-plus-fff",
+                    "resolved_instances_delta": 1,
+                    "resolution_rate_delta": 1.0,
                 },
                 "vessels": [
                     {

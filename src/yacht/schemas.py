@@ -566,7 +566,7 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
         comparison = _require_object(comparison_value, comparison_path)
         _require_keys(
             comparison,
-            ("name", "course", "summary", "vessels"),
+            ("name", "course", "summary", "delta", "vessels"),
             comparison_path,
         )
         _require_non_empty_string(comparison.get("name"), f"{comparison_path}.name")
@@ -575,10 +575,14 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
             comparison["summary"],
             comparison_path,
         )
+        _validate_benchmark_scorecard_delta(
+            comparison["delta"],
+            comparison_path,
+        )
         vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
-        if not vessels:
+        if len(vessels) < 2:
             raise SchemaValidationError(
-                f"{comparison_path}.vessels must contain at least one vessel"
+                f"{comparison_path}.vessels must contain at least two vessels"
             )
         for vessel_index, vessel_value in enumerate(vessels):
             vessel_path = f"{comparison_path}.vessels[{vessel_index}]"
@@ -638,6 +642,62 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
             vessels,
             comparison_path,
         )
+        _validate_benchmark_scorecard_delta_matches_vessels(
+            comparison["delta"],
+            vessels,
+            comparison_path,
+        )
+
+
+def _validate_benchmark_scorecard_delta(value: Any, path: str) -> None:
+    delta = _require_object(value, f"{path}.delta")
+    _require_keys(
+        delta,
+        (
+            "baseline_vessel",
+            "challenger_vessel",
+            "resolved_instances_delta",
+            "resolution_rate_delta",
+        ),
+        f"{path}.delta",
+    )
+    for key in ("baseline_vessel", "challenger_vessel"):
+        _require_non_empty_string(delta.get(key), f"{path}.delta.{key}")
+    if not isinstance(delta.get("resolved_instances_delta"), int):
+        raise SchemaValidationError(
+            f"{path}.delta.resolved_instances_delta must be an integer"
+        )
+    if not isinstance(delta.get("resolution_rate_delta"), int | float):
+        raise SchemaValidationError(
+            f"{path}.delta.resolution_rate_delta must be a number"
+        )
+
+
+def _validate_benchmark_scorecard_delta_matches_vessels(
+    delta: dict[str, Any],
+    vessels: list[Any],
+    path: str,
+) -> None:
+    baseline = vessels[0]
+    challenger = vessels[1]
+    expected = {
+        "baseline_vessel": baseline["name"],
+        "challenger_vessel": challenger["name"],
+        "resolved_instances_delta": challenger["resolved_instances"]
+        - baseline["resolved_instances"],
+        "resolution_rate_delta": challenger["resolution_rate"]
+        - baseline["resolution_rate"],
+    }
+    for key, expected_value in expected.items():
+        if (
+            key == "resolution_rate_delta"
+            and abs(delta[key] - expected_value) <= 1e-9
+        ):
+            continue
+        if delta[key] != expected_value:
+            raise SchemaValidationError(
+                f"{path}.delta.{key} must equal {expected_value}"
+            )
 
 
 def _validate_benchmark_scorecard_summary(value: Any, path: str) -> None:
