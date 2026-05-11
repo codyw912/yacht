@@ -67,6 +67,11 @@ class BenchmarkScorecardTests(unittest.TestCase):
                     {
                         "name": "pi-vs-pi-fff",
                         "course": "swe-bench-lite",
+                        "summary": _comparison_summary(
+                            eligible=0,
+                            measured=1,
+                            missing=1,
+                        ),
                         "vessels": [
                             {
                                 "name": "pi-baseline",
@@ -110,6 +115,11 @@ class BenchmarkScorecardTests(unittest.TestCase):
                     {
                         "name": "pi-vs-pi-fff",
                         "course": "swe-bench-lite",
+                        "summary": _comparison_summary(
+                            eligible=0,
+                            measured=2,
+                            missing=0,
+                        ),
                         "vessels": [
                             {
                                 "name": "pi-baseline",
@@ -157,6 +167,29 @@ class BenchmarkScorecardTests(unittest.TestCase):
             self.assertEqual(vessels[1]["preflight_status"], "passed")
             self.assertEqual(vessels[1]["preflight_reason"], "preflight-passed")
             self.assertTrue(vessels[1]["eligible_for_benchmark"])
+
+    def test_benchmark_scorecard_includes_comparison_summary_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_logbook(Path(temp_dir))
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-plus-fff",
+                status="passed",
+            )
+
+            scorecard = write_benchmark_scorecard(logbook_dir)
+
+            self.assertEqual(
+                scorecard["comparisons"][0]["summary"],
+                {
+                    "total_vessels": 2,
+                    "eligible_vessels": 1,
+                    "blocked_vessels": 1,
+                    "measured_vessels": 1,
+                    "missing_result_vessels": 1,
+                },
+            )
 
     def test_benchmark_scorecard_requires_grading_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -246,6 +279,21 @@ def _missing_preflight(logbook_dir: Path, vessel_name: str) -> dict[str, object]
         "preflight_artifact_path": str(
             logbook_dir / "preflight/pi-vs-pi-fff" / f"{vessel_name}.json"
         ),
+    }
+
+
+def _comparison_summary(
+    *,
+    eligible: int,
+    measured: int,
+    missing: int,
+) -> dict[str, int]:
+    return {
+        "total_vessels": 2,
+        "eligible_vessels": eligible,
+        "blocked_vessels": 2 - eligible,
+        "measured_vessels": measured,
+        "missing_result_vessels": missing,
     }
 
 
