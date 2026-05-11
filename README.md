@@ -78,6 +78,10 @@ uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht handoff examples/pi-fff-provisioning.toml --logbook logbook
 uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-fff-predictions.json --logbook logbook
 uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/pi-fff-native-report.json --logbook logbook
+uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-baseline-predictions.json --logbook logbook --vessel pi-baseline
+uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/pi-baseline-native-report.json --logbook logbook --vessel pi-baseline
+uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-fff-predictions.json --logbook logbook --vessel pi-plus-fff
+uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/pi-fff-native-report.json --logbook logbook --vessel pi-plus-fff
 uv run yacht benchmark-scorecard --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
@@ -96,15 +100,21 @@ metadata without invoking Docker or SWE-bench.
 course handoff task ids, writes the native candidate patch JSONL file at
 `logbook/course-handoff/swe-bench/candidate-patches.jsonl`, and still does not
 invoke Docker or grade tasks. Input records must include `instance_id`,
-`model_name_or_path`, and `model_patch`.
+`model_name_or_path`, and `model_patch`. Pass `--vessel <name>` to write
+per-vessel predictions under
+`logbook/course-handoff/swe-bench/vessels/<name>/candidate-patches.jsonl`;
+in that mode `model_name_or_path` must match the vessel name.
 `yacht grading-report` validates a native SWE-bench report JSON against the
 course handoff and candidate patch ids, then writes the normalized report to
 `logbook/course-handoff/swe-bench/grading-report.json`. This is still a contract
-check only; YACHT does not run the native harness in this slice.
+check only; YACHT does not run the native harness in this slice. Pass
+`--vessel <name>` to validate against that vessel's candidate patch file and
+write `logbook/course-handoff/swe-bench/vessels/<name>/grading-report.json`.
 `yacht benchmark-scorecard` reads the handoff and validated grading artifacts
 and writes `logbook/benchmark-scorecard.json`, a benchmark-result summary shaped
-for comparisons. Missing comparison vessels are explicit until each vessel has
-its own validated grading artifact.
+for comparisons. It combines all per-vessel grading artifacts it finds and keeps
+missing comparison vessels explicit until each vessel has its own validated
+grading artifact.
 `yacht preflight --dry-run` prints the resolved preflight execution plan for the
 selected preflight mode, including which checks would be included or omitted and
 where artifacts/transcripts would be written.

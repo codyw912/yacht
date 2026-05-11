@@ -13,6 +13,32 @@ from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
 
 
+BASELINE_PREDICTIONS = [
+    {
+        "instance_id": "django__django-11099",
+        "model_name_or_path": "pi-baseline",
+        "model_patch": "diff --git a/example.py b/example.py\n--- a/example.py\n+++ b/example.py\n",
+    }
+]
+BASELINE_NATIVE_REPORT = {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 0,
+    "unresolved_instances": 1,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "submitted_ids": ["django__django-11099"],
+    "completed_ids": ["django__django-11099"],
+    "incomplete_ids": [],
+    "resolved_ids": [],
+    "unresolved_ids": ["django__django-11099"],
+    "empty_patch_ids": [],
+    "error_ids": [],
+    "schema_version": 2,
+}
+
+
 class BenchmarkScorecardTests(unittest.TestCase):
     def test_write_benchmark_scorecard_summarizes_validated_grading_artifacts(
         self,
@@ -65,6 +91,45 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 (logbook_dir / "benchmark-scorecard.json").read_text(encoding="utf-8")
             )
             self.assertEqual(saved, scorecard)
+
+    def test_write_benchmark_scorecard_combines_per_vessel_grading_artifacts(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+
+            scorecard = write_benchmark_scorecard(logbook_dir)
+
+            self.assertEqual(scorecard["status"], "complete")
+            self.assertEqual(
+                scorecard["comparisons"],
+                [
+                    {
+                        "name": "pi-vs-pi-fff",
+                        "course": "swe-bench-lite",
+                        "vessels": [
+                            {
+                                "name": "pi-baseline",
+                                "status": "measured",
+                                "submitted_instances": 1,
+                                "resolved_instances": 0,
+                                "resolution_rate": 0.0,
+                                "resolved_ids": [],
+                                "unresolved_ids": ["django__django-11099"],
+                            },
+                            {
+                                "name": "pi-plus-fff",
+                                "status": "measured",
+                                "submitted_instances": 1,
+                                "resolved_instances": 1,
+                                "resolution_rate": 1.0,
+                                "resolved_ids": ["django__django-11099"],
+                                "unresolved_ids": [],
+                            },
+                        ],
+                    }
+                ],
+            )
 
     def test_benchmark_scorecard_requires_grading_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -142,6 +207,45 @@ def _prepared_logbook(root: Path) -> Path:
         config_path=Path("examples/pi-fff-provisioning.toml"),
         native_report_path=Path("examples/pi-fff-native-report.json"),
         logbook_dir=logbook_dir,
+    )
+    return logbook_dir
+
+
+def _prepared_multi_vessel_logbook(root: Path) -> Path:
+    logbook_dir = root / "logbook"
+    baseline_predictions_path = root / "baseline-predictions.json"
+    baseline_report_path = root / "baseline-native-report.json"
+    baseline_predictions_path.write_text(
+        json.dumps(BASELINE_PREDICTIONS),
+        encoding="utf-8",
+    )
+    baseline_report_path.write_text(
+        json.dumps(BASELINE_NATIVE_REPORT),
+        encoding="utf-8",
+    )
+    write_swe_bench_predictions(
+        config_path=Path("examples/pi-fff-provisioning.toml"),
+        predictions_path=baseline_predictions_path,
+        logbook_dir=logbook_dir,
+        vessel_name="pi-baseline",
+    )
+    write_swe_bench_grading_report(
+        config_path=Path("examples/pi-fff-provisioning.toml"),
+        native_report_path=baseline_report_path,
+        logbook_dir=logbook_dir,
+        vessel_name="pi-baseline",
+    )
+    write_swe_bench_predictions(
+        config_path=Path("examples/pi-fff-provisioning.toml"),
+        predictions_path=Path("examples/pi-fff-predictions.json"),
+        logbook_dir=logbook_dir,
+        vessel_name="pi-plus-fff",
+    )
+    write_swe_bench_grading_report(
+        config_path=Path("examples/pi-fff-provisioning.toml"),
+        native_report_path=Path("examples/pi-fff-native-report.json"),
+        logbook_dir=logbook_dir,
+        vessel_name="pi-plus-fff",
     )
     return logbook_dir
 

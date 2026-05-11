@@ -101,6 +101,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("logbook"),
         help="Directory where candidate patch predictions are written.",
     )
+    predictions_parser.add_argument(
+        "--vessel",
+        help="Optional comparison vessel name for per-vessel candidate patches.",
+    )
 
     grading_report_parser = subcommands.add_parser(
         "grading-report",
@@ -122,6 +126,10 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("logbook"),
         help="Directory containing candidate patches and receiving the report.",
+    )
+    grading_report_parser.add_argument(
+        "--vessel",
+        help="Optional comparison vessel name for per-vessel grading artifacts.",
     )
 
     benchmark_scorecard_parser = subcommands.add_parser(
@@ -230,6 +238,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 config_path=args.config,
                 predictions_path=args.input,
                 logbook_dir=args.logbook,
+                vessel_name=args.vessel,
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
@@ -243,6 +252,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 config_path=args.config,
                 native_report_path=args.input,
                 logbook_dir=args.logbook,
+                vessel_name=args.vessel,
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)

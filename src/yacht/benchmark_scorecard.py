@@ -10,6 +10,7 @@ from yacht.schemas import (
     BENCHMARK_SCORECARD_SCHEMA,
     validate_benchmark_scorecard_document,
 )
+from yacht.swebench_artifacts import grading_report_path, vessels_artifact_dir
 
 
 BENCHMARK_SCORECARD_PATH = Path("benchmark-scorecard.json")
@@ -17,8 +18,8 @@ BENCHMARK_SCORECARD_PATH = Path("benchmark-scorecard.json")
 
 def write_benchmark_scorecard(logbook_dir: Path) -> dict[str, Any]:
     handoff = _load_handoff(logbook_dir)
-    grading = _load_grading(logbook_dir, handoff)
-    scorecard = _build_scorecard(handoff, grading)
+    gradings = _load_gradings(logbook_dir, handoff)
+    scorecard = _build_scorecard(handoff, gradings)
     validate_benchmark_scorecard_document(scorecard)
     _write_json(logbook_dir / BENCHMARK_SCORECARD_PATH, scorecard)
     return scorecard
@@ -31,10 +32,32 @@ def _load_handoff(logbook_dir: Path) -> dict[str, Any]:
     return _load_json_object(handoff_path, "course handoff artifact")
 
 
-def _load_grading(logbook_dir: Path, handoff: dict[str, Any]) -> dict[str, Any]:
-    grading_path = logbook_dir / str(handoff["expected_outputs"]["grading_report"])
-    if not grading_path.exists():
-        raise ConfigError(f"validated grading report not found: {grading_path}")
+def _load_gradings(logbook_dir: Path, handoff: dict[str, Any]) -> list[dict[str, Any]]:
+    grading_paths = _grading_paths(logbook_dir, handoff)
+    if not grading_paths:
+        expected_path = logbook_dir / str(handoff["expected_outputs"]["grading_report"])
+        raise ConfigError(f"validated grading report not found: {expected_path}")
+    return [_load_grading(path) for path in grading_paths]
+
+
+def _grading_paths(logbook_dir: Path, handoff: dict[str, Any]) -> list[Path]:
+    paths = []
+    default_path = grading_report_path(
+        logbook_dir=logbook_dir,
+        handoff=handoff,
+        vessel_name=None,
+    )
+    if default_path.exists():
+        paths.append(default_path)
+    vessels_dir = vessels_artifact_dir(
+        logbook_dir=logbook_dir,
+        handoff=handoff,
+    )
+    paths.extend(sorted(vessels_dir.glob("*/grading-report.json")))
+    return paths
+
+
+def _load_grading(grading_path: Path) -> dict[str, Any]:
     grading = _load_json_object(grading_path, "validated grading report")
     if grading.get("schema") != "yacht.swe-bench-grading.v1":
         raise ConfigError("validated grading report has unsupported schema")
@@ -51,8 +74,11 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
     return payload
 
 
-def _build_scorecard(handoff: dict[str, Any], grading: dict[str, Any]) -> dict[str, Any]:
-    measured_by_vessel = _measured_by_vessel(grading)
+def _build_scorecard(
+    handoff: dict[str, Any],
+    gradings: list[dict[str, Any]],
+) -> dict[str, Any]:
+    measured_by_vessel = _measured_by_vessel(gradings)
     comparisons = [
         _comparison_to_json(comparison, measured_by_vessel)
         for comparison in handoff["comparisons"]
@@ -72,12 +98,19 @@ def _build_scorecard(handoff: dict[str, Any], grading: dict[str, Any]) -> dict[s
     return scorecard
 
 
-def _measured_by_vessel(grading: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    native_report = grading["native_report"]
-    submitted_ids = set(native_report["submitted_ids"])
-    model_name = _model_name_from_grading(grading)
-    return {
-        model_name: {
+def _measured_by_vessel(
+    gradings: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    measured = {}
+    for grading in gradings:
+        vessel_name = _vessel_name_from_grading(grading)
+        if vessel_name in measured:
+            raise ConfigError(
+                f"multiple validated grading reports found for vessel {vessel_name}"
+            )
+        native_report = grading["native_report"]
+        submitted_ids = set(native_report["submitted_ids"])
+        measured[vessel_name] = {
             "status": "measured",
             "submitted_instances": int(grading["submitted_instances"]),
             "resolved_instances": int(grading["resolved_instances"]),
@@ -93,10 +126,13 @@ def _measured_by_vessel(grading: dict[str, Any]) -> dict[str, dict[str, Any]]:
                 if instance_id in submitted_ids
             ],
         }
-    }
+    return measured
 
 
-def _model_name_from_grading(grading: dict[str, Any]) -> str:
+def _vessel_name_from_grading(grading: dict[str, Any]) -> str:
+    vessel_name = grading.get("vessel")
+    if isinstance(vessel_name, str) and vessel_name:
+        return vessel_name
     native_report = grading["native_report"]
     submitted_ids = native_report["submitted_ids"]
     if not submitted_ids:

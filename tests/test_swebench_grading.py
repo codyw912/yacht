@@ -176,6 +176,57 @@ class SweBenchGradingTests(unittest.TestCase):
                 (logbook_dir / "course-handoff/swe-bench/grading-report.json").is_file()
             )
 
+    def test_grading_report_command_writes_vessel_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            native_report_path = root / "native-report.json"
+            logbook_dir = root / "logbook"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            native_report_path.write_text(
+                json.dumps(VALID_NATIVE_REPORT),
+                encoding="utf-8",
+            )
+            write_swe_bench_predictions(
+                config_path=config_path,
+                predictions_path=Path("examples/pi-fff-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-plus-fff",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "grading-report",
+                        str(config_path),
+                        "--input",
+                        str(native_report_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--vessel",
+                        "pi-plus-fff",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["vessel"], "pi-plus-fff")
+            grading_path = (
+                logbook_dir
+                / "course-handoff/swe-bench/vessels/pi-plus-fff/grading-report.json"
+            )
+            self.assertEqual(payload["grading_report_path"], str(grading_path))
+            artifact = json.loads(grading_path.read_text(encoding="utf-8"))
+            self.assertEqual(artifact["vessel"], "pi-plus-fff")
+            self.assertEqual(
+                artifact["candidate_patches_path"],
+                str(
+                    logbook_dir
+                    / "course-handoff/swe-bench/vessels/pi-plus-fff/candidate-patches.jsonl"
+                ),
+            )
+
     def test_grading_report_command_reports_config_errors_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

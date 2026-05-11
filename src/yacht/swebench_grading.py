@@ -6,6 +6,11 @@ from typing import Any
 
 from yacht.course_handoff import build_course_handoff
 from yacht.regatta import ConfigError
+from yacht.swebench_artifacts import (
+    candidate_patches_path,
+    grading_report_path,
+    validate_handoff_vessel,
+)
 
 
 SWE_BENCH_GRADING_SCHEMA = "yacht.swe-bench-grading.v1"
@@ -34,9 +39,16 @@ def write_swe_bench_grading_report(
     config_path: Path,
     native_report_path: Path,
     logbook_dir: Path,
+    vessel_name: str | None = None,
 ) -> dict[str, Any]:
     handoff = build_course_handoff(config_path)
-    candidate_path = logbook_dir / str(handoff["expected_outputs"]["candidate_patches"])
+    if vessel_name is not None:
+        validate_handoff_vessel(handoff, vessel_name)
+    candidate_path = candidate_patches_path(
+        logbook_dir=logbook_dir,
+        handoff=handoff,
+        vessel_name=vessel_name,
+    )
     candidate_instance_ids = _load_candidate_patch_instance_ids(candidate_path)
     native_report = _load_native_report(native_report_path)
     _validate_native_report(
@@ -50,11 +62,16 @@ def write_swe_bench_grading_report(
         native_report=native_report,
         native_report_path=native_report_path,
         candidate_path=candidate_path,
+        vessel_name=vessel_name,
     )
-    grading_path = logbook_dir / str(handoff["expected_outputs"]["grading_report"])
+    grading_path = grading_report_path(
+        logbook_dir=logbook_dir,
+        handoff=handoff,
+        vessel_name=vessel_name,
+    )
     _write_json(grading_path, artifact)
 
-    return {
+    summary: dict[str, Any] = {
         "status": "validated",
         "adapter": str(handoff["adapter"]["kind"]),
         "dataset": str(handoff["adapter"]["dataset"]),
@@ -64,6 +81,9 @@ def write_swe_bench_grading_report(
         "resolution_rate": artifact["resolution_rate"],
         "grading_report_path": str(grading_path),
     }
+    if vessel_name is not None:
+        summary["vessel"] = vessel_name
+    return summary
 
 
 def _load_candidate_patch_instance_ids(path: Path) -> set[str]:
@@ -175,10 +195,11 @@ def _grading_artifact(
     native_report: dict[str, Any],
     native_report_path: Path,
     candidate_path: Path,
+    vessel_name: str | None,
 ) -> dict[str, Any]:
     submitted_instances = int(native_report["submitted_instances"])
     resolved_instances = int(native_report["resolved_instances"])
-    return {
+    artifact: dict[str, Any] = {
         "schema": SWE_BENCH_GRADING_SCHEMA,
         "regatta": str(handoff["regatta"]),
         "course": str(handoff["course"]),
@@ -195,6 +216,9 @@ def _grading_artifact(
         ),
         "native_report": native_report,
     }
+    if vessel_name is not None:
+        artifact["vessel"] = vessel_name
+    return artifact
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
