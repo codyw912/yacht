@@ -179,6 +179,7 @@ def _comparison_to_json(
         "name": comparison_name,
         "course": str(comparison["course"]),
         "summary": _comparison_summary(vessels),
+        "delta": _comparison_delta(vessels),
         "vessels": vessels,
     }
 
@@ -230,6 +231,19 @@ def _comparison_summary(vessels: list[dict[str, Any]]) -> dict[str, int]:
         "missing_result_vessels": sum(
             1 for vessel in vessels if vessel["status"] == "missing"
         ),
+    }
+
+
+def _comparison_delta(vessels: list[dict[str, Any]]) -> dict[str, int | float | str]:
+    baseline = vessels[0]
+    challenger = vessels[1]
+    return {
+        "baseline_vessel": str(baseline["name"]),
+        "challenger_vessel": str(challenger["name"]),
+        "resolved_instances_delta": int(challenger["resolved_instances"])
+        - int(baseline["resolved_instances"]),
+        "resolution_rate_delta": float(challenger["resolution_rate"])
+        - float(baseline["resolution_rate"]),
     }
 
 

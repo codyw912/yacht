@@ -72,6 +72,10 @@ class BenchmarkScorecardTests(unittest.TestCase):
                             measured=1,
                             missing=1,
                         ),
+                        "delta": _comparison_delta(
+                            resolved_instances_delta=1,
+                            resolution_rate_delta=1.0,
+                        ),
                         "vessels": [
                             {
                                 "name": "pi-baseline",
@@ -119,6 +123,10 @@ class BenchmarkScorecardTests(unittest.TestCase):
                             eligible=0,
                             measured=2,
                             missing=0,
+                        ),
+                        "delta": _comparison_delta(
+                            resolved_instances_delta=1,
+                            resolution_rate_delta=1.0,
                         ),
                         "vessels": [
                             {
@@ -212,6 +220,22 @@ class BenchmarkScorecardTests(unittest.TestCase):
                     "blocked_vessels": 1,
                     "measured_vessels": 1,
                     "missing_result_vessels": 1,
+                },
+            )
+
+    def test_benchmark_scorecard_includes_comparison_delta(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+
+            scorecard = write_benchmark_scorecard(logbook_dir)
+
+            self.assertEqual(
+                scorecard["comparisons"][0]["delta"],
+                {
+                    "baseline_vessel": "pi-baseline",
+                    "challenger_vessel": "pi-plus-fff",
+                    "resolved_instances_delta": 1,
+                    "resolution_rate_delta": 1.0,
                 },
             )
 
@@ -318,6 +342,19 @@ def _comparison_summary(
         "blocked_vessels": 2 - eligible,
         "measured_vessels": measured,
         "missing_result_vessels": missing,
+    }
+
+
+def _comparison_delta(
+    *,
+    resolved_instances_delta: int,
+    resolution_rate_delta: float,
+) -> dict[str, object]:
+    return {
+        "baseline_vessel": "pi-baseline",
+        "challenger_vessel": "pi-plus-fff",
+        "resolved_instances_delta": resolved_instances_delta,
+        "resolution_rate_delta": resolution_rate_delta,
     }
 
 

@@ -91,7 +91,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "course", "summary", "vessels"],
+        "required": ["name", "course", "summary", "delta", "vessels"],
         "properties": {
           "name": {
             "type": "string",
@@ -134,9 +134,35 @@
               }
             }
           },
+          "delta": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "baseline_vessel",
+              "challenger_vessel",
+              "resolved_instances_delta",
+              "resolution_rate_delta"
+            ],
+            "properties": {
+              "baseline_vessel": {
+                "type": "string",
+                "minLength": 1
+              },
+              "challenger_vessel": {
+                "type": "string",
+                "minLength": 1
+              },
+              "resolved_instances_delta": {
+                "type": "integer"
+              },
+              "resolution_rate_delta": {
+                "type": "number"
+              }
+            }
+          },
           "vessels": {
             "type": "array",
-            "minItems": 1,
+            "minItems": 2,
             "items": {
               "type": "object",
               "additionalProperties": false,

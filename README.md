@@ -142,7 +142,9 @@ grading artifact. Each vessel row also carries compact preflight eligibility
 context from the evidence report, including whether it was eligible to spend
 benchmark tokens and the preflight reason. Each comparison includes aggregate
 counts for total, eligible, blocked, measured, and missing-result vessels. The
-scorecard also includes top-level aggregate counts across all comparisons.
+comparison also includes a baseline-to-challenger delta for resolved instances
+and resolution rate. The scorecard also includes top-level aggregate counts
+across all comparisons.
 `yacht preflight --dry-run` prints the resolved preflight execution plan for the
 selected preflight mode, including which checks would be included or omitted and
 where artifacts/transcripts would be written.
