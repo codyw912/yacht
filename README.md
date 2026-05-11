@@ -89,6 +89,7 @@ uv run yacht benchmark-launcher --logbook logbook --max-workers 1
 uv run yacht preflight-report --logbook logbook
 uv run yacht grading-report examples/pi-fff-provisioning.toml --from-launcher --logbook logbook --vessel pi-plus-fff
 uv run yacht benchmark-scorecard --logbook logbook
+uv run yacht benchmark-readiness-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook --format markdown
 uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
@@ -136,6 +137,10 @@ comparison-scoped preflight evidence artifact exists, validates, matches the
 vessel, has `status: passed`, and the logbook contains a matching
 `runtime-instances.json` snapshot. It does not invoke agents, Docker, or the
 native benchmark harness.
+`yacht benchmark-readiness-report` reads `logbook/benchmark-execution-plan.json`
+and prints a compact per-vessel table for the spend gates: candidate patch,
+runtime snapshot, preflight evidence, and grading status. It supports text and
+Markdown output, plus `--output` for durable notes.
 `yacht benchmark-launcher` writes `logbook/benchmark-launcher-handoff.json`, an
 artifact-only native harness handoff containing the exact
 `python -m swebench.harness.run_evaluation` command YACHT expects for every

@@ -9,6 +9,7 @@ from typing import Sequence
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
+from yacht.benchmark_readiness_report import render_benchmark_readiness_report
 from yacht.benchmark_report import render_benchmark_report
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.course_handoff import write_course_handoff
@@ -218,6 +219,28 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("logbook"),
         help="Directory containing handoff and benchmark artifacts.",
+    )
+
+    readiness_report_parser = subcommands.add_parser(
+        "benchmark-readiness-report",
+        help="Print a human-readable benchmark readiness report.",
+    )
+    readiness_report_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing benchmark-execution-plan.json.",
+    )
+    readiness_report_parser.add_argument(
+        "--format",
+        choices=("text", "markdown"),
+        default="text",
+        help="Output format for the rendered readiness report.",
+    )
+    readiness_report_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write the rendered readiness report.",
     )
 
     benchmark_launcher_parser = subcommands.add_parser(
@@ -430,6 +453,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
         print(json.dumps(plan, indent=2))
+        return 0
+
+    if args.command == "benchmark-readiness-report":
+        try:
+            report = render_benchmark_readiness_report(args.logbook, args.format)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(report, encoding="utf-8")
+            return 0
+        print(report, end="")
         return 0
 
     if args.command == "benchmark-launcher":
