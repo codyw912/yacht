@@ -23,6 +23,7 @@ from yacht.preflight_runner import (
 )
 from yacht.regatta import ConfigError, load_regatta, run_regatta
 from yacht.runtime_instances import build_runtime_instances_plan
+from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.runtime_plan import build_runtime_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
@@ -90,6 +91,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path.cwd(),
         help="Workspace path used as the prepared runtime working directory.",
+    )
+    runtime_instances_parser.add_argument(
+        "--write-logbook",
+        action="store_true",
+        help="Write the resolved plan to logbook/runtime-instances.json.",
     )
 
     handoff_parser = subcommands.add_parser(
@@ -329,11 +335,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "runtime-instances":
         try:
-            plan = build_runtime_instances_plan(
-                args.config,
-                args.logbook,
-                args.workspace,
-            )
+            if args.write_logbook:
+                plan = write_runtime_instances_plan(
+                    args.config,
+                    args.logbook,
+                    args.workspace,
+                )
+            else:
+                plan = build_runtime_instances_plan(
+                    args.config,
+                    args.logbook,
+                    args.workspace,
+                )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1

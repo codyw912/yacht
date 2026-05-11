@@ -76,6 +76,7 @@ running Pi, installing fff, or executing SWE-bench:
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace .
+uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace . --write-logbook
 uv run yacht handoff examples/pi-fff-provisioning.toml --logbook logbook
 uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-fff-predictions.json --logbook logbook
 uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/pi-fff-native-report.json --logbook logbook
@@ -103,7 +104,9 @@ preflight checks, invoke Docker, or write a logbook.
 `yacht runtime-instances` is also a dry run. It resolves each comparison
 vessel's concrete host runtime paths, Nix command prefix, runtime command,
 isolated environment, cleanup paths, and redacted secret placeholders without
-creating runtime directories or launching an agent.
+creating runtime directories or launching an agent. Pass `--write-logbook` to
+persist that redacted snapshot at `logbook/runtime-instances.json`; this creates
+only the artifact path, not the resolved per-trial runtime directories.
 `yacht handoff` writes `logbook/course-handoff.json`, a versioned planned
 contract for the native benchmark harness handoff. It records adapter inputs,
 tasks, comparison vessels, expected future output paths, and delegated grading
@@ -196,6 +199,7 @@ YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
 - `yacht.benchmark-execution-plan.v1.schema.json` for benchmark readiness plans
 - `yacht.benchmark-launcher-handoff.v1.schema.json` for native launcher handoffs
 - `yacht.benchmark-scorecard.v1.schema.json` for benchmark scorecard summaries
+- `yacht.runtime-instances.v1.schema.json` for redacted runtime instance dry-run snapshots
 
 Generated wake, scorecard, preflight evidence, preflight summary, preflight
 evidence report, and course handoff JSON documents include a `schema` field such
@@ -204,7 +208,8 @@ as `yacht.wake.v1`, `yacht.scorecard.v1`, `yacht.preflight-summary.v1`,
 SWE-bench grading reports, benchmark readiness plans, native launcher handoffs,
 and benchmark scorecard summaries include `yacht.swe-bench-grading.v1`,
 `yacht.benchmark-execution-plan.v1`, `yacht.benchmark-launcher-handoff.v1`, and
-`yacht.benchmark-scorecard.v1`. The
+`yacht.benchmark-scorecard.v1`. Runtime instance dry-run snapshots include
+`yacht.runtime-instances.v1`. The
 Python runner validates the current config and generated artifacts, but the
 persisted contract is intentionally language-neutral so future vessels, runners,
 and analysis tools do not need to be Python programs.

@@ -13,6 +13,7 @@ COURSE_HANDOFF_SCHEMA = "yacht.course-handoff.v1"
 BENCHMARK_SCORECARD_SCHEMA = "yacht.benchmark-scorecard.v1"
 BENCHMARK_EXECUTION_PLAN_SCHEMA = "yacht.benchmark-execution-plan.v1"
 BENCHMARK_LAUNCHER_HANDOFF_SCHEMA = "yacht.benchmark-launcher-handoff.v1"
+RUNTIME_INSTANCES_SCHEMA = "yacht.runtime-instances.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
@@ -492,6 +493,20 @@ def validate_benchmark_launcher_handoff_document(document: dict[str, Any]) -> No
     _validate_benchmark_launcher_handoff_comparisons(document["comparisons"])
 
 
+def validate_runtime_instances_document(document: dict[str, Any]) -> None:
+    _require_object(document, "runtime instances")
+    _require_keys(
+        document,
+        ("schema", "regatta", "course", "mode", "workspace_path", "comparisons"),
+        "runtime instances",
+    )
+    _require_schema(document, RUNTIME_INSTANCES_SCHEMA, "runtime instances")
+    for key in ("regatta", "course", "workspace_path"):
+        _require_non_empty_string(document[key], key)
+    _require_allowed_value(document["mode"], {"dry-run"}, "mode")
+    _validate_runtime_instances_comparisons(document["comparisons"])
+
+
 def _validate_course_handoff_tasks(value: Any) -> None:
     tasks = _require_list(value, "tasks")
     if not tasks:
@@ -928,7 +943,79 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
         if not command or not all(isinstance(item, str) and item for item in command):
             raise SchemaValidationError(f"{path}.command must contain non-empty strings")
     if "command_preview" in vessel:
-        _require_non_empty_string(vessel["command_preview"], f"{path}.command_preview")
+        _require_non_empty_string(
+            vessel["command_preview"],
+            f"{path}.command_preview",
+        )
+
+
+def _validate_runtime_instances_comparisons(value: Any) -> None:
+    comparisons = _require_list(value, "comparisons")
+    if not comparisons:
+        raise SchemaValidationError("comparisons must contain at least one comparison")
+    for comparison_index, comparison_value in enumerate(comparisons):
+        comparison_path = f"comparisons[{comparison_index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(comparison, ("name", "course", "vessels"), comparison_path)
+        _require_non_empty_string(comparison.get("name"), f"{comparison_path}.name")
+        _require_non_empty_string(comparison.get("course"), f"{comparison_path}.course")
+        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
+        if not vessels:
+            raise SchemaValidationError(
+                f"{comparison_path}.vessels must contain at least one vessel"
+            )
+        for vessel_index, vessel_value in enumerate(vessels):
+            _validate_runtime_instances_vessel(
+                vessel_value,
+                f"{comparison_path}.vessels[{vessel_index}]",
+            )
+
+
+def _validate_runtime_instances_vessel(value: Any, path: str) -> None:
+    vessel = _require_object(value, path)
+    _require_keys(
+        vessel,
+        (
+            "name",
+            "runtime",
+            "backend",
+            "trial_root",
+            "temp_home",
+            "workspace_path",
+            "command_prefix",
+            "command",
+            "env",
+            "secret_refs",
+            "cleanup_paths",
+        ),
+        path,
+    )
+    for key in (
+        "name",
+        "runtime",
+        "backend",
+        "trial_root",
+        "temp_home",
+        "workspace_path",
+    ):
+        _require_non_empty_string(vessel.get(key), f"{path}.{key}")
+    for key in ("command_prefix", "command", "cleanup_paths"):
+        values = _require_list(vessel[key], f"{path}.{key}")
+        if not values or not all(isinstance(item, str) and item for item in values):
+            raise SchemaValidationError(f"{path}.{key} must contain non-empty strings")
+    env = _require_object(vessel["env"], f"{path}.env")
+    for env_key, env_value in env.items():
+        _require_non_empty_string(env_key, f"{path}.env key")
+        _require_non_empty_string(env_value, f"{path}.env.{env_key}")
+    secret_refs = _require_list(vessel["secret_refs"], f"{path}.secret_refs")
+    for secret_index, secret_value in enumerate(secret_refs):
+        secret_path = f"{path}.secret_refs[{secret_index}]"
+        secret = _require_object(secret_value, secret_path)
+        _require_keys(secret, ("name", "source", "ref", "redacted"), secret_path)
+        for key in ("name", "source", "ref"):
+            _require_non_empty_string(secret.get(key), f"{secret_path}.{key}")
+        if secret.get("redacted") is not True:
+            raise SchemaValidationError(f"{secret_path}.redacted must be true")
 
 
 def _validate_preflight_summary_checks(value: Any, path: str) -> None:
