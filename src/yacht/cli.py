@@ -22,6 +22,7 @@ from yacht.preflight_runner import (
     run_preflight,
 )
 from yacht.regatta import ConfigError, load_regatta, run_regatta
+from yacht.runtime_instances import build_runtime_instances_plan
 from yacht.runtime_plan import build_runtime_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
@@ -67,6 +68,28 @@ def build_parser() -> argparse.ArgumentParser:
         "config",
         type=Path,
         help="Path to a regatta TOML file.",
+    )
+
+    runtime_instances_parser = subcommands.add_parser(
+        "runtime-instances",
+        help="Print dry-run host runtime instance resolution without launching agents.",
+    )
+    runtime_instances_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    runtime_instances_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory used to resolve per-trial runtime paths.",
+    )
+    runtime_instances_parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path.cwd(),
+        help="Workspace path used as the prepared runtime working directory.",
     )
 
     handoff_parser = subcommands.add_parser(
@@ -298,6 +321,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "plan":
         try:
             plan = build_runtime_plan(args.config)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(plan, indent=2))
+        return 0
+
+    if args.command == "runtime-instances":
+        try:
+            plan = build_runtime_instances_plan(
+                args.config,
+                args.logbook,
+                args.workspace,
+            )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
