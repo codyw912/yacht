@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.benchmark-scorecard.v1.schema.json",
+  "title": "YACHT Benchmark Scorecard",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "regatta", "course", "adapter", "status", "comparisons"],
+  "properties": {
+    "schema": {
+      "const": "yacht.benchmark-scorecard.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "dataset", "split"],
+      "properties": {
+        "kind": {
+          "const": "swe-bench"
+        },
+        "dataset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "split": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["complete", "partial", "empty"]
+    },
+    "comparisons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "course", "vessels"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "course": {
+            "type": "string",
+            "minLength": 1
+          },
+          "vessels": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "status",
+                "submitted_instances",
+                "resolved_instances",
+                "resolution_rate"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["measured", "missing"]
+                },
+                "submitted_instances": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "resolved_instances": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "resolution_rate": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "resolved_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "unresolved_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -5,12 +5,14 @@ from pathlib import Path
 
 from yacht.regatta import ConfigError, run_regatta
 from yacht.schemas import (
+    BENCHMARK_SCORECARD_SCHEMA,
     COURSE_HANDOFF_SCHEMA,
     PREFLIGHT_SCHEMA,
     PREFLIGHT_SUMMARY_SCHEMA,
     REGATTA_SCHEMA,
     SCORECARD_SCHEMA,
     WAKE_SCHEMA,
+    validate_benchmark_scorecard_document,
     validate_preflight_document,
     validate_preflight_summary_document,
     validate_scorecard_document,
@@ -60,6 +62,7 @@ class SchemaTests(unittest.TestCase):
             PREFLIGHT_SUMMARY_SCHEMA,
             COURSE_HANDOFF_SCHEMA,
             "yacht.swe-bench-grading.v1",
+            BENCHMARK_SCORECARD_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -163,6 +166,79 @@ class SchemaTests(unittest.TestCase):
             "comparisons\\[0\\].vessels\\[0\\].checks\\[0\\].status",
         ):
             validate_preflight_summary_document(document)
+
+    def test_benchmark_scorecard_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": BENCHMARK_SCORECARD_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "swe-bench-lite",
+            "adapter": {
+                "kind": "swe-bench",
+                "dataset": "princeton-nlp/SWE-bench_Lite",
+                "split": "test",
+            },
+            "status": "partial",
+            "comparisons": [
+                {
+                    "name": "pi-vs-pi-fff",
+                    "course": "swe-bench-lite",
+                    "vessels": [
+                        {
+                            "name": "pi-baseline",
+                            "status": "missing",
+                            "submitted_instances": 0,
+                            "resolved_instances": 0,
+                            "resolution_rate": 0.0,
+                        },
+                        {
+                            "name": "pi-plus-fff",
+                            "status": "measured",
+                            "submitted_instances": 1,
+                            "resolved_instances": 1,
+                            "resolution_rate": 1.0,
+                            "resolved_ids": ["django__django-11099"],
+                            "unresolved_ids": [],
+                        },
+                    ],
+                }
+            ],
+        }
+
+        validate_benchmark_scorecard_document(document)
+
+    def test_benchmark_scorecard_rejects_unknown_vessel_status(self) -> None:
+        document = {
+            "schema": BENCHMARK_SCORECARD_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "swe-bench-lite",
+            "adapter": {
+                "kind": "swe-bench",
+                "dataset": "princeton-nlp/SWE-bench_Lite",
+                "split": "test",
+            },
+            "status": "partial",
+            "comparisons": [
+                {
+                    "name": "pi-vs-pi-fff",
+                    "course": "swe-bench-lite",
+                    "vessels": [
+                        {
+                            "name": "pi-plus-fff",
+                            "status": "unknown",
+                            "submitted_instances": 1,
+                            "resolved_instances": 1,
+                            "resolution_rate": 1.0,
+                        },
+                    ],
+                }
+            ],
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "comparisons\\[0\\].vessels\\[0\\].status",
+        ):
+            validate_benchmark_scorecard_document(document)
 
     def test_wake_and_scorecard_documents_include_schema_versions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

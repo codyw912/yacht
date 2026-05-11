@@ -1,0 +1,163 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from yacht.course_handoff import COURSE_HANDOFF_PATH
+from yacht.regatta import ConfigError
+from yacht.schemas import (
+    BENCHMARK_SCORECARD_SCHEMA,
+    validate_benchmark_scorecard_document,
+)
+
+
+BENCHMARK_SCORECARD_PATH = Path("benchmark-scorecard.json")
+
+
+def write_benchmark_scorecard(logbook_dir: Path) -> dict[str, Any]:
+    handoff = _load_handoff(logbook_dir)
+    grading = _load_grading(logbook_dir, handoff)
+    scorecard = _build_scorecard(handoff, grading)
+    validate_benchmark_scorecard_document(scorecard)
+    _write_json(logbook_dir / BENCHMARK_SCORECARD_PATH, scorecard)
+    return scorecard
+
+
+def _load_handoff(logbook_dir: Path) -> dict[str, Any]:
+    handoff_path = logbook_dir / COURSE_HANDOFF_PATH
+    if not handoff_path.exists():
+        raise ConfigError(f"course handoff artifact not found: {handoff_path}")
+    return _load_json_object(handoff_path, "course handoff artifact")
+
+
+def _load_grading(logbook_dir: Path, handoff: dict[str, Any]) -> dict[str, Any]:
+    grading_path = logbook_dir / str(handoff["expected_outputs"]["grading_report"])
+    if not grading_path.exists():
+        raise ConfigError(f"validated grading report not found: {grading_path}")
+    grading = _load_json_object(grading_path, "validated grading report")
+    if grading.get("schema") != "yacht.swe-bench-grading.v1":
+        raise ConfigError("validated grading report has unsupported schema")
+    return grading
+
+
+def _load_json_object(path: Path, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ConfigError(f"{label} is not valid JSON: {error}") from error
+    if not isinstance(payload, dict):
+        raise ConfigError(f"{label} must be a JSON object")
+    return payload
+
+
+def _build_scorecard(handoff: dict[str, Any], grading: dict[str, Any]) -> dict[str, Any]:
+    measured_by_vessel = _measured_by_vessel(grading)
+    comparisons = [
+        _comparison_to_json(comparison, measured_by_vessel)
+        for comparison in handoff["comparisons"]
+    ]
+    scorecard = {
+        "schema": BENCHMARK_SCORECARD_SCHEMA,
+        "regatta": str(handoff["regatta"]),
+        "course": str(handoff["course"]),
+        "adapter": {
+            "kind": str(handoff["adapter"]["kind"]),
+            "dataset": str(handoff["adapter"]["dataset"]),
+            "split": str(handoff["adapter"]["split"]),
+        },
+        "status": _scorecard_status(comparisons),
+        "comparisons": comparisons,
+    }
+    return scorecard
+
+
+def _measured_by_vessel(grading: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    native_report = grading["native_report"]
+    submitted_ids = set(native_report["submitted_ids"])
+    model_name = _model_name_from_grading(grading)
+    return {
+        model_name: {
+            "status": "measured",
+            "submitted_instances": int(grading["submitted_instances"]),
+            "resolved_instances": int(grading["resolved_instances"]),
+            "resolution_rate": float(grading["resolution_rate"]),
+            "resolved_ids": [
+                instance_id
+                for instance_id in native_report["resolved_ids"]
+                if instance_id in submitted_ids
+            ],
+            "unresolved_ids": [
+                instance_id
+                for instance_id in native_report["unresolved_ids"]
+                if instance_id in submitted_ids
+            ],
+        }
+    }
+
+
+def _model_name_from_grading(grading: dict[str, Any]) -> str:
+    native_report = grading["native_report"]
+    submitted_ids = native_report["submitted_ids"]
+    if not submitted_ids:
+        return ""
+    candidate_path = Path(str(grading["candidate_patches_path"]))
+    for line in candidate_path.read_text(encoding="utf-8").splitlines():
+        record = json.loads(line)
+        if record["instance_id"] == submitted_ids[0]:
+            return str(record["model_name_or_path"])
+    raise ConfigError("candidate patches do not contain submitted grading ids")
+
+
+def _comparison_to_json(
+    comparison: dict[str, Any],
+    measured_by_vessel: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "name": str(comparison["name"]),
+        "course": str(comparison["course"]),
+        "vessels": [
+            _vessel_score(vessel_name, measured_by_vessel)
+            for vessel_name in comparison["vessels"]
+        ],
+    }
+
+
+def _vessel_score(
+    vessel_name: str,
+    measured_by_vessel: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    measured = measured_by_vessel.get(vessel_name)
+    if measured is None:
+        return {
+            "name": vessel_name,
+            "status": "missing",
+            "submitted_instances": 0,
+            "resolved_instances": 0,
+            "resolution_rate": 0.0,
+        }
+    return {
+        "name": vessel_name,
+        **measured,
+    }
+
+
+def _scorecard_status(comparisons: list[dict[str, Any]]) -> str:
+    statuses = [
+        vessel["status"]
+        for comparison in comparisons
+        for vessel in comparison["vessels"]
+    ]
+    if all(status == "measured" for status in statuses):
+        return "complete"
+    if any(status == "measured" for status in statuses):
+        return "partial"
+    return "empty"
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
