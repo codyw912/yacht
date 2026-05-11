@@ -83,6 +83,7 @@ uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/p
 uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-fff-predictions.json --logbook logbook --vessel pi-plus-fff
 uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/pi-fff-native-report.json --logbook logbook --vessel pi-plus-fff
 uv run yacht benchmark-plan --logbook logbook
+uv run yacht benchmark-launcher --logbook logbook --max-workers 1
 uv run yacht benchmark-scorecard --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
@@ -116,6 +117,11 @@ then writes `logbook/benchmark-execution-plan.json`, a dry-run readiness report
 showing which vessels are missing candidate patches, ready for native grading, or
 already graded. It does not invoke agents, Docker, or the native benchmark
 harness.
+`yacht benchmark-launcher` writes `logbook/benchmark-launcher-handoff.json`, an
+artifact-only native harness handoff containing the exact
+`python -m swebench.harness.run_evaluation` command YACHT expects for every
+ready vessel. It includes dataset, split, predictions path, max workers, run id,
+report directory, and instance ids, but does not run Docker or SWE-bench.
 `yacht benchmark-scorecard` reads the handoff and validated grading artifacts
 and writes `logbook/benchmark-scorecard.json`, a benchmark-result summary shaped
 for comparisons. It combines all per-vessel grading artifacts it finds and keeps
@@ -156,18 +162,19 @@ YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
 - `yacht.course-handoff.v1.schema.json` for native benchmark handoff artifacts
 - `yacht.swe-bench-grading.v1.schema.json` for validated SWE-bench grading reports
 - `yacht.benchmark-execution-plan.v1.schema.json` for benchmark readiness plans
+- `yacht.benchmark-launcher-handoff.v1.schema.json` for native launcher handoffs
 - `yacht.benchmark-scorecard.v1.schema.json` for benchmark scorecard summaries
 
 Generated wake, scorecard, preflight evidence, preflight summary, and course
 handoff JSON documents include a `schema` field such as `yacht.wake.v1`,
 `yacht.scorecard.v1`, `yacht.preflight-summary.v1`, or
 `yacht.course-handoff.v1`. Validated SWE-bench grading reports, benchmark
-readiness plans, and benchmark scorecard summaries include
-`yacht.swe-bench-grading.v1`, `yacht.benchmark-execution-plan.v1`, and
-`yacht.benchmark-scorecard.v1`. The Python runner validates the current config
-and generated artifacts, but the persisted contract is intentionally
-language-neutral so future vessels, runners, and analysis tools do not need to be
-Python programs.
+readiness plans, native launcher handoffs, and benchmark scorecard summaries
+include `yacht.swe-bench-grading.v1`, `yacht.benchmark-execution-plan.v1`,
+`yacht.benchmark-launcher-handoff.v1`, and `yacht.benchmark-scorecard.v1`. The
+Python runner validates the current config and generated artifacts, but the
+persisted contract is intentionally language-neutral so future vessels, runners,
+and analysis tools do not need to be Python programs.
 
 Regatta configs may optionally include provisioning sections:
 

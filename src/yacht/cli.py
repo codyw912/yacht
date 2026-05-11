@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
+from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.course_handoff import write_course_handoff
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
@@ -155,6 +156,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory containing handoff and benchmark artifacts.",
     )
 
+    benchmark_launcher_parser = subcommands.add_parser(
+        "benchmark-launcher",
+        help="Write native benchmark launcher commands without executing them.",
+    )
+    benchmark_launcher_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing handoff and benchmark artifacts.",
+    )
+    benchmark_launcher_parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=1,
+        help="SWE-bench --max_workers value to include in generated commands.",
+    )
+    benchmark_launcher_parser.add_argument(
+        "--python-executable",
+        default="python",
+        help="Python executable prefix to include in generated SWE-bench commands.",
+    )
+
     preflight_parser = subcommands.add_parser(
         "preflight",
         help="Run machine preflight checks without running benchmark tasks.",
@@ -288,6 +311,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
         print(json.dumps(plan, indent=2))
+        return 0
+
+    if args.command == "benchmark-launcher":
+        try:
+            launcher_handoff = write_benchmark_launcher_handoff(
+                logbook_dir=args.logbook,
+                max_workers=args.max_workers,
+                python_executable=args.python_executable,
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(launcher_handoff, indent=2))
         return 0
 
     if args.command == "preflight":
