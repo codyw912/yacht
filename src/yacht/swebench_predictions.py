@@ -6,6 +6,7 @@ from typing import Any
 
 from yacht.course_handoff import COURSE_HANDOFF_PATH, build_course_handoff
 from yacht.regatta import ConfigError
+from yacht.swebench_artifacts import candidate_patches_path, validate_handoff_vessel
 
 
 SWE_BENCH_PREDICTION_FIELDS = (
@@ -20,19 +21,27 @@ def write_swe_bench_predictions(
     config_path: Path,
     predictions_path: Path,
     logbook_dir: Path,
+    vessel_name: str | None = None,
 ) -> dict[str, Any]:
     handoff = build_course_handoff(config_path)
+    if vessel_name is not None:
+        validate_handoff_vessel(handoff, vessel_name)
     records = _load_prediction_records(predictions_path)
     _validate_prediction_records(
         records,
         allowed_instance_ids=_task_ids(handoff),
+        vessel_name=vessel_name,
     )
 
     _write_json(logbook_dir / COURSE_HANDOFF_PATH, handoff)
-    candidate_path = logbook_dir / str(handoff["expected_outputs"]["candidate_patches"])
+    candidate_path = candidate_patches_path(
+        logbook_dir=logbook_dir,
+        handoff=handoff,
+        vessel_name=vessel_name,
+    )
     _write_jsonl(candidate_path, records)
 
-    return {
+    summary: dict[str, Any] = {
         "status": "validated",
         "adapter": str(handoff["adapter"]["kind"]),
         "dataset": str(handoff["adapter"]["dataset"]),
@@ -41,6 +50,9 @@ def write_swe_bench_predictions(
         "instance_ids": [record["instance_id"] for record in records],
         "candidate_patches_path": str(candidate_path),
     }
+    if vessel_name is not None:
+        summary["vessel"] = vessel_name
+    return summary
 
 
 def _load_prediction_records(path: Path) -> list[dict[str, str]]:
@@ -88,6 +100,7 @@ def _validate_prediction_records(
     records: list[dict[str, str]],
     *,
     allowed_instance_ids: set[str],
+    vessel_name: str | None = None,
 ) -> None:
     if not records:
         raise ConfigError("predictions must contain at least one record")
@@ -101,6 +114,10 @@ def _validate_prediction_records(
         if instance_id not in allowed_instance_ids:
             raise ConfigError(
                 f"prediction instance_id {instance_id} is not in course handoff"
+            )
+        if vessel_name is not None and record["model_name_or_path"] != vessel_name:
+            raise ConfigError(
+                f"prediction model_name_or_path must match vessel {vessel_name}"
             )
 
 

@@ -45,6 +45,10 @@
     "status": {
       "const": "validated"
     },
+    "vessel": {
+      "type": "string",
+      "minLength": 1
+    },
     "source_report_path": {
       "type": "string",
       "minLength": 1

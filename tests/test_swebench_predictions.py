@@ -145,6 +145,60 @@ class SweBenchPredictionTests(unittest.TestCase):
                 (logbook_dir / "course-handoff/swe-bench/candidate-patches.jsonl").is_file()
             )
 
+    def test_predictions_command_writes_vessel_candidate_patches(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            input_path = root / "predictions.json"
+            logbook_dir = root / "logbook"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            input_path.write_text(json.dumps(VALID_PREDICTIONS), encoding="utf-8")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "predictions",
+                        str(config_path),
+                        "--input",
+                        str(input_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--vessel",
+                        "pi-plus-fff",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["vessel"], "pi-plus-fff")
+            self.assertTrue(
+                (
+                    logbook_dir
+                    / "course-handoff/swe-bench/vessels/pi-plus-fff/candidate-patches.jsonl"
+                ).is_file()
+            )
+
+    def test_rejects_vessel_prediction_with_different_model_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            input_path = root / "predictions.json"
+            logbook_dir = root / "logbook"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            input_path.write_text(json.dumps(VALID_PREDICTIONS), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "prediction model_name_or_path must match vessel pi-baseline",
+            ):
+                write_swe_bench_predictions(
+                    config_path=config_path,
+                    predictions_path=input_path,
+                    logbook_dir=logbook_dir,
+                    vessel_name="pi-baseline",
+                )
+
     def test_predictions_command_reports_config_errors_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

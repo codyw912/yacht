@@ -1,0 +1,76 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from yacht.regatta import ConfigError
+
+
+def candidate_patches_path(
+    *,
+    logbook_dir: Path,
+    handoff: dict[str, Any],
+    vessel_name: str | None,
+) -> Path:
+    if vessel_name is None:
+        return logbook_dir / str(handoff["expected_outputs"]["candidate_patches"])
+    return vessel_artifact_dir(
+        logbook_dir=logbook_dir,
+        handoff=handoff,
+        vessel_name=vessel_name,
+    ) / "candidate-patches.jsonl"
+
+
+def grading_report_path(
+    *,
+    logbook_dir: Path,
+    handoff: dict[str, Any],
+    vessel_name: str | None,
+) -> Path:
+    if vessel_name is None:
+        return logbook_dir / str(handoff["expected_outputs"]["grading_report"])
+    return vessel_artifact_dir(
+        logbook_dir=logbook_dir,
+        handoff=handoff,
+        vessel_name=vessel_name,
+    ) / "grading-report.json"
+
+
+def vessel_artifact_dir(
+    *,
+    logbook_dir: Path,
+    handoff: dict[str, Any],
+    vessel_name: str,
+) -> Path:
+    return (
+        vessels_artifact_dir(logbook_dir=logbook_dir, handoff=handoff)
+        / safe_vessel_path_name(vessel_name)
+    )
+
+
+def vessels_artifact_dir(*, logbook_dir: Path, handoff: dict[str, Any]) -> Path:
+    return adapter_artifact_dir(logbook_dir=logbook_dir, handoff=handoff) / "vessels"
+
+
+def adapter_artifact_dir(*, logbook_dir: Path, handoff: dict[str, Any]) -> Path:
+    return logbook_dir / "course-handoff" / str(handoff["adapter"]["kind"])
+
+
+def validate_handoff_vessel(handoff: dict[str, Any], vessel_name: str) -> None:
+    safe_vessel_path_name(vessel_name)
+    if vessel_name not in comparison_vessel_names(handoff):
+        raise ConfigError(f"vessel {vessel_name} is not in course handoff")
+
+
+def comparison_vessel_names(handoff: dict[str, Any]) -> set[str]:
+    return {
+        str(vessel)
+        for comparison in handoff["comparisons"]
+        for vessel in comparison["vessels"]
+    }
+
+
+def safe_vessel_path_name(vessel_name: str) -> str:
+    if not vessel_name or Path(vessel_name).name != vessel_name:
+        raise ConfigError(f"vessel {vessel_name} is not safe for artifact paths")
+    return vessel_name
