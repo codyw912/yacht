@@ -11,6 +11,7 @@ from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
 from yacht.course_handoff import write_course_handoff
 from yacht.regatta import ConfigError
+from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
@@ -156,6 +157,58 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             self.assertFalse(vessel["runtime_instances_artifact_present"])
             self.assertEqual(vessel["runtime_snapshot_status"], "missing")
             self.assertNotIn("command", vessel)
+
+    def test_launcher_handoff_reports_runtime_snapshot_missing_vessel(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            logbook_dir = root / "logbook"
+            config_path.write_text(
+                Path("examples/pi-fff-provisioning.toml").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            write_swe_bench_predictions(
+                config_path=config_path,
+                predictions_path=Path("examples/pi-baseline-predictions.json"),
+                logbook_dir=logbook_dir,
+                vessel_name="pi-baseline",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-baseline",
+                status="passed",
+            )
+            write_runtime_instances_plan(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                workspace_path=root / "workspace",
+            )
+            snapshot_path = logbook_dir / RUNTIME_INSTANCES_PLAN_PATH
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            comparison = snapshot["comparisons"][0]
+            comparison["vessels"] = [
+                vessel
+                for vessel in comparison["vessels"]
+                if vessel["name"] != "pi-baseline"
+            ]
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    ["benchmark-launcher", "--logbook", str(logbook_dir)]
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn(
+                "error: invalid regatta config: runtime instances artifact "
+                "does not contain vessel pi-baseline:",
+                stderr.getvalue(),
+            )
+            self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_launcher_handoff_blocks_failed_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
