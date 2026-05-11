@@ -434,6 +434,10 @@ def validate_benchmark_scorecard_document(document: dict[str, Any]) -> None:
     )
     _validate_benchmark_scorecard_top_level_summary(document["summary"])
     _validate_benchmark_scorecard_comparisons(document["comparisons"])
+    _validate_benchmark_scorecard_top_level_summary_matches_comparisons(
+        document["summary"],
+        document["comparisons"],
+    )
 
 
 def validate_benchmark_execution_plan_document(document: dict[str, Any]) -> None:
@@ -629,6 +633,11 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
                     vessel["preflight_error"],
                     f"{vessel_path}.preflight_error",
                 )
+        _validate_benchmark_scorecard_summary_matches_vessels(
+            comparison["summary"],
+            vessels,
+            comparison_path,
+        )
 
 
 def _validate_benchmark_scorecard_summary(value: Any, path: str) -> None:
@@ -646,6 +655,33 @@ def _validate_benchmark_scorecard_summary(value: Any, path: str) -> None:
             )
 
 
+def _validate_benchmark_scorecard_summary_matches_vessels(
+    summary: dict[str, Any],
+    vessels: list[Any],
+    path: str,
+) -> None:
+    expected = {
+        "total_vessels": len(vessels),
+        "eligible_vessels": sum(
+            1 for vessel in vessels if vessel["eligible_for_benchmark"]
+        ),
+        "blocked_vessels": sum(
+            1 for vessel in vessels if not vessel["eligible_for_benchmark"]
+        ),
+        "measured_vessels": sum(
+            1 for vessel in vessels if vessel["status"] == "measured"
+        ),
+        "missing_result_vessels": sum(
+            1 for vessel in vessels if vessel["status"] == "missing"
+        ),
+    }
+    _validate_benchmark_scorecard_summary_matches_expected(
+        summary,
+        expected,
+        f"{path}.summary",
+    )
+
+
 def _validate_benchmark_scorecard_top_level_summary(value: Any) -> None:
     summary = _require_object(value, "benchmark scorecard.summary")
     _require_keys(
@@ -658,6 +694,36 @@ def _validate_benchmark_scorecard_top_level_summary(value: Any) -> None:
         if not isinstance(value, int) or value < 0:
             raise SchemaValidationError(
                 f"benchmark scorecard.summary.{key} must be an integer >= 0"
+            )
+
+
+def _validate_benchmark_scorecard_top_level_summary_matches_comparisons(
+    summary: dict[str, Any],
+    comparisons: list[Any],
+) -> None:
+    expected = {
+        "total_comparisons": len(comparisons),
+        **{
+            key: sum(comparison["summary"][key] for comparison in comparisons)
+            for key in BENCHMARK_SCORECARD_SUMMARY_KEYS
+        },
+    }
+    _validate_benchmark_scorecard_summary_matches_expected(
+        summary,
+        expected,
+        "benchmark scorecard.summary",
+    )
+
+
+def _validate_benchmark_scorecard_summary_matches_expected(
+    summary: dict[str, Any],
+    expected: dict[str, int],
+    path: str,
+) -> None:
+    for key, expected_value in expected.items():
+        if summary[key] != expected_value:
+            raise SchemaValidationError(
+                f"{path}.{key} must equal {expected_value}"
             )
 
 
