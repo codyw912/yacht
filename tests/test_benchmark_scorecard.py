@@ -191,6 +191,30 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 },
             )
 
+    def test_benchmark_scorecard_includes_top_level_summary_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_logbook(Path(temp_dir))
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-plus-fff",
+                status="passed",
+            )
+
+            scorecard = write_benchmark_scorecard(logbook_dir)
+
+            self.assertEqual(
+                scorecard["summary"],
+                {
+                    "total_comparisons": 1,
+                    "total_vessels": 2,
+                    "eligible_vessels": 1,
+                    "blocked_vessels": 1,
+                    "measured_vessels": 1,
+                    "missing_result_vessels": 1,
+                },
+            )
+
     def test_benchmark_scorecard_requires_grading_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"

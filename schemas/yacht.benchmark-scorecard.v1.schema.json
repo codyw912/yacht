@@ -4,7 +4,15 @@
   "title": "YACHT Benchmark Scorecard",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "regatta", "course", "adapter", "status", "comparisons"],
+  "required": [
+    "schema",
+    "regatta",
+    "course",
+    "adapter",
+    "status",
+    "summary",
+    "comparisons"
+  ],
   "properties": {
     "schema": {
       "const": "yacht.benchmark-scorecard.v1"
@@ -38,6 +46,44 @@
     "status": {
       "type": "string",
       "enum": ["complete", "partial", "empty"]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_comparisons",
+        "total_vessels",
+        "eligible_vessels",
+        "blocked_vessels",
+        "measured_vessels",
+        "missing_result_vessels"
+      ],
+      "properties": {
+        "total_comparisons": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eligible_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "measured_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_result_vessels": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     },
     "comparisons": {
       "type": "array",
