@@ -6,6 +6,7 @@ from pathlib import Path
 from yacht.regatta import ConfigError, run_regatta
 from yacht.schemas import (
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
+    BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
     BENCHMARK_SCORECARD_SCHEMA,
     COURSE_HANDOFF_SCHEMA,
     PREFLIGHT_SCHEMA,
@@ -14,6 +15,7 @@ from yacht.schemas import (
     SCORECARD_SCHEMA,
     WAKE_SCHEMA,
     validate_benchmark_execution_plan_document,
+    validate_benchmark_launcher_handoff_document,
     validate_benchmark_scorecard_document,
     validate_preflight_document,
     validate_preflight_summary_document,
@@ -66,6 +68,7 @@ class SchemaTests(unittest.TestCase):
             "yacht.swe-bench-grading.v1",
             BENCHMARK_SCORECARD_SCHEMA,
             BENCHMARK_EXECUTION_PLAN_SCHEMA,
+            BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -283,6 +286,84 @@ class SchemaTests(unittest.TestCase):
         }
 
         validate_benchmark_execution_plan_document(document)
+
+    def test_benchmark_launcher_handoff_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "swe-bench-lite",
+            "adapter": {
+                "kind": "swe-bench",
+                "dataset": "princeton-nlp/SWE-bench_Lite",
+                "split": "test",
+                "harness": "docker",
+            },
+            "status": "ready-to-launch",
+            "comparisons": [
+                {
+                    "name": "pi-vs-pi-fff",
+                    "course": "swe-bench-lite",
+                    "status": "ready-to-launch",
+                    "vessels": [
+                        {
+                            "name": "pi-baseline",
+                            "status": "ready-to-launch",
+                            "candidate_patches_path": "candidate-patches.jsonl",
+                            "candidate_patches_present": True,
+                            "expected_yacht_grading_report_path": "grading-report.json",
+                            "grading_report_present": False,
+                            "native_report_dir": "native-report",
+                            "command": [
+                                "python",
+                                "-m",
+                                "swebench.harness.run_evaluation",
+                            ],
+                            "command_preview": "python -m swebench.harness.run_evaluation",
+                        },
+                    ],
+                }
+            ],
+        }
+
+        validate_benchmark_launcher_handoff_document(document)
+
+    def test_benchmark_launcher_handoff_rejects_unknown_vessel_status(self) -> None:
+        document = {
+            "schema": BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "swe-bench-lite",
+            "adapter": {
+                "kind": "swe-bench",
+                "dataset": "princeton-nlp/SWE-bench_Lite",
+                "split": "test",
+                "harness": "docker",
+            },
+            "status": "mixed",
+            "comparisons": [
+                {
+                    "name": "pi-vs-pi-fff",
+                    "course": "swe-bench-lite",
+                    "status": "mixed",
+                    "vessels": [
+                        {
+                            "name": "pi-plus-fff",
+                            "status": "unknown",
+                            "candidate_patches_path": "candidate-patches.jsonl",
+                            "candidate_patches_present": True,
+                            "expected_yacht_grading_report_path": "grading-report.json",
+                            "grading_report_present": False,
+                            "native_report_dir": "native-report",
+                        },
+                    ],
+                }
+            ],
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "comparisons\\[0\\].vessels\\[0\\].status",
+        ):
+            validate_benchmark_launcher_handoff_document(document)
 
     def test_benchmark_execution_plan_rejects_unknown_vessel_status(self) -> None:
         document = {
