@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.course_handoff import COURSE_HANDOFF_PATH
+from yacht.preflight_evidence_report import build_preflight_evidence_report
 from yacht.regatta import ConfigError
 from yacht.schemas import (
     BENCHMARK_SCORECARD_SCHEMA,
@@ -19,7 +20,8 @@ BENCHMARK_SCORECARD_PATH = Path("benchmark-scorecard.json")
 def write_benchmark_scorecard(logbook_dir: Path) -> dict[str, Any]:
     handoff = _load_handoff(logbook_dir)
     gradings = _load_gradings(logbook_dir, handoff)
-    scorecard = _build_scorecard(handoff, gradings)
+    preflight_report = build_preflight_evidence_report(logbook_dir)
+    scorecard = _build_scorecard(handoff, gradings, preflight_report)
     validate_benchmark_scorecard_document(scorecard)
     _write_json(logbook_dir / BENCHMARK_SCORECARD_PATH, scorecard)
     return scorecard
@@ -77,10 +79,12 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
 def _build_scorecard(
     handoff: dict[str, Any],
     gradings: list[dict[str, Any]],
+    preflight_report: dict[str, Any],
 ) -> dict[str, Any]:
     measured_by_vessel = _measured_by_vessel(gradings)
+    preflight_by_vessel = _preflight_by_comparison_and_vessel(preflight_report)
     comparisons = [
-        _comparison_to_json(comparison, measured_by_vessel)
+        _comparison_to_json(comparison, measured_by_vessel, preflight_by_vessel)
         for comparison in handoff["comparisons"]
     ]
     scorecard = {
@@ -129,6 +133,16 @@ def _measured_by_vessel(
     return measured
 
 
+def _preflight_by_comparison_and_vessel(
+    preflight_report: dict[str, Any],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    return {
+        (str(comparison["name"]), str(vessel["name"])): vessel
+        for comparison in preflight_report["comparisons"]
+        for vessel in comparison["vessels"]
+    }
+
+
 def _vessel_name_from_grading(grading: dict[str, Any]) -> str:
     vessel_name = grading.get("vessel")
     if isinstance(vessel_name, str) and vessel_name:
@@ -148,21 +162,39 @@ def _vessel_name_from_grading(grading: dict[str, Any]) -> str:
 def _comparison_to_json(
     comparison: dict[str, Any],
     measured_by_vessel: dict[str, dict[str, Any]],
+    preflight_by_vessel: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, Any]:
+    comparison_name = str(comparison["name"])
     return {
-        "name": str(comparison["name"]),
+        "name": comparison_name,
         "course": str(comparison["course"]),
         "vessels": [
-            _vessel_score(vessel_name, measured_by_vessel)
+            _vessel_score(
+                comparison_name,
+                vessel_name,
+                measured_by_vessel,
+                preflight_by_vessel,
+            )
             for vessel_name in comparison["vessels"]
         ],
     }
 
 
 def _vessel_score(
+    comparison_name: str,
     vessel_name: str,
     measured_by_vessel: dict[str, dict[str, Any]],
+    preflight_by_vessel: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, Any]:
+    preflight = preflight_by_vessel[(comparison_name, vessel_name)]
+    preflight_summary = {
+        "eligible_for_benchmark": bool(preflight["eligible_for_benchmark"]),
+        "preflight_status": str(preflight["preflight_status"]),
+        "preflight_reason": str(preflight["reason"]),
+        "preflight_artifact_path": str(preflight["preflight_artifact_path"]),
+    }
+    if "error" in preflight:
+        preflight_summary["preflight_error"] = str(preflight["error"])
     measured = measured_by_vessel.get(vessel_name)
     if measured is None:
         return {
@@ -171,10 +203,12 @@ def _vessel_score(
             "submitted_instances": 0,
             "resolved_instances": 0,
             "resolution_rate": 0.0,
+            **preflight_summary,
         }
     return {
         "name": vessel_name,
         **measured,
+        **preflight_summary,
     }
 
 

@@ -18,10 +18,15 @@ PREFLIGHT_EVIDENCE_REPORT_PATH = Path("preflight-evidence-report.json")
 
 
 def write_preflight_evidence_report(logbook_dir: Path) -> dict[str, Any]:
+    report = build_preflight_evidence_report(logbook_dir)
+    _write_json(logbook_dir / PREFLIGHT_EVIDENCE_REPORT_PATH, report)
+    return report
+
+
+def build_preflight_evidence_report(logbook_dir: Path) -> dict[str, Any]:
     handoff = _load_handoff(logbook_dir)
     report = _build_report(logbook_dir, handoff)
     validate_preflight_evidence_report_document(report)
-    _write_json(logbook_dir / PREFLIGHT_EVIDENCE_REPORT_PATH, report)
     return report
 
 

@@ -6,6 +6,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
+from tests.preflight_artifacts import write_preflight_artifact
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.cli import main
 from yacht.regatta import ConfigError
@@ -73,6 +74,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                                 "submitted_instances": 0,
                                 "resolved_instances": 0,
                                 "resolution_rate": 0.0,
+                                **_missing_preflight(logbook_dir, "pi-baseline"),
                             },
                             {
                                 "name": "pi-plus-fff",
@@ -82,6 +84,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                                 "resolution_rate": 1.0,
                                 "resolved_ids": ["django__django-11099"],
                                 "unresolved_ids": [],
+                                **_missing_preflight(logbook_dir, "pi-plus-fff"),
                             },
                         ],
                     }
@@ -116,6 +119,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                                 "resolution_rate": 0.0,
                                 "resolved_ids": [],
                                 "unresolved_ids": ["django__django-11099"],
+                                **_missing_preflight(logbook_dir, "pi-baseline"),
                             },
                             {
                                 "name": "pi-plus-fff",
@@ -125,11 +129,34 @@ class BenchmarkScorecardTests(unittest.TestCase):
                                 "resolution_rate": 1.0,
                                 "resolved_ids": ["django__django-11099"],
                                 "unresolved_ids": [],
+                                **_missing_preflight(logbook_dir, "pi-plus-fff"),
                             },
                         ],
                     }
                 ],
             )
+
+    def test_benchmark_scorecard_includes_preflight_eligibility_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_logbook(Path(temp_dir))
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-plus-fff",
+                status="passed",
+            )
+
+            scorecard = write_benchmark_scorecard(logbook_dir)
+
+            vessels = scorecard["comparisons"][0]["vessels"]
+            self.assertEqual(vessels[0]["name"], "pi-baseline")
+            self.assertEqual(vessels[0]["preflight_status"], "missing")
+            self.assertEqual(vessels[0]["preflight_reason"], "preflight-missing")
+            self.assertFalse(vessels[0]["eligible_for_benchmark"])
+            self.assertEqual(vessels[1]["name"], "pi-plus-fff")
+            self.assertEqual(vessels[1]["preflight_status"], "passed")
+            self.assertEqual(vessels[1]["preflight_reason"], "preflight-passed")
+            self.assertTrue(vessels[1]["eligible_for_benchmark"])
 
     def test_benchmark_scorecard_requires_grading_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -209,6 +236,17 @@ def _prepared_logbook(root: Path) -> Path:
         logbook_dir=logbook_dir,
     )
     return logbook_dir
+
+
+def _missing_preflight(logbook_dir: Path, vessel_name: str) -> dict[str, object]:
+    return {
+        "eligible_for_benchmark": False,
+        "preflight_status": "missing",
+        "preflight_reason": "preflight-missing",
+        "preflight_artifact_path": str(
+            logbook_dir / "preflight/pi-vs-pi-fff" / f"{vessel_name}.json"
+        ),
+    }
 
 
 def _prepared_multi_vessel_logbook(root: Path) -> Path:

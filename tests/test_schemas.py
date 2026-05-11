@@ -248,6 +248,10 @@ class SchemaTests(unittest.TestCase):
                             "submitted_instances": 0,
                             "resolved_instances": 0,
                             "resolution_rate": 0.0,
+                            "eligible_for_benchmark": False,
+                            "preflight_status": "missing",
+                            "preflight_reason": "preflight-missing",
+                            "preflight_artifact_path": "preflight/pi-baseline.json",
                         },
                         {
                             "name": "pi-plus-fff",
@@ -257,6 +261,10 @@ class SchemaTests(unittest.TestCase):
                             "resolution_rate": 1.0,
                             "resolved_ids": ["django__django-11099"],
                             "unresolved_ids": [],
+                            "eligible_for_benchmark": True,
+                            "preflight_status": "passed",
+                            "preflight_reason": "preflight-passed",
+                            "preflight_artifact_path": "preflight/pi-plus-fff.json",
                         },
                     ],
                 }
@@ -287,6 +295,10 @@ class SchemaTests(unittest.TestCase):
                             "submitted_instances": 1,
                             "resolved_instances": 1,
                             "resolution_rate": 1.0,
+                            "eligible_for_benchmark": True,
+                            "preflight_status": "passed",
+                            "preflight_reason": "preflight-passed",
+                            "preflight_artifact_path": "preflight/pi-plus-fff.json",
                         },
                     ],
                 }

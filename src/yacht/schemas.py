@@ -563,6 +563,10 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
                     "submitted_instances",
                     "resolved_instances",
                     "resolution_rate",
+                    "eligible_for_benchmark",
+                    "preflight_status",
+                    "preflight_reason",
+                    "preflight_artifact_path",
                 ),
                 vessel_path,
             )
@@ -586,6 +590,21 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
             for key in ("resolved_ids", "unresolved_ids"):
                 if key in vessel:
                     _require_string_list(vessel[key], f"{vessel_path}.{key}")
+            if not isinstance(vessel.get("eligible_for_benchmark"), bool):
+                raise SchemaValidationError(
+                    f"{vessel_path}.eligible_for_benchmark must be a boolean"
+                )
+            for key in (
+                "preflight_status",
+                "preflight_reason",
+                "preflight_artifact_path",
+            ):
+                _require_non_empty_string(vessel.get(key), f"{vessel_path}.{key}")
+            if "preflight_error" in vessel:
+                _require_non_empty_string(
+                    vessel["preflight_error"],
+                    f"{vessel_path}.preflight_error",
+                )
 
 
 def _validate_benchmark_execution_plan_comparisons(value: Any) -> None:

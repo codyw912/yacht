@@ -66,7 +66,11 @@
                 "status",
                 "submitted_instances",
                 "resolved_instances",
-                "resolution_rate"
+                "resolution_rate",
+                "eligible_for_benchmark",
+                "preflight_status",
+                "preflight_reason",
+                "preflight_artifact_path"
               ],
               "properties": {
                 "name": {
@@ -88,6 +92,25 @@
                 "resolution_rate": {
                   "type": "number",
                   "minimum": 0
+                },
+                "eligible_for_benchmark": {
+                  "type": "boolean"
+                },
+                "preflight_status": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "preflight_reason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "preflight_artifact_path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "preflight_error": {
+                  "type": "string",
+                  "minLength": 1
                 },
                 "resolved_ids": {
                   "type": "array",
