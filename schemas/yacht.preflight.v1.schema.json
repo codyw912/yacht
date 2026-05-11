@@ -8,6 +8,11 @@
     "schema",
     "regatta",
     "vessel",
+    "runtime",
+    "workspace_path",
+    "temp_home",
+    "command_prefix",
+    "cleanup_paths",
     "status",
     "failure_policy",
     "secret_refs",
@@ -32,6 +37,28 @@
     "runtime": {
       "type": "string",
       "minLength": 1
+    },
+    "workspace_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "temp_home": {
+      "type": "string",
+      "minLength": 1
+    },
+    "command_prefix": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "cleanup_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "status": {
       "type": "string",
@@ -72,7 +99,15 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "kind", "required", "status", "evidence"],
+        "required": [
+          "name",
+          "kind",
+          "origin",
+          "origin_name",
+          "required",
+          "status",
+          "evidence"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -89,6 +124,14 @@
               "path-isolation",
               "tool-call"
             ]
+          },
+          "origin": {
+            "type": "string",
+            "enum": ["runtime", "rigging"]
+          },
+          "origin_name": {
+            "type": "string",
+            "minLength": 1
           },
           "required": {
             "type": "boolean"

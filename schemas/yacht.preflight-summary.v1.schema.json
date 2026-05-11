@@ -54,14 +54,18 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["name", "status", "checks"],
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "status": {
-                  "type": "string",
+                "required": ["name", "status", "evidence_artifact_path", "checks"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence_artifact_path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "status": {
+                    "type": "string",
                   "enum": ["passed", "failed", "error", "skipped"]
                 },
                 "checks": {
@@ -73,6 +77,8 @@
                     "required": [
                       "name",
                       "kind",
+                      "origin",
+                      "origin_name",
                       "required",
                       "included",
                       "status"
@@ -93,6 +99,14 @@
                           "path-isolation",
                           "tool-call"
                         ]
+                      },
+                      "origin": {
+                        "type": "string",
+                        "enum": ["runtime", "rigging"]
+                      },
+                      "origin_name": {
+                        "type": "string",
+                        "minLength": 1
                       },
                       "required": {
                         "type": "boolean"

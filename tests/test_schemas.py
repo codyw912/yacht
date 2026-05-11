@@ -89,6 +89,11 @@ class SchemaTests(unittest.TestCase):
             "schema": PREFLIGHT_SCHEMA,
             "regatta": "schema-smoke-test",
             "vessel": "baseline",
+            "runtime": "mock",
+            "workspace_path": "/tmp/workspace",
+            "temp_home": "/tmp/home",
+            "command_prefix": ["mock"],
+            "cleanup_paths": ["/tmp/home"],
             "status": "passed",
             "failure_policy": "abort-group",
             "secret_refs": [],
@@ -96,6 +101,8 @@ class SchemaTests(unittest.TestCase):
                 {
                     "name": "runtime-present",
                     "kind": "command",
+                    "origin": "runtime",
+                    "origin_name": "mock",
                     "required": True,
                     "status": "passed",
                     "evidence": {"command": ["mock", "--version"]},
@@ -120,10 +127,13 @@ class SchemaTests(unittest.TestCase):
                         {
                             "name": "baseline",
                             "status": "passed",
+                            "evidence_artifact_path": "preflight/baseline.json",
                             "checks": [
                                 {
                                     "name": "runtime-present",
                                     "kind": "command",
+                                    "origin": "runtime",
+                                    "origin_name": "mock",
                                     "required": True,
                                     "included": True,
                                     "status": "passed",
@@ -152,10 +162,13 @@ class SchemaTests(unittest.TestCase):
                         {
                             "name": "baseline",
                             "status": "passed",
+                            "evidence_artifact_path": "preflight/baseline.json",
                             "checks": [
                                 {
                                     "name": "runtime-present",
                                     "kind": "command",
+                                    "origin": "runtime",
+                                    "origin_name": "mock",
                                     "required": True,
                                     "included": True,
                                     "status": "unknown",
