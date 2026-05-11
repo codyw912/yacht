@@ -140,7 +140,8 @@ for comparisons. It combines all per-vessel grading artifacts it finds and keeps
 missing comparison vessels explicit until each vessel has its own validated
 grading artifact. Each vessel row also carries compact preflight eligibility
 context from the evidence report, including whether it was eligible to spend
-benchmark tokens and the preflight reason.
+benchmark tokens and the preflight reason. Each comparison includes aggregate
+counts for total, eligible, blocked, measured, and missing-result vessels.
 `yacht preflight --dry-run` prints the resolved preflight execution plan for the
 selected preflight mode, including which checks would be included or omitted and
 where artifacts/transcripts would be written.

@@ -165,18 +165,20 @@ def _comparison_to_json(
     preflight_by_vessel: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, Any]:
     comparison_name = str(comparison["name"])
+    vessels = [
+        _vessel_score(
+            comparison_name,
+            vessel_name,
+            measured_by_vessel,
+            preflight_by_vessel,
+        )
+        for vessel_name in comparison["vessels"]
+    ]
     return {
         "name": comparison_name,
         "course": str(comparison["course"]),
-        "vessels": [
-            _vessel_score(
-                comparison_name,
-                vessel_name,
-                measured_by_vessel,
-                preflight_by_vessel,
-            )
-            for vessel_name in comparison["vessels"]
-        ],
+        "summary": _comparison_summary(vessels),
+        "vessels": vessels,
     }
 
 
@@ -209,6 +211,24 @@ def _vessel_score(
         "name": vessel_name,
         **measured,
         **preflight_summary,
+    }
+
+
+def _comparison_summary(vessels: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "total_vessels": len(vessels),
+        "eligible_vessels": sum(
+            1 for vessel in vessels if vessel["eligible_for_benchmark"]
+        ),
+        "blocked_vessels": sum(
+            1 for vessel in vessels if not vessel["eligible_for_benchmark"]
+        ),
+        "measured_vessels": sum(
+            1 for vessel in vessels if vessel["status"] == "measured"
+        ),
+        "missing_result_vessels": sum(
+            1 for vessel in vessels if vessel["status"] == "missing"
+        ),
     }
 
 

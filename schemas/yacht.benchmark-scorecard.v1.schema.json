@@ -45,7 +45,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "course", "vessels"],
+        "required": ["name", "course", "summary", "vessels"],
         "properties": {
           "name": {
             "type": "string",
@@ -54,6 +54,39 @@
           "course": {
             "type": "string",
             "minLength": 1
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "total_vessels",
+              "eligible_vessels",
+              "blocked_vessels",
+              "measured_vessels",
+              "missing_result_vessels"
+            ],
+            "properties": {
+              "total_vessels": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "eligible_vessels": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "blocked_vessels": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "measured_vessels": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "missing_result_vessels": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
           },
           "vessels": {
             "type": "array",

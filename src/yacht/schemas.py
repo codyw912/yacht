@@ -544,9 +544,17 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
     for comparison_index, comparison_value in enumerate(comparisons):
         comparison_path = f"comparisons[{comparison_index}]"
         comparison = _require_object(comparison_value, comparison_path)
-        _require_keys(comparison, ("name", "course", "vessels"), comparison_path)
+        _require_keys(
+            comparison,
+            ("name", "course", "summary", "vessels"),
+            comparison_path,
+        )
         _require_non_empty_string(comparison.get("name"), f"{comparison_path}.name")
         _require_non_empty_string(comparison.get("course"), f"{comparison_path}.course")
+        _validate_benchmark_scorecard_summary(
+            comparison["summary"],
+            comparison_path,
+        )
         vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
         if not vessels:
             raise SchemaValidationError(
@@ -605,6 +613,33 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
                     vessel["preflight_error"],
                     f"{vessel_path}.preflight_error",
                 )
+
+
+def _validate_benchmark_scorecard_summary(value: Any, path: str) -> None:
+    summary = _require_object(value, f"{path}.summary")
+    _require_keys(
+        summary,
+        (
+            "total_vessels",
+            "eligible_vessels",
+            "blocked_vessels",
+            "measured_vessels",
+            "missing_result_vessels",
+        ),
+        f"{path}.summary",
+    )
+    for key in (
+        "total_vessels",
+        "eligible_vessels",
+        "blocked_vessels",
+        "measured_vessels",
+        "missing_result_vessels",
+    ):
+        value = summary.get(key)
+        if not isinstance(value, int) or value < 0:
+            raise SchemaValidationError(
+                f"{path}.summary.{key} must be an integer >= 0"
+            )
 
 
 def _validate_benchmark_execution_plan_comparisons(value: Any) -> None:

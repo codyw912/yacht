@@ -241,6 +241,13 @@ class SchemaTests(unittest.TestCase):
                 {
                     "name": "pi-vs-pi-fff",
                     "course": "swe-bench-lite",
+                    "summary": {
+                        "total_vessels": 2,
+                        "eligible_vessels": 1,
+                        "blocked_vessels": 1,
+                        "measured_vessels": 1,
+                        "missing_result_vessels": 1,
+                    },
                     "vessels": [
                         {
                             "name": "pi-baseline",
@@ -288,6 +295,13 @@ class SchemaTests(unittest.TestCase):
                 {
                     "name": "pi-vs-pi-fff",
                     "course": "swe-bench-lite",
+                    "summary": {
+                        "total_vessels": 1,
+                        "eligible_vessels": 1,
+                        "blocked_vessels": 0,
+                        "measured_vessels": 1,
+                        "missing_result_vessels": 0,
+                    },
                     "vessels": [
                         {
                             "name": "pi-plus-fff",
