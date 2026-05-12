@@ -29,6 +29,7 @@ from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.runtime_plan import build_runtime_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.task_attempt_runner import run_task_attempts
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -333,6 +334,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the resolved preflight execution plan without running checks.",
     )
 
+    task_attempts_parser = subcommands.add_parser(
+        "task-attempts",
+        help="Run task attempts and write per-task agent evidence artifacts.",
+    )
+    task_attempts_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    task_attempts_parser.add_argument(
+        "--agent",
+        required=True,
+        choices=("local-smoke",),
+        help="Task attempt agent adapter to launch.",
+    )
+    task_attempts_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory where task attempt artifacts are written.",
+    )
+    task_attempts_parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path.cwd(),
+        help="Workspace path used as the prepared runtime working directory.",
+    )
+    task_attempts_parser.add_argument(
+        "--secret",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="Explicit secret value to inject for a configured secret reference.",
+    )
+
     return parser
 
 
@@ -551,6 +587,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(json.dumps(summary, indent=2))
         return 0 if summary["status"] == "passed" else 1
+
+    if args.command == "task-attempts":
+        try:
+            summary = run_task_attempts(
+                config_path=args.config,
+                logbook_dir=args.logbook,
+                workspace_path=args.workspace,
+                secret_values=parse_secret_values(args.secret),
+                agent_name=args.agent,
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(summary, indent=2))
+        return 0 if summary["status"] == "completed" else 1
 
     parser.error(f"unknown command: {args.command}")
     return 2
