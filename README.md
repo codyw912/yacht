@@ -60,10 +60,14 @@ the built-in `local-smoke` agent preflight adapter:
 
 ```sh
 uv run yacht preflight examples/local-agent-preflight-smoke.toml --agent-preflight local-smoke --logbook logbook
+uv run yacht task-attempts examples/local-agent-preflight-smoke.toml --agent local-smoke --logbook logbook
 ```
 
 It avoids command checks, Docker, SWE-bench, Pi, and Nix execution while still
-validating isolated runtime state plus an `agent-prompt` check.
+validating isolated runtime state plus an `agent-prompt` check. The
+`task-attempts` command also prepares the configured runtimes, executes the
+local smoke task once per comparison vessel, writes transcripts, and emits
+`yacht.task-attempt.v1` artifacts under `logbook/task-attempts/`.
 
 YACHT also accepts a config-only provisioning scaffold for future real agent
 runs. `examples/pi-fff-provisioning.toml` describes a baseline Pi vessel and a
