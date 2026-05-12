@@ -147,6 +147,36 @@ notes. Use `--format json` when automation needs the full validated
 `yacht.benchmark-execution-plan.v1` document. Use `--format summary-json` when
 automation only needs launch/no-launch counts and the blocked vessel artifact
 paths from the `yacht.benchmark-readiness-summary.v1` contract.
+
+Example `summary-json` output:
+
+```json
+{
+  "schema": "yacht.benchmark-readiness-summary.v1",
+  "regatta": "pi-fff-comparison",
+  "course": "swe-bench-lite",
+  "status": "mixed",
+  "total_vessels": 2,
+  "launchable_vessels": 0,
+  "graded_vessels": 1,
+  "blocked_vessel_count": 1,
+  "blocked_vessels": [
+    {
+      "comparison": "pi-vs-pi-fff",
+      "vessel": "pi-baseline",
+      "status": "missing-runtime-snapshot",
+      "details": "runtime instances: logbook/runtime-instances.json; grading report: logbook/course-handoff/swe-bench/vessels/pi-baseline/grading-report.json",
+      "artifact_paths": {
+        "candidate_patches": "logbook/course-handoff/swe-bench/vessels/pi-baseline/candidate-patches.jsonl",
+        "preflight": "logbook/preflight/pi-vs-pi-fff/pi-baseline.json",
+        "runtime_instances": "logbook/runtime-instances.json",
+        "grading_report": "logbook/course-handoff/swe-bench/vessels/pi-baseline/grading-report.json"
+      }
+    }
+  ]
+}
+```
+
 `yacht benchmark-launcher` writes `logbook/benchmark-launcher-handoff.json`, an
 artifact-only native harness handoff containing the exact
 `python -m swebench.harness.run_evaluation` command YACHT expects for every
