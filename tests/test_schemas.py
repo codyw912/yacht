@@ -8,6 +8,7 @@ from yacht.regatta import ConfigError, run_regatta
 from yacht.schemas import (
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
     BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
+    BENCHMARK_READINESS_SUMMARY_SCHEMA,
     BENCHMARK_SCORECARD_SCHEMA,
     COURSE_HANDOFF_SCHEMA,
     PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
@@ -19,6 +20,7 @@ from yacht.schemas import (
     WAKE_SCHEMA,
     validate_benchmark_execution_plan_document,
     validate_benchmark_launcher_handoff_document,
+    validate_benchmark_readiness_summary_document,
     validate_benchmark_scorecard_document,
     validate_preflight_document,
     validate_preflight_evidence_report_document,
@@ -75,6 +77,7 @@ class SchemaTests(unittest.TestCase):
             BENCHMARK_SCORECARD_SCHEMA,
             BENCHMARK_EXECUTION_PLAN_SCHEMA,
             BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
+            BENCHMARK_READINESS_SUMMARY_SCHEMA,
             RUNTIME_INSTANCES_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
@@ -523,6 +526,25 @@ class SchemaTests(unittest.TestCase):
         ):
             validate_benchmark_execution_plan_document(document)
 
+    def test_benchmark_readiness_summary_documents_include_schema_version(
+        self,
+    ) -> None:
+        document = _valid_benchmark_readiness_summary_document()
+
+        validate_benchmark_readiness_summary_document(document)
+
+    def test_benchmark_readiness_summary_rejects_inconsistent_blocked_count(
+        self,
+    ) -> None:
+        document = _valid_benchmark_readiness_summary_document()
+        document["blocked_vessel_count"] = 2
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "blocked_vessel_count must equal blocked_vessels length",
+        ):
+            validate_benchmark_readiness_summary_document(document)
+
     def test_wake_and_scorecard_documents_include_schema_versions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
@@ -617,6 +639,33 @@ def _valid_benchmark_scorecard_document() -> dict[str, Any]:
                         "preflight_artifact_path": "preflight/pi-plus-fff.json",
                     },
                 ],
+            }
+        ],
+    }
+
+
+def _valid_benchmark_readiness_summary_document() -> dict[str, Any]:
+    return {
+        "schema": BENCHMARK_READINESS_SUMMARY_SCHEMA,
+        "regatta": "pi-fff-comparison",
+        "course": "swe-bench-lite",
+        "status": "mixed",
+        "total_vessels": 2,
+        "launchable_vessels": 0,
+        "graded_vessels": 1,
+        "blocked_vessel_count": 1,
+        "blocked_vessels": [
+            {
+                "comparison": "pi-vs-pi-fff",
+                "vessel": "pi-baseline",
+                "status": "missing-runtime-snapshot",
+                "details": "runtime instances: runtime-instances.json",
+                "artifact_paths": {
+                    "candidate_patches": "candidate-patches.jsonl",
+                    "preflight": "preflight/pi-baseline.json",
+                    "runtime_instances": "runtime-instances.json",
+                    "grading_report": "grading-report.json",
+                },
             }
         ],
     }

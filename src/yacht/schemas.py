@@ -13,6 +13,7 @@ COURSE_HANDOFF_SCHEMA = "yacht.course-handoff.v1"
 BENCHMARK_SCORECARD_SCHEMA = "yacht.benchmark-scorecard.v1"
 BENCHMARK_EXECUTION_PLAN_SCHEMA = "yacht.benchmark-execution-plan.v1"
 BENCHMARK_LAUNCHER_HANDOFF_SCHEMA = "yacht.benchmark-launcher-handoff.v1"
+BENCHMARK_READINESS_SUMMARY_SCHEMA = "yacht.benchmark-readiness-summary.v1"
 RUNTIME_INSTANCES_SCHEMA = "yacht.runtime-instances.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
@@ -63,6 +64,9 @@ BENCHMARK_EXECUTION_PLAN_VESSEL_STATUSES = {
     "preflight-failed",
     "ready-for-grading",
 }
+BENCHMARK_READINESS_BLOCKED_VESSEL_STATUSES = (
+    BENCHMARK_EXECUTION_PLAN_VESSEL_STATUSES - {"graded", "ready-for-grading"}
+)
 BENCHMARK_LAUNCHER_HANDOFF_STATUSES = {
     "blocked",
     "complete",
@@ -467,6 +471,66 @@ def validate_benchmark_execution_plan_document(document: dict[str, Any]) -> None
         "status",
     )
     _validate_benchmark_execution_plan_comparisons(document["comparisons"])
+
+
+def validate_benchmark_readiness_summary_document(document: dict[str, Any]) -> None:
+    _require_object(document, "benchmark readiness summary")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "regatta",
+            "course",
+            "status",
+            "total_vessels",
+            "launchable_vessels",
+            "graded_vessels",
+            "blocked_vessel_count",
+            "blocked_vessels",
+        ),
+        "benchmark readiness summary",
+    )
+    _require_schema(
+        document,
+        BENCHMARK_READINESS_SUMMARY_SCHEMA,
+        "benchmark readiness summary",
+    )
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], key)
+    _require_allowed_value(
+        document["status"],
+        BENCHMARK_EXECUTION_PLAN_STATUSES,
+        "status",
+    )
+    for key in (
+        "total_vessels",
+        "launchable_vessels",
+        "graded_vessels",
+        "blocked_vessel_count",
+    ):
+        value = document[key]
+        if not isinstance(value, int) or value < 0:
+            raise SchemaValidationError(f"{key} must be an integer >= 0")
+    blocked_vessels = _require_list(document["blocked_vessels"], "blocked_vessels")
+    if document["blocked_vessel_count"] != len(blocked_vessels):
+        raise SchemaValidationError(
+            "blocked_vessel_count must equal blocked_vessels length"
+        )
+    expected_total = (
+        document["launchable_vessels"]
+        + document["graded_vessels"]
+        + document["blocked_vessel_count"]
+    )
+    if document["total_vessels"] != expected_total:
+        raise SchemaValidationError(
+            "total_vessels must equal launchable_vessels + graded_vessels + "
+            "blocked_vessel_count"
+        )
+    for index, vessel_value in enumerate(blocked_vessels):
+        _validate_benchmark_readiness_blocked_vessel(
+            vessel_value,
+            f"blocked_vessels[{index}]",
+        )
 
 
 def validate_benchmark_launcher_handoff_document(document: dict[str, Any]) -> None:
@@ -874,6 +938,41 @@ def _validate_benchmark_execution_plan_comparisons(value: Any) -> None:
                     raise SchemaValidationError(
                         f"{vessel_path}.{key} must be a boolean"
                     )
+
+
+def _validate_benchmark_readiness_blocked_vessel(value: Any, path: str) -> None:
+    vessel = _require_object(value, path)
+    _require_keys(
+        vessel,
+        ("comparison", "vessel", "status", "details", "artifact_paths"),
+        path,
+    )
+    for key in ("comparison", "vessel", "details"):
+        _require_non_empty_string(vessel.get(key), f"{path}.{key}")
+    _require_allowed_value(
+        vessel.get("status"),
+        BENCHMARK_READINESS_BLOCKED_VESSEL_STATUSES,
+        f"{path}.status",
+    )
+    artifact_paths = _require_object(
+        vessel["artifact_paths"],
+        f"{path}.artifact_paths",
+    )
+    _require_keys(
+        artifact_paths,
+        ("candidate_patches", "preflight", "runtime_instances", "grading_report"),
+        f"{path}.artifact_paths",
+    )
+    for key in (
+        "candidate_patches",
+        "preflight",
+        "runtime_instances",
+        "grading_report",
+    ):
+        _require_non_empty_string(
+            artifact_paths.get(key),
+            f"{path}.artifact_paths.{key}",
+        )
 
 
 def _validate_benchmark_launcher_handoff_comparisons(value: Any) -> None:
