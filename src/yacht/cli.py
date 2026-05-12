@@ -22,6 +22,7 @@ from yacht.preflight_runner import (
     parse_secret_values,
     run_preflight,
 )
+from yacht.readiness_gate import evaluate_readiness_gate
 from yacht.regatta import ConfigError, load_regatta, run_regatta
 from yacht.runtime_instances import build_runtime_instances_plan
 from yacht.runtime_instances import write_runtime_instances_plan
@@ -486,27 +487,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "readiness-gate":
         try:
-            summary_json = render_benchmark_readiness_report(
-                args.logbook,
-                "summary-json",
-            )
+            gate = evaluate_readiness_gate(args.logbook)
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
-        summary = json.loads(summary_json)
         if args.output is not None:
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(summary_json, encoding="utf-8")
+            args.output.write_text(gate.summary_json, encoding="utf-8")
         else:
-            print(summary_json, end="")
-        blocked_count = summary["blocked_vessel_count"]
-        if blocked_count:
+            print(gate.summary_json, end="")
+        if gate.blocked_vessel_count:
             print(
-                f"readiness gate blocked: {blocked_count} blocked vessel(s)",
+                "readiness gate blocked: "
+                f"{gate.blocked_vessel_count} blocked vessel(s)",
                 file=sys.stderr,
             )
-            return 1
-        return 0
+        return gate.exit_code
 
     if args.command == "benchmark-launcher":
         try:
