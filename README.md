@@ -162,7 +162,10 @@ than zero, inspect `blocked_vessels[*].artifact_paths` before spending benchmark
 tokens or emitting native launcher commands. `yacht readiness-gate` writes the
 same summary JSON and exits nonzero when any vessel is blocked. Its exit codes
 are intentionally CI-friendly: `0` means no vessels are blocked, and `1` means
-the gate is blocked or the readiness input artifact is missing or invalid.
+the gate is blocked or the readiness input artifact is missing or invalid. When
+`--output` is provided and the input is valid, the summary JSON file is written
+on both passing and blocked gates; blocked gates still return exit `1` after
+writing the artifact.
 
 In shell or CI, fail early when the gate is blocked:
 
