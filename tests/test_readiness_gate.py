@@ -59,3 +59,20 @@ class ReadinessGateTests(unittest.TestCase):
                 "benchmark execution plan artifact is not valid JSON:",
             ):
                 evaluate_readiness_gate(logbook_dir)
+
+    def test_evaluate_readiness_gate_rejects_invalid_execution_plan_schema(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir()
+            (logbook_dir / BENCHMARK_EXECUTION_PLAN_PATH).write_text(
+                json.dumps({"schema": "yacht.benchmark-execution-plan.v1"}),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "benchmark execution plan artifact is invalid:",
+            ):
+                evaluate_readiness_gate(logbook_dir)
