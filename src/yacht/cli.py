@@ -233,7 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     readiness_report_parser.add_argument(
         "--format",
-        choices=("text", "markdown", "json"),
+        choices=("text", "markdown", "json", "summary-json"),
         default="text",
         help="Output format for the readiness report.",
     )

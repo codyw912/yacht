@@ -26,6 +26,8 @@ def render_benchmark_readiness_report(
         raise ConfigError(
             f"benchmark execution plan artifact is invalid: {error}"
         ) from error
+    if output_format == "summary-json":
+        return json.dumps(_summary_json(plan), indent=2, sort_keys=True) + "\n"
     if output_format == "json":
         return json.dumps(plan, indent=2, sort_keys=True) + "\n"
     if output_format == "markdown":
@@ -74,6 +76,52 @@ def _render_markdown(plan: dict[str, Any]) -> str:
         for comparison, vessel in _vessels(plan)
     )
     return "\n".join(lines) + "\n"
+
+
+def _summary_json(plan: dict[str, Any]) -> dict[str, Any]:
+    vessels = _vessels(plan)
+    blocked_vessels = [
+        _blocked_vessel_summary(comparison, vessel)
+        for comparison, vessel in vessels
+        if _is_blocked(vessel)
+    ]
+    return {
+        "schema": "yacht.benchmark-readiness-summary.v1",
+        "regatta": plan["regatta"],
+        "course": plan["course"],
+        "status": plan["status"],
+        "total_vessels": len(vessels),
+        "launchable_vessels": sum(
+            1 for _, vessel in vessels if vessel["status"] == "ready-for-grading"
+        ),
+        "graded_vessels": sum(
+            1 for _, vessel in vessels if vessel["status"] == "graded"
+        ),
+        "blocked_vessel_count": len(blocked_vessels),
+        "blocked_vessels": blocked_vessels,
+    }
+
+
+def _blocked_vessel_summary(
+    comparison: dict[str, Any],
+    vessel: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "comparison": comparison["name"],
+        "vessel": vessel["name"],
+        "status": vessel["status"],
+        "details": _artifact_details(vessel),
+        "artifact_paths": {
+            "candidate_patches": vessel["candidate_patches_path"],
+            "preflight": vessel["preflight_artifact_path"],
+            "runtime_instances": vessel["runtime_instances_artifact_path"],
+            "grading_report": vessel["grading_report_path"],
+        },
+    }
+
+
+def _is_blocked(vessel: dict[str, Any]) -> bool:
+    return vessel["status"] not in {"ready-for-grading", "graded"}
 
 
 def _vessels(plan: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:

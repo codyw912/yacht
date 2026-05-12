@@ -134,6 +134,54 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
                 "runtime-instances.json",
             )
 
+    def test_benchmark_readiness_report_command_prints_summary_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            _write_execution_plan(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-readiness-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--format",
+                        "summary-json",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(
+                payload,
+                {
+                    "schema": "yacht.benchmark-readiness-summary.v1",
+                    "regatta": "pi-fff-comparison",
+                    "course": "swe-bench-lite",
+                    "status": "mixed",
+                    "total_vessels": 2,
+                    "launchable_vessels": 0,
+                    "graded_vessels": 1,
+                    "blocked_vessel_count": 1,
+                    "blocked_vessels": [
+                        {
+                            "comparison": "pi-vs-pi-fff",
+                            "vessel": "pi-baseline",
+                            "status": "missing-runtime-snapshot",
+                            "details": "runtime instances: runtime-instances.json; "
+                            "grading report: grading-report.json",
+                            "artifact_paths": {
+                                "candidate_patches": "candidate-patches.jsonl",
+                                "preflight": "preflight/pi-baseline.json",
+                                "runtime_instances": "runtime-instances.json",
+                                "grading_report": "grading-report.json",
+                            },
+                        }
+                    ],
+                },
+            )
+
     def test_benchmark_readiness_report_command_reports_missing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             stdout = StringIO()
