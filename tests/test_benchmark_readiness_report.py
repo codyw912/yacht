@@ -347,6 +347,35 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             )
             self.assertNotIn("Traceback", stderr.getvalue())
 
+    def test_readiness_gate_command_reports_invalid_plan_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir()
+            (logbook_dir / BENCHMARK_EXECUTION_PLAN_PATH).write_text(
+                json.dumps({"schema": "yacht.benchmark-execution-plan.v1"}),
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "readiness-gate",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn(
+                "error: invalid regatta config: benchmark execution plan artifact "
+                "is invalid:",
+                stderr.getvalue(),
+            )
+            self.assertNotIn("Traceback", stderr.getvalue())
+
     def test_benchmark_readiness_report_command_reports_missing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             stdout = StringIO()
