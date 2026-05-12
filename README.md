@@ -160,6 +160,12 @@ The final file is the compact launch gate: if `blocked_vessel_count` is greater
 than zero, inspect `blocked_vessels[*].artifact_paths` before spending benchmark
 tokens or emitting native launcher commands.
 
+In shell or CI, fail early when the gate is blocked:
+
+```sh
+jq -e '.blocked_vessel_count == 0' logbook/benchmark-readiness-summary.json
+```
+
 Example `summary-json` output:
 
 ```json
