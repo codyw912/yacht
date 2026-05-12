@@ -8,6 +8,7 @@ from yacht.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
 from yacht.regatta import ConfigError
 from yacht.schemas import SchemaValidationError
 from yacht.schemas import validate_benchmark_execution_plan_document
+from yacht.schemas import validate_benchmark_readiness_summary_document
 
 
 def render_benchmark_readiness_report(
@@ -27,7 +28,9 @@ def render_benchmark_readiness_report(
             f"benchmark execution plan artifact is invalid: {error}"
         ) from error
     if output_format == "summary-json":
-        return json.dumps(_summary_json(plan), indent=2, sort_keys=True) + "\n"
+        summary = _summary_json(plan)
+        validate_benchmark_readiness_summary_document(summary)
+        return json.dumps(summary, indent=2, sort_keys=True) + "\n"
     if output_format == "json":
         return json.dumps(plan, indent=2, sort_keys=True) + "\n"
     if output_format == "markdown":

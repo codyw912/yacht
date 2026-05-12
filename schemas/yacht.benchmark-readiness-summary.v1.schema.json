@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.benchmark-readiness-summary.v1.schema.json",
+  "title": "YACHT Benchmark Readiness Summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "regatta",
+    "course",
+    "status",
+    "total_vessels",
+    "launchable_vessels",
+    "graded_vessels",
+    "blocked_vessel_count",
+    "blocked_vessels"
+  ],
+  "properties": {
+    "schema": {
+      "const": "yacht.benchmark-readiness-summary.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["blocked", "complete", "mixed", "missing-inputs", "ready-for-grading"]
+    },
+    "total_vessels": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "launchable_vessels": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "graded_vessels": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blocked_vessel_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blocked_vessels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "comparison",
+          "vessel",
+          "status",
+          "details",
+          "artifact_paths"
+        ],
+        "properties": {
+          "comparison": {
+            "type": "string",
+            "minLength": 1
+          },
+          "vessel": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "missing-candidate-patches",
+              "missing-preflight",
+              "missing-runtime-snapshot",
+              "preflight-failed"
+            ]
+          },
+          "details": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_paths": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "candidate_patches",
+              "preflight",
+              "runtime_instances",
+              "grading_report"
+            ],
+            "properties": {
+              "candidate_patches": {
+                "type": "string",
+                "minLength": 1
+              },
+              "preflight": {
+                "type": "string",
+                "minLength": 1
+              },
+              "runtime_instances": {
+                "type": "string",
+                "minLength": 1
+              },
+              "grading_report": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
