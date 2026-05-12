@@ -251,6 +251,11 @@ checks through the Pi subprocess launcher, or `--agent-preflight local-smoke`
 for the built-in local development fixture. Agent-prompt responses must be JSON
 objects with `available: true` and `configured: true`; YACHT records the parsed
 response and fails the preflight if that contract is not met.
+Task execution will write one validated `yacht.task-attempt.v1` artifact per
+vessel/task attempt. The artifact records the comparison, task, runtime context,
+agent exit code, response, tool calls, transcript path, metrics, and redacted
+secret references. This is the durable bridge between a prepared runtime and
+later benchmark-specific candidate outputs.
 
 ## Schema Contract
 
@@ -270,20 +275,22 @@ YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
 - `yacht.benchmark-launcher-handoff.v1.schema.json` for native launcher handoffs
 - `yacht.benchmark-scorecard.v1.schema.json` for benchmark scorecard summaries
 - `yacht.runtime-instances.v1.schema.json` for redacted runtime instance dry-run snapshots
+- `yacht.task-attempt.v1.schema.json` for per-agent task attempt evidence
 
 Generated wake, scorecard, preflight evidence, preflight summary, preflight
-evidence report, and course handoff JSON documents include a `schema` field such
-as `yacht.wake.v1`, `yacht.scorecard.v1`, `yacht.preflight-summary.v1`,
-`yacht.preflight-evidence-report.v1`, or `yacht.course-handoff.v1`. Validated
-SWE-bench grading reports, benchmark readiness plans, readiness summaries,
-native launcher handoffs, and benchmark scorecard summaries include
+evidence report, course handoff, and task attempt JSON documents include a
+`schema` field such as `yacht.wake.v1`, `yacht.scorecard.v1`,
+`yacht.preflight-summary.v1`, `yacht.preflight-evidence-report.v1`,
+`yacht.course-handoff.v1`, or `yacht.task-attempt.v1`. Validated SWE-bench
+grading reports, benchmark readiness plans, readiness summaries, native
+launcher handoffs, and benchmark scorecard summaries include
 `yacht.swe-bench-grading.v1`, `yacht.benchmark-execution-plan.v1`,
-`yacht.benchmark-readiness-summary.v1`,
-`yacht.benchmark-launcher-handoff.v1`, and `yacht.benchmark-scorecard.v1`.
-Runtime instance dry-run snapshots include `yacht.runtime-instances.v1`. The
-Python runner validates the current config and generated artifacts, but the
-persisted contract is intentionally language-neutral so future vessels, runners,
-and analysis tools do not need to be Python programs.
+`yacht.benchmark-readiness-summary.v1`, `yacht.benchmark-launcher-handoff.v1`,
+and `yacht.benchmark-scorecard.v1`. Runtime instance dry-run snapshots include
+`yacht.runtime-instances.v1`. The Python runner validates the current config
+and generated artifacts, but the persisted contract is intentionally
+language-neutral so future vessels, runners, and analysis tools do not need to
+be Python programs.
 
 Regatta configs may optionally include provisioning sections:
 
