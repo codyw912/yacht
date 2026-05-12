@@ -37,6 +37,30 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
                 ),
             )
 
+    def test_render_benchmark_readiness_report_shows_missing_candidate_path(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            _write_execution_plan(logbook_dir)
+            plan_path = logbook_dir / BENCHMARK_EXECUTION_PLAN_PATH
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            baseline = plan["comparisons"][0]["vessels"][0]
+            baseline["status"] = "missing-candidate-patches"
+            baseline["candidate_patches_present"] = False
+            baseline["runtime_instances_artifact_present"] = True
+            baseline["runtime_snapshot_status"] = "matched"
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+            report = render_benchmark_readiness_report(logbook_dir)
+
+            self.assertIn(
+                "pi-vs-pi-fff | pi-baseline | missing-candidate-patches | "
+                "missing | matched | passed | missing | candidate patches: "
+                "candidate-patches.jsonl; grading report: grading-report.json",
+                report,
+            )
+
     def test_benchmark_readiness_report_command_writes_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
