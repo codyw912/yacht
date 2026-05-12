@@ -26,6 +26,8 @@ def render_benchmark_readiness_report(
         raise ConfigError(
             f"benchmark execution plan artifact is invalid: {error}"
         ) from error
+    if output_format == "json":
+        return json.dumps(plan, indent=2, sort_keys=True) + "\n"
     if output_format == "markdown":
         return _render_markdown(plan)
     return _render_text(plan)

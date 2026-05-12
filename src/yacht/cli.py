@@ -223,7 +223,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     readiness_report_parser = subcommands.add_parser(
         "benchmark-readiness-report",
-        help="Print a human-readable benchmark readiness report.",
+        help="Print a benchmark readiness report.",
     )
     readiness_report_parser.add_argument(
         "--logbook",
@@ -233,9 +233,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     readiness_report_parser.add_argument(
         "--format",
-        choices=("text", "markdown"),
+        choices=("text", "markdown", "json"),
         default="text",
-        help="Output format for the rendered readiness report.",
+        help="Output format for the readiness report.",
     )
     readiness_report_parser.add_argument(
         "--output",
