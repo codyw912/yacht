@@ -266,6 +266,36 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             self.assertEqual(payload["blocked_vessel_count"], 0)
             self.assertEqual(payload["launchable_vessels"], 1)
 
+    def test_readiness_gate_command_writes_summary_when_no_vessels_are_blocked(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook_dir = root / "logbook"
+            output_path = root / "reports" / "readiness-summary.json"
+            _write_execution_plan(logbook_dir)
+            _mark_baseline_ready(logbook_dir)
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "readiness-gate",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--output",
+                        str(output_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertEqual(stderr.getvalue(), "")
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["blocked_vessel_count"], 0)
+            self.assertEqual(payload["launchable_vessels"], 1)
+
     def test_readiness_gate_command_reports_missing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             stdout = StringIO()
