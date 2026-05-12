@@ -106,6 +106,34 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
                 ),
             )
 
+    def test_benchmark_readiness_report_command_prints_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            _write_execution_plan(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-readiness-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--format",
+                        "json",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["schema"], "yacht.benchmark-execution-plan.v1")
+            self.assertEqual(payload["status"], "mixed")
+            baseline = payload["comparisons"][0]["vessels"][0]
+            self.assertEqual(baseline["status"], "missing-runtime-snapshot")
+            self.assertEqual(
+                baseline["runtime_instances_artifact_path"],
+                "runtime-instances.json",
+            )
+
     def test_benchmark_readiness_report_command_reports_missing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             stdout = StringIO()
