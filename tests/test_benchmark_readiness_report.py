@@ -182,6 +182,39 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
                 },
             )
 
+    def test_benchmark_readiness_report_command_writes_summary_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook_dir = root / "logbook"
+            output_path = root / "reports" / "readiness-summary.json"
+            _write_execution_plan(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-readiness-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--format",
+                        "summary-json",
+                        "--output",
+                        str(output_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["schema"], "yacht.benchmark-readiness-summary.v1")
+            self.assertEqual(payload["blocked_vessel_count"], 1)
+            self.assertEqual(
+                payload["blocked_vessels"][0]["artifact_paths"][
+                    "runtime_instances"
+                ],
+                "runtime-instances.json",
+            )
+
     def test_benchmark_readiness_report_command_reports_missing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             stdout = StringIO()
