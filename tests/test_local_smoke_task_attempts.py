@@ -69,6 +69,57 @@ class LocalSmokeTaskAttemptTests(unittest.TestCase):
             self.assertEqual(transcript["tool_calls"], ["local-smoke"])
             self.assertTrue(Path(transcript["state_path"]).is_file())
 
+    def test_cli_writes_task_attempt_scorecard_from_local_smoke_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook_dir = root / "logbook"
+            workspace_dir = root / "workspace"
+            workspace_dir.mkdir()
+
+            with redirect_stdout(StringIO()):
+                self.assertEqual(
+                    main(
+                        [
+                            "task-attempts",
+                            "examples/local-agent-preflight-smoke.toml",
+                            "--agent",
+                            "local-smoke",
+                            "--logbook",
+                            str(logbook_dir),
+                            "--workspace",
+                            str(workspace_dir),
+                        ]
+                    ),
+                    0,
+                )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "task-attempt-scorecard",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            scorecard = json.loads(stdout.getvalue())
+            self.assertEqual(scorecard["schema"], "yacht.task-attempt-scorecard.v1")
+            self.assertEqual(scorecard["status"], "complete")
+            self.assertEqual(scorecard["summary"]["total_attempts"], 2)
+            comparison = scorecard["comparisons"][0]
+            self.assertEqual(comparison["name"], "local-agent-preflight")
+            vessels = {
+                vessel["name"]: vessel for vessel in comparison["vessels"]
+            }
+            baseline = vessels["local-baseline"]
+            rigged = vessels["local-agent-with-tool"]
+            self.assertEqual(baseline["tool_call_count"], 0)
+            self.assertEqual(rigged["tool_call_count"], 1)
+            self.assertEqual(rigged["success_rate"], 1.0)
+            self.assertTrue((logbook_dir / "task-attempt-scorecard.json").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

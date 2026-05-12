@@ -16,6 +16,7 @@ BENCHMARK_LAUNCHER_HANDOFF_SCHEMA = "yacht.benchmark-launcher-handoff.v1"
 BENCHMARK_READINESS_SUMMARY_SCHEMA = "yacht.benchmark-readiness-summary.v1"
 RUNTIME_INSTANCES_SCHEMA = "yacht.runtime-instances.v1"
 TASK_ATTEMPT_SCHEMA = "yacht.task-attempt.v1"
+TASK_ATTEMPT_SCORECARD_SCHEMA = "yacht.task-attempt-scorecard.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
@@ -84,6 +85,8 @@ BENCHMARK_LAUNCHER_HANDOFF_VESSEL_STATUSES = {
     "ready-to-launch",
 }
 TASK_ATTEMPT_STATUSES = {"completed", "failed"}
+TASK_ATTEMPT_SCORECARD_STATUSES = {"complete", "partial"}
+TASK_ATTEMPT_SCORECARD_VESSEL_STATUSES = {"measured", "failed"}
 
 
 class SchemaValidationError(ValueError):
@@ -616,6 +619,123 @@ def validate_task_attempt_document(document: dict[str, Any]) -> None:
     _validate_task_attempt_agent(document["agent"])
     _validate_task_attempt_metrics(document["metrics"])
     _validate_redacted_secret_refs(document["secret_refs"], "secret_refs")
+
+
+def validate_task_attempt_scorecard_document(document: dict[str, Any]) -> None:
+    _require_object(document, "task attempt scorecard")
+    _require_keys(
+        document,
+        ("schema", "regatta", "course", "status", "summary", "comparisons"),
+        "task attempt scorecard",
+    )
+    _require_schema(
+        document,
+        TASK_ATTEMPT_SCORECARD_SCHEMA,
+        "task attempt scorecard",
+    )
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], key)
+    _require_allowed_value(
+        document["status"],
+        TASK_ATTEMPT_SCORECARD_STATUSES,
+        "status",
+    )
+    _validate_task_attempt_scorecard_summary(document["summary"], "summary")
+    _validate_task_attempt_scorecard_comparisons(document["comparisons"])
+
+
+def _validate_task_attempt_scorecard_comparisons(value: Any) -> None:
+    comparisons = _require_list(value, "comparisons")
+    if not comparisons:
+        raise SchemaValidationError("comparisons must contain at least one comparison")
+    for index, comparison_value in enumerate(comparisons):
+        comparison_path = f"comparisons[{index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(
+            comparison,
+            ("name", "summary", "vessels"),
+            comparison_path,
+        )
+        _require_non_empty_string(
+            comparison.get("name"),
+            f"{comparison_path}.name",
+        )
+        _validate_task_attempt_scorecard_summary(
+            comparison["summary"],
+            f"{comparison_path}.summary",
+        )
+        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
+        if not vessels:
+            raise SchemaValidationError(
+                f"{comparison_path}.vessels must contain at least one vessel"
+            )
+        for vessel_index, vessel_value in enumerate(vessels):
+            _validate_task_attempt_scorecard_vessel(
+                vessel_value,
+                f"{comparison_path}.vessels[{vessel_index}]",
+            )
+
+
+def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
+    vessel = _require_object(value, path)
+    _require_keys(
+        vessel,
+        (
+            "name",
+            "status",
+            "task_attempts",
+            "completed_attempts",
+            "failed_attempts",
+            "success_rate",
+            "tool_call_count",
+            "total_tokens",
+            "total_duration_seconds",
+            "artifact_paths",
+        ),
+        path,
+    )
+    _require_non_empty_string(vessel.get("name"), f"{path}.name")
+    _require_allowed_value(
+        vessel.get("status"),
+        TASK_ATTEMPT_SCORECARD_VESSEL_STATUSES,
+        f"{path}.status",
+    )
+    for key in (
+        "task_attempts",
+        "completed_attempts",
+        "failed_attempts",
+        "tool_call_count",
+        "total_tokens",
+    ):
+        _require_non_negative_int(vessel.get(key), f"{path}.{key}")
+    _require_non_negative_number(vessel.get("success_rate"), f"{path}.success_rate")
+    _require_non_negative_number(
+        vessel.get("total_duration_seconds"),
+        f"{path}.total_duration_seconds",
+    )
+    _require_string_list(vessel.get("artifact_paths"), f"{path}.artifact_paths")
+
+
+def _validate_task_attempt_scorecard_summary(value: Any, path: str) -> None:
+    summary = _require_object(value, path)
+    for key in (
+        "total_vessels",
+        "total_attempts",
+        "completed_attempts",
+        "failed_attempts",
+        "total_tool_calls",
+        "total_tokens",
+    ):
+        _require_non_negative_int(summary.get(key), f"{path}.{key}")
+    _require_non_negative_number(
+        summary.get("total_duration_seconds"),
+        f"{path}.total_duration_seconds",
+    )
+    if "total_comparisons" in summary:
+        _require_non_negative_int(
+            summary.get("total_comparisons"),
+            f"{path}.total_comparisons",
+        )
 
 
 def _validate_task_attempt_task(value: Any) -> None:
@@ -1395,6 +1515,16 @@ def _require_list(value: Any, path: str) -> list[Any]:
 def _require_string_list(value: Any, path: str) -> None:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise SchemaValidationError(f"{path} must be a list of strings")
+
+
+def _require_non_negative_int(value: Any, path: str) -> None:
+    if not isinstance(value, int) or value < 0:
+        raise SchemaValidationError(f"{path} must be an integer >= 0")
+
+
+def _require_non_negative_number(value: Any, path: str) -> None:
+    if not isinstance(value, int | float) or value < 0:
+        raise SchemaValidationError(f"{path} must be a number >= 0")
 
 
 def _require_schema(document: dict[str, Any], expected: str, path: str) -> None:

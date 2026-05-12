@@ -17,6 +17,7 @@ from yacht.schemas import (
     REGATTA_SCHEMA,
     RUNTIME_INSTANCES_SCHEMA,
     SCORECARD_SCHEMA,
+    TASK_ATTEMPT_SCORECARD_SCHEMA,
     TASK_ATTEMPT_SCHEMA,
     WAKE_SCHEMA,
     validate_benchmark_execution_plan_document,
@@ -28,6 +29,7 @@ from yacht.schemas import (
     validate_preflight_summary_document,
     validate_runtime_instances_document,
     validate_scorecard_document,
+    validate_task_attempt_scorecard_document,
     validate_task_attempt_document,
     validate_wake_document,
 )
@@ -82,6 +84,7 @@ class SchemaTests(unittest.TestCase):
             BENCHMARK_READINESS_SUMMARY_SCHEMA,
             RUNTIME_INSTANCES_SCHEMA,
             TASK_ATTEMPT_SCHEMA,
+            TASK_ATTEMPT_SCORECARD_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -185,6 +188,56 @@ class SchemaTests(unittest.TestCase):
         }
 
         validate_task_attempt_document(document)
+
+    def test_task_attempt_scorecard_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": TASK_ATTEMPT_SCORECARD_SCHEMA,
+            "regatta": "local-agent-preflight-smoke",
+            "course": "local-smoke",
+            "status": "complete",
+            "summary": {
+                "total_comparisons": 1,
+                "total_vessels": 2,
+                "total_attempts": 2,
+                "completed_attempts": 2,
+                "failed_attempts": 0,
+                "total_tool_calls": 1,
+                "total_tokens": 16,
+                "total_duration_seconds": 0.0,
+            },
+            "comparisons": [
+                {
+                    "name": "local-agent-preflight",
+                    "summary": {
+                        "total_vessels": 2,
+                        "total_attempts": 2,
+                        "completed_attempts": 2,
+                        "failed_attempts": 0,
+                        "total_tool_calls": 1,
+                        "total_tokens": 16,
+                        "total_duration_seconds": 0.0,
+                    },
+                    "vessels": [
+                        {
+                            "name": "local-agent-with-tool",
+                            "status": "measured",
+                            "task_attempts": 1,
+                            "completed_attempts": 1,
+                            "failed_attempts": 0,
+                            "success_rate": 1.0,
+                            "tool_call_count": 1,
+                            "total_tokens": 8,
+                            "total_duration_seconds": 0.0,
+                            "artifact_paths": [
+                                "logbook/task-attempts/local-agent-preflight/local-agent-with-tool/local-smoke-1.json"
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+
+        validate_task_attempt_scorecard_document(document)
 
     def test_preflight_documents_include_schema_version(self) -> None:
         document = {

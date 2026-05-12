@@ -61,13 +61,16 @@ the built-in `local-smoke` agent preflight adapter:
 ```sh
 uv run yacht preflight examples/local-agent-preflight-smoke.toml --agent-preflight local-smoke --logbook logbook
 uv run yacht task-attempts examples/local-agent-preflight-smoke.toml --agent local-smoke --logbook logbook
+uv run yacht task-attempt-scorecard --logbook logbook
 ```
 
 It avoids command checks, Docker, SWE-bench, Pi, and Nix execution while still
 validating isolated runtime state plus an `agent-prompt` check. The
 `task-attempts` command also prepares the configured runtimes, executes the
 local smoke task once per comparison vessel, writes transcripts, and emits
-`yacht.task-attempt.v1` artifacts under `logbook/task-attempts/`.
+`yacht.task-attempt.v1` artifacts under `logbook/task-attempts/`. The
+`task-attempt-scorecard` command summarizes those attempts into
+`logbook/task-attempt-scorecard.json`.
 
 YACHT also accepts a config-only provisioning scaffold for future real agent
 runs. `examples/pi-fff-provisioning.toml` describes a baseline Pi vessel and a
@@ -280,14 +283,16 @@ YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
 - `yacht.benchmark-scorecard.v1.schema.json` for benchmark scorecard summaries
 - `yacht.runtime-instances.v1.schema.json` for redacted runtime instance dry-run snapshots
 - `yacht.task-attempt.v1.schema.json` for per-agent task attempt evidence
+- `yacht.task-attempt-scorecard.v1.schema.json` for task attempt summaries
 
 Generated wake, scorecard, preflight evidence, preflight summary, preflight
-evidence report, course handoff, and task attempt JSON documents include a
-`schema` field such as `yacht.wake.v1`, `yacht.scorecard.v1`,
-`yacht.preflight-summary.v1`, `yacht.preflight-evidence-report.v1`,
-`yacht.course-handoff.v1`, or `yacht.task-attempt.v1`. Validated SWE-bench
-grading reports, benchmark readiness plans, readiness summaries, native
-launcher handoffs, and benchmark scorecard summaries include
+evidence report, course handoff, task attempt, and task attempt scorecard JSON
+documents include a `schema` field such as `yacht.wake.v1`,
+`yacht.scorecard.v1`, `yacht.preflight-summary.v1`,
+`yacht.preflight-evidence-report.v1`, `yacht.course-handoff.v1`,
+`yacht.task-attempt.v1`, or `yacht.task-attempt-scorecard.v1`. Validated
+SWE-bench grading reports, benchmark readiness plans, readiness summaries,
+native launcher handoffs, and benchmark scorecard summaries include
 `yacht.swe-bench-grading.v1`, `yacht.benchmark-execution-plan.v1`,
 `yacht.benchmark-readiness-summary.v1`, `yacht.benchmark-launcher-handoff.v1`,
 and `yacht.benchmark-scorecard.v1`. Runtime instance dry-run snapshots include
