@@ -160,7 +160,9 @@ uv run yacht readiness-gate --logbook logbook --output logbook/benchmark-readine
 The final file is the compact launch gate: if `blocked_vessel_count` is greater
 than zero, inspect `blocked_vessels[*].artifact_paths` before spending benchmark
 tokens or emitting native launcher commands. `yacht readiness-gate` writes the
-same summary JSON and exits nonzero when any vessel is blocked.
+same summary JSON and exits nonzero when any vessel is blocked. Its exit codes
+are intentionally CI-friendly: `0` means no vessels are blocked, and `1` means
+the gate is blocked or the readiness input artifact is missing or invalid.
 
 In shell or CI, fail early when the gate is blocked:
 
