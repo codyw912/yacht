@@ -92,6 +92,7 @@ uv run yacht benchmark-scorecard --logbook logbook
 uv run yacht benchmark-readiness-report --logbook logbook
 uv run yacht benchmark-readiness-report --logbook logbook --format json
 uv run yacht benchmark-readiness-report --logbook logbook --format summary-json
+uv run yacht readiness-gate --logbook logbook --output logbook/benchmark-readiness-summary.json
 uv run yacht benchmark-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook --format markdown
 uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
@@ -153,12 +154,13 @@ For automation, write the readiness gate artifacts in order:
 ```sh
 uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace . --write-logbook
 uv run yacht benchmark-plan --logbook logbook
-uv run yacht benchmark-readiness-report --logbook logbook --format summary-json --output logbook/benchmark-readiness-summary.json
+uv run yacht readiness-gate --logbook logbook --output logbook/benchmark-readiness-summary.json
 ```
 
 The final file is the compact launch gate: if `blocked_vessel_count` is greater
 than zero, inspect `blocked_vessels[*].artifact_paths` before spending benchmark
-tokens or emitting native launcher commands.
+tokens or emitting native launcher commands. `yacht readiness-gate` writes the
+same summary JSON and exits nonzero when any vessel is blocked.
 
 In shell or CI, fail early when the gate is blocked:
 

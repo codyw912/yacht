@@ -243,6 +243,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional path to write the rendered readiness report.",
     )
 
+    readiness_gate_parser = subcommands.add_parser(
+        "readiness-gate",
+        help="Exit nonzero when benchmark readiness has blocked vessels.",
+    )
+    readiness_gate_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing benchmark-execution-plan.json.",
+    )
+    readiness_gate_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write the readiness summary JSON.",
+    )
+
     benchmark_launcher_parser = subcommands.add_parser(
         "benchmark-launcher",
         help="Write native benchmark launcher commands without executing them.",
@@ -466,6 +482,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.output.write_text(report, encoding="utf-8")
             return 0
         print(report, end="")
+        return 0
+
+    if args.command == "readiness-gate":
+        try:
+            summary_json = render_benchmark_readiness_report(
+                args.logbook,
+                "summary-json",
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        summary = json.loads(summary_json)
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(summary_json, encoding="utf-8")
+        else:
+            print(summary_json, end="")
+        blocked_count = summary["blocked_vessel_count"]
+        if blocked_count:
+            print(
+                f"readiness gate blocked: {blocked_count} blocked vessel(s)",
+                file=sys.stderr,
+            )
+            return 1
         return 0
 
     if args.command == "benchmark-launcher":
