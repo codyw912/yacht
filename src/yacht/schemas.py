@@ -15,6 +15,7 @@ BENCHMARK_EXECUTION_PLAN_SCHEMA = "yacht.benchmark-execution-plan.v1"
 BENCHMARK_LAUNCHER_HANDOFF_SCHEMA = "yacht.benchmark-launcher-handoff.v1"
 BENCHMARK_READINESS_SUMMARY_SCHEMA = "yacht.benchmark-readiness-summary.v1"
 RUNTIME_INSTANCES_SCHEMA = "yacht.runtime-instances.v1"
+TASK_ATTEMPT_SCHEMA = "yacht.task-attempt.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
@@ -82,6 +83,7 @@ BENCHMARK_LAUNCHER_HANDOFF_VESSEL_STATUSES = {
     "preflight-failed",
     "ready-to-launch",
 }
+TASK_ATTEMPT_STATUSES = {"completed", "failed"}
 
 
 class SchemaValidationError(ValueError):
@@ -571,6 +573,113 @@ def validate_runtime_instances_document(document: dict[str, Any]) -> None:
         _require_non_empty_string(document[key], key)
     _require_allowed_value(document["mode"], {"dry-run"}, "mode")
     _validate_runtime_instances_comparisons(document["comparisons"])
+
+
+def validate_task_attempt_document(document: dict[str, Any]) -> None:
+    _require_object(document, "task attempt")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "regatta",
+            "course",
+            "comparison",
+            "vessel",
+            "model",
+            "rigging",
+            "runtime",
+            "status",
+            "task",
+            "runtime_context",
+            "prompt",
+            "agent",
+            "metrics",
+            "secret_refs",
+        ),
+        "task attempt",
+    )
+    _require_schema(document, TASK_ATTEMPT_SCHEMA, "task attempt")
+    for key in (
+        "regatta",
+        "course",
+        "comparison",
+        "vessel",
+        "model",
+        "runtime",
+        "prompt",
+    ):
+        _require_non_empty_string(document[key], key)
+    _require_string_list(document["rigging"], "rigging")
+    _require_allowed_value(document["status"], TASK_ATTEMPT_STATUSES, "status")
+    _validate_task_attempt_task(document["task"])
+    _validate_task_attempt_runtime_context(document["runtime_context"])
+    _validate_task_attempt_agent(document["agent"])
+    _validate_task_attempt_metrics(document["metrics"])
+    _validate_redacted_secret_refs(document["secret_refs"], "secret_refs")
+
+
+def _validate_task_attempt_task(value: Any) -> None:
+    task = _require_object(value, "task")
+    _require_keys(task, ("id", "title", "difficulty"), "task")
+    _require_non_empty_string(task.get("id"), "task.id")
+    _require_non_empty_string(task.get("title"), "task.title")
+    difficulty = task.get("difficulty")
+    if not isinstance(difficulty, int) or difficulty < 1:
+        raise SchemaValidationError("task.difficulty must be an integer >= 1")
+
+
+def _validate_task_attempt_runtime_context(value: Any) -> None:
+    context = _require_object(value, "runtime_context")
+    _require_keys(
+        context,
+        (
+            "backend",
+            "temp_home",
+            "workspace_path",
+            "command_prefix",
+            "command",
+            "cleanup_paths",
+        ),
+        "runtime_context",
+    )
+    for key in ("backend", "temp_home", "workspace_path"):
+        _require_non_empty_string(context.get(key), f"runtime_context.{key}")
+    _require_string_list(
+        context.get("command_prefix"),
+        "runtime_context.command_prefix",
+    )
+    _require_string_list(context.get("command"), "runtime_context.command")
+    _require_string_list(
+        context.get("cleanup_paths"),
+        "runtime_context.cleanup_paths",
+    )
+
+
+def _validate_task_attempt_agent(value: Any) -> None:
+    agent = _require_object(value, "agent")
+    _require_keys(
+        agent,
+        ("exit_code", "response", "tool_calls", "transcript_path"),
+        "agent",
+    )
+    exit_code = agent.get("exit_code")
+    if not isinstance(exit_code, int) or exit_code < 0:
+        raise SchemaValidationError("agent.exit_code must be an integer >= 0")
+    if not isinstance(agent.get("response"), str):
+        raise SchemaValidationError("agent.response must be a string")
+    _require_string_list(agent.get("tool_calls"), "agent.tool_calls")
+    _require_non_empty_string(agent.get("transcript_path"), "agent.transcript_path")
+
+
+def _validate_task_attempt_metrics(value: Any) -> None:
+    metrics = _require_object(value, "metrics")
+    if not isinstance(metrics.get("tokens"), int) or metrics["tokens"] < 0:
+        raise SchemaValidationError("metrics.tokens must be an integer >= 0")
+    if (
+        not isinstance(metrics.get("duration_seconds"), int | float)
+        or metrics["duration_seconds"] < 0
+    ):
+        raise SchemaValidationError("metrics.duration_seconds must be a number >= 0")
 
 
 def _validate_course_handoff_tasks(value: Any) -> None:
@@ -1291,6 +1400,18 @@ def _require_string_list(value: Any, path: str) -> None:
 def _require_schema(document: dict[str, Any], expected: str, path: str) -> None:
     if document.get("schema") != expected:
         raise SchemaValidationError(f"{path}.schema must be {expected}")
+
+
+def _validate_redacted_secret_refs(value: Any, path: str) -> None:
+    secret_refs = _require_list(value, path)
+    for index, secret_ref_value in enumerate(secret_refs):
+        secret_path = f"{path}[{index}]"
+        secret_ref = _require_object(secret_ref_value, secret_path)
+        _require_keys(secret_ref, ("name", "source", "ref", "redacted"), secret_path)
+        for key in ("name", "source", "ref"):
+            _require_non_empty_string(secret_ref.get(key), f"{secret_path}.{key}")
+        if secret_ref.get("redacted") is not True:
+            raise SchemaValidationError(f"{secret_path}.redacted must be true")
 
 
 def _validate_preflight_config(document: dict[str, Any]) -> None:

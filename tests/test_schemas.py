@@ -17,6 +17,7 @@ from yacht.schemas import (
     REGATTA_SCHEMA,
     RUNTIME_INSTANCES_SCHEMA,
     SCORECARD_SCHEMA,
+    TASK_ATTEMPT_SCHEMA,
     WAKE_SCHEMA,
     validate_benchmark_execution_plan_document,
     validate_benchmark_launcher_handoff_document,
@@ -27,6 +28,7 @@ from yacht.schemas import (
     validate_preflight_summary_document,
     validate_runtime_instances_document,
     validate_scorecard_document,
+    validate_task_attempt_document,
     validate_wake_document,
 )
 
@@ -79,6 +81,7 @@ class SchemaTests(unittest.TestCase):
             BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
             BENCHMARK_READINESS_SUMMARY_SCHEMA,
             RUNTIME_INSTANCES_SCHEMA,
+            TASK_ATTEMPT_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -135,6 +138,53 @@ class SchemaTests(unittest.TestCase):
         }
 
         validate_runtime_instances_document(document)
+
+    def test_task_attempt_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": TASK_ATTEMPT_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "tiny-smoke-course",
+            "comparison": "pi-vs-pi-fff",
+            "vessel": "pi-plus-fff",
+            "model": "pi",
+            "rigging": ["fff"],
+            "runtime": "pi-runtime",
+            "status": "completed",
+            "task": {
+                "id": "task-1",
+                "title": "Touch a marker file",
+                "difficulty": 1,
+            },
+            "runtime_context": {
+                "backend": "host-nix",
+                "temp_home": "/tmp/yacht/home",
+                "workspace_path": "/tmp/workspace",
+                "command_prefix": ["nix", "develop", "flake", "--command"],
+                "command": ["pi"],
+                "cleanup_paths": ["/tmp/yacht"],
+            },
+            "prompt": "Create the requested marker file.",
+            "agent": {
+                "exit_code": 0,
+                "response": "done",
+                "tool_calls": ["fff"],
+                "transcript_path": "/tmp/logbook/transcripts/task-1.json",
+            },
+            "metrics": {
+                "tokens": 1234,
+                "duration_seconds": 12.5,
+            },
+            "secret_refs": [
+                {
+                    "name": "anthropic",
+                    "source": "env",
+                    "ref": "ANTHROPIC_API_KEY",
+                    "redacted": True,
+                }
+            ],
+        }
+
+        validate_task_attempt_document(document)
 
     def test_preflight_documents_include_schema_version(self) -> None:
         document = {
