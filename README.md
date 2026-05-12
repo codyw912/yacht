@@ -148,6 +148,18 @@ notes. Use `--format json` when automation needs the full validated
 automation only needs launch/no-launch counts and the blocked vessel artifact
 paths from the `yacht.benchmark-readiness-summary.v1` contract.
 
+For automation, write the readiness gate artifacts in order:
+
+```sh
+uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace . --write-logbook
+uv run yacht benchmark-plan --logbook logbook
+uv run yacht benchmark-readiness-report --logbook logbook --format summary-json --output logbook/benchmark-readiness-summary.json
+```
+
+The final file is the compact launch gate: if `blocked_vessel_count` is greater
+than zero, inspect `blocked_vessels[*].artifact_paths` before spending benchmark
+tokens or emitting native launcher commands.
+
 Example `summary-json` output:
 
 ```json
