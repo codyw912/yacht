@@ -26,9 +26,12 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
                         "Benchmark readiness: pi-fff-comparison / swe-bench-lite",
                         "Status: mixed",
                         "",
-                        "comparison | vessel | status | candidate | runtime | preflight | grading",
-                        "pi-vs-pi-fff | pi-baseline | missing-runtime-snapshot | present | missing | passed | missing",
-                        "pi-vs-pi-fff | pi-plus-fff | graded | present | matched | missing | graded",
+                        "comparison | vessel | status | candidate | runtime | preflight | grading | details",
+                        "pi-vs-pi-fff | pi-baseline | missing-runtime-snapshot | "
+                        "present | missing | passed | missing | runtime instances: "
+                        "runtime-instances.json; grading report: grading-report.json",
+                        "pi-vs-pi-fff | pi-plus-fff | graded | present | matched | "
+                        "missing | graded | preflight: preflight/pi-plus-fff.json",
                         "",
                     ]
                 ),
@@ -67,10 +70,13 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
                         "- Course: swe-bench-lite",
                         "- Status: mixed",
                         "",
-                        "| Comparison | Vessel | Status | Candidate | Runtime | Preflight | Grading |",
-                        "| --- | --- | --- | --- | --- | --- | --- |",
-                        "| pi-vs-pi-fff | pi-baseline | missing-runtime-snapshot | present | missing | passed | missing |",
-                        "| pi-vs-pi-fff | pi-plus-fff | graded | present | matched | missing | graded |",
+                        "| Comparison | Vessel | Status | Candidate | Runtime | Preflight | Grading | Details |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+                        "| pi-vs-pi-fff | pi-baseline | missing-runtime-snapshot | "
+                        "present | missing | passed | missing | runtime instances: "
+                        "runtime-instances.json; grading report: grading-report.json |",
+                        "| pi-vs-pi-fff | pi-plus-fff | graded | present | matched | "
+                        "missing | graded | preflight: preflight/pi-plus-fff.json |",
                         "",
                     ]
                 ),

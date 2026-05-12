@@ -48,7 +48,7 @@ def _render_text(plan: dict[str, Any]) -> str:
         f"Benchmark readiness: {plan['regatta']} / {plan['course']}",
         f"Status: {plan['status']}",
         "",
-        "comparison | vessel | status | candidate | runtime | preflight | grading",
+        "comparison | vessel | status | candidate | runtime | preflight | grading | details",
     ]
     lines.extend(
         _vessel_row(comparison, vessel) for comparison, vessel in _vessels(plan)
@@ -64,8 +64,8 @@ def _render_markdown(plan: dict[str, Any]) -> str:
         f"- Course: {plan['course']}",
         f"- Status: {plan['status']}",
         "",
-        "| Comparison | Vessel | Status | Candidate | Runtime | Preflight | Grading |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| Comparison | Vessel | Status | Candidate | Runtime | Preflight | Grading | Details |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     lines.extend(
         f"| {_vessel_row(comparison, vessel)} |"
@@ -90,7 +90,8 @@ def _vessel_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
         f"{_presence(vessel['candidate_patches_present'])} | "
         f"{vessel['runtime_snapshot_status']} | "
         f"{vessel['preflight_status']} | "
-        f"{_grading_status(vessel)}"
+        f"{_grading_status(vessel)} | "
+        f"{_artifact_details(vessel)}"
     )
 
 
@@ -100,3 +101,18 @@ def _presence(present: bool) -> str:
 
 def _grading_status(vessel: dict[str, Any]) -> str:
     return "graded" if vessel["grading_report_present"] else "missing"
+
+
+def _artifact_details(vessel: dict[str, Any]) -> str:
+    details: list[str] = []
+    if not vessel["candidate_patches_present"]:
+        details.append(f"candidate patches: {vessel['candidate_patches_path']}")
+    if vessel["runtime_snapshot_status"] != "matched":
+        details.append(
+            f"runtime instances: {vessel['runtime_instances_artifact_path']}"
+        )
+    if vessel["preflight_status"] != "passed":
+        details.append(f"preflight: {vessel['preflight_artifact_path']}")
+    if not vessel["grading_report_present"]:
+        details.append(f"grading report: {vessel['grading_report_path']}")
+    return "; ".join(details) if details else "-"
