@@ -17,6 +17,7 @@ BENCHMARK_READINESS_SUMMARY_SCHEMA = "yacht.benchmark-readiness-summary.v1"
 RUNTIME_INSTANCES_SCHEMA = "yacht.runtime-instances.v1"
 TASK_ATTEMPT_SCHEMA = "yacht.task-attempt.v1"
 TASK_ATTEMPT_SCORECARD_SCHEMA = "yacht.task-attempt-scorecard.v1"
+SMOKE_READINESS_REPORT_SCHEMA = "yacht.smoke-readiness-report.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
@@ -87,6 +88,16 @@ BENCHMARK_LAUNCHER_HANDOFF_VESSEL_STATUSES = {
 TASK_ATTEMPT_STATUSES = {"completed", "failed"}
 TASK_ATTEMPT_SCORECARD_STATUSES = {"complete", "partial"}
 TASK_ATTEMPT_SCORECARD_VESSEL_STATUSES = {"measured", "failed"}
+SMOKE_READINESS_REPORT_STATUSES = {"ready", "blocked"}
+SMOKE_READINESS_REPORT_VESSEL_STATUSES = {
+    "ready",
+    "missing-preflight",
+    "preflight-failed",
+    "preflight-invalid",
+    "missing-agent-prompt-evidence",
+    "task-attempt-failed",
+    "task-attempt-invalid",
+}
 
 
 class SchemaValidationError(ValueError):
@@ -642,6 +653,104 @@ def validate_task_attempt_scorecard_document(document: dict[str, Any]) -> None:
     )
     _validate_task_attempt_scorecard_summary(document["summary"], "summary")
     _validate_task_attempt_scorecard_comparisons(document["comparisons"])
+
+
+def validate_smoke_readiness_report_document(document: dict[str, Any]) -> None:
+    _require_object(document, "smoke readiness report")
+    _require_keys(
+        document,
+        ("schema", "regatta", "course", "status", "summary", "comparisons"),
+        "smoke readiness report",
+    )
+    _require_schema(
+        document,
+        SMOKE_READINESS_REPORT_SCHEMA,
+        "smoke readiness report",
+    )
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], key)
+    _require_allowed_value(document["status"], SMOKE_READINESS_REPORT_STATUSES, "status")
+    _validate_smoke_readiness_summary(document["summary"], "summary")
+    _validate_smoke_readiness_comparisons(document["comparisons"])
+
+
+def _validate_smoke_readiness_summary(value: Any, path: str) -> None:
+    summary = _require_object(value, path)
+    for key in (
+        "total_vessels",
+        "ready_vessels",
+        "blocked_vessels",
+        "passed_preflight_vessels",
+        "completed_task_attempt_vessels",
+        "passed_agent_prompt_checks",
+    ):
+        _require_non_negative_int(summary.get(key), f"{path}.{key}")
+
+
+def _validate_smoke_readiness_comparisons(value: Any) -> None:
+    comparisons = _require_list(value, "comparisons")
+    if not comparisons:
+        raise SchemaValidationError("comparisons must contain at least one comparison")
+    for comparison_index, comparison_value in enumerate(comparisons):
+        comparison_path = f"comparisons[{comparison_index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(comparison, ("name", "status", "vessels"), comparison_path)
+        _require_non_empty_string(comparison.get("name"), f"{comparison_path}.name")
+        _require_allowed_value(
+            comparison.get("status"),
+            SMOKE_READINESS_REPORT_STATUSES,
+            f"{comparison_path}.status",
+        )
+        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
+        if not vessels:
+            raise SchemaValidationError(
+                f"{comparison_path}.vessels must contain at least one vessel"
+            )
+        for vessel_index, vessel_value in enumerate(vessels):
+            _validate_smoke_readiness_vessel(
+                vessel_value,
+                f"{comparison_path}.vessels[{vessel_index}]",
+            )
+
+
+def _validate_smoke_readiness_vessel(value: Any, path: str) -> None:
+    vessel = _require_object(value, path)
+    _require_keys(
+        vessel,
+        (
+            "name",
+            "status",
+            "preflight_status",
+            "task_attempt_status",
+            "preflight_artifact_path",
+            "task_attempt_artifact_paths",
+            "agent_prompt_checks",
+            "reasons",
+        ),
+        path,
+    )
+    _require_non_empty_string(vessel.get("name"), f"{path}.name")
+    _require_allowed_value(
+        vessel.get("status"),
+        SMOKE_READINESS_REPORT_VESSEL_STATUSES,
+        f"{path}.status",
+    )
+    for key in ("preflight_status", "task_attempt_status", "preflight_artifact_path"):
+        _require_non_empty_string(vessel.get(key), f"{path}.{key}")
+    _require_string_list(
+        vessel["task_attempt_artifact_paths"],
+        f"{path}.task_attempt_artifact_paths",
+    )
+    agent_prompt_checks = _require_object(
+        vessel["agent_prompt_checks"],
+        f"{path}.agent_prompt_checks",
+    )
+    for key in ("total", "passed"):
+        _require_non_negative_int(
+            agent_prompt_checks.get(key),
+            f"{path}.agent_prompt_checks.{key}",
+        )
+    _require_string_list(vessel["reasons"], f"{path}.reasons")
 
 
 def _validate_task_attempt_scorecard_comparisons(value: Any) -> None:

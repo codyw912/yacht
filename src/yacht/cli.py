@@ -35,6 +35,7 @@ from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.runtime_plan import build_runtime_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.smoke_readiness_report import write_smoke_readiness_report
 from yacht.task_attempt_runner import TaskAgent, run_task_attempts
 from yacht.task_attempt_scorecard import write_task_attempt_scorecard
 
@@ -299,6 +300,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("logbook"),
         help="Directory containing handoff and preflight artifacts.",
+    )
+
+    smoke_readiness_report_parser = subcommands.add_parser(
+        "smoke-readiness-report",
+        help="Check whether a smoke logbook has usable preflight and task evidence.",
+    )
+    smoke_readiness_report_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing smoke eval artifacts.",
     )
 
     preflight_parser = subcommands.add_parser(
@@ -637,6 +649,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(json.dumps(report, indent=2))
         return 0
+
+    if args.command == "smoke-readiness-report":
+        try:
+            report = write_smoke_readiness_report(args.logbook)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(report, indent=2))
+        return 0 if report["status"] == "ready" else 1
 
     if args.command == "preflight":
         try:

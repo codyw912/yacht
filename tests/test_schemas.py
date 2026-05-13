@@ -17,6 +17,7 @@ from yacht.schemas import (
     REGATTA_SCHEMA,
     RUNTIME_INSTANCES_SCHEMA,
     SCORECARD_SCHEMA,
+    SMOKE_READINESS_REPORT_SCHEMA,
     TASK_ATTEMPT_SCORECARD_SCHEMA,
     TASK_ATTEMPT_SCHEMA,
     WAKE_SCHEMA,
@@ -29,6 +30,7 @@ from yacht.schemas import (
     validate_preflight_summary_document,
     validate_runtime_instances_document,
     validate_scorecard_document,
+    validate_smoke_readiness_report_document,
     validate_task_attempt_scorecard_document,
     validate_task_attempt_document,
     validate_wake_document,
@@ -85,6 +87,7 @@ class SchemaTests(unittest.TestCase):
             RUNTIME_INSTANCES_SCHEMA,
             TASK_ATTEMPT_SCHEMA,
             TASK_ATTEMPT_SCORECARD_SCHEMA,
+            SMOKE_READINESS_REPORT_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -266,6 +269,49 @@ class SchemaTests(unittest.TestCase):
         }
 
         validate_preflight_document(document)
+
+    def test_smoke_readiness_report_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": SMOKE_READINESS_REPORT_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "swe-bench-lite",
+            "status": "ready",
+            "summary": {
+                "total_vessels": 1,
+                "ready_vessels": 1,
+                "blocked_vessels": 0,
+                "passed_preflight_vessels": 1,
+                "completed_task_attempt_vessels": 1,
+                "passed_agent_prompt_checks": 1,
+            },
+            "comparisons": [
+                {
+                    "name": "pi-vs-pi-fff",
+                    "status": "ready",
+                    "vessels": [
+                        {
+                            "name": "pi-plus-fff",
+                            "status": "ready",
+                            "preflight_status": "passed",
+                            "task_attempt_status": "measured",
+                            "preflight_artifact_path": (
+                                "logbook/preflight/pi-vs-pi-fff/pi-plus-fff.json"
+                            ),
+                            "task_attempt_artifact_paths": [
+                                "logbook/task-attempts/pi-vs-pi-fff/pi-plus-fff/task.json"
+                            ],
+                            "agent_prompt_checks": {
+                                "total": 1,
+                                "passed": 1,
+                            },
+                            "reasons": [],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        validate_smoke_readiness_report_document(document)
 
     def test_preflight_summary_documents_include_schema_version(self) -> None:
         document = {
