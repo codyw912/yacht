@@ -51,7 +51,7 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(artifact["temp_home"], str(instance.temp_home))
             self.assertEqual(
                 artifact["command_prefix"],
-                ["nix", "develop", "github:example/yacht-runtimes#pi", "--command"],
+                ["nix", "develop", "path:.#pi", "--command"],
             )
             self.assertEqual(
                 artifact["cleanup_paths"],
@@ -86,7 +86,7 @@ class MachinePreflightTests(unittest.TestCase):
                 (
                     "nix",
                     "develop",
-                    "github:example/yacht-runtimes#pi",
+                    "path:.#pi",
                     "--command",
                     "pi",
                     "--version",

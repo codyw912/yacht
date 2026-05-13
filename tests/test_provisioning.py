@@ -31,7 +31,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi]
 backend = "host-nix"
-flake = "github:example/yacht-runtimes#pi"
+flake = "path:.#pi"
 command = ["pi"]
 required_secrets = ["anthropic"]
 
@@ -153,7 +153,7 @@ class ProvisioningConfigTests(unittest.TestCase):
     def test_runtime_recipe_requires_backend_flake_and_command(self) -> None:
         cases = {
             "backend": ('backend = "host-nix"\n', ""),
-            "flake": ('flake = "github:example/yacht-runtimes#pi"\n', ""),
+            "flake": ('flake = "path:.#pi"\n', ""),
             "command": ('command = ["pi"]\n', ""),
         }
 
@@ -240,7 +240,7 @@ class ProvisioningConfigTests(unittest.TestCase):
             "command_prefix": [
                 "nix",
                 "develop",
-                "github:example/yacht-runtimes#pi",
+                "path:.#pi",
                 "--command",
             ],
             "cleanup_paths": ["/tmp/home"],

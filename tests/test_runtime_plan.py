@@ -42,7 +42,7 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(rigged["backend"], "host-nix")
             self.assertEqual(
                 rigged["command_prefix"],
-                ["nix", "develop", "github:example/yacht-runtimes#pi", "--command"],
+                ["nix", "develop", "path:.#pi", "--command"],
             )
             self.assertEqual(rigged["command"], ["pi"])
             self.assertEqual(
@@ -156,7 +156,7 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(rigged_vessel["runtime"]["backend"], "host-nix")
             self.assertEqual(
                 rigged_vessel["runtime"]["command_prefix"],
-                ["nix", "develop", "github:example/yacht-runtimes#pi", "--command"],
+                ["nix", "develop", "path:.#pi", "--command"],
             )
             self.assertEqual(rigged_vessel["runtime"]["command"], ["pi"])
             self.assertEqual(

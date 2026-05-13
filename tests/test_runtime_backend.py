@@ -32,7 +32,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             self.assertEqual(resolution.temp_home, instance_root / "home")
             self.assertEqual(
                 resolution.command_prefix,
-                ("nix", "develop", "github:example/yacht-runtimes#pi", "--command"),
+                ("nix", "develop", "path:.#pi", "--command"),
             )
             self.assertEqual(resolution.command, ("pi",))
             self.assertEqual(resolution.cleanup_paths, (instance_root,))
@@ -76,7 +76,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             self.assertEqual(instance.workspace_path, workspace_path)
             self.assertEqual(
                 instance.command_prefix,
-                ("nix", "develop", "github:example/yacht-runtimes#pi", "--command"),
+                ("nix", "develop", "path:.#pi", "--command"),
             )
             self.assertEqual(instance.env["ANTHROPIC_API_KEY"], "test-secret")
             self.assertEqual(instance.env["PATH"], os.environ["PATH"])
