@@ -30,6 +30,7 @@ from yacht.runtime_plan import build_runtime_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
 from yacht.task_attempt_runner import run_task_attempts
+from yacht.task_attempt_scorecard import write_task_attempt_scorecard
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -369,6 +370,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Explicit secret value to inject for a configured secret reference.",
     )
 
+    task_attempt_scorecard_parser = subcommands.add_parser(
+        "task-attempt-scorecard",
+        help="Write a scorecard summary from task attempt artifacts.",
+    )
+    task_attempt_scorecard_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing task attempt artifacts.",
+    )
+
     return parser
 
 
@@ -602,6 +614,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(json.dumps(summary, indent=2))
         return 0 if summary["status"] == "completed" else 1
+
+    if args.command == "task-attempt-scorecard":
+        try:
+            scorecard = write_task_attempt_scorecard(args.logbook)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(scorecard, indent=2))
+        return 0 if scorecard["status"] == "complete" else 1
 
     parser.error(f"unknown command: {args.command}")
     return 2
