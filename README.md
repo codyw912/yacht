@@ -112,6 +112,7 @@ uv run yacht task-attempts examples/pi-fff-provisioning.toml --agent pi --logboo
 uv run yacht pi-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht smoke-readiness-report --logbook logbook
 uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
+uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
 ```
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
@@ -279,6 +280,9 @@ task-attempt scorecard, and at least one passed agent-prompt preflight check.
 `yacht real-smoke-eval` is the one-command gated path for this sequence: it runs
 Pi agent preflight first, skips task attempts if preflight blocks, then runs Pi
 smoke attempts and writes the smoke readiness report.
+`yacht real-smoke-runbook` writes a dry-run JSON runbook with the exact commands,
+explicit secret placeholders, and expected logbook artifact paths for sharing or
+debugging a real smoke run.
 This is the durable bridge between a prepared runtime and later
 benchmark-specific candidate outputs.
 
@@ -303,16 +307,18 @@ YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
 - `yacht.task-attempt.v1.schema.json` for per-agent task attempt evidence
 - `yacht.task-attempt-scorecard.v1.schema.json` for task attempt summaries
 - `yacht.smoke-readiness-report.v1.schema.json` for real smoke-run readiness checks
+- `yacht.real-smoke-runbook.v1.schema.json` for shareable real smoke runbooks
 
 Generated wake, scorecard, preflight evidence, preflight summary, preflight
-evidence report, course handoff, task attempt, task attempt scorecard, and
-smoke readiness report JSON documents include a `schema` field such as
+evidence report, course handoff, task attempt, task attempt scorecard, smoke
+readiness report, and real smoke runbook JSON documents include a `schema`
+field such as
 `yacht.wake.v1`, `yacht.scorecard.v1`, `yacht.preflight-summary.v1`,
 `yacht.preflight-evidence-report.v1`, `yacht.course-handoff.v1`,
-`yacht.task-attempt.v1`, `yacht.task-attempt-scorecard.v1`, or
-`yacht.smoke-readiness-report.v1`. Validated SWE-bench grading reports,
-benchmark readiness plans, readiness summaries, native launcher handoffs, and
-benchmark scorecard summaries include
+`yacht.task-attempt.v1`, `yacht.task-attempt-scorecard.v1`,
+`yacht.smoke-readiness-report.v1`, or `yacht.real-smoke-runbook.v1`.
+Validated SWE-bench grading reports, benchmark readiness plans, readiness
+summaries, native launcher handoffs, and benchmark scorecard summaries include
 `yacht.swe-bench-grading.v1`, `yacht.benchmark-execution-plan.v1`,
 `yacht.benchmark-readiness-summary.v1`, `yacht.benchmark-launcher-handoff.v1`,
 and `yacht.benchmark-scorecard.v1`. Runtime instance dry-run snapshots include
