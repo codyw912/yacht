@@ -10,6 +10,7 @@ from yacht.pi_adapter import (
     PiPromptRequest,
     PiTaskRequest,
     SubprocessPiPromptLauncher,
+    SubprocessPiTaskLauncher,
 )
 from yacht.preflight import AgentPromptResult, CommandResult, execute_preflight
 from yacht.regatta import ConfigError, Metrics, load_regatta
@@ -285,6 +286,86 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(transcript["exit_code"], 0)
             self.assertEqual(transcript["stdout"], result.response)
             self.assertEqual(transcript["tool_calls"], ["fff"])
+
+    def test_subprocess_task_launcher_captures_result_and_transcript(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            requests = []
+
+            def runner(request: PiTaskRequest) -> CommandResult:
+                requests.append(request)
+                return CommandResult(
+                    exit_code=0,
+                    stdout='{"completed": true, "tool_calls": ["fff"]}\n',
+                    stderr="",
+                )
+
+            request = PiTaskRequest(
+                task_id="django__django-11099",
+                task_title="Fix Django issue",
+                prompt="Task ID: django__django-11099\nTitle: Fix Django issue\n",
+                argv=("pi",),
+                env={"HOME": str(root / "home")},
+                cwd=root,
+                transcript_path=root / "transcripts" / "pi-task.json",
+            )
+
+            result = SubprocessPiTaskLauncher(runner=runner)(request)
+
+            self.assertEqual(requests, [request])
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(
+                result.response,
+                '{"completed": true, "tool_calls": ["fff"]}\n',
+            )
+            self.assertEqual(result.tool_calls, ("fff",))
+            self.assertEqual(result.transcript_path, request.transcript_path)
+            self.assertGreater(result.metrics.tokens, 0)
+            self.assertEqual(result.metrics.duration_seconds, 0.0)
+
+            transcript = json.loads(
+                request.transcript_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(transcript["task_id"], "django__django-11099")
+            self.assertEqual(transcript["task_title"], "Fix Django issue")
+            self.assertEqual(transcript["prompt"], request.prompt)
+            self.assertEqual(transcript["argv"], ["pi"])
+            self.assertEqual(transcript["cwd"], str(root))
+            self.assertEqual(transcript["exit_code"], 0)
+            self.assertEqual(transcript["stdout"], result.response)
+            self.assertEqual(transcript["stderr"], "")
+            self.assertEqual(transcript["tool_calls"], ["fff"])
+
+    def test_adapter_can_use_subprocess_task_launcher(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            regatta, instance = _prepared_runtime(root)
+            requests = []
+
+            def runner(request: PiTaskRequest) -> CommandResult:
+                requests.append(request)
+                return CommandResult(
+                    exit_code=0,
+                    stdout='{"completed": true, "tool_calls": ["fff"]}\n',
+                    stderr="",
+                )
+
+            result = PiAdapter(
+                task_launcher=SubprocessPiTaskLauncher(runner=runner)
+            ).run_task(
+                instance=instance,
+                task=regatta.course.tasks[0],
+                prompt="Task ID: django__django-11099\nTitle: Fix Django issue\n",
+                env=instance.env,
+                cwd=instance.workspace_path,
+                transcript_path=root / "transcripts" / "pi-task.json",
+            )
+
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.tool_calls, ("fff",))
+            self.assertEqual(len(requests), 1)
+            self.assertEqual(requests[0].argv[-1], "pi")
+            self.assertTrue(result.transcript_path.is_file())
 
 
 def _prepared_runtime(root: Path):
