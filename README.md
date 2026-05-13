@@ -111,6 +111,7 @@ uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --
 uv run yacht task-attempts examples/pi-fff-provisioning.toml --agent pi --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht pi-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht smoke-readiness-report --logbook logbook
+uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 ```
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
@@ -275,6 +276,9 @@ Pi task attempts and immediately writes `task-attempt-scorecard.json`.
 `yacht smoke-readiness-report` checks whether the logbook has usable smoke-run
 evidence: passed preflight artifacts, valid task-attempt artifacts, a complete
 task-attempt scorecard, and at least one passed agent-prompt preflight check.
+`yacht real-smoke-eval` is the one-command gated path for this sequence: it runs
+Pi agent preflight first, skips task attempts if preflight blocks, then runs Pi
+smoke attempts and writes the smoke readiness report.
 This is the durable bridge between a prepared runtime and later
 benchmark-specific candidate outputs.
 
