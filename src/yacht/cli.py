@@ -21,6 +21,7 @@ from yacht.pi_adapter import (
     SubprocessPiPromptLauncher,
     SubprocessPiTaskLauncher,
 )
+from yacht.pi_smoke_eval import run_pi_smoke_eval
 from yacht.preflight_runner import (
     AgentPromptRunnerFactory,
     build_preflight_execution_plan,
@@ -415,6 +416,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="Explicit secret value to inject for a configured secret reference.",
     )
 
+    pi_smoke_eval_parser = subcommands.add_parser(
+        "pi-smoke-eval",
+        help="Run Pi smoke task attempts and write the task attempt scorecard.",
+    )
+    pi_smoke_eval_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    pi_smoke_eval_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory where Pi smoke eval artifacts are written.",
+    )
+    pi_smoke_eval_parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path.cwd(),
+        help="Workspace path used as the prepared runtime working directory.",
+    )
+    pi_smoke_eval_parser.add_argument(
+        "--secret",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="Explicit secret value to inject for a configured secret reference.",
+    )
+
     return parser
 
 
@@ -666,6 +696,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 logbook_dir=args.logbook,
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(summary, indent=2))
+        return 0 if summary["status"] == "complete" else 1
+
+    if args.command == "pi-smoke-eval":
+        try:
+            summary = run_pi_smoke_eval(
+                config_path=args.config,
+                logbook_dir=args.logbook,
+                workspace_path=args.workspace,
+                secret_values=parse_secret_values(args.secret),
+                task_agent=_task_attempt_agent("pi"),
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)

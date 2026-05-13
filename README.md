@@ -109,6 +109,7 @@ uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook log
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht task-attempts examples/pi-fff-provisioning.toml --agent pi --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
+uv run yacht pi-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 ```
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
@@ -267,8 +268,10 @@ vessel/task attempt. The artifact records the comparison, task, runtime context,
 agent exit code, response, tool calls, transcript path, metrics, and redacted
 secret references. Pass `--agent pi` to launch those attempts through the Pi
 subprocess adapter; this requires explicit `--secret` values for configured
-secret references and still does not run SWE-bench Docker grading. This is the
-durable bridge between a prepared runtime and later benchmark-specific
+secret references and still does not run SWE-bench Docker grading.
+`yacht pi-smoke-eval` is the Pi convenience wrapper for the same path: it runs
+Pi task attempts and immediately writes `task-attempt-scorecard.json`. This is
+the durable bridge between a prepared runtime and later benchmark-specific
 candidate outputs.
 
 ## Schema Contract
