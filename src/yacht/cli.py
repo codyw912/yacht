@@ -29,6 +29,7 @@ from yacht.preflight_runner import (
     run_preflight,
 )
 from yacht.readiness_gate import evaluate_readiness_gate
+from yacht.real_smoke_eval import run_real_smoke_eval
 from yacht.regatta import ConfigError, load_regatta, run_regatta
 from yacht.runtime_instances import build_runtime_instances_plan
 from yacht.runtime_instances import write_runtime_instances_plan
@@ -457,6 +458,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="Explicit secret value to inject for a configured secret reference.",
     )
 
+    real_smoke_eval_parser = subcommands.add_parser(
+        "real-smoke-eval",
+        help="Run Pi agent preflight, Pi smoke attempts, and smoke readiness.",
+    )
+    real_smoke_eval_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    real_smoke_eval_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory where real smoke eval artifacts are written.",
+    )
+    real_smoke_eval_parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path.cwd(),
+        help="Workspace path used as the prepared runtime working directory.",
+    )
+    real_smoke_eval_parser.add_argument(
+        "--secret",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="Explicit secret value to inject for a configured secret reference.",
+    )
+
     return parser
 
 
@@ -738,6 +768,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(json.dumps(summary, indent=2))
         return 0 if summary["status"] == "complete" else 1
+
+    if args.command == "real-smoke-eval":
+        try:
+            summary = run_real_smoke_eval(
+                config_path=args.config,
+                logbook_dir=args.logbook,
+                workspace_path=args.workspace,
+                secret_values=parse_secret_values(args.secret),
+                agent_prompt_runner_factory=_agent_prompt_runner_factory("pi"),
+                task_agent=_task_attempt_agent("pi"),
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(summary, indent=2))
+        return 0 if summary["status"] == "ready" else 1
 
     parser.error(f"unknown command: {args.command}")
     return 2
