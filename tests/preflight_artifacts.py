@@ -52,7 +52,7 @@ def write_preflight_artifact(
                 "command_prefix": [
                     "nix",
                     "develop",
-                    "github:example/yacht-runtimes#pi",
+                    "path:.#pi",
                     "--command",
                 ],
                 "cleanup_paths": [f"/tmp/{vessel_name}"],

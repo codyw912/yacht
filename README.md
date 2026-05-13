@@ -81,6 +81,9 @@ recipe, preflight smoke checks, a SWE-bench Lite course adapter, a comparison
 group, and explicit secret references. Validation checks the model without
 running Pi, installing fff, or executing SWE-bench:
 
+The example points at the repo-local `path:.#pi` flake shell and expects `pi` to
+already be installed on the host `PATH`.
+
 ```sh
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml

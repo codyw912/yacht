@@ -85,7 +85,7 @@ class PiAdapterTests(unittest.TestCase):
                 (
                     "nix",
                     "develop",
-                    "github:example/yacht-runtimes#pi",
+                    "path:.#pi",
                     "--command",
                     "pi",
                 ),
@@ -131,7 +131,7 @@ class PiAdapterTests(unittest.TestCase):
                 (
                     "nix",
                     "develop",
-                    "github:example/yacht-runtimes#pi",
+                    "path:.#pi",
                     "--command",
                     "pi",
                 ),

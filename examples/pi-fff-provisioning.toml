@@ -22,7 +22,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi]
 backend = "host-nix"
-flake = "github:example/yacht-runtimes#pi"
+flake = "path:.#pi"
 command = ["pi"]
 required_secrets = ["anthropic"]
 
