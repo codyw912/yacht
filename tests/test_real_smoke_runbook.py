@@ -107,6 +107,48 @@ class RealSmokeRunbookTests(unittest.TestCase):
                 runbook,
             )
 
+    def test_real_smoke_runbook_can_print_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            logbook_dir = root / "logbook"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            workspace_path.mkdir()
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "real-smoke-runbook",
+                        str(config_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_path),
+                        "--format",
+                        "markdown",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            markdown = stdout.getvalue()
+            self.assertIn("## Real Smoke Runbook", markdown)
+            self.assertIn("Regatta: `pi-fff-comparison`", markdown)
+            self.assertIn("### Commands", markdown)
+            self.assertIn("```sh\nuv run yacht real-smoke-eval", markdown)
+            self.assertIn('--secret anthropic="$ANTHROPIC_API_KEY"', markdown)
+            self.assertIn("### Expected Artifacts", markdown)
+            self.assertIn("logbook/smoke-readiness-report.json", markdown)
+
+            runbook = json.loads(
+                (logbook_dir / "real-smoke-runbook.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(runbook["schema"], "yacht.real-smoke-runbook.v1")
+            self.assertEqual(runbook["regatta"], "pi-fff-comparison")
+
 
 if __name__ == "__main__":
     unittest.main()
