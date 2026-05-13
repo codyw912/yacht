@@ -115,6 +115,30 @@ uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
 ```
 
+### First Real Smoke
+
+For the first token-spending Pi smoke run, generate the runbook before launching
+anything:
+
+```sh
+uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
+```
+
+Inspect `logbook/real-smoke-runbook.json`. It records the exact commands YACHT
+expects, the explicit secret placeholder to supply, and the artifact paths that
+should exist after a healthy run. When the runbook looks right, execute the
+gated smoke workflow:
+
+```sh
+uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
+```
+
+The command runs Pi agent preflight first. If preflight blocks, YACHT skips task
+attempts and exits nonzero before spending task-run tokens. If it completes,
+inspect `logbook/smoke-readiness-report.json`; `status: "ready"` means the
+logbook has passed preflight evidence, valid task-attempt artifacts, a complete
+task-attempt scorecard, and at least one passed agent-prompt check.
+
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
 with isolated runtime placeholders, redacted secret references, and any
 benchmark handoff metadata, but does not launch agents, install rigging, execute
