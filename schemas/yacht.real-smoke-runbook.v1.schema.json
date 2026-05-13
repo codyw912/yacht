@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.real-smoke-runbook.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "regatta",
+    "course",
+    "agent",
+    "secret_placeholders",
+    "steps",
+    "artifacts"
+  ],
+  "properties": {
+    "schema": {
+      "const": "yacht.real-smoke-runbook.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "secret_placeholders": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/secretPlaceholder"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
+    "artifacts": {
+      "$ref": "#/$defs/artifacts"
+    }
+  },
+  "$defs": {
+    "secretPlaceholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "source",
+        "ref",
+        "argument"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "argument": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "command",
+        "artifacts"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifacts": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preflight",
+        "task_attempts",
+        "task_attempt_scorecard",
+        "smoke_readiness_report",
+        "real_smoke_runbook"
+      ],
+      "properties": {
+        "preflight": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "task_attempts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "task_attempt_scorecard": {
+          "type": "string",
+          "minLength": 1
+        },
+        "smoke_readiness_report": {
+          "type": "string",
+          "minLength": 1
+        },
+        "real_smoke_runbook": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

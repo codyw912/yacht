@@ -18,6 +18,7 @@ RUNTIME_INSTANCES_SCHEMA = "yacht.runtime-instances.v1"
 TASK_ATTEMPT_SCHEMA = "yacht.task-attempt.v1"
 TASK_ATTEMPT_SCORECARD_SCHEMA = "yacht.task-attempt-scorecard.v1"
 SMOKE_READINESS_REPORT_SCHEMA = "yacht.smoke-readiness-report.v1"
+REAL_SMOKE_RUNBOOK_SCHEMA = "yacht.real-smoke-runbook.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
@@ -672,6 +673,75 @@ def validate_smoke_readiness_report_document(document: dict[str, Any]) -> None:
     _require_allowed_value(document["status"], SMOKE_READINESS_REPORT_STATUSES, "status")
     _validate_smoke_readiness_summary(document["summary"], "summary")
     _validate_smoke_readiness_comparisons(document["comparisons"])
+
+
+def validate_real_smoke_runbook_document(document: dict[str, Any]) -> None:
+    _require_object(document, "real smoke runbook")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "regatta",
+            "course",
+            "agent",
+            "secret_placeholders",
+            "steps",
+            "artifacts",
+        ),
+        "real smoke runbook",
+    )
+    _require_schema(document, REAL_SMOKE_RUNBOOK_SCHEMA, "real smoke runbook")
+    for key in ("regatta", "course", "agent"):
+        _require_non_empty_string(document[key], key)
+    _validate_real_smoke_secret_placeholders(document["secret_placeholders"])
+    _validate_real_smoke_runbook_steps(document["steps"])
+    _validate_real_smoke_runbook_artifacts(document["artifacts"])
+
+
+def _validate_real_smoke_secret_placeholders(value: Any) -> None:
+    placeholders = _require_list(value, "secret_placeholders")
+    for index, placeholder_value in enumerate(placeholders):
+        path = f"secret_placeholders[{index}]"
+        placeholder = _require_object(placeholder_value, path)
+        _require_keys(placeholder, ("name", "source", "ref", "argument"), path)
+        for key in ("name", "source", "ref", "argument"):
+            _require_non_empty_string(placeholder.get(key), f"{path}.{key}")
+
+
+def _validate_real_smoke_runbook_steps(value: Any) -> None:
+    steps = _require_list(value, "steps")
+    if not steps:
+        raise SchemaValidationError("steps must contain at least one step")
+    for index, step_value in enumerate(steps):
+        path = f"steps[{index}]"
+        step = _require_object(step_value, path)
+        _require_keys(step, ("name", "command", "artifacts"), path)
+        for key in ("name", "command"):
+            _require_non_empty_string(step.get(key), f"{path}.{key}")
+        _require_string_list(step["artifacts"], f"{path}.artifacts")
+
+
+def _validate_real_smoke_runbook_artifacts(value: Any) -> None:
+    artifacts = _require_object(value, "artifacts")
+    _require_keys(
+        artifacts,
+        (
+            "preflight",
+            "task_attempts",
+            "task_attempt_scorecard",
+            "smoke_readiness_report",
+            "real_smoke_runbook",
+        ),
+        "artifacts",
+    )
+    for key in ("preflight", "task_attempts"):
+        _require_string_list(artifacts[key], f"artifacts.{key}")
+    for key in (
+        "task_attempt_scorecard",
+        "smoke_readiness_report",
+        "real_smoke_runbook",
+    ):
+        _require_non_empty_string(artifacts.get(key), f"artifacts.{key}")
 
 
 def _validate_smoke_readiness_summary(value: Any, path: str) -> None:
