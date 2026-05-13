@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -114,6 +115,7 @@ def _runtime_env(
 ) -> dict[str, str]:
     env = {
         "HOME": str(temp_home),
+        "PATH": os.environ.get("PATH", ""),
         "XDG_CONFIG_HOME": str(temp_home / ".config"),
         "XDG_CACHE_HOME": str(temp_home / ".cache"),
         "XDG_STATE_HOME": str(trial_state),
