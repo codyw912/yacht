@@ -21,7 +21,7 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             workspace_path = root / "workspace"
             logbook_dir = root / "logbook"
             requests = []
-            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            config_path.write_text(_config_without_install(), encoding="utf-8")
             workspace_path.mkdir()
 
             def runner(request: PiTaskRequest) -> CommandResult:
@@ -76,7 +76,7 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             config_path = root / "regatta.toml"
             workspace_path = root / "workspace"
             logbook_dir = root / "logbook"
-            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            config_path.write_text(_config_without_install(), encoding="utf-8")
             workspace_path.mkdir()
 
             stdout = StringIO()
@@ -110,7 +110,7 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             workspace_path = root / "workspace"
             logbook_dir = root / "logbook"
             requests = []
-            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            config_path.write_text(_config_without_install(), encoding="utf-8")
             workspace_path.mkdir()
 
             def runner(request: PiTaskRequest) -> CommandResult:
@@ -183,6 +183,13 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             )
             self.assertFalse((logbook_dir / "task-attempts").exists())
             self.assertFalse((logbook_dir / "task-attempt-scorecard.json").exists())
+
+
+def _config_without_install() -> str:
+    return PI_WITH_FFF_CONFIG.replace(
+        'install = ["npm:@ff-labs/pi-fff"]',
+        "install = []",
+    )
 
 
 if __name__ == "__main__":

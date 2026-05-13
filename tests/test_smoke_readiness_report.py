@@ -123,7 +123,7 @@ class SmokeReadinessReportTests(unittest.TestCase):
         config_path = root / "regatta.toml"
         workspace_path = root / "workspace"
         logbook_dir = root / "logbook"
-        config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+        config_path.write_text(_config_without_install(), encoding="utf-8")
         workspace_path.mkdir()
         return config_path, workspace_path, logbook_dir
 
@@ -159,6 +159,13 @@ class SmokeReadinessReportTests(unittest.TestCase):
                 ),
                 0,
             )
+
+
+def _config_without_install() -> str:
+    return PI_WITH_FFF_CONFIG.replace(
+        'install = ["npm:@ff-labs/pi-fff"]',
+        "install = []",
+    )
 
 
 if __name__ == "__main__":

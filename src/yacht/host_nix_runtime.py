@@ -113,9 +113,15 @@ def _runtime_env(
     workspace_path: Path,
     trial_state: Path,
 ) -> dict[str, str]:
+    npm_prefix = trial_state / "npm-global"
     env = {
         "HOME": str(temp_home),
-        "PATH": os.environ.get("PATH", ""),
+        "PATH": f"{npm_prefix / 'bin'}:{os.environ.get('PATH', '')}",
+        "NPM_CONFIG_CACHE": str(temp_home / ".cache" / "npm"),
+        "NPM_CONFIG_PREFIX": str(npm_prefix),
+        "MISE_NO_CONFIG": "1",
+        "MISE_NO_ENV": "1",
+        "MISE_NO_HOOKS": "1",
         "XDG_CONFIG_HOME": str(temp_home / ".config"),
         "XDG_CACHE_HOME": str(temp_home / ".cache"),
         "XDG_STATE_HOME": str(trial_state),

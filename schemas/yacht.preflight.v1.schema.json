@@ -60,6 +60,57 @@
         "minLength": 1
       }
     },
+    "runtime_setup": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "origin",
+          "origin_name",
+          "action",
+          "target",
+          "argv",
+          "exit_code",
+          "stdout",
+          "stderr"
+        ],
+        "properties": {
+          "origin": {
+            "type": "string",
+            "enum": ["rigging"]
+          },
+          "origin_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "exit_code": {
+            "type": "integer"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "status": {
       "type": "string",
       "enum": ["passed", "failed", "error", "skipped"]

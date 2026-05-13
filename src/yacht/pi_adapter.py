@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from yacht.preflight import AgentPromptResult, AgentPromptRunner, CommandResult
+from yacht.preflight import (
+    AgentPromptResult,
+    AgentPromptRunner,
+    CommandResult,
+    parse_agent_response_json,
+)
 from yacht.regatta import Metrics, RuntimeInstance, Task
 from yacht.task_attempts import AgentTaskResult
 
@@ -231,11 +236,8 @@ def _run_pi_command(
 
 
 def _tool_calls_from_output(output: str) -> tuple[str, ...]:
-    try:
-        payload = json.loads(output)
-    except json.JSONDecodeError:
-        return ()
-    if not isinstance(payload, dict):
+    payload = parse_agent_response_json(output)
+    if payload is None:
         return ()
 
     tool_calls = payload.get("tool_calls", ())

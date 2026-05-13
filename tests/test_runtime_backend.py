@@ -6,7 +6,11 @@ from pathlib import Path
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.host_nix_runtime import resolve_host_nix_runtime
 from yacht.regatta import load_regatta
-from yacht.runtime_backend import HostNixRuntimeBackend, RuntimePreparationError
+from yacht.runtime_backend import (
+    HostNixRuntimeBackend,
+    RuntimePreparationError,
+    SetupProcessResult,
+)
 
 
 class HostNixRuntimeBackendTests(unittest.TestCase):
@@ -28,7 +32,16 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             )
 
             self.assertEqual(resolution.runtime.name, "pi")
-            self.assertEqual(resolution.env["PATH"], os.environ["PATH"])
+            self.assertEqual(
+                resolution.env["PATH"],
+                f"{instance_root / 'home' / '.local' / 'state' / 'npm-global' / 'bin'}:"
+                f"{os.environ['PATH']}",
+            )
+            self.assertEqual(
+                resolution.env["NPM_CONFIG_PREFIX"],
+                str(instance_root / "home" / ".local" / "state" / "npm-global"),
+            )
+            self.assertEqual(resolution.env["MISE_NO_CONFIG"], "1")
             self.assertEqual(resolution.temp_home, instance_root / "home")
             self.assertEqual(
                 resolution.command_prefix,
@@ -64,7 +77,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             regatta = load_regatta(config_path)
             vessel = regatta.vessels[1]
 
-            instance = HostNixRuntimeBackend().prepare(
+            instance = HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
                 regatta=regatta,
                 vessel=vessel,
                 trial_root=trial_root,
@@ -79,8 +92,23 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                 ("nix", "develop", "path:.#pi", "--command"),
             )
             self.assertEqual(instance.env["ANTHROPIC_API_KEY"], "test-secret")
-            self.assertEqual(instance.env["PATH"], os.environ["PATH"])
+            self.assertEqual(
+                instance.env["PATH"],
+                f"{instance.temp_home / '.local' / 'state' / 'npm-global' / 'bin'}:"
+                f"{os.environ['PATH']}",
+            )
             self.assertEqual(instance.env["HOME"], str(instance.temp_home))
+            self.assertEqual(
+                instance.env["NPM_CONFIG_PREFIX"],
+                str(instance.temp_home / ".local" / "state" / "npm-global"),
+            )
+            self.assertEqual(
+                instance.env["NPM_CONFIG_CACHE"],
+                str(instance.temp_home / ".cache" / "npm"),
+            )
+            self.assertEqual(instance.env["MISE_NO_CONFIG"], "1")
+            self.assertEqual(instance.env["MISE_NO_ENV"], "1")
+            self.assertEqual(instance.env["MISE_NO_HOOKS"], "1")
             self.assertEqual(
                 instance.env["XDG_CONFIG_HOME"],
                 str(instance.temp_home / ".config"),
@@ -101,8 +129,94 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             self.assertTrue(instance.temp_home.is_dir())
             self.assertTrue((instance.temp_home / ".config").is_dir())
             self.assertTrue((instance.temp_home / ".cache").is_dir())
+            self.assertTrue((instance.temp_home / ".cache" / "npm").is_dir())
             self.assertTrue((instance.temp_home / ".local" / "state").is_dir())
+            self.assertTrue(
+                (instance.temp_home / ".local" / "state" / "npm-global" / "bin")
+                .is_dir()
+            )
             self.assertEqual(instance.cleanup_paths, (trial_root / "pi-plus-fff",))
+            self.assertEqual(len(instance.setup_results), 1)
+            self.assertEqual(instance.setup_results[0].target, "npm:@ff-labs/pi-fff")
+
+    def test_prepare_applies_rigging_install_steps_inside_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            trial_root = root / "trial"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+            calls = []
+
+            def setup_runner(
+                argv: tuple[str, ...],
+                env: dict[str, str],
+                cwd: Path,
+            ) -> SetupProcessResult:
+                calls.append((argv, env, cwd))
+                return SetupProcessResult(
+                    exit_code=0,
+                    stdout="installed\n",
+                    stderr="",
+                )
+
+            instance = HostNixRuntimeBackend(setup_runner=setup_runner).prepare(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                trial_root=trial_root,
+                workspace_path=workspace_path,
+                secret_values={"anthropic": "test-secret"},
+            )
+
+            self.assertEqual(
+                calls[0][0],
+                (
+                    "nix",
+                    "develop",
+                    "path:.#pi",
+                    "--command",
+                    "pi",
+                    "install",
+                    "npm:@ff-labs/pi-fff",
+                ),
+            )
+            self.assertEqual(calls[0][1]["HOME"], str(instance.temp_home))
+            self.assertEqual(calls[0][2], workspace_path)
+            self.assertEqual(instance.setup_results[0].stdout, "installed\n")
+
+    def test_prepare_fails_when_rigging_install_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+
+            def setup_runner(
+                argv: tuple[str, ...],
+                env: dict[str, str],
+                cwd: Path,
+            ) -> SetupProcessResult:
+                return SetupProcessResult(
+                    exit_code=1,
+                    stdout="",
+                    stderr="install failed",
+                )
+
+            with self.assertRaisesRegex(
+                RuntimePreparationError,
+                "failed to install rigging pi-fff target npm:@ff-labs/pi-fff",
+            ):
+                HostNixRuntimeBackend(setup_runner=setup_runner).prepare(
+                    regatta=regatta,
+                    vessel=regatta.vessels[1],
+                    trial_root=root / "trial",
+                    workspace_path=workspace_path,
+                    secret_values={"anthropic": "test-secret"},
+                )
 
     def test_prepare_requires_explicit_secret_values(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -117,7 +231,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                 RuntimePreparationError,
                 "missing value for required secret anthropic",
             ):
-                HostNixRuntimeBackend().prepare(
+                HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
                     regatta=regatta,
                     vessel=regatta.vessels[0],
                     trial_root=root / "trial",
@@ -139,13 +253,25 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                 RuntimePreparationError,
                 "runtime pi uses unsupported backend docker",
             ):
-                HostNixRuntimeBackend().prepare(
+                HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
                     regatta=regatta,
                     vessel=regatta.vessels[0],
                     trial_root=root / "trial",
                     workspace_path=workspace_path,
                     secret_values={"anthropic": "test-secret"},
                 )
+
+
+def _passing_setup(
+    argv: tuple[str, ...],
+    env: dict[str, str],
+    cwd: Path,
+) -> SetupProcessResult:
+    return SetupProcessResult(
+        exit_code=0,
+        stdout="",
+        stderr="",
+    )
 
 
 if __name__ == "__main__":
