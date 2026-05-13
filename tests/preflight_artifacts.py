@@ -8,9 +8,37 @@ def write_preflight_artifact(
     comparison_name: str,
     vessel_name: str,
     status: str,
+    include_agent_prompt: bool = False,
 ) -> None:
     artifact_path = logbook_dir / "preflight" / comparison_name / f"{vessel_name}.json"
     artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    checks = [
+        {
+            "name": "runtime-home-isolated",
+            "kind": "path-isolation",
+            "origin": "runtime",
+            "origin_name": "pi",
+            "required": True,
+            "status": status,
+            "evidence": {"paths": {"HOME": f"/tmp/{vessel_name}/home"}},
+        }
+    ]
+    if include_agent_prompt:
+        checks.append(
+            {
+                "name": "fff-headless-smoke",
+                "kind": "agent-prompt",
+                "origin": "rigging",
+                "origin_name": "pi-fff",
+                "required": True,
+                "status": status,
+                "evidence": {
+                    "response": {"available": True, "configured": True},
+                    "tool_calls": ["fff"],
+                    "transcript_path": f"/tmp/{vessel_name}/fff-smoke.json",
+                },
+            }
+        )
     artifact_path.write_text(
         json.dumps(
             {
@@ -31,17 +59,7 @@ def write_preflight_artifact(
                 "status": status,
                 "failure_policy": "abort-group",
                 "secret_refs": [],
-                "checks": [
-                    {
-                        "name": "runtime-home-isolated",
-                        "kind": "path-isolation",
-                        "origin": "runtime",
-                        "origin_name": "pi",
-                        "required": True,
-                        "status": status,
-                        "evidence": {"paths": {"HOME": f"/tmp/{vessel_name}/home"}},
-                    }
-                ],
+                "checks": checks,
             }
         ),
         encoding="utf-8",

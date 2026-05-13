@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.smoke-readiness-report.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "regatta",
+    "course",
+    "status",
+    "summary",
+    "comparisons"
+  ],
+  "properties": {
+    "schema": {
+      "const": "yacht.smoke-readiness-report.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "blocked"
+      ]
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "comparisons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/comparison"
+      }
+    }
+  },
+  "$defs": {
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_vessels",
+        "ready_vessels",
+        "blocked_vessels",
+        "passed_preflight_vessels",
+        "completed_task_attempt_vessels",
+        "passed_agent_prompt_checks"
+      ],
+      "properties": {
+        "total_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ready_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed_preflight_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed_task_attempt_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed_agent_prompt_checks": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "status",
+        "vessels"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "blocked"
+          ]
+        },
+        "vessels": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/vessel"
+          }
+        }
+      }
+    },
+    "vessel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "status",
+        "preflight_status",
+        "task_attempt_status",
+        "preflight_artifact_path",
+        "task_attempt_artifact_paths",
+        "agent_prompt_checks",
+        "reasons"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "missing-preflight",
+            "preflight-failed",
+            "preflight-invalid",
+            "missing-agent-prompt-evidence",
+            "task-attempt-failed",
+            "task-attempt-invalid"
+          ]
+        },
+        "preflight_status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_attempt_status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "preflight_artifact_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_attempt_artifact_paths": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "agent_prompt_checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "passed"
+          ],
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "passed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "reasons": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
