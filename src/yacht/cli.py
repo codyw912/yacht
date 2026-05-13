@@ -14,6 +14,7 @@ from yacht.benchmark_report import render_benchmark_report
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.course_handoff import write_course_handoff
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
+from yacht.local_smoke_eval import run_local_smoke_eval
 from yacht.preflight_evidence_report import write_preflight_evidence_report
 from yacht.pi_adapter import PiAdapter, SubprocessPiPromptLauncher
 from yacht.preflight_runner import (
@@ -381,6 +382,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory containing task attempt artifacts.",
     )
 
+    local_smoke_eval_parser = subcommands.add_parser(
+        "local-smoke-eval",
+        help="Run local smoke task attempts and write the task attempt scorecard.",
+    )
+    local_smoke_eval_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    local_smoke_eval_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory where local smoke eval artifacts are written.",
+    )
+    local_smoke_eval_parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path.cwd(),
+        help="Workspace path used as the prepared runtime working directory.",
+    )
+    local_smoke_eval_parser.add_argument(
+        "--secret",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="Explicit secret value to inject for a configured secret reference.",
+    )
+
     return parser
 
 
@@ -623,6 +653,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(json.dumps(scorecard, indent=2))
         return 0 if scorecard["status"] == "complete" else 1
+
+    if args.command == "local-smoke-eval":
+        try:
+            summary = run_local_smoke_eval(
+                config_path=args.config,
+                logbook_dir=args.logbook,
+                workspace_path=args.workspace,
+                secret_values=parse_secret_values(args.secret),
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(summary, indent=2))
+        return 0 if summary["status"] == "complete" else 1
 
     parser.error(f"unknown command: {args.command}")
     return 2
