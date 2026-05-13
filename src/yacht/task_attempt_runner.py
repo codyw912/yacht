@@ -8,6 +8,7 @@ from yacht.regatta import (
     Comparison,
     ConfigError,
     Regatta,
+    RuntimeInstance,
     Task,
     Vessel,
     load_regatta,
@@ -20,6 +21,7 @@ class TaskAgent(Protocol):
     def run_task(
         self,
         *,
+        instance: RuntimeInstance,
         task: Task,
         prompt: str,
         env: dict[str, str],
@@ -29,7 +31,7 @@ class TaskAgent(Protocol):
         ...
 
 
-TASK_ATTEMPT_AGENTS = {"local-smoke"}
+TASK_ATTEMPT_AGENTS = {"local-smoke", "pi"}
 
 
 def run_task_attempts(
@@ -39,6 +41,7 @@ def run_task_attempts(
     workspace_path: Path,
     secret_values: dict[str, str],
     agent_name: str,
+    task_agent: TaskAgent | None = None,
 ) -> dict[str, Any]:
     if agent_name not in TASK_ATTEMPT_AGENTS:
         raise ConfigError(f"unsupported task attempt agent {agent_name}")
@@ -47,7 +50,7 @@ def run_task_attempts(
     if not regatta.comparisons:
         raise ConfigError("task attempts require at least one comparison")
 
-    agent = _task_agent(agent_name)
+    agent = task_agent or _task_agent(agent_name)
     attempts = [
         attempt
         for comparison in regatta.comparisons
@@ -126,6 +129,7 @@ def _run_vessel_task_attempt(
     artifact_path = _task_attempt_path(logbook_dir, comparison, vessel, task)
     transcript_path = _task_transcript_path(logbook_dir, comparison, vessel, task)
     result = agent.run_task(
+        instance=instance,
         task=task,
         prompt=prompt,
         env=instance.env,
@@ -155,6 +159,8 @@ def _run_vessel_task_attempt(
 def _task_agent(agent_name: str) -> TaskAgent:
     if agent_name == "local-smoke":
         return LocalSmokeAgentAdapter()
+    if agent_name == "pi":
+        raise ConfigError("Pi task attempt agent requires an injected task agent")
     raise ConfigError(f"unsupported task attempt agent {agent_name}")
 
 

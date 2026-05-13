@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from yacht.preflight import AgentPromptResult, AgentPromptRunner
-from yacht.regatta import Metrics, Task, RuntimeInstance
+from yacht.regatta import Metrics, RuntimeInstance, Task
 from yacht.task_attempts import AgentTaskResult
 
 
@@ -47,6 +47,7 @@ class LocalSmokeAgentAdapter:
     def run_task(
         self,
         *,
+        instance: RuntimeInstance,
         task: Task,
         prompt: str,
         env: dict[str, str],

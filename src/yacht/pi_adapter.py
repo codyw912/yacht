@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Callable
 
 from yacht.preflight import AgentPromptResult, AgentPromptRunner, CommandResult
-from yacht.regatta import RuntimeInstance
+from yacht.regatta import RuntimeInstance, Task
+from yacht.task_attempts import AgentTaskResult
 
 
 class PiAdapterNotConfigured(ValueError):
@@ -23,13 +24,30 @@ class PiPromptRequest:
     transcript_path: Path
 
 
+@dataclass(frozen=True)
+class PiTaskRequest:
+    task_id: str
+    task_title: str
+    prompt: str
+    argv: tuple[str, ...]
+    env: dict[str, str]
+    cwd: Path
+    transcript_path: Path
+
+
 PiPromptLauncher = Callable[[PiPromptRequest], AgentPromptResult]
+PiTaskLauncher = Callable[[PiTaskRequest], AgentTaskResult]
 PiSubprocessRunner = Callable[[PiPromptRequest], CommandResult]
 
 
 class PiAdapter:
-    def __init__(self, launcher: PiPromptLauncher | None = None) -> None:
+    def __init__(
+        self,
+        launcher: PiPromptLauncher | None = None,
+        task_launcher: PiTaskLauncher | None = None,
+    ) -> None:
         self._launcher = launcher
+        self._task_launcher = task_launcher
 
     def agent_prompt_runner(
         self,
@@ -71,6 +89,31 @@ class PiAdapter:
             transcript_path=transcript_path,
         )
         return self._launcher(request)
+
+    def run_task(
+        self,
+        *,
+        instance: RuntimeInstance,
+        task: Task,
+        prompt: str,
+        env: dict[str, str],
+        cwd: Path,
+        transcript_path: Path,
+    ) -> AgentTaskResult:
+        if self._task_launcher is None:
+            raise PiAdapterNotConfigured("Pi task launcher is not configured")
+
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        request = PiTaskRequest(
+            task_id=task.id,
+            task_title=task.title,
+            prompt=prompt,
+            argv=instance.command_prefix + instance.runtime.command,
+            env=env,
+            cwd=cwd,
+            transcript_path=transcript_path,
+        )
+        return self._task_launcher(request)
 
 
 class SubprocessPiPromptLauncher:
