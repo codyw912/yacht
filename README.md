@@ -108,6 +108,7 @@ uv run yacht benchmark-report --logbook logbook --format markdown --output logbo
 uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook logbook
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
+uv run yacht task-attempts examples/pi-fff-provisioning.toml --agent pi --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 ```
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
@@ -264,8 +265,11 @@ response and fails the preflight if that contract is not met.
 Task execution will write one validated `yacht.task-attempt.v1` artifact per
 vessel/task attempt. The artifact records the comparison, task, runtime context,
 agent exit code, response, tool calls, transcript path, metrics, and redacted
-secret references. This is the durable bridge between a prepared runtime and
-later benchmark-specific candidate outputs.
+secret references. Pass `--agent pi` to launch those attempts through the Pi
+subprocess adapter; this requires explicit `--secret` values for configured
+secret references and still does not run SWE-bench Docker grading. This is the
+durable bridge between a prepared runtime and later benchmark-specific
+candidate outputs.
 
 ## Schema Contract
 

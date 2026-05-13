@@ -16,7 +16,11 @@ from yacht.course_handoff import write_course_handoff
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
 from yacht.local_smoke_eval import run_local_smoke_eval
 from yacht.preflight_evidence_report import write_preflight_evidence_report
-from yacht.pi_adapter import PiAdapter, SubprocessPiPromptLauncher
+from yacht.pi_adapter import (
+    PiAdapter,
+    SubprocessPiPromptLauncher,
+    SubprocessPiTaskLauncher,
+)
 from yacht.preflight_runner import (
     AgentPromptRunnerFactory,
     build_preflight_execution_plan,
@@ -30,7 +34,7 @@ from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.runtime_plan import build_runtime_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
-from yacht.task_attempt_runner import run_task_attempts
+from yacht.task_attempt_runner import TaskAgent, run_task_attempts
 from yacht.task_attempt_scorecard import write_task_attempt_scorecard
 
 
@@ -348,7 +352,7 @@ def build_parser() -> argparse.ArgumentParser:
     task_attempts_parser.add_argument(
         "--agent",
         required=True,
-        choices=("local-smoke",),
+        choices=("local-smoke", "pi"),
         help="Task attempt agent adapter to launch.",
     )
     task_attempts_parser.add_argument(
@@ -638,6 +642,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
                 agent_name=args.agent,
+                task_agent=_task_attempt_agent(args.agent),
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
@@ -694,3 +699,11 @@ def _agent_prompt_runner_factory(
             transcript_dir=transcript_dir,
         )
     raise ConfigError(f"unsupported agent preflight adapter {adapter_name}")
+
+
+def _task_attempt_agent(agent_name: str) -> TaskAgent | None:
+    if agent_name == "local-smoke":
+        return None
+    if agent_name == "pi":
+        return PiAdapter(task_launcher=SubprocessPiTaskLauncher())
+    raise ConfigError(f"unsupported task attempt agent {agent_name}")
