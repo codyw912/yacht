@@ -113,6 +113,7 @@ uv run yacht pi-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook -
 uv run yacht smoke-readiness-report --logbook logbook
 uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
+uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace . --format markdown
 ```
 
 ### First Real Smoke
@@ -122,12 +123,14 @@ anything:
 
 ```sh
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
+uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace . --format markdown
 ```
 
 Inspect `logbook/real-smoke-runbook.json`. It records the exact commands YACHT
 expects, the explicit secret placeholder to supply, and the artifact paths that
-should exist after a healthy run. When the runbook looks right, execute the
-gated smoke workflow:
+should exist after a healthy run. Use `--format markdown` when you want the same
+runbook printed in a pasteable form for issues, PRs, or handoff notes. When the
+runbook looks right, execute the gated smoke workflow:
 
 ```sh
 uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"

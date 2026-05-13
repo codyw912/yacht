@@ -30,6 +30,7 @@ from yacht.preflight_runner import (
 )
 from yacht.readiness_gate import evaluate_readiness_gate
 from yacht.real_smoke_eval import run_real_smoke_eval
+from yacht.real_smoke_runbook import render_real_smoke_runbook
 from yacht.real_smoke_runbook import write_real_smoke_runbook
 from yacht.regatta import ConfigError, load_regatta, run_regatta
 from yacht.runtime_instances import build_runtime_instances_plan
@@ -509,6 +510,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path.cwd(),
         help="Workspace path used in generated commands.",
     )
+    real_smoke_runbook_parser.add_argument(
+        "--format",
+        choices=("json", "markdown"),
+        default="json",
+        help="Output format to print. The persisted runbook artifact is always JSON.",
+    )
 
     return parser
 
@@ -818,7 +825,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
-        print(json.dumps(runbook, indent=2))
+        if args.format == "markdown":
+            print(render_real_smoke_runbook(runbook), end="")
+        else:
+            print(json.dumps(runbook, indent=2))
         return 0
 
     parser.error(f"unknown command: {args.command}")

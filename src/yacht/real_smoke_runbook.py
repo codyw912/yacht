@@ -37,6 +37,54 @@ def write_real_smoke_runbook(
     return runbook
 
 
+def render_real_smoke_runbook(runbook: dict[str, Any]) -> str:
+    lines = [
+        "## Real Smoke Runbook",
+        "",
+        f"- Regatta: `{runbook['regatta']}`",
+        f"- Course: `{runbook['course']}`",
+        f"- Agent: `{runbook['agent']}`",
+        "",
+        "### Secrets",
+        "",
+    ]
+    if runbook["secret_placeholders"]:
+        lines.extend(
+            f"- `{placeholder['name']}` from `{placeholder['ref']}`: "
+            f"`{placeholder['argument']}`"
+            for placeholder in runbook["secret_placeholders"]
+        )
+    else:
+        lines.append("- None")
+    lines.extend(["", "### Commands", ""])
+    for step in runbook["steps"]:
+        lines.extend(
+            [
+                f"#### {step['name']}",
+                "",
+                "```sh",
+                step["command"],
+                "```",
+                "",
+            ]
+        )
+    lines.extend(["### Expected Artifacts", ""])
+    artifacts = runbook["artifacts"]
+    lines.extend(
+        [
+            "- Preflight:",
+            *[f"  - `{path}`" for path in artifacts["preflight"]],
+            "- Task attempts:",
+            *[f"  - `{path}`" for path in artifacts["task_attempts"]],
+            f"- Task attempt scorecard: `{artifacts['task_attempt_scorecard']}`",
+            f"- Smoke readiness report: `{artifacts['smoke_readiness_report']}`",
+            f"- Real smoke runbook: `{artifacts['real_smoke_runbook']}`",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def build_real_smoke_runbook(
     *,
     config_path: Path,
