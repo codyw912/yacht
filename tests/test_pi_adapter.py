@@ -14,7 +14,7 @@ from yacht.pi_adapter import (
 )
 from yacht.preflight import AgentPromptResult, CommandResult, execute_preflight
 from yacht.regatta import ConfigError, Metrics, load_regatta
-from yacht.runtime_backend import HostNixRuntimeBackend
+from yacht.runtime_backend import HostNixRuntimeBackend, SetupProcessResult
 from yacht.task_attempt_runner import run_task_attempts
 from yacht.task_attempts import AgentTaskResult
 
@@ -145,7 +145,7 @@ class PiAdapterTests(unittest.TestCase):
             config_path = root / "regatta.toml"
             workspace_path = root / "workspace"
             logbook_dir = root / "logbook"
-            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            config_path.write_text(_config_without_install(), encoding="utf-8")
             workspace_path.mkdir()
             requests = []
 
@@ -252,8 +252,10 @@ class PiAdapterTests(unittest.TestCase):
                 return CommandResult(
                     exit_code=0,
                     stdout=(
+                        "```json\n"
                         '{"available": true, "configured": true, '
                         '"tool_calls": ["fff"]}\n'
+                        "```\n"
                     ),
                     stderr="",
                 )
@@ -272,7 +274,11 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(
                 result.response,
-                '{"available": true, "configured": true, "tool_calls": ["fff"]}\n',
+                (
+                    "```json\n"
+                    '{"available": true, "configured": true, "tool_calls": ["fff"]}\n'
+                    "```\n"
+                ),
             )
             self.assertEqual(result.tool_calls, ("fff",))
             self.assertEqual(result.transcript_path, request.transcript_path)
@@ -374,7 +380,7 @@ def _prepared_runtime(root: Path):
     config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
     workspace_path.mkdir()
     regatta = load_regatta(config_path)
-    instance = HostNixRuntimeBackend().prepare(
+    instance = HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
         regatta=regatta,
         vessel=regatta.vessels[1],
         trial_root=root / "trial",
@@ -384,12 +390,31 @@ def _prepared_runtime(root: Path):
     return regatta, instance
 
 
+def _config_without_install() -> str:
+    return PI_WITH_FFF_CONFIG.replace(
+        'install = ["npm:@ff-labs/pi-fff"]',
+        "install = []",
+    )
+
+
 def _passing_command(
     argv: tuple[str, ...],
     env: dict[str, str],
     cwd: Path,
 ) -> CommandResult:
     return CommandResult(exit_code=0, stdout="ok\n", stderr="")
+
+
+def _passing_setup(
+    argv: tuple[str, ...],
+    env: dict[str, str],
+    cwd: Path,
+) -> SetupProcessResult:
+    return SetupProcessResult(
+        exit_code=0,
+        stdout="",
+        stderr="",
+    )
 
 
 def _check_by_name(artifact: dict[str, object], name: str) -> dict[str, object]:

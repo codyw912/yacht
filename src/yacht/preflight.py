@@ -121,6 +121,19 @@ def _execute_preflight(
         "temp_home": str(instance.temp_home),
         "command_prefix": list(instance.command_prefix),
         "cleanup_paths": [str(path) for path in instance.cleanup_paths],
+        "runtime_setup": [
+            {
+                "origin": result.origin,
+                "origin_name": result.origin_name,
+                "action": result.action,
+                "target": result.target,
+                "argv": list(result.argv),
+                "exit_code": result.exit_code,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+            for result in instance.setup_results
+        ],
         "status": _artifact_status(check_results),
         "failure_policy": regatta.preflight.failure_policy,
         "secret_refs": [
@@ -353,14 +366,8 @@ class AgentResponseContract:
 
 
 def _agent_response_contract(response: str) -> AgentResponseContract:
-    try:
-        payload = json.loads(response)
-    except json.JSONDecodeError:
-        return AgentResponseContract(
-            response_json=None,
-            errors=["response must be a JSON object"],
-        )
-    if not isinstance(payload, dict):
+    payload = parse_agent_response_json(response)
+    if payload is None:
         return AgentResponseContract(
             response_json=None,
             errors=["response must be a JSON object"],
@@ -372,6 +379,28 @@ def _agent_response_contract(response: str) -> AgentResponseContract:
     if payload.get("configured") is not True:
         errors.append("response.configured must be true")
     return AgentResponseContract(response_json=payload, errors=errors)
+
+
+def parse_agent_response_json(response: str) -> dict[str, object] | None:
+    for candidate in (response, _markdown_fenced_body(response)):
+        if candidate is None:
+            continue
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
+def _markdown_fenced_body(response: str) -> str | None:
+    lines = response.strip().splitlines()
+    if len(lines) < 3:
+        return None
+    if not lines[0].startswith("```") or lines[-1] != "```":
+        return None
+    return "\n".join(lines[1:-1])
 
 
 def _is_under(parent: Path, child: Path) -> bool:

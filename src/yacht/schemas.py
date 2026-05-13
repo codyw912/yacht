@@ -262,6 +262,8 @@ def validate_preflight_document(document: dict[str, Any]) -> None:
         _require_non_empty_string(document[key], key)
     _require_string_list(document["command_prefix"], "command_prefix")
     _require_string_list(document["cleanup_paths"], "cleanup_paths")
+    if "runtime_setup" in document:
+        _validate_runtime_setup(document["runtime_setup"], "runtime_setup")
     _require_allowed_value(
         document["status"],
         PREFLIGHT_STATUSES,
@@ -329,6 +331,33 @@ def validate_preflight_document(document: dict[str, Any]) -> None:
             evidence.get("tool_calls", []),
             f"checks[{index}].evidence.tool_calls",
         )
+
+
+def _validate_runtime_setup(value: Any, path: str) -> None:
+    setup_results = _require_list(value, path)
+    for index, setup_value in enumerate(setup_results):
+        setup_path = f"{path}[{index}]"
+        setup = _require_object(setup_value, setup_path)
+        _require_keys(
+            setup,
+            (
+                "origin",
+                "origin_name",
+                "action",
+                "target",
+                "argv",
+                "exit_code",
+                "stdout",
+                "stderr",
+            ),
+            setup_path,
+        )
+        _require_allowed_value(setup["origin"], {"rigging"}, f"{setup_path}.origin")
+        for key in ("origin_name", "action", "target", "stdout", "stderr"):
+            _require_string(setup.get(key), f"{setup_path}.{key}")
+        _require_string_list(setup["argv"], f"{setup_path}.argv")
+        if not isinstance(setup.get("exit_code"), int):
+            raise SchemaValidationError(f"{setup_path}.exit_code must be an integer")
 
 
 def validate_preflight_summary_document(document: dict[str, Any]) -> None:
@@ -1683,6 +1712,11 @@ def _require_keys(document: dict[str, Any], keys: tuple[str, ...], path: str) ->
 def _require_non_empty_string(value: Any, path: str) -> None:
     if not isinstance(value, str) or not value:
         raise SchemaValidationError(f"{path} must be a non-empty string")
+
+
+def _require_string(value: Any, path: str) -> None:
+    if not isinstance(value, str):
+        raise SchemaValidationError(f"{path} must be a string")
 
 
 def _require_list(value: Any, path: str) -> list[Any]:

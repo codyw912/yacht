@@ -12,7 +12,7 @@ from yacht.preflight import (
     execute_machine_preflight,
 )
 from yacht.regatta import load_regatta
-from yacht.runtime_backend import HostNixRuntimeBackend
+from yacht.runtime_backend import HostNixRuntimeBackend, SetupProcessResult
 from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
@@ -56,6 +56,29 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(
                 artifact["cleanup_paths"],
                 [str(path) for path in instance.cleanup_paths],
+            )
+            self.assertEqual(
+                artifact["runtime_setup"],
+                [
+                    {
+                        "origin": "rigging",
+                        "origin_name": "pi-fff",
+                        "action": "install",
+                        "target": "npm:@ff-labs/pi-fff",
+                        "argv": [
+                            "nix",
+                            "develop",
+                            "path:.#pi",
+                            "--command",
+                            "pi",
+                            "install",
+                            "npm:@ff-labs/pi-fff",
+                        ],
+                        "exit_code": 0,
+                        "stdout": "",
+                        "stderr": "",
+                    }
+                ],
             )
             self.assertEqual(
                 artifact["secret_refs"],
@@ -154,7 +177,7 @@ class MachinePreflightTests(unittest.TestCase):
             config_path.write_text(config, encoding="utf-8")
             workspace_path.mkdir()
             regatta = load_regatta(config_path)
-            instance = HostNixRuntimeBackend().prepare(
+            instance = HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
                 regatta=regatta,
                 vessel=regatta.vessels[1],
                 trial_root=root / "trial",
@@ -192,7 +215,11 @@ class MachinePreflightTests(unittest.TestCase):
                 calls.append((prompt, env, cwd))
                 return AgentPromptResult(
                     exit_code=0,
-                    response='{"available": true, "configured": true}',
+                    response=(
+                        "```json\n"
+                        '{"available": true, "configured": true, "tool_calls": ["fff"]}'
+                        "\n```"
+                    ),
                     tool_calls=("fff",),
                     transcript_path=root / "transcripts" / "fff.json",
                 )
@@ -217,10 +244,15 @@ class MachinePreflightTests(unittest.TestCase):
                 {
                     "prompt": "preflights/pi-fff.md",
                     "exit_code": 0,
-                    "response": '{"available": true, "configured": true}',
+                    "response": (
+                        "```json\n"
+                        '{"available": true, "configured": true, "tool_calls": ["fff"]}'
+                        "\n```"
+                    ),
                     "response_json": {
                         "available": True,
                         "configured": True,
+                        "tool_calls": ["fff"],
                     },
                     "tool_calls": ["fff"],
                     "transcript_path": str(root / "transcripts" / "fff.json"),
@@ -327,7 +359,7 @@ def _prepared_runtime(root: Path, vessel_index: int):
     config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
     workspace_path.mkdir()
     regatta = load_regatta(config_path)
-    instance = HostNixRuntimeBackend().prepare(
+    instance = HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
         regatta=regatta,
         vessel=regatta.vessels[vessel_index],
         trial_root=root / "trial",
@@ -343,6 +375,18 @@ def _passing_command(
     cwd: Path,
 ) -> CommandResult:
     return CommandResult(exit_code=0, stdout="ok\n", stderr="")
+
+
+def _passing_setup(
+    argv: tuple[str, ...],
+    env: dict[str, str],
+    cwd: Path,
+) -> SetupProcessResult:
+    return SetupProcessResult(
+        exit_code=0,
+        stdout="",
+        stderr="",
+    )
 
 
 def _check_by_name(artifact: dict[str, object], name: str) -> dict[str, object]:

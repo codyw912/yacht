@@ -101,6 +101,18 @@ class RiggingRecipe:
 
 
 @dataclass(frozen=True)
+class RuntimeSetupResult:
+    origin: str
+    origin_name: str
+    action: str
+    target: str
+    argv: tuple[str, ...]
+    exit_code: int
+    stdout: str
+    stderr: str
+
+
+@dataclass(frozen=True)
 class RuntimeInstance:
     runtime: RuntimeRecipe
     temp_home: Path
@@ -108,6 +120,7 @@ class RuntimeInstance:
     env: dict[str, str]
     command_prefix: tuple[str, ...]
     cleanup_paths: tuple[Path, ...]
+    setup_results: tuple[RuntimeSetupResult, ...] = ()
 
 
 @dataclass(frozen=True)
