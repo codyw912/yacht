@@ -240,8 +240,9 @@ notes. Pass `--output` to write the rendered report as a durable artifact.
 selected preflight mode, including which checks would be included or omitted and
 where artifacts/transcripts would be written.
 The initial `HostNixRuntimeBackend` can prepare those isolated runtime
-directories and explicit env-secret injections for a trial; launching the agent
-inside that prepared runtime is a later slice.
+directories and explicit env-secret injections for a trial. Local smoke task
+execution can now launch against that prepared runtime, and the Pi adapter has
+an injected task-launcher boundary for tests and future real subprocess runs.
 Machine-only preflight execution can now validate `command`, `env`, and
 `path-isolation` checks against a prepared runtime and write
 `yacht.preflight.v1` evidence artifacts. This still does not run benchmark
