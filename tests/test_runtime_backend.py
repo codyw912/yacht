@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,6 +28,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             )
 
             self.assertEqual(resolution.runtime.name, "pi")
+            self.assertEqual(resolution.env["PATH"], os.environ["PATH"])
             self.assertEqual(resolution.temp_home, instance_root / "home")
             self.assertEqual(
                 resolution.command_prefix,
@@ -77,6 +79,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                 ("nix", "develop", "github:example/yacht-runtimes#pi", "--command"),
             )
             self.assertEqual(instance.env["ANTHROPIC_API_KEY"], "test-secret")
+            self.assertEqual(instance.env["PATH"], os.environ["PATH"])
             self.assertEqual(instance.env["HOME"], str(instance.temp_home))
             self.assertEqual(
                 instance.env["XDG_CONFIG_HOME"],
