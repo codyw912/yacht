@@ -1,7 +1,10 @@
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.pi_adapter import (
@@ -11,6 +14,7 @@ from yacht.pi_adapter import (
     PiTaskRequest,
     SubprocessPiPromptLauncher,
     SubprocessPiTaskLauncher,
+    _run_pi_task_subprocess,
 )
 from yacht.preflight import AgentPromptResult, CommandResult, execute_preflight
 from yacht.regatta import ConfigError, Metrics, load_regatta
@@ -188,6 +192,60 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(attempt["metrics"]["tokens"], 42)
             self.assertNotIn("test-secret", json.dumps(attempt))
 
+    def test_task_attempt_runner_prepares_container_runtime_for_pi_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workspace_path = root / "workspace"
+            logbook_dir = root / "logbook"
+            workspace_path.mkdir()
+            requests = []
+
+            def launcher(request: PiTaskRequest) -> AgentTaskResult:
+                requests.append(request)
+                return AgentTaskResult(
+                    exit_code=0,
+                    response='{"completed": true, "tool_calls": []}',
+                    tool_calls=(),
+                    transcript_path=request.transcript_path,
+                    metrics=Metrics(tokens=18, duration_seconds=1.0),
+                )
+
+            summary = run_task_attempts(
+                config_path=Path("examples/container-pi-runtime-smoke.toml"),
+                logbook_dir=logbook_dir,
+                workspace_path=workspace_path,
+                secret_values={},
+                agent_name="pi",
+                task_agent=PiAdapter(task_launcher=launcher),
+            )
+
+            self.assertEqual(summary["status"], "completed")
+            self.assertEqual(summary["attempt_count"], 2)
+            self.assertEqual(len(requests), 2)
+            self.assertEqual(
+                requests[0].argv[:5],
+                ("docker", "run", "--rm", "--workdir", "/workspace"),
+            )
+            self.assertEqual(
+                requests[0].argv[-2:],
+                ("yacht/pi-agent-runtime:pi-0.74.0", "pi"),
+            )
+            self.assertEqual(requests[0].env["HOME"], "/home/yacht")
+
+            attempt_path = (
+                logbook_dir
+                / "task-attempts"
+                / "container-pi-runtime"
+                / "pi-container-a"
+                / "container-pi-smoke-1.json"
+            )
+            attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+            self.assertEqual(attempt["runtime_context"]["backend"], "container")
+            self.assertEqual(
+                attempt["runtime_context"]["command_prefix"][:5],
+                ["docker", "run", "--rm", "--workdir", "/workspace"],
+            )
+
     def test_task_attempt_runner_requires_injected_pi_adapter(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -341,6 +399,49 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(transcript["stdout"], result.response)
             self.assertEqual(transcript["stderr"], "")
             self.assertEqual(transcript["tool_calls"], ["fff"])
+
+    def test_pi_task_subprocess_preserves_host_path_for_docker_argv(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            calls = []
+
+            def run(
+                argv,
+                *,
+                cwd,
+                env,
+                input,
+                capture_output,
+                check,
+                text,
+            ):
+                calls.append(env)
+                return subprocess.CompletedProcess(
+                    args=argv,
+                    returncode=0,
+                    stdout='{"completed": true, "tool_calls": []}\n',
+                    stderr="",
+                )
+
+            request = PiTaskRequest(
+                task_id="container-pi-smoke-1",
+                task_title="Container Pi runtime smoke",
+                prompt="Task ID: container-pi-smoke-1\n",
+                argv=("docker", "run", "image", "pi"),
+                env={
+                    "PATH": "/home/yacht/.local/state/npm-global/bin:/usr/local/bin:/usr/bin:/bin",
+                    "HOME": "/home/yacht",
+                },
+                cwd=root,
+                transcript_path=root / "transcripts" / "pi-task.json",
+            )
+
+            with patch("yacht.pi_adapter.subprocess.run", side_effect=run):
+                result = _run_pi_task_subprocess(request)
+
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(calls[0]["PATH"], os.environ["PATH"])
+            self.assertEqual(calls[0]["HOME"], "/home/yacht")
 
     def test_adapter_can_use_subprocess_task_launcher(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

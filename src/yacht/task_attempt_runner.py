@@ -9,11 +9,12 @@ from yacht.regatta import (
     ConfigError,
     Regatta,
     RuntimeInstance,
+    RuntimeRecipe,
     Task,
     Vessel,
     load_regatta,
 )
-from yacht.runtime_backend import HostNixRuntimeBackend, RuntimePreparationError
+from yacht.runtime_backend import RuntimePreparationError, runtime_backend_for_recipe
 from yacht.task_attempts import AgentTaskResult, write_task_attempt
 
 
@@ -115,7 +116,8 @@ def _run_vessel_task_attempt(
     agent: TaskAgent,
 ) -> dict[str, str]:
     try:
-        instance = HostNixRuntimeBackend().prepare(
+        runtime = _runtime_for_vessel(regatta, vessel)
+        instance = runtime_backend_for_recipe(runtime).prepare(
             regatta=regatta,
             vessel=vessel,
             trial_root=logbook_dir / "runtime" / comparison.name,
@@ -204,3 +206,9 @@ def _vessel_by_name(regatta: Regatta, name: str) -> Vessel:
         if vessel.name == name:
             return vessel
     raise ConfigError(f"comparison references undefined vessel {name}")
+
+
+def _runtime_for_vessel(regatta: Regatta, vessel: Vessel) -> RuntimeRecipe:
+    if vessel.runtime is None:
+        raise ConfigError(f"vessel {vessel.name} does not define a runtime")
+    return regatta.runtime_recipes[vessel.runtime]

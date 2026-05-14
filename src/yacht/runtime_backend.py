@@ -12,8 +12,10 @@ from yacht.host_nix_runtime import HostNixRuntimeResolution
 from yacht.host_nix_runtime import HostNixRuntimeResolutionError
 from yacht.host_nix_runtime import resolve_host_nix_runtime
 from yacht.regatta import (
+    ConfigError,
     Regatta,
     RuntimeInstance,
+    RuntimeRecipe,
     RuntimeSetupResult,
     Vessel,
 )
@@ -48,6 +50,14 @@ class RuntimeBackend(Protocol):
         secret_values: dict[str, str],
     ) -> RuntimeInstance:
         ...
+
+
+def runtime_backend_for_recipe(runtime: RuntimeRecipe) -> RuntimeBackend:
+    if runtime.backend == "host-nix":
+        return HostNixRuntimeBackend()
+    if runtime.backend == "container":
+        return ContainerRuntimeBackend()
+    raise ConfigError(f"unsupported runtime backend {runtime.backend}")
 
 
 class HostNixRuntimeBackend:
