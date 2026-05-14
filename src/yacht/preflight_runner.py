@@ -22,7 +22,12 @@ from yacht.regatta import (
     Vessel,
     load_regatta,
 )
-from yacht.runtime_backend import HostNixRuntimeBackend, RuntimePreparationError
+from yacht.runtime_backend import (
+    ContainerRuntimeBackend,
+    HostNixRuntimeBackend,
+    RuntimeBackend,
+    RuntimePreparationError,
+)
 from yacht.schemas import (
     PREFLIGHT_SUMMARY_SCHEMA,
     validate_preflight_summary_document,
@@ -420,7 +425,7 @@ def _run_vessel_preflight(
             workspace_path=workspace_path,
             include_agent_checks=include_agent_checks,
         )
-        instance = HostNixRuntimeBackend().prepare(
+        instance = _runtime_backend(plan.runtime).prepare(
             regatta=regatta,
             vessel=vessel,
             trial_root=logbook_dir / "runtime" / comparison.name,
@@ -471,6 +476,14 @@ def _summary_checks(
         for check in artifact["checks"]
     }
     return [_summary_check(check, status_by_name) for check in checks]
+
+
+def _runtime_backend(runtime: RuntimeRecipe) -> RuntimeBackend:
+    if runtime.backend == "host-nix":
+        return HostNixRuntimeBackend()
+    if runtime.backend == "container":
+        return ContainerRuntimeBackend()
+    raise ConfigError(f"unsupported runtime backend {runtime.backend}")
 
 
 def _summary_check(

@@ -276,10 +276,11 @@ def _execute_path_isolation_check(
         for name in check.env
         if name in instance.env
     }
+    isolation_root = _isolation_root(instance)
     outside_trial_home = {
         name: value
         for name, value in resolved_paths.items()
-        if not _is_under(instance.temp_home, Path(value))
+        if not _is_under(isolation_root, Path(value))
     }
     evidence: dict[str, object] = {"paths": resolved_paths}
     if missing:
@@ -409,6 +410,12 @@ def _is_under(parent: Path, child: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _isolation_root(instance: RuntimeInstance) -> Path:
+    if instance.runtime.backend == "container":
+        return Path(instance.env["HOME"])
+    return instance.temp_home
 
 
 def _artifact_status(checks: list[dict[str, object]]) -> str:

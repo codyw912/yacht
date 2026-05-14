@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
+from yacht.container_runtime import ContainerRuntimeResolution
+from yacht.container_runtime import ContainerRuntimeResolutionError
+from yacht.container_runtime import resolve_container_runtime
 from yacht.host_nix_runtime import HostNixRuntimeResolution
 from yacht.host_nix_runtime import HostNixRuntimeResolutionError
 from yacht.host_nix_runtime import resolve_host_nix_runtime
@@ -91,6 +94,51 @@ class HostNixRuntimeBackend:
         )
 
 
+class ContainerRuntimeBackend:
+    def __init__(self, setup_runner: SetupCommandRunner | None = None) -> None:
+        self._setup_runner = setup_runner or _run_setup_command
+
+    def prepare(
+        self,
+        *,
+        regatta: Regatta,
+        vessel: Vessel,
+        trial_root: Path,
+        workspace_path: Path,
+        secret_values: dict[str, str],
+    ) -> RuntimeInstance:
+        try:
+            resolution = resolve_container_runtime(
+                regatta=regatta,
+                vessel=vessel,
+                instance_root=trial_root / vessel.name,
+                workspace_path=workspace_path,
+            )
+            env = resolution.env_with_secret_values(
+                regatta=regatta,
+                secret_values=secret_values,
+            )
+        except ContainerRuntimeResolutionError as error:
+            raise RuntimePreparationError(str(error)) from error
+
+        _create_runtime_dirs(resolution.temp_home)
+        setup_results = _apply_rigging_installs(
+            resolution=resolution,
+            env=env,
+            setup_runner=self._setup_runner,
+        )
+
+        return RuntimeInstance(
+            runtime=resolution.runtime,
+            temp_home=resolution.temp_home,
+            workspace_path=resolution.workspace_path,
+            env=env,
+            command_prefix=resolution.command_prefix,
+            cleanup_paths=resolution.cleanup_paths,
+            setup_results=tuple(setup_results),
+        )
+
+
 def _create_runtime_dirs(temp_home: Path) -> None:
     for path in (
         temp_home,
@@ -106,7 +154,7 @@ def _create_runtime_dirs(temp_home: Path) -> None:
 
 def _apply_rigging_installs(
     *,
-    resolution: HostNixRuntimeResolution,
+    resolution: HostNixRuntimeResolution | ContainerRuntimeResolution,
     env: dict[str, str],
     setup_runner: SetupCommandRunner,
 ) -> list[RuntimeSetupResult]:

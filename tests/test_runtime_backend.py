@@ -3,10 +3,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from tests.test_provisioning import CONTAINER_PI_CONFIG, PI_WITH_FFF_CONFIG
 from yacht.host_nix_runtime import resolve_host_nix_runtime
 from yacht.regatta import load_regatta
 from yacht.runtime_backend import (
+    ContainerRuntimeBackend,
     HostNixRuntimeBackend,
     RuntimePreparationError,
     SetupProcessResult,
@@ -265,6 +266,118 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                     trial_root=root / "trial",
                     workspace_path=workspace_path,
                     secret_values={"anthropic": "test-secret"},
+                )
+
+
+class ContainerRuntimeBackendTests(unittest.TestCase):
+    def test_prepare_creates_container_runtime_instance_with_explicit_secret(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            trial_root = root / "trial"
+            config_path.write_text(CONTAINER_PI_CONFIG, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+
+            instance = ContainerRuntimeBackend(setup_runner=_passing_setup).prepare(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                trial_root=trial_root,
+                workspace_path=workspace_path,
+                secret_values={"anthropic": "test-secret"},
+            )
+
+            self.assertEqual(instance.runtime.name, "pi-container")
+            self.assertEqual(instance.env["HOME"], "/home/yacht")
+            self.assertEqual(instance.env["ANTHROPIC_API_KEY"], "test-secret")
+            self.assertEqual(
+                instance.env["NPM_CONFIG_PREFIX"],
+                "/home/yacht/.local/state/npm-global",
+            )
+            self.assertEqual(
+                instance.env["FFF_HISTORY_DB"],
+                "/home/yacht/.local/state/fff-history.sqlite",
+            )
+            self.assertEqual(
+                instance.command_prefix,
+                (
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--workdir",
+                    "/workspace",
+                    "--mount",
+                    f"type=bind,source={workspace_path},target=/workspace",
+                    "--mount",
+                    f"type=bind,source={instance.temp_home},target=/home/yacht",
+                    "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+                ),
+            )
+            self.assertTrue(instance.temp_home.is_dir())
+            self.assertTrue((instance.temp_home / ".cache" / "npm").is_dir())
+            self.assertTrue(
+                (instance.temp_home / ".local" / "state" / "npm-global" / "bin")
+                .is_dir()
+            )
+            self.assertEqual(instance.cleanup_paths, (trial_root / "pi-container-fff",))
+            self.assertEqual(instance.setup_results[0].target, "npm:@ff-labs/pi-fff")
+
+    def test_prepare_applies_container_rigging_install_inside_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            config_path.write_text(CONTAINER_PI_CONFIG, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+            calls = []
+
+            def setup_runner(
+                argv: tuple[str, ...],
+                env: dict[str, str],
+                cwd: Path,
+            ) -> SetupProcessResult:
+                calls.append((argv, env, cwd))
+                return SetupProcessResult(
+                    exit_code=0,
+                    stdout="installed\n",
+                    stderr="",
+                )
+
+            ContainerRuntimeBackend(setup_runner=setup_runner).prepare(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                trial_root=root / "trial",
+                workspace_path=workspace_path,
+                secret_values={"anthropic": "test-secret"},
+            )
+
+            self.assertEqual(calls[0][0][-3:], ("pi", "install", "npm:@ff-labs/pi-fff"))
+            self.assertEqual(calls[0][1]["HOME"], "/home/yacht")
+            self.assertEqual(calls[0][2], workspace_path)
+
+    def test_prepare_requires_explicit_container_secret_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            config_path.write_text(CONTAINER_PI_CONFIG, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(
+                RuntimePreparationError,
+                "missing value for required secret anthropic",
+            ):
+                ContainerRuntimeBackend(setup_runner=_passing_setup).prepare(
+                    regatta=regatta,
+                    vessel=regatta.vessels[0],
+                    trial_root=root / "trial",
+                    workspace_path=workspace_path,
+                    secret_values={},
                 )
 
 
