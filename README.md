@@ -86,7 +86,10 @@ already be installed on the host `PATH`.
 
 `examples/container-pi-fff-provisioning.toml` describes the same comparison with
 a `container` runtime contract. Container runtime execution is the trusted eval
-target; `host-nix` remains the fast local development backend.
+target; `host-nix` remains the fast local development backend. Machine preflight
+can prepare container runtimes and run checks through their Docker command
+prefix; task attempts still use the existing agent path until the task-attempt
+backend slice lands.
 
 ```sh
 uv run yacht validate examples/pi-fff-provisioning.toml

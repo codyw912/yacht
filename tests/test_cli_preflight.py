@@ -7,7 +7,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from yacht.preflight import AgentPromptResult
+from yacht.preflight import AgentPromptResult, CommandResult
 from yacht.preflight_runner import run_preflight
 from yacht.cli import main
 from yacht.schemas import PREFLIGHT_SUMMARY_SCHEMA
@@ -80,7 +80,122 @@ checks = [
 """
 
 
+CONTAINER_PREFLIGHT_CONFIG = """
+[regatta]
+name = "container-preflight"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "tiny-course"
+tasks = [
+  { id = "task-1", title = "Fix a failing test", difficulty = 1 },
+]
+
+[secrets.token]
+source = "env"
+name = "YACHT_TEST_TOKEN"
+
+[runtimes.container-pi]
+backend = "container"
+image = "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1"
+command = ["pi"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+required_secrets = ["token"]
+
+[runtimes.container-pi.preflight]
+required = true
+checks = [
+  { name = "pi-present", kind = "command", command = ["pi", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+runtime = "container-pi"
+
+[[vessels]]
+name = "rigged"
+model = "mock"
+runtime = "container-pi"
+
+[[comparisons]]
+name = "baseline-vs-rigged"
+course = "tiny-course"
+vessels = ["baseline", "rigged"]
+"""
+
+
 class CliPreflightTests(unittest.TestCase):
+    def test_preflight_prepares_container_runtime_and_runs_machine_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            commands = []
+
+            def command_runner(argv, env, cwd):
+                commands.append((argv, env, cwd))
+                return CommandResult(exit_code=0, stdout="0.73.1\n", stderr="")
+
+            with patch("yacht.preflight._run_command", side_effect=command_runner):
+                result, logbook_dir = _run_preflight(
+                    CONTAINER_PREFLIGHT_CONFIG,
+                    root,
+                )
+
+            self.assertEqual(result.exit_code, 0)
+            artifact_path = (
+                logbook_dir
+                / "preflight"
+                / "baseline-vs-rigged"
+                / "baseline.json"
+            )
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+            self.assertEqual(artifact["status"], "passed")
+            self.assertEqual(
+                artifact["command_prefix"][:5],
+                ["docker", "run", "--rm", "--workdir", "/workspace"],
+            )
+            self.assertIn(
+                "type=bind,source="
+                + str(
+                    logbook_dir
+                    / "runtime"
+                    / "baseline-vs-rigged"
+                    / "baseline"
+                    / "home"
+                )
+                + ",target=/home/yacht",
+                artifact["command_prefix"],
+            )
+            self.assertEqual(
+                artifact["temp_home"],
+                str(
+                    logbook_dir
+                    / "runtime"
+                    / "baseline-vs-rigged"
+                    / "baseline"
+                    / "home"
+                ),
+            )
+            self.assertEqual(
+                commands[0][0][-3:],
+                ("ghcr.io/yacht/pi-agent-runtime:pi-0.73.1", "pi", "--version"),
+            )
+            self.assertEqual(commands[0][1]["HOME"], "/home/yacht")
+            self.assertEqual(commands[0][1]["YACHT_TEST_TOKEN"], "test-secret")
+            self.assertTrue(
+                (
+                    logbook_dir
+                    / "runtime"
+                    / "baseline-vs-rigged"
+                    / "baseline"
+                    / "home"
+                ).is_dir()
+            )
+
     def test_preflight_writes_artifacts_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result, logbook_dir = _run_preflight(PASSING_PREFLIGHT_CONFIG, Path(temp_dir))

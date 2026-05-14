@@ -39,6 +39,21 @@ class ContainerRuntimeResolution:
                 env[secret.name] = f"{{secret:{secret_name}}}"
         return env
 
+    def env_with_secret_values(
+        self,
+        regatta: Regatta,
+        secret_values: dict[str, str],
+    ) -> dict[str, str]:
+        env = dict(self.env)
+        for secret_name in self.required_secret_names:
+            if secret_name not in secret_values:
+                raise ContainerRuntimeResolutionError(
+                    f"missing value for required secret {secret_name}"
+                )
+            secret = regatta.secrets[secret_name]
+            env.update(_secret_to_env(secret_name, secret, secret_values[secret_name]))
+        return env
+
     def secret_refs(self, regatta: Regatta) -> tuple[dict[str, object], ...]:
         return tuple(
             _secret_ref_to_json(name, regatta.secrets[name])
@@ -217,4 +232,16 @@ def _secret_ref_label(secret: SecretReference) -> str:
         return secret.path
     raise ContainerRuntimeResolutionError(
         f"secret reference source {secret.source} is not resolvable"
+    )
+
+
+def _secret_to_env(
+    name: str,
+    secret: SecretReference,
+    value: str,
+) -> dict[str, str]:
+    if secret.source == "env" and secret.name is not None:
+        return {secret.name: value}
+    raise ContainerRuntimeResolutionError(
+        f"secret {name} source {secret.source} is not supported for runtime env"
     )
