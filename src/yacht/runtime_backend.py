@@ -17,6 +17,7 @@ from yacht.regatta import (
     RuntimeSetupResult,
     Vessel,
 )
+from yacht.runtime_process import subprocess_env
 
 
 class RuntimePreparationError(ValueError):
@@ -190,7 +191,7 @@ def _run_setup_command(
     completed = subprocess.run(
         argv,
         cwd=cwd,
-        env=env,
+        env=subprocess_env(argv, env),
         capture_output=True,
         check=False,
         text=True,

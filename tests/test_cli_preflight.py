@@ -99,7 +99,7 @@ name = "YACHT_TEST_TOKEN"
 
 [runtimes.container-pi]
 backend = "container"
-image = "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1"
+image = "yacht/pi-agent-runtime:pi-0.74.0"
 command = ["pi"]
 container_home = "/home/yacht"
 container_workspace = "/workspace"
@@ -137,7 +137,7 @@ class CliPreflightTests(unittest.TestCase):
 
             def command_runner(argv, env, cwd):
                 commands.append((argv, env, cwd))
-                return CommandResult(exit_code=0, stdout="0.73.1\n", stderr="")
+                return CommandResult(exit_code=0, stdout="0.74.0\n", stderr="")
 
             with patch("yacht.preflight._run_command", side_effect=command_runner):
                 result, logbook_dir = _run_preflight(
@@ -182,7 +182,7 @@ class CliPreflightTests(unittest.TestCase):
             )
             self.assertEqual(
                 commands[0][0][-3:],
-                ("ghcr.io/yacht/pi-agent-runtime:pi-0.73.1", "pi", "--version"),
+                ("yacht/pi-agent-runtime:pi-0.74.0", "pi", "--version"),
             )
             self.assertEqual(commands[0][1]["HOME"], "/home/yacht")
             self.assertEqual(commands[0][1]["YACHT_TEST_TOKEN"], "test-secret")

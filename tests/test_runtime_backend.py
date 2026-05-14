@@ -245,7 +245,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             'backend = "host-nix"\nflake = "path:.#pi"',
             (
                 'backend = "container"\n'
-                'image = "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1"'
+                'image = "yacht/pi-agent-runtime:pi-0.74.0"'
             ),
         )
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -309,11 +309,33 @@ class ContainerRuntimeBackendTests(unittest.TestCase):
                     "--rm",
                     "--workdir",
                     "/workspace",
+                    "--env",
+                    "HOME=/home/yacht",
+                    "--env",
+                    "PATH=/home/yacht/.local/state/npm-global/bin:/usr/local/bin:/usr/bin:/bin",
+                    "--env",
+                    "NPM_CONFIG_CACHE=/home/yacht/.cache/npm",
+                    "--env",
+                    "NPM_CONFIG_PREFIX=/home/yacht/.local/state/npm-global",
+                    "--env",
+                    "XDG_CONFIG_HOME=/home/yacht/.config",
+                    "--env",
+                    "XDG_CACHE_HOME=/home/yacht/.cache",
+                    "--env",
+                    "XDG_STATE_HOME=/home/yacht/.local/state",
+                    "--env",
+                    "PI_FFF_MODE=required",
+                    "--env",
+                    "FFF_FRECENCY_DB=/home/yacht/.local/state/fff-frecency.sqlite",
+                    "--env",
+                    "FFF_HISTORY_DB=/home/yacht/.local/state/fff-history.sqlite",
+                    "--env",
+                    "ANTHROPIC_API_KEY",
                     "--mount",
                     f"type=bind,source={workspace_path},target=/workspace",
                     "--mount",
                     f"type=bind,source={instance.temp_home},target=/home/yacht",
-                    "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+                    "yacht/pi-agent-runtime:pi-0.74.0",
                 ),
             )
             self.assertTrue(instance.temp_home.is_dir())

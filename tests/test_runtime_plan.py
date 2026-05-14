@@ -37,7 +37,7 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(vessel["backend"], "container")
             self.assertEqual(
                 vessel["image"],
-                "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+                "yacht/pi-agent-runtime:pi-0.74.0",
             )
             self.assertEqual(vessel["container_home"], "/home/yacht")
             self.assertEqual(vessel["container_workspace"], "/workspace")
@@ -49,6 +49,28 @@ class RuntimePlanTests(unittest.TestCase):
                     "--rm",
                     "--workdir",
                     "/workspace",
+                    "--env",
+                    "HOME=/home/yacht",
+                    "--env",
+                    "PATH=/home/yacht/.local/state/npm-global/bin:/usr/local/bin:/usr/bin:/bin",
+                    "--env",
+                    "NPM_CONFIG_CACHE=/home/yacht/.cache/npm",
+                    "--env",
+                    "NPM_CONFIG_PREFIX=/home/yacht/.local/state/npm-global",
+                    "--env",
+                    "XDG_CONFIG_HOME=/home/yacht/.config",
+                    "--env",
+                    "XDG_CACHE_HOME=/home/yacht/.cache",
+                    "--env",
+                    "XDG_STATE_HOME=/home/yacht/.local/state",
+                    "--env",
+                    "PI_FFF_MODE=required",
+                    "--env",
+                    "FFF_FRECENCY_DB=/home/yacht/.local/state/fff-frecency.sqlite",
+                    "--env",
+                    "FFF_HISTORY_DB=/home/yacht/.local/state/fff-history.sqlite",
+                    "--env",
+                    "ANTHROPIC_API_KEY",
                     "--mount",
                     f"type=bind,source={workspace_path},target=/workspace",
                     "--mount",
@@ -57,7 +79,7 @@ class RuntimePlanTests(unittest.TestCase):
                         f"source={logbook_dir / 'runtime' / 'container-pi' / 'pi-container-fff' / 'home'},"
                         "target=/home/yacht"
                     ),
-                    "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+                    "yacht/pi-agent-runtime:pi-0.74.0",
                 ],
             )
             self.assertEqual(vessel["command"], ["pi"])
@@ -86,7 +108,7 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(runtime["backend"], "container")
             self.assertEqual(
                 runtime["image"],
-                "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+                "yacht/pi-agent-runtime:pi-0.74.0",
             )
             self.assertEqual(runtime["container_home"], "/home/yacht")
             self.assertEqual(runtime["container_workspace"], "/workspace")
@@ -98,11 +120,25 @@ class RuntimePlanTests(unittest.TestCase):
                     "--rm",
                     "--workdir",
                     "/workspace",
+                    "--env",
+                    "HOME=/home/yacht",
+                    "--env",
+                    "PATH=/home/yacht/.local/state/npm-global/bin:/usr/local/bin:/usr/bin:/bin",
+                    "--env",
+                    "NPM_CONFIG_CACHE=/home/yacht/.cache/npm",
+                    "--env",
+                    "NPM_CONFIG_PREFIX=/home/yacht/.local/state/npm-global",
+                    "--env",
+                    "XDG_CONFIG_HOME=/home/yacht/.config",
+                    "--env",
+                    "XDG_CACHE_HOME=/home/yacht/.cache",
+                    "--env",
+                    "XDG_STATE_HOME=/home/yacht/.local/state",
                     "--mount",
                     "type=bind,source={workspace},target=/workspace",
                     "--mount",
                     "type=bind,source={trial_home},target=/home/yacht",
-                    "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+                    "yacht/pi-agent-runtime:pi-0.74.0",
                 ],
             )
             self.assertEqual(

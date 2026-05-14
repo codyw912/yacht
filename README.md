@@ -92,6 +92,9 @@ prefix; task attempts still use the existing agent path until the task-attempt
 backend slice lands.
 
 ```sh
+docker build -t yacht/pi-agent-runtime:pi-0.74.0 containers/pi-agent-runtime
+uv run yacht validate examples/container-pi-runtime-smoke.toml
+uv run yacht preflight examples/container-pi-runtime-smoke.toml --logbook logbook --workspace .
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace .

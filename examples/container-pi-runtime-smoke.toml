@@ -1,0 +1,40 @@
+[regatta]
+name = "container-pi-runtime-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "container-runtime-smoke"
+tasks = [
+  { id = "container-pi-smoke-1", title = "Container Pi runtime smoke", difficulty = 1 },
+]
+
+[runtimes.pi-container]
+backend = "container"
+image = "yacht/pi-agent-runtime:pi-0.74.0"
+command = ["pi"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+
+[runtimes.pi-container.preflight]
+required = true
+checks = [
+  { name = "pi-present", kind = "command", command = ["pi", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[[vessels]]
+name = "pi-container-a"
+model = "smoke"
+runtime = "pi-container"
+
+[[vessels]]
+name = "pi-container-b"
+model = "smoke"
+runtime = "pi-container"
+
+[[comparisons]]
+name = "container-pi-runtime"
+course = "container-runtime-smoke"
+vessels = ["pi-container-a", "pi-container-b"]
