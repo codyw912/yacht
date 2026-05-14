@@ -216,15 +216,29 @@
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["backend", "flake", "command"],
+        "required": ["backend", "command"],
         "properties": {
           "backend": {
             "type": "string",
-            "minLength": 1
+            "enum": ["container", "host-nix"]
           },
           "flake": {
             "type": "string",
             "minLength": 1
+          },
+          "image": {
+            "type": "string",
+            "minLength": 1
+          },
+          "container_home": {
+            "type": "string",
+            "pattern": "^/",
+            "default": "/home/yacht"
+          },
+          "container_workspace": {
+            "type": "string",
+            "pattern": "^/",
+            "default": "/workspace"
           },
           "command": {
             "type": "array",

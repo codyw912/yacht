@@ -4,12 +4,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.container_runtime import ContainerRuntimeResolutionError
+from yacht.container_runtime import resolve_container_runtime
 from yacht.host_nix_runtime import HostNixRuntimeResolutionError
 from yacht.host_nix_runtime import resolve_host_nix_runtime
 from yacht.regatta import (
     Comparison,
     ConfigError,
     Regatta,
+    RuntimeRecipe,
     Vessel,
     load_regatta,
 )
@@ -90,16 +93,27 @@ def _vessel_to_json(
 ) -> dict[str, Any]:
     trial_root = logbook_dir / "runtime" / comparison.name / vessel.name
     try:
-        resolution = resolve_host_nix_runtime(
-            regatta=regatta,
-            vessel=vessel,
-            instance_root=trial_root,
-            workspace_path=workspace_path,
-        )
-    except HostNixRuntimeResolutionError as error:
+        runtime = _runtime_for_vessel(regatta, vessel)
+        if runtime.backend == "host-nix":
+            resolution = resolve_host_nix_runtime(
+                regatta=regatta,
+                vessel=vessel,
+                instance_root=trial_root,
+                workspace_path=workspace_path,
+            )
+        elif runtime.backend == "container":
+            resolution = resolve_container_runtime(
+                regatta=regatta,
+                vessel=vessel,
+                instance_root=trial_root,
+                workspace_path=workspace_path,
+            )
+        else:
+            raise ConfigError(f"unsupported runtime backend {runtime.backend}")
+    except (ContainerRuntimeResolutionError, HostNixRuntimeResolutionError) as error:
         raise ConfigError(str(error)) from error
 
-    return {
+    payload = {
         "name": vessel.name,
         "runtime": resolution.runtime.name,
         "backend": resolution.runtime.backend,
@@ -112,6 +126,18 @@ def _vessel_to_json(
         "secret_refs": list(resolution.secret_refs(regatta)),
         "cleanup_paths": [str(path) for path in resolution.cleanup_paths],
     }
+    if resolution.runtime.image is not None:
+        payload["image"] = resolution.runtime.image
+    if resolution.runtime.backend == "container":
+        payload["container_home"] = resolution.runtime.container_home
+        payload["container_workspace"] = resolution.runtime.container_workspace
+    return payload
+
+
+def _runtime_for_vessel(regatta: Regatta, vessel: Vessel) -> RuntimeRecipe:
+    if vessel.runtime is None:
+        raise ConfigError(f"vessel {vessel.name} does not define a runtime")
+    return regatta.runtime_recipes[vessel.runtime]
 
 
 def _vessel_by_name(regatta: Regatta, name: str) -> Vessel:

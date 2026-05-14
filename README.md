@@ -84,6 +84,10 @@ running Pi, installing fff, or executing SWE-bench:
 The example points at the repo-local `path:.#pi` flake shell and expects `pi` to
 already be installed on the host `PATH`.
 
+`examples/container-pi-fff-provisioning.toml` describes the same comparison with
+a `container` runtime contract. Container runtime execution is the trusted eval
+target; `host-nix` remains the fast local development backend.
+
 ```sh
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml

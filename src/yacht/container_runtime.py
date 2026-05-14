@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from yacht.regatta import (
     Regatta,
@@ -13,18 +12,19 @@ from yacht.regatta import (
 )
 
 
-class HostNixRuntimeResolutionError(ValueError):
-    """Raised when a host Nix runtime cannot be resolved safely."""
+class ContainerRuntimeResolutionError(ValueError):
+    """Raised when a container runtime cannot be resolved safely."""
 
 
 @dataclass(frozen=True)
-class HostNixRuntimeResolution:
+class ContainerRuntimeResolution:
     runtime: RuntimeRecipe
     riggings: tuple[RiggingRecipe, ...]
     instance_root: Path
     temp_home: Path
-    trial_state: Path
     workspace_path: Path
+    container_home: str
+    container_workspace: str
     env: dict[str, str]
     command_prefix: tuple[str, ...]
     command: tuple[str, ...]
@@ -39,21 +39,6 @@ class HostNixRuntimeResolution:
                 env[secret.name] = f"{{secret:{secret_name}}}"
         return env
 
-    def env_with_secret_values(
-        self,
-        regatta: Regatta,
-        secret_values: dict[str, str],
-    ) -> dict[str, str]:
-        env = dict(self.env)
-        for secret_name in self.required_secret_names:
-            if secret_name not in secret_values:
-                raise HostNixRuntimeResolutionError(
-                    f"missing value for required secret {secret_name}"
-                )
-            secret = regatta.secrets[secret_name]
-            env.update(_secret_to_env(secret_name, secret, secret_values[secret_name]))
-        return env
-
     def secret_refs(self, regatta: Regatta) -> tuple[dict[str, object], ...]:
         return tuple(
             _secret_ref_to_json(name, regatta.secrets[name])
@@ -61,40 +46,46 @@ class HostNixRuntimeResolution:
         )
 
 
-def resolve_host_nix_runtime(
+def resolve_container_runtime(
     *,
     regatta: Regatta,
     vessel: Vessel,
     instance_root: Path,
     workspace_path: Path,
-) -> HostNixRuntimeResolution:
+) -> ContainerRuntimeResolution:
     runtime = _runtime_for_vessel(regatta, vessel)
-    if runtime.backend != "host-nix":
-        raise HostNixRuntimeResolutionError(
+    if runtime.backend != "container":
+        raise ContainerRuntimeResolutionError(
             f"runtime {runtime.name} uses unsupported backend {runtime.backend}"
         )
-    if runtime.flake is None:
-        raise HostNixRuntimeResolutionError(
-            f"runtime {runtime.name} is missing flake"
+    if runtime.image is None:
+        raise ContainerRuntimeResolutionError(
+            f"runtime {runtime.name} is missing image"
         )
+
     riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
     temp_home = instance_root / "home"
-    trial_state = temp_home / ".local" / "state"
-    return HostNixRuntimeResolution(
+    container_home = runtime.container_home
+    container_workspace = runtime.container_workspace
+    return ContainerRuntimeResolution(
         runtime=runtime,
         riggings=riggings,
         instance_root=instance_root,
         temp_home=temp_home,
-        trial_state=trial_state,
         workspace_path=workspace_path,
+        container_home=container_home,
+        container_workspace=container_workspace,
         env=_runtime_env(
             runtime=runtime,
             riggings=riggings,
+            container_home=container_home,
+            container_workspace=container_workspace,
+        ),
+        command_prefix=_command_prefix(
+            runtime=runtime,
             temp_home=temp_home,
             workspace_path=workspace_path,
-            trial_state=trial_state,
         ),
-        command_prefix=("nix", "develop", runtime.flake, "--command"),
         command=tuple(runtime.command),
         required_secret_names=_required_secret_names(runtime, riggings),
         cleanup_paths=(instance_root,),
@@ -103,7 +94,7 @@ def resolve_host_nix_runtime(
 
 def _runtime_for_vessel(regatta: Regatta, vessel: Vessel) -> RuntimeRecipe:
     if vessel.runtime is None:
-        raise HostNixRuntimeResolutionError(
+        raise ContainerRuntimeResolutionError(
             f"vessel {vessel.name} does not define a runtime"
         )
     return regatta.runtime_recipes[vessel.runtime]
@@ -113,41 +104,46 @@ def _runtime_env(
     *,
     runtime: RuntimeRecipe,
     riggings: tuple[RiggingRecipe, ...],
-    temp_home: Path,
-    workspace_path: Path,
-    trial_state: Path,
+    container_home: str,
+    container_workspace: str,
 ) -> dict[str, str]:
-    npm_prefix = trial_state / "npm-global"
+    home = PurePosixPath(container_home)
+    trial_state = home / ".local" / "state"
     env = {
-        "HOME": str(temp_home),
-        "PATH": f"{npm_prefix / 'bin'}:{os.environ.get('PATH', '')}",
-        "NPM_CONFIG_CACHE": str(temp_home / ".cache" / "npm"),
-        "NPM_CONFIG_PREFIX": str(npm_prefix),
-        "MISE_NO_CONFIG": "1",
-        "MISE_NO_ENV": "1",
-        "MISE_NO_HOOKS": "1",
-        "XDG_CONFIG_HOME": str(temp_home / ".config"),
-        "XDG_CACHE_HOME": str(temp_home / ".cache"),
+        "HOME": str(home),
+        "PATH": f"{trial_state / 'npm-global' / 'bin'}:/usr/local/bin:/usr/bin:/bin",
+        "NPM_CONFIG_CACHE": str(home / ".cache" / "npm"),
+        "NPM_CONFIG_PREFIX": str(trial_state / "npm-global"),
+        "XDG_CONFIG_HOME": str(home / ".config"),
+        "XDG_CACHE_HOME": str(home / ".cache"),
         "XDG_STATE_HOME": str(trial_state),
     }
-    env.update(_expand_env_values(runtime.env, temp_home, workspace_path, trial_state))
+    workspace = PurePosixPath(container_workspace)
+    env.update(
+        _expand_env_values(runtime.env, home, workspace, trial_state)
+    )
     for rigging in riggings:
         env.update(
-            _expand_env_values(rigging.env, temp_home, workspace_path, trial_state)
+            _expand_env_values(
+                rigging.env,
+                home,
+                workspace,
+                trial_state,
+            )
         )
     return env
 
 
 def _expand_env_values(
     values: dict[str, str],
-    temp_home: Path,
-    workspace_path: Path,
-    trial_state: Path,
+    container_home: PurePosixPath,
+    container_workspace: PurePosixPath,
+    trial_state: PurePosixPath,
 ) -> dict[str, str]:
     replacements = {
-        "{trial_home}": str(temp_home),
+        "{trial_home}": str(container_home),
         "{trial_state}": str(trial_state),
-        "{workspace}": str(workspace_path),
+        "{workspace}": str(container_workspace),
     }
     return {
         key: _replace_placeholders(value, replacements)
@@ -159,6 +155,40 @@ def _replace_placeholders(value: str, replacements: dict[str, str]) -> str:
     for placeholder, replacement in replacements.items():
         value = value.replace(placeholder, replacement)
     return value
+
+
+def _command_prefix(
+    *,
+    runtime: RuntimeRecipe,
+    temp_home: Path | str,
+    workspace_path: Path | str,
+) -> tuple[str, ...]:
+    if runtime.image is None:
+        raise ContainerRuntimeResolutionError(
+            f"runtime {runtime.name} is missing image"
+        )
+    return (
+        "docker",
+        "run",
+        "--rm",
+        "--workdir",
+        runtime.container_workspace,
+        "--mount",
+        f"type=bind,source={workspace_path},target={runtime.container_workspace}",
+        "--mount",
+        f"type=bind,source={temp_home},target={runtime.container_home}",
+        runtime.image,
+    )
+
+
+def container_command_prefix_template(runtime: RuntimeRecipe) -> list[str]:
+    return list(
+        _command_prefix(
+            runtime=runtime,
+            temp_home="{trial_home}",
+            workspace_path="{workspace}",
+        )
+    )
 
 
 def _required_secret_names(
@@ -185,18 +215,6 @@ def _secret_ref_label(secret: SecretReference) -> str:
         return secret.name
     if secret.source == "file" and secret.path is not None:
         return secret.path
-    raise HostNixRuntimeResolutionError(
+    raise ContainerRuntimeResolutionError(
         f"secret reference source {secret.source} is not resolvable"
-    )
-
-
-def _secret_to_env(
-    secret_name: str,
-    secret: SecretReference,
-    value: str,
-) -> dict[str, str]:
-    if secret.source == "env" and secret.name is not None:
-        return {secret.name: value}
-    raise HostNixRuntimeResolutionError(
-        f"secret {secret_name} source {secret.source} cannot be injected as env"
     )

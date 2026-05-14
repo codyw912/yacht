@@ -77,6 +77,61 @@ vessels = ["pi-baseline", "pi-plus-fff"]
 """
 
 
+CONTAINER_PI_CONFIG = """
+[regatta]
+name = "container-pi-comparison"
+
+[course]
+name = "tiny-smoke"
+tasks = [
+  { id = "smoke-1", title = "Container smoke", difficulty = 1 },
+]
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.pi-container]
+backend = "container"
+image = "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1"
+command = ["pi"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+required_secrets = ["anthropic"]
+
+[runtimes.pi-container.preflight]
+checks = [
+  { name = "pi-present", kind = "command", command = ["pi", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[riggings.pi-fff]
+install = ["npm:@ff-labs/pi-fff"]
+instructions = "Use fff for codebase memory and navigation."
+
+[riggings.pi-fff.env]
+PI_FFF_MODE = "required"
+FFF_FRECENCY_DB = "{trial_state}/fff-frecency.sqlite"
+FFF_HISTORY_DB = "{trial_state}/fff-history.sqlite"
+
+[[vessels]]
+name = "pi-container-baseline"
+model = "claude-sonnet"
+runtime = "pi-container"
+
+[[vessels]]
+name = "pi-container-fff"
+model = "claude-sonnet"
+runtime = "pi-container"
+rigging = ["pi-fff"]
+
+[[comparisons]]
+name = "container-pi"
+course = "tiny-smoke"
+vessels = ["pi-container-baseline", "pi-container-fff"]
+"""
+
+
 class ProvisioningConfigTests(unittest.TestCase):
     def test_loads_baseline_and_rigged_vessels_on_the_same_course(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -130,6 +185,23 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(regatta.course.adapter.split, "test")
             self.assertEqual(regatta.course.adapter.harness, "docker")
 
+    def test_loads_container_runtime_recipe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(CONTAINER_PI_CONFIG, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+            runtime = regatta.runtime_recipes["pi-container"]
+
+            self.assertEqual(runtime.backend, "container")
+            self.assertEqual(
+                runtime.image,
+                "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+            )
+            self.assertEqual(runtime.flake, None)
+            self.assertEqual(runtime.container_home, "/home/yacht")
+            self.assertEqual(runtime.container_workspace, "/workspace")
+
     def test_swe_bench_course_adapter_requires_dataset_split_and_harness(self) -> None:
         cases = {
             "dataset": ('dataset = "princeton-nlp/SWE-bench_Lite"\n', ""),
@@ -168,6 +240,38 @@ class ProvisioningConfigTests(unittest.TestCase):
                         ConfigError,
                         f"runtimes.pi.{field} is required",
                     ):
+                        load_regatta(config_path)
+
+    def test_container_runtime_requires_image_and_absolute_container_paths(self) -> None:
+        cases = {
+            "image": (
+                'image = "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1"\n',
+                "",
+                "runtimes.pi-container.image is required",
+            ),
+            "container_home": (
+                'container_home = "/home/yacht"\n',
+                'container_home = "home/yacht"\n',
+                "runtimes.pi-container.container_home must be an absolute container path",
+            ),
+            "container_workspace": (
+                'container_workspace = "/workspace"\n',
+                'container_workspace = "workspace"\n',
+                (
+                    "runtimes.pi-container.container_workspace must be an "
+                    "absolute container path"
+                ),
+            ),
+        }
+
+        for field, (old, new, message) in cases.items():
+            with self.subTest(field=field):
+                config = CONTAINER_PI_CONFIG.replace(old, new)
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    config_path = Path(temp_dir) / "regatta.toml"
+                    config_path.write_text(config, encoding="utf-8")
+
+                    with self.assertRaisesRegex(ConfigError, message):
                         load_regatta(config_path)
 
     def test_secret_references_must_be_explicitly_provided(self) -> None:
@@ -227,6 +331,15 @@ class ProvisioningConfigTests(unittest.TestCase):
         self.assertEqual(prompt_paths, ["preflights/pi-fff.md"])
         for prompt_path in prompt_paths:
             self.assertTrue(Path(prompt_path).is_file(), prompt_path)
+
+    def test_container_example_loads(self) -> None:
+        regatta = load_regatta(Path("examples/container-pi-fff-provisioning.toml"))
+
+        self.assertEqual(regatta.runtime_recipes["pi-container"].backend, "container")
+        self.assertEqual(
+            regatta.comparisons[0].vessels,
+            ("pi-container-baseline", "pi-container-fff"),
+        )
 
     def test_preflight_artifact_records_redacted_machine_and_agent_evidence(self) -> None:
         artifact = {

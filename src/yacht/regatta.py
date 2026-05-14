@@ -82,8 +82,11 @@ class Comparison:
 class RuntimeRecipe:
     name: str
     backend: str
-    flake: str
     command: tuple[str, ...]
+    flake: str | None = None
+    image: str | None = None
+    container_home: str = "/home/yacht"
+    container_workspace: str = "/workspace"
     env: dict[str, str] = field(default_factory=dict)
     required_secrets: tuple[str, ...] = ()
     mounts: tuple[str, ...] = ()
@@ -370,8 +373,11 @@ def _parse_runtime_recipes(raw: dict[str, Any]) -> dict[str, RuntimeRecipe]:
         str(name): RuntimeRecipe(
             name=str(name),
             backend=str(runtime["backend"]),
-            flake=str(runtime["flake"]),
             command=tuple(str(item) for item in runtime["command"]),
+            flake=str(runtime["flake"]) if "flake" in runtime else None,
+            image=str(runtime["image"]) if "image" in runtime else None,
+            container_home=str(runtime.get("container_home", "/home/yacht")),
+            container_workspace=str(runtime.get("container_workspace", "/workspace")),
             env={
                 str(key): str(value)
                 for key, value in runtime.get("env", {}).items()
