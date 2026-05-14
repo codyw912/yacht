@@ -58,6 +58,14 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             self.assertEqual(summary["agent"], "pi")
             self.assertEqual(summary["attempt_count"], 2)
             self.assertEqual(len(requests), 2)
+            baseline_request = requests[0]
+            rigged_request = requests[1]
+            self.assertNotIn("Rigging instructions:", baseline_request.prompt)
+            self.assertIn("Rigging instructions:", rigged_request.prompt)
+            self.assertIn(
+                "Use fff for codebase memory and navigation.",
+                rigged_request.prompt,
+            )
 
             attempt_path = (
                 logbook_dir

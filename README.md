@@ -96,6 +96,8 @@ uv run yacht validate examples/container-pi-runtime-smoke.toml
 uv run yacht preflight examples/container-pi-runtime-smoke.toml --logbook logbook --workspace .
 uv run yacht validate examples/container-pi-real-task-smoke.toml
 uv run yacht task-attempts examples/container-pi-real-task-smoke.toml --agent pi --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
+uv run yacht validate examples/container-pi-fff-real-task-smoke.toml
+uv run yacht task-attempts examples/container-pi-fff-real-task-smoke.toml --agent pi --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace .

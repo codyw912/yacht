@@ -127,7 +127,7 @@ def _run_vessel_task_attempt(
     except RuntimePreparationError as error:
         raise ConfigError(str(error)) from error
 
-    prompt = _task_prompt(task)
+    prompt = _task_prompt(regatta, vessel, task)
     artifact_path = _task_attempt_path(logbook_dir, comparison, vessel, task)
     transcript_path = _task_transcript_path(logbook_dir, comparison, vessel, task)
     result = agent.run_task(
@@ -166,8 +166,21 @@ def _task_agent(agent_name: str) -> TaskAgent:
     raise ConfigError(f"unsupported task attempt agent {agent_name}")
 
 
-def _task_prompt(task: Task) -> str:
-    return f"Task ID: {task.id}\nTitle: {task.title}\n"
+def _task_prompt(regatta: Regatta, vessel: Vessel, task: Task) -> str:
+    prompt = f"Task ID: {task.id}\nTitle: {task.title}\n"
+    instructions = _rigging_instructions(regatta, vessel)
+    if instructions:
+        prompt += "\nRigging instructions:\n"
+        prompt += "".join(f"- {instruction}\n" for instruction in instructions)
+    return prompt
+
+
+def _rigging_instructions(regatta: Regatta, vessel: Vessel) -> tuple[str, ...]:
+    return tuple(
+        instruction
+        for rigging_name in vessel.rigging
+        if (instruction := regatta.rigging_recipes[rigging_name].instructions)
+    )
 
 
 def _task_attempt_path(

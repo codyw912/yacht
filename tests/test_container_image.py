@@ -53,6 +53,32 @@ class ContainerImageTests(unittest.TestCase):
         )
         self.assertEqual(regatta.course.tasks[0].id, "container-pi-real-smoke-1")
 
+    def test_real_container_pi_fff_task_smoke_uses_rigged_runtime(self) -> None:
+        regatta = load_regatta(Path("examples/container-pi-fff-real-task-smoke.toml"))
+        runtime = regatta.runtime_recipes["pi-container"]
+        rigging = regatta.rigging_recipes["pi-fff"]
+
+        self.assertEqual(runtime.image, PI_AGENT_IMAGE)
+        self.assertEqual(runtime.required_secrets, ("anthropic",))
+        self.assertEqual(
+            runtime.command,
+            (
+                "pi",
+                "--provider",
+                "anthropic",
+                "--model",
+                "haiku",
+                "--print",
+                "--mode",
+                "json",
+            ),
+        )
+        self.assertEqual(rigging.install, ("npm:@ff-labs/pi-fff",))
+        self.assertEqual(rigging.env["PI_FFF_MODE"], "required")
+        self.assertIn("fffind", rigging.instructions)
+        self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))
+        self.assertEqual(regatta.course.tasks[0].id, "container-pi-fff-smoke-1")
+
     def test_pi_container_dockerfile_builds_pinned_pi_agent(self) -> None:
         dockerfile = Path("containers/pi-agent-runtime/Dockerfile")
         contents = dockerfile.read_text(encoding="utf-8")

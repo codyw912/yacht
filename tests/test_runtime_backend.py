@@ -381,6 +381,44 @@ class ContainerRuntimeBackendTests(unittest.TestCase):
             self.assertEqual(calls[0][1]["HOME"], "/home/yacht")
             self.assertEqual(calls[0][2], workspace_path)
 
+    def test_prepare_uses_base_container_command_for_rigging_install(self) -> None:
+        config = CONTAINER_PI_CONFIG.replace(
+            'command = ["pi"]',
+            'command = ["pi", "--provider", "anthropic", "--print"]',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            config_path.write_text(config, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+            calls = []
+
+            def setup_runner(
+                argv: tuple[str, ...],
+                env: dict[str, str],
+                cwd: Path,
+            ) -> SetupProcessResult:
+                calls.append(argv)
+                return SetupProcessResult(
+                    exit_code=0,
+                    stdout="installed\n",
+                    stderr="",
+                )
+
+            ContainerRuntimeBackend(setup_runner=setup_runner).prepare(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                trial_root=root / "trial",
+                workspace_path=workspace_path,
+                secret_values={"anthropic": "test-secret"},
+            )
+
+            self.assertEqual(calls[0][-3:], ("pi", "install", "npm:@ff-labs/pi-fff"))
+            self.assertNotIn("--provider", calls[0])
+            self.assertNotIn("--print", calls[0])
+
     def test_prepare_requires_explicit_container_secret_values(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
