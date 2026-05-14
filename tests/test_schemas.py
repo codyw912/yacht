@@ -178,6 +178,23 @@ class SchemaTests(unittest.TestCase):
                 "response": "done",
                 "tool_calls": ["fff"],
                 "transcript_path": "/tmp/logbook/transcripts/task-1.json",
+                "machine_evidence": {
+                    "format": "pi-jsonl",
+                    "event_count": 12,
+                    "api": "anthropic-messages",
+                    "provider": "anthropic",
+                    "model": "claude-haiku-4-5",
+                    "response_id": "msg_123",
+                    "usage": {
+                        "input": 1000,
+                        "output": 234,
+                        "cacheRead": 0,
+                        "cacheWrite": 0,
+                        "totalTokens": 1234,
+                    },
+                    "cost": {"total": 0.00123},
+                    "tool_calls": ["fff"],
+                },
             },
             "metrics": {
                 "tokens": 1234,
@@ -209,6 +226,7 @@ class SchemaTests(unittest.TestCase):
                 "failed_attempts": 0,
                 "total_tool_calls": 1,
                 "total_tokens": 16,
+                "total_cost": 0.00042,
                 "total_duration_seconds": 0.0,
             },
             "comparisons": [
@@ -221,6 +239,7 @@ class SchemaTests(unittest.TestCase):
                         "failed_attempts": 0,
                         "total_tool_calls": 1,
                         "total_tokens": 16,
+                        "total_cost": 0.00042,
                         "total_duration_seconds": 0.0,
                     },
                     "vessels": [
@@ -233,6 +252,7 @@ class SchemaTests(unittest.TestCase):
                             "success_rate": 1.0,
                             "tool_call_count": 1,
                             "total_tokens": 8,
+                            "total_cost": 0.00042,
                             "total_duration_seconds": 0.0,
                             "artifact_paths": [
                                 "logbook/task-attempts/local-agent-preflight/local-agent-with-tool/local-smoke-1.json"

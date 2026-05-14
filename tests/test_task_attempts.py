@@ -15,6 +15,7 @@ from yacht.regatta import (
     Task,
     Vessel,
 )
+from yacht.task_attempt_scorecard import write_task_attempt_scorecard
 from yacht.task_attempts import AgentTaskResult, write_task_attempt
 
 
@@ -102,6 +103,17 @@ class TaskAttemptTests(unittest.TestCase):
                     tool_calls=("fff",),
                     transcript_path=transcript_path,
                     metrics=Metrics(tokens=1234, duration_seconds=12.5),
+                    machine_evidence={
+                        "format": "pi-jsonl",
+                        "provider": "anthropic",
+                        "model": "claude-haiku-4-5",
+                        "usage": {
+                            "input": 1000,
+                            "output": 234,
+                            "totalTokens": 1234,
+                        },
+                        "cost": {"total": 0.00123},
+                    },
                 ),
             )
 
@@ -118,6 +130,20 @@ class TaskAttemptTests(unittest.TestCase):
             self.assertEqual(artifact["agent"]["exit_code"], 0)
             self.assertEqual(artifact["agent"]["tool_calls"], ["fff"])
             self.assertEqual(artifact["agent"]["transcript_path"], str(transcript_path))
+            self.assertEqual(
+                artifact["agent"]["machine_evidence"],
+                {
+                    "format": "pi-jsonl",
+                    "provider": "anthropic",
+                    "model": "claude-haiku-4-5",
+                    "usage": {
+                        "input": 1000,
+                        "output": 234,
+                        "totalTokens": 1234,
+                    },
+                    "cost": {"total": 0.00123},
+                },
+            )
             self.assertEqual(artifact["metrics"]["tokens"], 1234)
             self.assertEqual(
                 artifact["secret_refs"],
@@ -137,6 +163,12 @@ class TaskAttemptTests(unittest.TestCase):
                 ],
             )
             self.assertNotIn("secret-value", json.dumps(artifact))
+
+            scorecard = write_task_attempt_scorecard(root / "logbook")
+            vessel_score = scorecard["comparisons"][0]["vessels"][0]
+            self.assertEqual(vessel_score["total_tokens"], 1234)
+            self.assertEqual(vessel_score["total_cost"], 0.00123)
+            self.assertEqual(scorecard["summary"]["total_cost"], 0.00123)
 
 
 if __name__ == "__main__":
