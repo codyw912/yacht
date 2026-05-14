@@ -172,7 +172,10 @@ def _apply_rigging_installs(
     results = []
     for rigging in resolution.riggings:
         for target in rigging.install:
-            argv = resolution.command_prefix + resolution.command + ("install", target)
+            argv = resolution.command_prefix + _setup_command(
+                resolution.command,
+                target,
+            )
             setup_result = setup_runner(argv, env, resolution.workspace_path)
             result = RuntimeSetupResult(
                 origin="rigging",
@@ -191,6 +194,12 @@ def _apply_rigging_installs(
                     f"{rigging.name} target {target}: {result.stderr.strip()}"
                 )
     return results
+
+
+def _setup_command(command: tuple[str, ...], target: str) -> tuple[str, ...]:
+    if not command:
+        raise RuntimePreparationError("runtime command must not be empty")
+    return (command[0], "install", target)
 
 
 def _run_setup_command(
