@@ -22,7 +22,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi-container]
 backend = "container"
-image = "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1"
+image = "yacht/pi-agent-runtime:pi-0.74.0"
 command = ["pi"]
 container_home = "/home/yacht"
 container_workspace = "/workspace"

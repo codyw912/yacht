@@ -93,7 +93,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi-container]
 backend = "container"
-image = "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1"
+image = "yacht/pi-agent-runtime:pi-0.74.0"
 command = ["pi"]
 container_home = "/home/yacht"
 container_workspace = "/workspace"
@@ -196,7 +196,7 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(runtime.backend, "container")
             self.assertEqual(
                 runtime.image,
-                "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+                "yacht/pi-agent-runtime:pi-0.74.0",
             )
             self.assertEqual(runtime.flake, None)
             self.assertEqual(runtime.container_home, "/home/yacht")
@@ -245,7 +245,7 @@ class ProvisioningConfigTests(unittest.TestCase):
     def test_container_runtime_requires_image_and_absolute_container_paths(self) -> None:
         cases = {
             "image": (
-                'image = "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1"\n',
+                'image = "yacht/pi-agent-runtime:pi-0.74.0"\n',
                 "",
                 "runtimes.pi-container.image is required",
             ),

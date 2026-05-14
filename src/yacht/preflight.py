@@ -16,6 +16,7 @@ from yacht.regatta import (
     SecretReference,
     Vessel,
 )
+from yacht.runtime_process import subprocess_env
 from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
@@ -162,7 +163,7 @@ def _run_command(
     completed = subprocess.run(
         argv,
         cwd=cwd,
-        env=env,
+        env=subprocess_env(argv, env),
         capture_output=True,
         check=False,
         text=True,
