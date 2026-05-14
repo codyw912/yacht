@@ -240,7 +240,13 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                 )
 
     def test_prepare_rejects_non_host_nix_runtime_recipe(self) -> None:
-        config = PI_WITH_FFF_CONFIG.replace('backend = "host-nix"', 'backend = "docker"')
+        config = PI_WITH_FFF_CONFIG.replace(
+            'backend = "host-nix"\nflake = "path:.#pi"',
+            (
+                'backend = "container"\n'
+                'image = "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1"'
+            ),
+        )
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             config_path = root / "regatta.toml"
@@ -251,7 +257,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 RuntimePreparationError,
-                "runtime pi uses unsupported backend docker",
+                "runtime pi uses unsupported backend container",
             ):
                 HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
                     regatta=regatta,

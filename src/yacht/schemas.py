@@ -1549,6 +1549,9 @@ def _validate_runtime_instances_vessel(value: Any, path: str) -> None:
         "workspace_path",
     ):
         _require_non_empty_string(vessel.get(key), f"{path}.{key}")
+    for key in ("image", "container_home", "container_workspace"):
+        if key in vessel:
+            _require_non_empty_string(vessel.get(key), f"{path}.{key}")
     for key in ("command_prefix", "command", "cleanup_paths"):
         values = _require_list(vessel[key], f"{path}.{key}")
         if not values or not all(isinstance(item, str) and item for item in values):
@@ -1833,11 +1836,11 @@ def _validate_runtime_recipes(
         runtime = _require_object(runtime_value, f"runtimes.{runtime_name}")
         _require_keys(
             runtime,
-            ("backend", "flake", "command"),
+            ("backend", "command"),
             f"runtimes.{runtime_name}",
         )
         _require_non_empty_string(runtime["backend"], f"runtimes.{runtime_name}.backend")
-        _require_non_empty_string(runtime["flake"], f"runtimes.{runtime_name}.flake")
+        _validate_runtime_backend_fields(runtime, f"runtimes.{runtime_name}")
         command = _require_list(runtime["command"], f"runtimes.{runtime_name}.command")
         if not command or not all(isinstance(item, str) and item for item in command):
             raise SchemaValidationError(
@@ -1863,6 +1866,38 @@ def _validate_runtime_recipes(
                     f"secret {secret}"
                 )
     return set(runtimes)
+
+
+def _validate_runtime_backend_fields(runtime: dict[str, Any], path: str) -> None:
+    backend = runtime["backend"]
+    if backend == "host-nix":
+        if "flake" not in runtime:
+            raise SchemaValidationError(f"{path}.flake is required")
+        _require_non_empty_string(runtime.get("flake"), f"{path}.flake")
+        if "image" in runtime:
+            _require_non_empty_string(runtime["image"], f"{path}.image")
+    elif backend == "container":
+        if "image" not in runtime:
+            raise SchemaValidationError(f"{path}.image is required")
+        _require_non_empty_string(runtime.get("image"), f"{path}.image")
+        if "flake" in runtime:
+            _require_non_empty_string(runtime["flake"], f"{path}.flake")
+        _require_absolute_container_path(
+            runtime.get("container_home", "/home/yacht"),
+            f"{path}.container_home",
+        )
+        _require_absolute_container_path(
+            runtime.get("container_workspace", "/workspace"),
+            f"{path}.container_workspace",
+        )
+    else:
+        raise SchemaValidationError(f"{path}.backend must be host-nix or container")
+
+
+def _require_absolute_container_path(value: Any, path: str) -> None:
+    _require_non_empty_string(value, path)
+    if not str(value).startswith("/"):
+        raise SchemaValidationError(f"{path} must be an absolute container path")
 
 
 def _validate_rigging_recipes(

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
+from yacht.container_runtime import container_command_prefix_template
 from yacht.regatta import (
     Comparison,
     ConfigError,
@@ -103,11 +105,57 @@ def _merge_env(
     runtime: RuntimeRecipe,
     riggings: tuple[RiggingRecipe, ...],
 ) -> dict[str, str]:
-    env = dict(ISOLATED_ENV)
-    env.update(runtime.env)
+    if runtime.backend == "container":
+        env = _container_env(runtime)
+        trial_home = runtime.container_home
+        trial_state = f"{runtime.container_home}/.local/state"
+        workspace = runtime.container_workspace
+    else:
+        env = dict(ISOLATED_ENV)
+        trial_home = "{trial_home}"
+        trial_state = "{trial_state}"
+        workspace = "{workspace}"
+    env.update(_expand_env_values(runtime.env, trial_home, trial_state, workspace))
     for rigging in riggings:
-        env.update(rigging.env)
+        env.update(_expand_env_values(rigging.env, trial_home, trial_state, workspace))
     return env
+
+
+def _container_env(runtime: RuntimeRecipe) -> dict[str, str]:
+    home = PurePosixPath(runtime.container_home)
+    trial_state = home / ".local" / "state"
+    return {
+        "HOME": str(home),
+        "PATH": f"{trial_state / 'npm-global' / 'bin'}:/usr/local/bin:/usr/bin:/bin",
+        "NPM_CONFIG_CACHE": str(home / ".cache" / "npm"),
+        "NPM_CONFIG_PREFIX": str(trial_state / "npm-global"),
+        "XDG_CONFIG_HOME": str(home / ".config"),
+        "XDG_CACHE_HOME": str(home / ".cache"),
+        "XDG_STATE_HOME": str(trial_state),
+    }
+
+
+def _expand_env_values(
+    values: dict[str, str],
+    trial_home: str,
+    trial_state: str,
+    workspace: str,
+) -> dict[str, str]:
+    replacements = {
+        "{trial_home}": trial_home,
+        "{trial_state}": trial_state,
+        "{workspace}": workspace,
+    }
+    return {
+        key: _replace_placeholders(value, replacements)
+        for key, value in values.items()
+    }
+
+
+def _replace_placeholders(value: str, replacements: dict[str, str]) -> str:
+    for placeholder, replacement in replacements.items():
+        value = value.replace(placeholder, replacement)
+    return value
 
 
 def _required_secret_names(
@@ -121,19 +169,30 @@ def _required_secret_names(
 
 
 def _runtime_to_json(runtime: RuntimeRecipe) -> dict[str, Any]:
-    return {
+    payload = {
         "name": runtime.name,
         "backend": runtime.backend,
-        "flake": runtime.flake,
         "command_prefix": _command_prefix(runtime),
         "command": list(runtime.command),
         "mounts": list(runtime.mounts),
     }
+    if runtime.flake is not None:
+        payload["flake"] = runtime.flake
+    if runtime.image is not None:
+        payload["image"] = runtime.image
+    if runtime.backend == "container":
+        payload["container_home"] = runtime.container_home
+        payload["container_workspace"] = runtime.container_workspace
+    return payload
 
 
 def _command_prefix(runtime: RuntimeRecipe) -> list[str]:
     if runtime.backend == "host-nix":
+        if runtime.flake is None:
+            raise ConfigError(f"runtime {runtime.name} is missing flake")
         return ["nix", "develop", runtime.flake, "--command"]
+    if runtime.backend == "container":
+        return container_command_prefix_template(runtime)
     return []
 
 

@@ -7,7 +7,7 @@ from io import StringIO
 from pathlib import Path
 
 from tests.fixtures import REGATTA_CONFIG
-from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from tests.test_provisioning import CONTAINER_PI_CONFIG, PI_WITH_FFF_CONFIG
 from yacht.cli import main
 from yacht.preflight_runner import build_preflight_execution_plan
 from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
@@ -17,6 +17,100 @@ from yacht.runtime_plan import build_runtime_plan
 
 
 class RuntimePlanTests(unittest.TestCase):
+    def test_build_runtime_instances_plan_resolves_container_paths_and_env(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            logbook_dir = root / "logbook"
+            workspace_path = root / "workspace"
+            config_path.write_text(CONTAINER_PI_CONFIG, encoding="utf-8")
+
+            plan = build_runtime_instances_plan(
+                config_path,
+                logbook_dir,
+                workspace_path,
+            )
+
+            vessel = plan["comparisons"][0]["vessels"][1]
+            self.assertEqual(vessel["name"], "pi-container-fff")
+            self.assertEqual(vessel["runtime"], "pi-container")
+            self.assertEqual(vessel["backend"], "container")
+            self.assertEqual(
+                vessel["image"],
+                "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+            )
+            self.assertEqual(vessel["container_home"], "/home/yacht")
+            self.assertEqual(vessel["container_workspace"], "/workspace")
+            self.assertEqual(
+                vessel["command_prefix"],
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--workdir",
+                    "/workspace",
+                    "--mount",
+                    f"type=bind,source={workspace_path},target=/workspace",
+                    "--mount",
+                    (
+                        "type=bind,"
+                        f"source={logbook_dir / 'runtime' / 'container-pi' / 'pi-container-fff' / 'home'},"
+                        "target=/home/yacht"
+                    ),
+                    "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+                ],
+            )
+            self.assertEqual(vessel["command"], ["pi"])
+            self.assertEqual(vessel["env"]["HOME"], "/home/yacht")
+            self.assertEqual(
+                vessel["env"]["NPM_CONFIG_PREFIX"],
+                "/home/yacht/.local/state/npm-global",
+            )
+            self.assertEqual(
+                vessel["env"]["FFF_HISTORY_DB"],
+                "/home/yacht/.local/state/fff-history.sqlite",
+            )
+            self.assertEqual(
+                vessel["cleanup_paths"],
+                [str(logbook_dir / "runtime" / "container-pi" / "pi-container-fff")],
+            )
+
+    def test_build_runtime_plan_includes_container_runtime_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(CONTAINER_PI_CONFIG, encoding="utf-8")
+
+            plan = build_runtime_plan(config_path)
+
+            runtime = plan["vessels"][1]["runtime"]
+            self.assertEqual(runtime["backend"], "container")
+            self.assertEqual(
+                runtime["image"],
+                "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+            )
+            self.assertEqual(runtime["container_home"], "/home/yacht")
+            self.assertEqual(runtime["container_workspace"], "/workspace")
+            self.assertEqual(
+                runtime["command_prefix"],
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--workdir",
+                    "/workspace",
+                    "--mount",
+                    "type=bind,source={workspace},target=/workspace",
+                    "--mount",
+                    "type=bind,source={trial_home},target=/home/yacht",
+                    "ghcr.io/yacht/pi-agent-runtime:pi-0.73.1",
+                ],
+            )
+            self.assertEqual(
+                plan["vessels"][1]["env"]["FFF_HISTORY_DB"],
+                "/home/yacht/.local/state/fff-history.sqlite",
+            )
+            self.assertEqual(plan["vessels"][1]["env"]["HOME"], "/home/yacht")
+
     def test_build_runtime_instances_plan_resolves_host_nix_paths_and_env(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

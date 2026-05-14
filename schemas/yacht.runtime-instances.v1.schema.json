@@ -94,6 +94,18 @@
           "type": "string",
           "minLength": 1
         },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "container_home": {
+          "type": "string",
+          "minLength": 1
+        },
+        "container_workspace": {
+          "type": "string",
+          "minLength": 1
+        },
         "trial_root": {
           "type": "string",
           "minLength": 1
