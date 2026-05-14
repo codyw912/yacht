@@ -13,6 +13,7 @@ from yacht.preflight import (
     parse_agent_response_json,
 )
 from yacht.regatta import Metrics, RuntimeInstance, Task
+from yacht.runtime_process import subprocess_env
 from yacht.task_attempts import AgentTaskResult
 
 
@@ -222,7 +223,7 @@ def _run_pi_command(
     completed = subprocess.run(
         argv,
         cwd=cwd,
-        env=env,
+        env=subprocess_env(argv, env),
         input=prompt,
         capture_output=True,
         check=False,
