@@ -88,13 +88,14 @@ already be installed on the host `PATH`.
 a `container` runtime contract. Container runtime execution is the trusted eval
 target; `host-nix` remains the fast local development backend. Machine preflight
 can prepare container runtimes and run checks through their Docker command
-prefix; task attempts still use the existing agent path until the task-attempt
-backend slice lands.
+prefix, and task attempts prepare vessels through the same runtime backend.
 
 ```sh
 docker build -t yacht/pi-agent-runtime:pi-0.74.0 containers/pi-agent-runtime
 uv run yacht validate examples/container-pi-runtime-smoke.toml
 uv run yacht preflight examples/container-pi-runtime-smoke.toml --logbook logbook --workspace .
+uv run yacht validate examples/container-pi-real-task-smoke.toml
+uv run yacht task-attempts examples/container-pi-real-task-smoke.toml --agent pi --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace .

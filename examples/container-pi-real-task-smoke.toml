@@ -1,0 +1,45 @@
+[regatta]
+name = "container-pi-real-task-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "container-pi-real-task-smoke"
+tasks = [
+  { id = "container-pi-real-smoke-1", title = "Reply with a compact JSON object: {\"completed\": true, \"tool_calls\": []}", difficulty = 1 },
+]
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.pi-container]
+backend = "container"
+image = "yacht/pi-agent-runtime:pi-0.74.0"
+command = ["pi", "--provider", "anthropic", "--model", "haiku", "--print", "--mode", "json", "--no-tools"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+required_secrets = ["anthropic"]
+
+[runtimes.pi-container.preflight]
+required = true
+checks = [
+  { name = "pi-present", kind = "command", command = ["pi", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[[vessels]]
+name = "pi-container-real-a"
+model = "haiku"
+runtime = "pi-container"
+
+[[vessels]]
+name = "pi-container-real-b"
+model = "haiku"
+runtime = "pi-container"
+
+[[comparisons]]
+name = "container-pi-real-task"
+course = "container-pi-real-task-smoke"
+vessels = ["pi-container-real-a", "pi-container-real-b"]
