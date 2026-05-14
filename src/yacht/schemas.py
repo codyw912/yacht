@@ -923,6 +923,11 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
     )
     if "total_cost" in vessel:
         _require_non_negative_number(vessel.get("total_cost"), f"{path}.total_cost")
+    if "tool_call_counts" in vessel:
+        _validate_tool_call_counts(
+            vessel.get("tool_call_counts"),
+            f"{path}.tool_call_counts",
+        )
     _require_string_list(vessel.get("artifact_paths"), f"{path}.artifact_paths")
 
 
@@ -943,11 +948,24 @@ def _validate_task_attempt_scorecard_summary(value: Any, path: str) -> None:
     )
     if "total_cost" in summary:
         _require_non_negative_number(summary.get("total_cost"), f"{path}.total_cost")
+    if "tool_call_counts" in summary:
+        _validate_tool_call_counts(
+            summary.get("tool_call_counts"),
+            f"{path}.tool_call_counts",
+        )
     if "total_comparisons" in summary:
         _require_non_negative_int(
             summary.get("total_comparisons"),
             f"{path}.total_comparisons",
         )
+
+
+def _validate_tool_call_counts(value: Any, path: str) -> None:
+    counts = _require_object(value, path)
+    for tool_name, count in counts.items():
+        if not isinstance(tool_name, str) or not tool_name:
+            raise SchemaValidationError(f"{path} keys must be non-empty strings")
+        _require_non_negative_int(count, f"{path}.{tool_name}")
 
 
 def _validate_task_attempt_task(value: Any) -> None:

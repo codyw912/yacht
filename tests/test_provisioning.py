@@ -56,7 +56,7 @@ required = true
 checks = [
   { name = "fff-mode", kind = "env", env = ["PI_FFF_MODE"] },
   { name = "fff-state-isolated", kind = "path-isolation", env = ["FFF_FRECENCY_DB", "FFF_HISTORY_DB"] },
-  { name = "fff-headless-smoke", kind = "agent-prompt", prompt = "preflights/pi-fff.md", expect_tool_calls = ["fff"] },
+  { name = "fff-headless-smoke", kind = "agent-prompt", prompt = "preflights/pi-fff.md", expect_tool_calls = ["fffind"] },
 ]
 
 [[vessels]]
@@ -377,7 +377,7 @@ class ProvisioningConfigTests(unittest.TestCase):
                     "status": "passed",
                     "evidence": {
                         "prompt": "preflights/pi-fff.md",
-                        "tool_calls": ["fff"],
+                        "tool_calls": ["fffind"],
                     },
                 },
             ],

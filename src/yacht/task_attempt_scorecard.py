@@ -102,6 +102,7 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
         "tool_call_count": sum(
             len(attempt["agent"]["tool_calls"]) for attempt in attempts
         ),
+        "tool_call_counts": _tool_call_counts(attempts),
         "total_tokens": sum(int(attempt["metrics"]["tokens"]) for attempt in attempts),
         "total_cost": round(sum(_attempt_cost(attempt) for attempt in attempts), 6),
         "total_duration_seconds": round(total_duration, 3),
@@ -109,7 +110,7 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
     }
 
 
-def _top_level_summary(comparisons: list[dict[str, Any]]) -> dict[str, int | float]:
+def _top_level_summary(comparisons: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "total_comparisons": len(comparisons),
         **_summary(
@@ -122,7 +123,7 @@ def _top_level_summary(comparisons: list[dict[str, Any]]) -> dict[str, int | flo
     }
 
 
-def _summary(vessels: list[dict[str, Any]]) -> dict[str, int | float]:
+def _summary(vessels: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "total_vessels": len(vessels),
         "total_attempts": sum(int(vessel["task_attempts"]) for vessel in vessels),
@@ -131,6 +132,7 @@ def _summary(vessels: list[dict[str, Any]]) -> dict[str, int | float]:
         ),
         "failed_attempts": sum(int(vessel["failed_attempts"]) for vessel in vessels),
         "total_tool_calls": sum(int(vessel["tool_call_count"]) for vessel in vessels),
+        "tool_call_counts": _summary_tool_call_counts(vessels),
         "total_tokens": sum(int(vessel["total_tokens"]) for vessel in vessels),
         "total_cost": round(sum(float(vessel["total_cost"]) for vessel in vessels), 6),
         "total_duration_seconds": round(
@@ -155,6 +157,22 @@ def _group_by(
     for attempt in attempts:
         grouped.setdefault(str(attempt[key]), []).append(attempt)
     return grouped
+
+
+def _tool_call_counts(attempts: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for attempt in attempts:
+        for tool_call in attempt["agent"]["tool_calls"]:
+            counts[str(tool_call)] = counts.get(str(tool_call), 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _summary_tool_call_counts(vessels: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for vessel in vessels:
+        for tool_call, count in vessel["tool_call_counts"].items():
+            counts[str(tool_call)] = counts.get(str(tool_call), 0) + int(count)
+    return dict(sorted(counts.items()))
 
 
 def _attempt_cost(attempt: dict[str, Any]) -> float:
