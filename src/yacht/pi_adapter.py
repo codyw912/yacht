@@ -221,10 +221,10 @@ def _run_pi_command(
     prompt: str,
 ) -> CommandResult:
     completed = subprocess.run(
-        argv,
+        argv + (prompt,),
         cwd=cwd,
         env=subprocess_env(argv, env),
-        input=prompt,
+        input=None,
         capture_output=True,
         check=False,
         text=True,

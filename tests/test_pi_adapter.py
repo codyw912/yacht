@@ -443,6 +443,46 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(calls[0]["PATH"], os.environ["PATH"])
             self.assertEqual(calls[0]["HOME"], "/home/yacht")
 
+    def test_pi_task_subprocess_sends_prompt_as_message_argument(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            calls = []
+
+            def run(
+                argv,
+                *,
+                cwd,
+                env,
+                input,
+                capture_output,
+                check,
+                text,
+            ):
+                calls.append((argv, input))
+                return subprocess.CompletedProcess(
+                    args=argv,
+                    returncode=0,
+                    stdout='{"completed": true, "tool_calls": []}\n',
+                    stderr="",
+                )
+
+            request = PiTaskRequest(
+                task_id="container-pi-smoke-1",
+                task_title="Container Pi runtime smoke",
+                prompt="Task ID: container-pi-smoke-1\n",
+                argv=("pi", "--print"),
+                env={"HOME": str(root / "home")},
+                cwd=root,
+                transcript_path=root / "transcripts" / "pi-task.json",
+            )
+
+            with patch("yacht.pi_adapter.subprocess.run", side_effect=run):
+                result = _run_pi_task_subprocess(request)
+
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(calls[0][0], ("pi", "--print", request.prompt))
+            self.assertIsNone(calls[0][1])
+
     def test_adapter_can_use_subprocess_task_launcher(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

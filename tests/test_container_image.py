@@ -31,6 +31,28 @@ class ContainerImageTests(unittest.TestCase):
             PI_AGENT_IMAGE,
         )
 
+    def test_real_container_pi_task_smoke_uses_tiny_anthropic_runtime(self) -> None:
+        regatta = load_regatta(Path("examples/container-pi-real-task-smoke.toml"))
+        runtime = regatta.runtime_recipes["pi-container"]
+
+        self.assertEqual(runtime.image, PI_AGENT_IMAGE)
+        self.assertEqual(runtime.required_secrets, ("anthropic",))
+        self.assertEqual(
+            runtime.command,
+            (
+                "pi",
+                "--provider",
+                "anthropic",
+                "--model",
+                "haiku",
+                "--print",
+                "--mode",
+                "json",
+                "--no-tools",
+            ),
+        )
+        self.assertEqual(regatta.course.tasks[0].id, "container-pi-real-smoke-1")
+
     def test_pi_container_dockerfile_builds_pinned_pi_agent(self) -> None:
         dockerfile = Path("containers/pi-agent-runtime/Dockerfile")
         contents = dockerfile.read_text(encoding="utf-8")
