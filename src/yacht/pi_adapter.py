@@ -4,7 +4,7 @@ import json
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from yacht.preflight import (
     AgentPromptResult,
@@ -45,6 +45,18 @@ PiPromptLauncher = Callable[[PiPromptRequest], AgentPromptResult]
 PiTaskLauncher = Callable[[PiTaskRequest], AgentTaskResult]
 PiSubprocessRunner = Callable[[PiPromptRequest], CommandResult]
 PiTaskSubprocessRunner = Callable[[PiTaskRequest], CommandResult]
+PI_JSONL_EVENT_TYPES = frozenset(
+    (
+        "session",
+        "agent_start",
+        "turn_start",
+        "message_start",
+        "message_update",
+        "message_end",
+        "turn_end",
+        "agent_end",
+    )
+)
 
 
 class PiAdapter:
@@ -162,25 +174,26 @@ class SubprocessPiTaskLauncher:
 
     def __call__(self, request: PiTaskRequest) -> AgentTaskResult:
         result = self._runner(request)
-        tool_calls = _tool_calls_from_output(result.stdout)
+        machine_evidence = _pi_jsonl_machine_evidence(result.stdout)
+        tool_calls = _tool_calls_from_machine_evidence(
+            machine_evidence,
+        ) or _tool_calls_from_output(result.stdout)
         request.transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript: dict[str, Any] = {
+            "task_id": request.task_id,
+            "task_title": request.task_title,
+            "prompt": request.prompt,
+            "argv": list(request.argv),
+            "cwd": str(request.cwd),
+            "exit_code": result.exit_code,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "tool_calls": list(tool_calls),
+        }
+        if machine_evidence:
+            transcript["machine_evidence"] = machine_evidence
         request.transcript_path.write_text(
-            json.dumps(
-                {
-                    "task_id": request.task_id,
-                    "task_title": request.task_title,
-                    "prompt": request.prompt,
-                    "argv": list(request.argv),
-                    "cwd": str(request.cwd),
-                    "exit_code": result.exit_code,
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                    "tool_calls": list(tool_calls),
-                },
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
+            json.dumps(transcript, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         return AgentTaskResult(
@@ -189,9 +202,13 @@ class SubprocessPiTaskLauncher:
             tool_calls=tool_calls,
             transcript_path=request.transcript_path,
             metrics=Metrics(
-                tokens=_estimated_tokens(request.prompt, result.stdout),
+                tokens=_tokens_from_machine_evidence(
+                    machine_evidence,
+                )
+                or _estimated_tokens(request.prompt, result.stdout),
                 duration_seconds=0.0,
             ),
+            machine_evidence=machine_evidence,
         )
 
 
@@ -245,6 +262,156 @@ def _tool_calls_from_output(output: str) -> tuple[str, ...]:
     if not isinstance(tool_calls, list):
         return ()
     return tuple(tool_call for tool_call in tool_calls if isinstance(tool_call, str))
+
+
+def _pi_jsonl_machine_evidence(output: str) -> dict[str, Any]:
+    events = _jsonl_events(output)
+    if not events or not _looks_like_pi_jsonl(events):
+        return {}
+
+    assistant_message = _last_assistant_message(events)
+    usage = _usage_without_cost(assistant_message)
+    cost = _usage_cost(assistant_message)
+    tool_calls = _tool_calls_from_pi_events(events)
+
+    evidence: dict[str, Any] = {
+        "format": "pi-jsonl",
+        "event_count": len(events),
+    }
+    for source_key, evidence_key in (
+        ("api", "api"),
+        ("provider", "provider"),
+        ("model", "model"),
+        ("responseId", "response_id"),
+    ):
+        value = assistant_message.get(source_key)
+        if isinstance(value, str) and value:
+            evidence[evidence_key] = value
+    if usage:
+        evidence["usage"] = usage
+    if cost:
+        evidence["cost"] = cost
+    if tool_calls:
+        evidence["tool_calls"] = list(tool_calls)
+    return evidence
+
+
+def _looks_like_pi_jsonl(events: list[dict[str, Any]]) -> bool:
+    return any(
+        event.get("type") in PI_JSONL_EVENT_TYPES
+        or isinstance(event.get("toolResults"), list)
+        or isinstance(event.get("tool_results"), list)
+        or _message_has_pi_metadata(event.get("message"))
+        for event in events
+    )
+
+
+def _message_has_pi_metadata(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    return any(isinstance(value.get(key), str) for key in ("api", "provider", "model"))
+
+
+def _jsonl_events(output: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(event, dict):
+            return []
+        events.append(event)
+    return events
+
+
+def _last_assistant_message(events: list[dict[str, Any]]) -> dict[str, Any]:
+    assistant_messages = [
+        message
+        for event in events
+        if isinstance((message := event.get("message")), dict)
+        and message.get("role") == "assistant"
+    ]
+    if not assistant_messages:
+        return {}
+    return assistant_messages[-1]
+
+
+def _usage_without_cost(message: dict[str, Any]) -> dict[str, Any]:
+    usage = message.get("usage")
+    if not isinstance(usage, dict):
+        return {}
+    return {
+        key: value
+        for key, value in usage.items()
+        if key != "cost" and isinstance(value, int | float)
+    }
+
+
+def _usage_cost(message: dict[str, Any]) -> dict[str, Any]:
+    usage = message.get("usage")
+    if not isinstance(usage, dict):
+        return {}
+    cost = usage.get("cost")
+    if not isinstance(cost, dict):
+        return {}
+    return {
+        key: value
+        for key, value in cost.items()
+        if isinstance(value, int | float)
+    }
+
+
+def _tool_calls_from_pi_events(events: list[dict[str, Any]]) -> tuple[str, ...]:
+    tool_calls: list[str] = []
+    for event in events:
+        for tool_result in _tool_result_values(event):
+            name = _tool_name(tool_result)
+            if name is not None:
+                tool_calls.append(name)
+    return tuple(dict.fromkeys(tool_calls))
+
+
+def _tool_result_values(event: dict[str, Any]) -> list[Any]:
+    values: list[Any] = []
+    for key in ("toolResults", "tool_results"):
+        value = event.get(key)
+        if isinstance(value, list):
+            values.extend(value)
+    return values
+
+
+def _tool_name(value: Any) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    if not isinstance(value, dict):
+        return None
+    for key in ("toolName", "tool_name", "name"):
+        name = value.get(key)
+        if isinstance(name, str) and name:
+            return name
+    return None
+
+
+def _tool_calls_from_machine_evidence(
+    machine_evidence: dict[str, Any],
+) -> tuple[str, ...]:
+    tool_calls = machine_evidence.get("tool_calls")
+    if not isinstance(tool_calls, list):
+        return ()
+    return tuple(tool_call for tool_call in tool_calls if isinstance(tool_call, str))
+
+
+def _tokens_from_machine_evidence(machine_evidence: dict[str, Any]) -> int | None:
+    usage = machine_evidence.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    tokens = usage.get("totalTokens")
+    if not isinstance(tokens, int) or tokens < 0:
+        return None
+    return tokens
 
 
 def _estimated_tokens(prompt: str, output: str) -> int:

@@ -386,6 +386,7 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(result.transcript_path, request.transcript_path)
             self.assertGreater(result.metrics.tokens, 0)
             self.assertEqual(result.metrics.duration_seconds, 0.0)
+            self.assertEqual(result.machine_evidence, {})
 
             transcript = json.loads(
                 request.transcript_path.read_text(encoding="utf-8")
@@ -399,6 +400,103 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(transcript["stdout"], result.response)
             self.assertEqual(transcript["stderr"], "")
             self.assertEqual(transcript["tool_calls"], ["fff"])
+            self.assertNotIn("machine_evidence", transcript)
+
+    def test_subprocess_task_launcher_extracts_pi_jsonl_machine_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pi_stdout = "\n".join(
+                [
+                    json.dumps({"type": "session", "version": 3}),
+                    json.dumps(
+                        {
+                            "type": "message_end",
+                            "message": {
+                                "role": "assistant",
+                                "api": "anthropic-messages",
+                                "provider": "anthropic",
+                                "model": "claude-haiku-4-5",
+                                "responseId": "msg_123",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": '{"completed": true, "tool_calls": []}',
+                                    }
+                                ],
+                                "usage": {
+                                    "input": 5,
+                                    "output": 7,
+                                    "cacheRead": 0,
+                                    "cacheWrite": 0,
+                                    "totalTokens": 12,
+                                    "cost": {
+                                        "input": 0.000005,
+                                        "output": 0.000035,
+                                        "cacheRead": 0,
+                                        "cacheWrite": 0,
+                                        "total": 0.00004,
+                                    },
+                                },
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "turn_end",
+                            "toolResults": [{"toolName": "fff"}],
+                        }
+                    ),
+                ]
+            )
+
+            def runner(request: PiTaskRequest) -> CommandResult:
+                return CommandResult(exit_code=0, stdout=pi_stdout, stderr="")
+
+            request = PiTaskRequest(
+                task_id="container-pi-smoke-1",
+                task_title="Container Pi runtime smoke",
+                prompt="Task ID: container-pi-smoke-1\n",
+                argv=("pi", "--print", "--mode", "json"),
+                env={"HOME": str(root / "home")},
+                cwd=root,
+                transcript_path=root / "transcripts" / "pi-task.json",
+            )
+
+            result = SubprocessPiTaskLauncher(runner=runner)(request)
+
+            self.assertEqual(result.tool_calls, ("fff",))
+            self.assertEqual(result.metrics.tokens, 12)
+            self.assertEqual(
+                result.machine_evidence,
+                {
+                    "format": "pi-jsonl",
+                    "event_count": 3,
+                    "api": "anthropic-messages",
+                    "provider": "anthropic",
+                    "model": "claude-haiku-4-5",
+                    "response_id": "msg_123",
+                    "usage": {
+                        "input": 5,
+                        "output": 7,
+                        "cacheRead": 0,
+                        "cacheWrite": 0,
+                        "totalTokens": 12,
+                    },
+                    "cost": {
+                        "input": 0.000005,
+                        "output": 0.000035,
+                        "cacheRead": 0,
+                        "cacheWrite": 0,
+                        "total": 0.00004,
+                    },
+                    "tool_calls": ["fff"],
+                },
+            )
+
+            transcript = json.loads(
+                request.transcript_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(transcript["machine_evidence"], result.machine_evidence)
 
     def test_pi_task_subprocess_preserves_host_path_for_docker_argv(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

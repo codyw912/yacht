@@ -103,6 +103,7 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
             len(attempt["agent"]["tool_calls"]) for attempt in attempts
         ),
         "total_tokens": sum(int(attempt["metrics"]["tokens"]) for attempt in attempts),
+        "total_cost": round(sum(_attempt_cost(attempt) for attempt in attempts), 6),
         "total_duration_seconds": round(total_duration, 3),
         "artifact_paths": [str(attempt["artifact_path"]) for attempt in attempts],
     }
@@ -131,6 +132,7 @@ def _summary(vessels: list[dict[str, Any]]) -> dict[str, int | float]:
         "failed_attempts": sum(int(vessel["failed_attempts"]) for vessel in vessels),
         "total_tool_calls": sum(int(vessel["tool_call_count"]) for vessel in vessels),
         "total_tokens": sum(int(vessel["total_tokens"]) for vessel in vessels),
+        "total_cost": round(sum(float(vessel["total_cost"]) for vessel in vessels), 6),
         "total_duration_seconds": round(
             sum(float(vessel["total_duration_seconds"]) for vessel in vessels),
             3,
@@ -153,6 +155,22 @@ def _group_by(
     for attempt in attempts:
         grouped.setdefault(str(attempt[key]), []).append(attempt)
     return grouped
+
+
+def _attempt_cost(attempt: dict[str, Any]) -> float:
+    agent = attempt.get("agent")
+    if not isinstance(agent, dict):
+        return 0.0
+    machine_evidence = agent.get("machine_evidence")
+    if not isinstance(machine_evidence, dict):
+        return 0.0
+    cost = machine_evidence.get("cost")
+    if not isinstance(cost, dict):
+        return 0.0
+    total = cost.get("total")
+    if not isinstance(total, int | float) or total < 0:
+        return 0.0
+    return float(total)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

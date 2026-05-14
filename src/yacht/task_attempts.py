@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +24,7 @@ class AgentTaskResult:
     tool_calls: tuple[str, ...]
     transcript_path: Path
     metrics: Metrics
+    machine_evidence: dict[str, Any] = field(default_factory=dict)
 
 
 def write_task_attempt(
@@ -111,12 +112,15 @@ def _runtime_context_to_json(instance: RuntimeInstance) -> dict[str, Any]:
 
 
 def _agent_to_json(result: AgentTaskResult) -> dict[str, Any]:
-    return {
+    agent = {
         "exit_code": result.exit_code,
         "response": result.response,
         "tool_calls": list(result.tool_calls),
         "transcript_path": str(result.transcript_path),
     }
+    if result.machine_evidence:
+        agent["machine_evidence"] = result.machine_evidence
+    return agent
 
 
 def _secret_refs_to_json(

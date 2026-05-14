@@ -921,6 +921,8 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
         vessel.get("total_duration_seconds"),
         f"{path}.total_duration_seconds",
     )
+    if "total_cost" in vessel:
+        _require_non_negative_number(vessel.get("total_cost"), f"{path}.total_cost")
     _require_string_list(vessel.get("artifact_paths"), f"{path}.artifact_paths")
 
 
@@ -939,6 +941,8 @@ def _validate_task_attempt_scorecard_summary(value: Any, path: str) -> None:
         summary.get("total_duration_seconds"),
         f"{path}.total_duration_seconds",
     )
+    if "total_cost" in summary:
+        _require_non_negative_number(summary.get("total_cost"), f"{path}.total_cost")
     if "total_comparisons" in summary:
         _require_non_negative_int(
             summary.get("total_comparisons"),
@@ -997,6 +1001,47 @@ def _validate_task_attempt_agent(value: Any) -> None:
         raise SchemaValidationError("agent.response must be a string")
     _require_string_list(agent.get("tool_calls"), "agent.tool_calls")
     _require_non_empty_string(agent.get("transcript_path"), "agent.transcript_path")
+    if "machine_evidence" in agent:
+        _validate_task_attempt_machine_evidence(agent["machine_evidence"])
+
+
+def _validate_task_attempt_machine_evidence(value: Any) -> None:
+    evidence = _require_object(value, "agent.machine_evidence")
+    if "format" in evidence:
+        _require_non_empty_string(
+            evidence.get("format"),
+            "agent.machine_evidence.format",
+        )
+    if "event_count" in evidence:
+        _require_non_negative_int(
+            evidence.get("event_count"),
+            "agent.machine_evidence.event_count",
+        )
+    for key in ("api", "provider", "model", "response_id"):
+        if key in evidence:
+            _require_non_empty_string(
+                evidence.get(key),
+                f"agent.machine_evidence.{key}",
+            )
+    for key in ("usage", "cost"):
+        if key in evidence:
+            _validate_numeric_evidence_map(
+                evidence.get(key),
+                f"agent.machine_evidence.{key}",
+            )
+    if "tool_calls" in evidence:
+        _require_string_list(
+            evidence.get("tool_calls"),
+            "agent.machine_evidence.tool_calls",
+        )
+
+
+def _validate_numeric_evidence_map(value: Any, path: str) -> None:
+    payload = _require_object(value, path)
+    for key, numeric_value in payload.items():
+        if not isinstance(key, str) or not key:
+            raise SchemaValidationError(f"{path} keys must be non-empty strings")
+        _require_non_negative_number(numeric_value, f"{path}.{key}")
 
 
 def _validate_task_attempt_metrics(value: Any) -> None:
