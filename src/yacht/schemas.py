@@ -764,6 +764,7 @@ def _validate_real_smoke_runbook_artifacts(value: Any) -> None:
             "task_attempts",
             "task_attempt_scorecard",
             "smoke_readiness_report",
+            "smoke_report",
             "real_smoke_runbook",
         ),
         "artifacts",
@@ -773,6 +774,7 @@ def _validate_real_smoke_runbook_artifacts(value: Any) -> None:
     for key in (
         "task_attempt_scorecard",
         "smoke_readiness_report",
+        "smoke_report",
         "real_smoke_runbook",
     ):
         _require_non_empty_string(artifacts.get(key), f"artifacts.{key}")

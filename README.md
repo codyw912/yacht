@@ -159,8 +159,8 @@ attempts and exits nonzero before spending task-run tokens. If it completes,
 inspect `logbook/smoke-readiness-report.json`; `status: "ready"` means the
 logbook has passed preflight evidence, valid task-attempt artifacts, a complete
 task-attempt scorecard, and at least one passed agent-prompt check. Use
-`yacht smoke-report --logbook logbook` for a human-readable rollup of readiness,
-attempt status, observed tool calls, expected tool calls, tokens, and cost.
+`logbook/smoke-report.txt` for the human-readable rollup of readiness, attempt
+status, observed tool calls, expected tool calls, tokens, and cost.
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
 with isolated runtime placeholders, redacted secret references, and any
@@ -330,7 +330,7 @@ any tool calls that those preflight checks explicitly expected.
 into a compact text or Markdown report for PRs, issues, and manual inspection.
 `yacht real-smoke-eval` is the one-command gated path for this sequence: it runs
 Pi agent preflight first, skips task attempts if preflight blocks, then runs Pi
-smoke attempts and writes the smoke readiness report.
+smoke attempts and writes the smoke readiness report plus `smoke-report.txt`.
 `yacht real-smoke-runbook` writes a dry-run JSON runbook with the exact commands,
 explicit secret placeholders, and expected logbook artifact paths for sharing or
 debugging a real smoke run.

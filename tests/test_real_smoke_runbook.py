@@ -65,6 +65,10 @@ class RealSmokeRunbookTests(unittest.TestCase):
                 commands["smoke-readiness-report"],
                 f"uv run yacht smoke-readiness-report --logbook {logbook_dir}",
             )
+            self.assertEqual(
+                commands["smoke-report"],
+                f"uv run yacht smoke-report --logbook {logbook_dir}",
+            )
 
             artifacts = runbook["artifacts"]
             self.assertIn(
@@ -93,6 +97,10 @@ class RealSmokeRunbookTests(unittest.TestCase):
             self.assertEqual(
                 artifacts["smoke_readiness_report"],
                 str(logbook_dir / "smoke-readiness-report.json"),
+            )
+            self.assertEqual(
+                artifacts["smoke_report"],
+                str(logbook_dir / "smoke-report.txt"),
             )
             self.assertEqual(
                 artifacts["real_smoke_runbook"],
@@ -140,6 +148,7 @@ class RealSmokeRunbookTests(unittest.TestCase):
             self.assertIn('--secret anthropic="$ANTHROPIC_API_KEY"', markdown)
             self.assertIn("### Expected Artifacts", markdown)
             self.assertIn("logbook/smoke-readiness-report.json", markdown)
+            self.assertIn("logbook/smoke-report.txt", markdown)
 
             runbook = json.loads(
                 (logbook_dir / "real-smoke-runbook.json").read_text(

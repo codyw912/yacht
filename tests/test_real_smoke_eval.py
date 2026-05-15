@@ -95,6 +95,14 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertEqual(rigged["expected_tool_calls"], ["fffind"])
             self.assertEqual(rigged["missing_expected_tool_calls"], [])
             self.assertEqual(rigged["tool_call_counts"], {"fffind": 1})
+            self.assertEqual(
+                summary["report_path"],
+                str(logbook_dir / "smoke-report.txt"),
+            )
+            self.assertIn(
+                "pi-container-fff | ready | passed | measured | fffind:1",
+                (logbook_dir / "smoke-report.txt").read_text(encoding="utf-8"),
+            )
 
     def test_real_smoke_eval_runs_preflight_attempts_and_readiness(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -160,6 +168,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertEqual(len(prompt_requests), 1)
             self.assertEqual(len(task_requests), 2)
             self.assertTrue((logbook_dir / "smoke-readiness-report.json").is_file())
+            self.assertTrue((logbook_dir / "smoke-report.txt").is_file())
 
     def test_real_smoke_eval_stops_before_task_attempts_when_preflight_fails(
         self,
@@ -212,11 +221,12 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertEqual(summary["preflight"]["status"], "invalid")
             self.assertEqual(
                 summary["skipped"],
-                ["pi-smoke-eval", "smoke-readiness-report"],
+                ["pi-smoke-eval", "smoke-readiness-report", "smoke-report"],
             )
             self.assertEqual(task_requests, [])
             self.assertFalse((logbook_dir / "task-attempts").exists())
             self.assertFalse((logbook_dir / "smoke-readiness-report.json").exists())
+            self.assertFalse((logbook_dir / "smoke-report.txt").exists())
 
     def test_real_smoke_eval_reports_missing_secret_without_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -245,6 +255,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertFalse((logbook_dir / "preflight").exists())
             self.assertFalse((logbook_dir / "task-attempts").exists())
             self.assertFalse((logbook_dir / "smoke-readiness-report.json").exists())
+            self.assertFalse((logbook_dir / "smoke-report.txt").exists())
 
 
 def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
