@@ -550,6 +550,10 @@ class PiAdapterTests(unittest.TestCase):
 
             result = SubprocessPiTaskLauncher(runner=runner)(request)
 
+            self.assertEqual(
+                result.response,
+                '{"completed": true, "tool_calls": []}',
+            )
             self.assertEqual(result.tool_calls, ("fff",))
             self.assertEqual(result.metrics.tokens, 12)
             self.assertEqual(
@@ -582,6 +586,7 @@ class PiAdapterTests(unittest.TestCase):
             transcript = json.loads(
                 request.transcript_path.read_text(encoding="utf-8")
             )
+            self.assertEqual(transcript["response"], result.response)
             self.assertEqual(transcript["machine_evidence"], result.machine_evidence)
 
     def test_pi_task_subprocess_preserves_host_path_for_docker_argv(self) -> None:

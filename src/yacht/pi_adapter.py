@@ -181,6 +181,7 @@ class SubprocessPiTaskLauncher:
         tool_calls = _tool_calls_from_machine_evidence(
             machine_evidence,
         ) or _tool_calls_from_output(result.stdout)
+        response = _response_from_pi_jsonl(result.stdout) or result.stdout
         request.transcript_path.parent.mkdir(parents=True, exist_ok=True)
         transcript: dict[str, Any] = {
             "task_id": request.task_id,
@@ -190,6 +191,7 @@ class SubprocessPiTaskLauncher:
             "cwd": str(request.cwd),
             "exit_code": result.exit_code,
             "stdout": result.stdout,
+            "response": response,
             "stderr": result.stderr,
             "tool_calls": list(tool_calls),
         }
@@ -201,7 +203,7 @@ class SubprocessPiTaskLauncher:
         )
         return AgentTaskResult(
             exit_code=result.exit_code,
-            response=result.stdout,
+            response=response,
             tool_calls=tool_calls,
             transcript_path=request.transcript_path,
             metrics=Metrics(

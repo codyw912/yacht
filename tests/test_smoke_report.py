@@ -31,7 +31,7 @@ class SmokeReportTests(unittest.TestCase):
                         "Real smoke report: pi-fff-comparison / swe-bench-lite",
                         "Status: ready",
                         "Vessels: 2 | Ready: 2 | Blocked: 0 | Attempts: 2 | "
-                        "Failed: 0 | Tool calls: 2 | Tokens: 32 | Cost: 0.000000",
+                        "Failed: 0 | Tool calls: 2 | Tokens: 100 | Cost: 0.000000",
                         f"Artifacts: logbook={logbook_dir} | "
                         f"readiness={logbook_dir / 'smoke-readiness-report.json'} | "
                         f"scorecard={logbook_dir / 'task-attempt-scorecard.json'} | "
@@ -40,9 +40,9 @@ class SmokeReportTests(unittest.TestCase):
                         "comparison | vessel | status | preflight | attempts | "
                         "tools | expected | missing | tokens | cost | details",
                         "pi-vs-pi-fff | pi-baseline | ready | passed | measured | "
-                        "fffind:1 | - | - | 11 | 0.000000 | -",
+                        "fffind:1 | - | - | 45 | 0.000000 | -",
                         "pi-vs-pi-fff | pi-plus-fff | ready | passed | measured | "
-                        "fffind:1 | fffind | - | 21 | 0.000000 | -",
+                        "fffind:1 | fffind | - | 55 | 0.000000 | -",
                         "",
                     ]
                 ),
@@ -75,7 +75,7 @@ class SmokeReportTests(unittest.TestCase):
             self.assertEqual(stdout.getvalue(), "")
             self.assertIn(
                 "| pi-vs-pi-fff | pi-plus-fff | ready | passed | measured | "
-                "fffind:1 | fffind | - | 21 | 0.000000 | - |",
+                "fffind:1 | fffind | - | 55 | 0.000000 | - |",
                 output_path.read_text(encoding="utf-8"),
             )
             self.assertIn(

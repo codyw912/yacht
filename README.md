@@ -126,6 +126,8 @@ uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook log
 uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --logbook logbook --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht task-attempts examples/pi-fff-provisioning.toml --agent pi --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
+uv run yacht predictions-from-attempts examples/pi-fff-provisioning.toml --logbook logbook --vessel pi-baseline
+uv run yacht predictions-from-attempts examples/pi-fff-provisioning.toml --logbook logbook --vessel pi-plus-fff
 uv run yacht pi-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht smoke-readiness-report --logbook logbook
 uv run yacht smoke-report --logbook logbook
@@ -185,6 +187,12 @@ invoke Docker or grade tasks. Input records must include `instance_id`,
 per-vessel predictions under
 `logbook/course-handoff/swe-bench/vessels/<name>/candidate-patches.jsonl`;
 in that mode `model_name_or_path` must match the vessel name.
+`yacht predictions-from-attempts CONFIG --logbook LOGBOOK --vessel VESSEL`
+builds the same per-vessel candidate patch file from completed task-attempt
+artifacts. For SWE-bench courses, task prompts ask the agent to return a JSON
+object with a non-empty `model_patch` unified diff string, and this command
+validates that response through the same prediction contract. Pass
+`--comparison <name>` when a vessel has task attempts in multiple comparisons.
 `yacht grading-report` validates a native SWE-bench report JSON against the
 course handoff and candidate patch ids, then writes the normalized report to
 `logbook/course-handoff/swe-bench/grading-report.json`. This is still a contract

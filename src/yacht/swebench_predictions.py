@@ -23,10 +23,25 @@ def write_swe_bench_predictions(
     logbook_dir: Path,
     vessel_name: str | None = None,
 ) -> dict[str, Any]:
+    records = _load_prediction_records(predictions_path)
+    return write_swe_bench_prediction_records(
+        config_path=config_path,
+        records=records,
+        logbook_dir=logbook_dir,
+        vessel_name=vessel_name,
+    )
+
+
+def write_swe_bench_prediction_records(
+    *,
+    config_path: Path,
+    records: list[dict[str, str]],
+    logbook_dir: Path,
+    vessel_name: str | None = None,
+) -> dict[str, Any]:
     handoff = build_course_handoff(config_path)
     if vessel_name is not None:
         validate_handoff_vessel(handoff, vessel_name)
-    records = _load_prediction_records(predictions_path)
     _validate_prediction_records(
         records,
         allowed_instance_ids=_task_ids(handoff),
