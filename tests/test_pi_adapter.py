@@ -163,14 +163,21 @@ class PiAdapterTests(unittest.TestCase):
                     metrics=Metrics(tokens=42, duration_seconds=3.5),
                 )
 
-            summary = run_task_attempts(
-                config_path=config_path,
-                logbook_dir=logbook_dir,
-                workspace_path=workspace_path,
-                secret_values={"anthropic": "test-secret"},
-                agent_name="pi",
-                task_agent=PiAdapter(task_launcher=launcher),
-            )
+            with patch(
+                "yacht.task_attempt_runner.task_with_swe_bench_context",
+                side_effect=lambda *, task, adapter: task,
+            ), patch(
+                "yacht.task_attempt_runner.materialize_swe_bench_workspace",
+                return_value=workspace_path,
+            ):
+                summary = run_task_attempts(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    workspace_path=workspace_path,
+                    secret_values={"anthropic": "test-secret"},
+                    agent_name="pi",
+                    task_agent=PiAdapter(task_launcher=launcher),
+                )
 
             self.assertEqual(summary["status"], "completed")
             self.assertEqual(summary["agent"], "pi")

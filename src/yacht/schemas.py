@@ -135,6 +135,12 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
             raise SchemaValidationError(
                 f"course.tasks[{index}].difficulty must be an integer >= 1"
             )
+        for field in ("repo", "repo_url", "base_commit", "problem_statement"):
+            if field in task:
+                _require_non_empty_string(
+                    task.get(field),
+                    f"course.tasks[{index}].{field}",
+                )
     _validate_course_adapter(course)
 
     vessels = _require_list(document["vessels"], "vessels")
