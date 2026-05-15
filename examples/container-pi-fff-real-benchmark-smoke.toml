@@ -1,0 +1,69 @@
+[regatta]
+name = "container-pi-fff-real-benchmark-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "swe-bench-lite"
+tasks = [
+  { id = "django__django-11099", title = "Fix a SWE-bench Lite regression", difficulty = 3 },
+]
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "princeton-nlp/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.pi-container]
+backend = "container"
+image = "yacht/pi-agent-runtime:pi-0.74.0"
+command = ["pi", "--provider", "anthropic", "--model", "haiku", "--print", "--mode", "json"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+required_secrets = ["anthropic"]
+
+[runtimes.pi-container.preflight]
+required = true
+checks = [
+  { name = "pi-present", kind = "command", command = ["pi", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[riggings.pi-fff]
+install = ["npm:@ff-labs/pi-fff"]
+instructions = "Use fff for codebase memory and navigation. For this benchmark smoke, make at least one fffind tool call before answering."
+
+[riggings.pi-fff.env]
+PI_FFF_MODE = "required"
+FFF_FRECENCY_DB = "{trial_state}/fff-frecency.sqlite"
+FFF_HISTORY_DB = "{trial_state}/fff-history.sqlite"
+
+[riggings.pi-fff.preflight]
+required = true
+checks = [
+  { name = "fff-mode", kind = "env", env = ["PI_FFF_MODE"] },
+  { name = "fff-state-isolated", kind = "path-isolation", env = ["FFF_FRECENCY_DB", "FFF_HISTORY_DB"] },
+  { name = "fff-headless-smoke", kind = "agent-prompt", prompt = "preflights/pi-fff.md", expect_tool_calls = ["fffind"] },
+]
+
+[[vessels]]
+name = "pi-container-baseline"
+model = "haiku"
+runtime = "pi-container"
+
+[[vessels]]
+name = "pi-container-fff"
+model = "haiku"
+runtime = "pi-container"
+rigging = ["pi-fff"]
+
+[[comparisons]]
+name = "container-pi-vs-pi-fff-benchmark-smoke"
+course = "swe-bench-lite"
+vessels = ["pi-container-baseline", "pi-container-fff"]

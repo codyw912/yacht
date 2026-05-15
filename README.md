@@ -98,6 +98,8 @@ uv run yacht validate examples/container-pi-real-task-smoke.toml
 uv run yacht task-attempts examples/container-pi-real-task-smoke.toml --agent pi --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht validate examples/container-pi-fff-real-task-smoke.toml
 uv run yacht real-smoke-eval examples/container-pi-fff-real-task-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
+uv run yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
+uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace .
@@ -133,7 +135,6 @@ uv run yacht smoke-readiness-report --logbook logbook
 uv run yacht smoke-report --logbook logbook
 uv run yacht smoke-report --logbook logbook --format markdown --output logbook/smoke-report.md
 uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
-uv run yacht real-benchmark-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace . --format markdown
 ```
