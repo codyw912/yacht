@@ -133,6 +133,7 @@ uv run yacht smoke-readiness-report --logbook logbook
 uv run yacht smoke-report --logbook logbook
 uv run yacht smoke-report --logbook logbook --format markdown --output logbook/smoke-report.md
 uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
+uv run yacht real-benchmark-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace . --format markdown
 ```
@@ -164,6 +165,15 @@ logbook has passed preflight evidence, valid task-attempt artifacts, a complete
 task-attempt scorecard, and at least one passed agent-prompt check. Use
 `logbook/smoke-report.txt` for the human-readable rollup of readiness, attempt
 status, observed tool calls, expected tool calls, tokens, and cost.
+`yacht real-benchmark-eval` is the first one-command benchmark path. It runs Pi
+preflight, Pi task attempts, task-attempt scorecard generation, per-vessel
+SWE-bench prediction extraction, runtime snapshot writing, benchmark readiness,
+native launcher handoff, native launch, grading collection, and benchmark
+scorecard generation. The native SWE-bench harness still owns Docker task
+execution and grading; YACHT orchestrates the spend gates and writes
+`logbook/real-benchmark-eval.json` as the top-level run summary. If preflight,
+readiness, or native report collection blocks the run, the summary records the
+completed steps and skipped downstream steps.
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
 with isolated runtime placeholders, redacted secret references, and any

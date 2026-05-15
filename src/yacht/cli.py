@@ -31,6 +31,7 @@ from yacht.preflight_runner import (
     run_preflight,
 )
 from yacht.readiness_gate import evaluate_readiness_gate
+from yacht.real_benchmark_eval import run_real_benchmark_eval
 from yacht.real_smoke_eval import run_real_smoke_eval
 from yacht.real_smoke_runbook import render_real_smoke_runbook
 from yacht.real_smoke_runbook import write_real_smoke_runbook
@@ -575,6 +576,46 @@ def build_parser() -> argparse.ArgumentParser:
         help="Explicit secret value to inject for a configured secret reference.",
     )
 
+    real_benchmark_eval_parser = subcommands.add_parser(
+        "real-benchmark-eval",
+        help="Run Pi preflight, task attempts, native benchmark launch, and scorecard.",
+    )
+    real_benchmark_eval_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    real_benchmark_eval_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory where real benchmark artifacts are written.",
+    )
+    real_benchmark_eval_parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path.cwd(),
+        help="Workspace path used as the prepared runtime working directory.",
+    )
+    real_benchmark_eval_parser.add_argument(
+        "--secret",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="Explicit secret value to inject for a configured secret reference.",
+    )
+    real_benchmark_eval_parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=1,
+        help="SWE-bench --max_workers value for generated native launch commands.",
+    )
+    real_benchmark_eval_parser.add_argument(
+        "--python-executable",
+        default="python",
+        help="Python executable prefix to include in generated SWE-bench commands.",
+    )
+
     real_smoke_runbook_parser = subcommands.add_parser(
         "real-smoke-runbook",
         help="Write commands and expected artifacts for a real smoke run.",
@@ -948,6 +989,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(json.dumps(summary, indent=2))
         return 0 if summary["status"] == "ready" else 1
+
+    if args.command == "real-benchmark-eval":
+        try:
+            summary = run_real_benchmark_eval(
+                config_path=args.config,
+                logbook_dir=args.logbook,
+                workspace_path=args.workspace,
+                secret_values=parse_secret_values(args.secret),
+                agent_prompt_runner_factory=_agent_prompt_runner_factory("pi"),
+                task_agent=_task_attempt_agent("pi"),
+                max_workers=args.max_workers,
+                python_executable=args.python_executable,
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(summary, indent=2))
+        return 0 if summary["status"] in {"complete", "partial"} else 1
 
     if args.command == "real-smoke-runbook":
         try:
