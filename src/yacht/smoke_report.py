@@ -29,8 +29,8 @@ def render_smoke_report(logbook_dir: Path, output_format: str = "text") -> str:
     readiness = _load_readiness(logbook_dir)
     scorecard = _load_scorecard(logbook_dir)
     if output_format == "markdown":
-        return _render_markdown(readiness, scorecard)
-    return _render_text(readiness, scorecard)
+        return _render_markdown(logbook_dir, readiness, scorecard)
+    return _render_text(logbook_dir, readiness, scorecard)
 
 
 def _load_readiness(logbook_dir: Path) -> dict[str, Any]:
@@ -71,7 +71,11 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
     return payload
 
 
-def _render_text(readiness: dict[str, Any], scorecard: dict[str, Any]) -> str:
+def _render_text(
+    logbook_dir: Path,
+    readiness: dict[str, Any],
+    scorecard: dict[str, Any],
+) -> str:
     summary = readiness["summary"]
     scorecard_summary = scorecard["summary"]
     lines = [
@@ -86,6 +90,7 @@ def _render_text(readiness: dict[str, Any], scorecard: dict[str, Any]) -> str:
         f"Tool calls: {scorecard_summary['total_tool_calls']} | "
         f"Tokens: {scorecard_summary['total_tokens']} | "
         f"Cost: {_cost(scorecard_summary['total_cost'])}",
+        _artifact_line(logbook_dir),
         "",
         "comparison | vessel | status | preflight | attempts | tools | expected | "
         "missing | tokens | cost | details",
@@ -97,7 +102,11 @@ def _render_text(readiness: dict[str, Any], scorecard: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _render_markdown(readiness: dict[str, Any], scorecard: dict[str, Any]) -> str:
+def _render_markdown(
+    logbook_dir: Path,
+    readiness: dict[str, Any],
+    scorecard: dict[str, Any],
+) -> str:
     summary = readiness["summary"]
     scorecard_summary = scorecard["summary"]
     lines = [
@@ -114,6 +123,10 @@ def _render_markdown(readiness: dict[str, Any], scorecard: dict[str, Any]) -> st
         f"- Tool calls: {scorecard_summary['total_tool_calls']}",
         f"- Tokens: {scorecard_summary['total_tokens']}",
         f"- Cost: {_cost(scorecard_summary['total_cost'])}",
+        f"- Logbook: `{logbook_dir}`",
+        f"- Smoke report: `{logbook_dir / SMOKE_REPORT_PATH}`",
+        f"- Smoke readiness report: `{logbook_dir / SMOKE_READINESS_REPORT_PATH}`",
+        f"- Task attempt scorecard: `{logbook_dir / TASK_ATTEMPT_SCORECARD_PATH}`",
         "",
         "| Comparison | Vessel | Status | Preflight | Attempts | Tools | Expected | "
         "Missing | Tokens | Cost | Details |",
@@ -124,6 +137,15 @@ def _render_markdown(readiness: dict[str, Any], scorecard: dict[str, Any]) -> st
         for comparison, vessel in _vessels(readiness)
     )
     return "\n".join(lines) + "\n"
+
+
+def _artifact_line(logbook_dir: Path) -> str:
+    return (
+        f"Artifacts: logbook={logbook_dir} | "
+        f"readiness={logbook_dir / SMOKE_READINESS_REPORT_PATH} | "
+        f"scorecard={logbook_dir / TASK_ATTEMPT_SCORECARD_PATH} | "
+        f"report={logbook_dir / SMOKE_REPORT_PATH}"
+    )
 
 
 def _vessels(readiness: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:

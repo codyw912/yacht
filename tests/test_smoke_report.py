@@ -32,6 +32,10 @@ class SmokeReportTests(unittest.TestCase):
                         "Status: ready",
                         "Vessels: 2 | Ready: 2 | Blocked: 0 | Attempts: 2 | "
                         "Failed: 0 | Tool calls: 2 | Tokens: 32 | Cost: 0.000000",
+                        f"Artifacts: logbook={logbook_dir} | "
+                        f"readiness={logbook_dir / 'smoke-readiness-report.json'} | "
+                        f"scorecard={logbook_dir / 'task-attempt-scorecard.json'} | "
+                        f"report={logbook_dir / 'smoke-report.txt'}",
                         "",
                         "comparison | vessel | status | preflight | attempts | "
                         "tools | expected | missing | tokens | cost | details",
@@ -72,6 +76,10 @@ class SmokeReportTests(unittest.TestCase):
             self.assertIn(
                 "| pi-vs-pi-fff | pi-plus-fff | ready | passed | measured | "
                 "fffind:1 | fffind | - | 21 | 0.000000 | - |",
+                output_path.read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                f"- Smoke report: `{logbook_dir / 'smoke-report.txt'}`",
                 output_path.read_text(encoding="utf-8"),
             )
 
