@@ -102,6 +102,37 @@ class SweBenchPredictionsFromAttemptsTests(unittest.TestCase):
             self.assertEqual(payload["vessel"], "pi-plus-fff")
             self.assertEqual(payload["prediction_count"], 1)
 
+    def test_extracts_model_patch_from_fenced_json_response(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook_dir = root / "logbook"
+            _write_attempt(
+                config_path=PI_FFF_CONFIG_PATH,
+                logbook_dir=logbook_dir,
+                vessel_name="pi-plus-fff",
+                response=(
+                    "The fix has been applied.\n\n"
+                    "```json\n"
+                    f"{json.dumps({'model_patch': MODEL_PATCH})}\n"
+                    "```\n"
+                ),
+            )
+
+            summary = write_swe_bench_predictions_from_attempts(
+                config_path=PI_FFF_CONFIG_PATH,
+                logbook_dir=logbook_dir,
+                vessel_name="pi-plus-fff",
+            )
+
+            self.assertEqual(summary["status"], "validated")
+            candidate_path = Path(summary["candidate_patches_path"])
+            self.assertEqual(
+                json.loads(candidate_path.read_text(encoding="utf-8"))[
+                    "model_patch"
+                ],
+                MODEL_PATCH,
+            )
+
     def test_swe_bench_task_prompt_requests_model_patch_json(self) -> None:
         regatta = load_regatta(PI_FFF_CONFIG_PATH)
 

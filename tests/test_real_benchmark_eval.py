@@ -1,7 +1,7 @@
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -72,7 +72,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             with patch(
                 "yacht.preflight._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-            ):
+            ), _without_task_workspace_materialization(workspace_path):
                 summary = run_real_benchmark_eval(
                     config_path=config_path,
                     logbook_dir=logbook_dir,
@@ -154,7 +154,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             ), patch(
                 "yacht.benchmark_launch._run_command",
                 side_effect=_benchmark_command_result,
-            ), redirect_stdout(stdout):
+            ), _without_task_workspace_materialization(workspace_path), redirect_stdout(stdout):
                 exit_code = main(
                     [
                         "real-benchmark-eval",
@@ -200,7 +200,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             with patch(
                 "yacht.preflight._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-            ):
+            ), _without_task_workspace_materialization(workspace_path):
                 summary = run_real_benchmark_eval(
                     config_path=config_path,
                     logbook_dir=logbook_dir,
@@ -245,6 +245,18 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
     )
     workspace_path.mkdir()
     return config_path, workspace_path, logbook_dir
+
+
+@contextmanager
+def _without_task_workspace_materialization(workspace_path: Path):
+    with patch(
+        "yacht.task_attempt_runner.task_with_swe_bench_context",
+        side_effect=lambda *, task, adapter: task,
+    ), patch(
+        "yacht.task_attempt_runner.materialize_swe_bench_workspace",
+        return_value=workspace_path,
+    ):
+        yield
 
 
 def _write_native_report(argv: list[str]) -> None:

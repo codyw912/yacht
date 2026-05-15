@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -117,7 +118,25 @@ def _json_response(response: str) -> Any:
     try:
         return json.loads(response)
     except json.JSONDecodeError:
-        return None
+        pass
+
+    for candidate in _fenced_json_candidates(response):
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def _fenced_json_candidates(response: str) -> tuple[str, ...]:
+    return tuple(
+        match.group("body").strip()
+        for match in re.finditer(
+            r"```(?:json)?\s*\n(?P<body>.*?)\n```",
+            response,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+    )
 
 
 def _looks_like_unified_diff(response: str) -> bool:
