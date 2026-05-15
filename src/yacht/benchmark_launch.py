@@ -115,7 +115,7 @@ def _vessel_result(
     output_dir.mkdir(parents=True, exist_ok=True)
     native_report_dir = Path(str(vessel["native_report_dir"]))
     native_report_dir.mkdir(parents=True, exist_ok=True)
-    result = command_runner(command, Path.cwd())
+    result = command_runner(command, native_report_dir)
     stdout_path = output_dir / "stdout.txt"
     stderr_path = output_dir / "stderr.txt"
     stdout_path.write_text(result.stdout, encoding="utf-8")
