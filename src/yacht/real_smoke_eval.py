@@ -11,6 +11,7 @@ from yacht.smoke_readiness_report import (
     write_smoke_readiness_report,
 )
 from yacht.task_attempt_runner import TaskAgent
+from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 
 def run_real_smoke_eval(
@@ -37,6 +38,7 @@ def run_real_smoke_eval(
             "agent": "pi",
             "preflight": preflight,
             "skipped": ["pi-smoke-eval", "smoke-readiness-report", "smoke-report"],
+            "artifacts": _artifacts(logbook_dir),
         }
 
     smoke_eval = run_pi_smoke_eval(
@@ -58,4 +60,14 @@ def run_real_smoke_eval(
         "readiness": readiness,
         "readiness_path": str(logbook_dir / SMOKE_READINESS_REPORT_PATH),
         "report_path": str(logbook_dir / SMOKE_REPORT_PATH),
+        "artifacts": _artifacts(logbook_dir),
+    }
+
+
+def _artifacts(logbook_dir: Path) -> dict[str, str]:
+    return {
+        "logbook": str(logbook_dir),
+        "smoke_report": str(logbook_dir / SMOKE_REPORT_PATH),
+        "smoke_readiness_report": str(logbook_dir / SMOKE_READINESS_REPORT_PATH),
+        "task_attempt_scorecard": str(logbook_dir / TASK_ATTEMPT_SCORECARD_PATH),
     }

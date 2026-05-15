@@ -99,6 +99,19 @@ class RealSmokeEvalTests(unittest.TestCase):
                 summary["report_path"],
                 str(logbook_dir / "smoke-report.txt"),
             )
+            self.assertEqual(
+                summary["artifacts"],
+                {
+                    "logbook": str(logbook_dir),
+                    "smoke_report": str(logbook_dir / "smoke-report.txt"),
+                    "smoke_readiness_report": str(
+                        logbook_dir / "smoke-readiness-report.json"
+                    ),
+                    "task_attempt_scorecard": str(
+                        logbook_dir / "task-attempt-scorecard.json"
+                    ),
+                },
+            )
             self.assertIn(
                 "pi-container-fff | ready | passed | measured | fffind:1",
                 (logbook_dir / "smoke-report.txt").read_text(encoding="utf-8"),
@@ -222,6 +235,19 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertEqual(
                 summary["skipped"],
                 ["pi-smoke-eval", "smoke-readiness-report", "smoke-report"],
+            )
+            self.assertEqual(
+                summary["artifacts"],
+                {
+                    "logbook": str(logbook_dir),
+                    "smoke_report": str(logbook_dir / "smoke-report.txt"),
+                    "smoke_readiness_report": str(
+                        logbook_dir / "smoke-readiness-report.json"
+                    ),
+                    "task_attempt_scorecard": str(
+                        logbook_dir / "task-attempt-scorecard.json"
+                    ),
+                },
             )
             self.assertEqual(task_requests, [])
             self.assertFalse((logbook_dir / "task-attempts").exists())
