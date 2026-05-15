@@ -111,6 +111,7 @@ uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-f
 uv run yacht grading-report examples/pi-fff-provisioning.toml --input examples/pi-fff-native-report.json --logbook logbook --vessel pi-plus-fff
 uv run yacht benchmark-plan --logbook logbook
 uv run yacht benchmark-launcher --logbook logbook --max-workers 1
+uv run yacht benchmark-launch --logbook logbook
 uv run yacht preflight-report --logbook logbook
 uv run yacht grading-report examples/pi-fff-provisioning.toml --from-launcher --logbook logbook --vessel pi-plus-fff
 uv run yacht benchmark-scorecard --logbook logbook
@@ -270,6 +271,12 @@ ready vessel. It applies the same preflight evidence and runtime snapshot gates
 before emitting native commands. It includes dataset, split, predictions path,
 max workers, run id, report directory, and instance ids, but does not run Docker
 or SWE-bench.
+`yacht benchmark-launch` executes ready native launcher commands from
+`benchmark-launcher-handoff.json` and writes
+`logbook/benchmark-launch-result.json` plus per-vessel stdout and stderr files
+under `logbook/benchmark-launch/`. The native benchmark harness still owns task
+containers, test execution, and grading output; YACHT records launch status and
+the expected validated grading-report path.
 `yacht preflight-report` writes `logbook/preflight-evidence-report.json`, a
 human-auditable eligibility report for each comparison vessel. It explains
 whether the preflight artifact is missing, failed, invalid, or passed without
@@ -353,6 +360,8 @@ YACHT keeps its cross-language contract in JSON Schema files under `schemas/`:
 - `yacht.benchmark-readiness-summary.v1.schema.json` for compact readiness automation
   summaries
 - `yacht.benchmark-launcher-handoff.v1.schema.json` for native launcher handoffs
+- `yacht.benchmark-launch-result.v1.schema.json` for native launcher execution
+  results
 - `yacht.benchmark-scorecard.v1.schema.json` for benchmark scorecard summaries
 - `yacht.runtime-instances.v1.schema.json` for redacted runtime instance dry-run snapshots
 - `yacht.task-attempt.v1.schema.json` for per-agent task attempt evidence
@@ -372,8 +381,9 @@ Validated SWE-bench grading reports, benchmark readiness plans, readiness
 summaries, native launcher handoffs, and benchmark scorecard summaries include
 `yacht.swe-bench-grading.v1`, `yacht.benchmark-execution-plan.v1`,
 `yacht.benchmark-readiness-summary.v1`, `yacht.benchmark-launcher-handoff.v1`,
-and `yacht.benchmark-scorecard.v1`. Runtime instance dry-run snapshots include
-`yacht.runtime-instances.v1`. The Python runner validates the current config
+`yacht.benchmark-launch-result.v1`, and `yacht.benchmark-scorecard.v1`. Runtime
+instance dry-run snapshots include `yacht.runtime-instances.v1`. The Python
+runner validates the current config
 and generated artifacts, but the persisted contract is intentionally
 language-neutral so future vessels, runners, and analysis tools do not need to
 be Python programs.

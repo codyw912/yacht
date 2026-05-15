@@ -8,6 +8,7 @@ from yacht.regatta import ConfigError, run_regatta
 from yacht.schemas import (
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
     BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
+    BENCHMARK_LAUNCH_RESULT_SCHEMA,
     BENCHMARK_READINESS_SUMMARY_SCHEMA,
     BENCHMARK_SCORECARD_SCHEMA,
     COURSE_HANDOFF_SCHEMA,
@@ -24,6 +25,7 @@ from yacht.schemas import (
     WAKE_SCHEMA,
     validate_benchmark_execution_plan_document,
     validate_benchmark_launcher_handoff_document,
+    validate_benchmark_launch_result_document,
     validate_benchmark_readiness_summary_document,
     validate_benchmark_scorecard_document,
     validate_preflight_document,
@@ -85,6 +87,7 @@ class SchemaTests(unittest.TestCase):
             BENCHMARK_SCORECARD_SCHEMA,
             BENCHMARK_EXECUTION_PLAN_SCHEMA,
             BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
+            BENCHMARK_LAUNCH_RESULT_SCHEMA,
             BENCHMARK_READINESS_SUMMARY_SCHEMA,
             RUNTIME_INSTANCES_SCHEMA,
             TASK_ATTEMPT_SCHEMA,
@@ -433,6 +436,59 @@ class SchemaTests(unittest.TestCase):
         }
 
         validate_real_smoke_runbook_document(document)
+
+    def test_benchmark_launch_result_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": BENCHMARK_LAUNCH_RESULT_SCHEMA,
+            "regatta": "pi-fff-comparison",
+            "course": "swe-bench-lite",
+            "adapter": {
+                "kind": "swe-bench",
+                "dataset": "princeton-nlp/SWE-bench_Lite",
+                "split": "test",
+                "harness": "docker",
+            },
+            "status": "complete",
+            "summary": {
+                "total_vessels": 1,
+                "launched_vessels": 1,
+                "completed_launches": 1,
+                "failed_launches": 0,
+                "skipped_vessels": 0,
+            },
+            "comparisons": [
+                {
+                    "name": "pi-vs-pi-fff",
+                    "course": "swe-bench-lite",
+                    "status": "complete",
+                    "vessels": [
+                        {
+                            "name": "pi-baseline",
+                            "status": "completed",
+                            "launcher_status": "ready-to-launch",
+                            "command": [
+                                "python",
+                                "-m",
+                                "swebench.harness.run_evaluation",
+                            ],
+                            "command_preview": (
+                                "python -m swebench.harness.run_evaluation"
+                            ),
+                            "exit_code": 0,
+                            "stdout_path": "logbook/benchmark-launch/stdout.txt",
+                            "stderr_path": "logbook/benchmark-launch/stderr.txt",
+                            "native_report_dir": "logbook/native-report",
+                            "expected_yacht_grading_report_path": (
+                                "logbook/course-handoff/swe-bench/vessels/"
+                                "pi-baseline/grading-report.json"
+                            ),
+                        }
+                    ],
+                }
+            ],
+        }
+
+        validate_benchmark_launch_result_document(document)
 
     def test_preflight_summary_documents_include_schema_version(self) -> None:
         document = {

@@ -13,6 +13,7 @@ COURSE_HANDOFF_SCHEMA = "yacht.course-handoff.v1"
 BENCHMARK_SCORECARD_SCHEMA = "yacht.benchmark-scorecard.v1"
 BENCHMARK_EXECUTION_PLAN_SCHEMA = "yacht.benchmark-execution-plan.v1"
 BENCHMARK_LAUNCHER_HANDOFF_SCHEMA = "yacht.benchmark-launcher-handoff.v1"
+BENCHMARK_LAUNCH_RESULT_SCHEMA = "yacht.benchmark-launch-result.v1"
 BENCHMARK_READINESS_SUMMARY_SCHEMA = "yacht.benchmark-readiness-summary.v1"
 RUNTIME_INSTANCES_SCHEMA = "yacht.runtime-instances.v1"
 TASK_ATTEMPT_SCHEMA = "yacht.task-attempt.v1"
@@ -86,6 +87,8 @@ BENCHMARK_LAUNCHER_HANDOFF_VESSEL_STATUSES = {
     "preflight-failed",
     "ready-to-launch",
 }
+BENCHMARK_LAUNCH_RESULT_STATUSES = {"blocked", "complete", "failed", "partial"}
+BENCHMARK_LAUNCH_RESULT_VESSEL_STATUSES = {"completed", "failed", "skipped"}
 TASK_ATTEMPT_STATUSES = {"completed", "failed"}
 TASK_ATTEMPT_SCORECARD_STATUSES = {"complete", "partial"}
 TASK_ATTEMPT_SCORECARD_VESSEL_STATUSES = {"measured", "failed"}
@@ -608,6 +611,41 @@ def validate_benchmark_launcher_handoff_document(document: dict[str, Any]) -> No
         "status",
     )
     _validate_benchmark_launcher_handoff_comparisons(document["comparisons"])
+
+
+def validate_benchmark_launch_result_document(document: dict[str, Any]) -> None:
+    _require_object(document, "benchmark launch result")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "regatta",
+            "course",
+            "adapter",
+            "status",
+            "summary",
+            "comparisons",
+        ),
+        "benchmark launch result",
+    )
+    _require_schema(
+        document,
+        BENCHMARK_LAUNCH_RESULT_SCHEMA,
+        "benchmark launch result",
+    )
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], key)
+    _validate_course_adapter_fields(
+        _require_object(document["adapter"], "adapter"),
+        "adapter",
+    )
+    _require_allowed_value(
+        document["status"],
+        BENCHMARK_LAUNCH_RESULT_STATUSES,
+        "status",
+    )
+    _validate_benchmark_launch_result_summary(document["summary"])
+    _validate_benchmark_launch_result_comparisons(document["comparisons"])
 
 
 def validate_runtime_instances_document(document: dict[str, Any]) -> None:
@@ -1576,6 +1614,112 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
             vessel["command_preview"],
             f"{path}.command_preview",
         )
+
+
+def _validate_benchmark_launch_result_summary(value: Any) -> None:
+    summary = _require_object(value, "summary")
+    keys = (
+        "total_vessels",
+        "launched_vessels",
+        "completed_launches",
+        "failed_launches",
+        "skipped_vessels",
+    )
+    _require_keys(summary, keys, "summary")
+    for key in keys:
+        count = summary[key]
+        if not isinstance(count, int) or count < 0:
+            raise SchemaValidationError(f"summary.{key} must be an integer >= 0")
+    if summary["launched_vessels"] != (
+        summary["completed_launches"] + summary["failed_launches"]
+    ):
+        raise SchemaValidationError(
+            "summary.launched_vessels must equal completed_launches + "
+            "failed_launches"
+        )
+    if summary["total_vessels"] != (
+        summary["launched_vessels"] + summary["skipped_vessels"]
+    ):
+        raise SchemaValidationError(
+            "summary.total_vessels must equal launched_vessels + skipped_vessels"
+        )
+
+
+def _validate_benchmark_launch_result_comparisons(value: Any) -> None:
+    comparisons = _require_list(value, "comparisons")
+    if not comparisons:
+        raise SchemaValidationError("comparisons must contain at least one comparison")
+    for comparison_index, comparison_value in enumerate(comparisons):
+        comparison_path = f"comparisons[{comparison_index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(
+            comparison,
+            ("name", "course", "status", "vessels"),
+            comparison_path,
+        )
+        _require_non_empty_string(comparison.get("name"), f"{comparison_path}.name")
+        _require_non_empty_string(comparison.get("course"), f"{comparison_path}.course")
+        _require_allowed_value(
+            comparison.get("status"),
+            BENCHMARK_LAUNCH_RESULT_STATUSES,
+            f"{comparison_path}.status",
+        )
+        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
+        if not vessels:
+            raise SchemaValidationError(
+                f"{comparison_path}.vessels must contain at least one vessel"
+            )
+        for vessel_index, vessel_value in enumerate(vessels):
+            _validate_benchmark_launch_result_vessel(
+                vessel_value,
+                f"{comparison_path}.vessels[{vessel_index}]",
+            )
+
+
+def _validate_benchmark_launch_result_vessel(value: Any, path: str) -> None:
+    vessel = _require_object(value, path)
+    _require_keys(vessel, ("name", "status", "launcher_status"), path)
+    _require_non_empty_string(vessel.get("name"), f"{path}.name")
+    _require_allowed_value(
+        vessel.get("status"),
+        BENCHMARK_LAUNCH_RESULT_VESSEL_STATUSES,
+        f"{path}.status",
+    )
+    _require_allowed_value(
+        vessel.get("launcher_status"),
+        BENCHMARK_LAUNCHER_HANDOFF_VESSEL_STATUSES,
+        f"{path}.launcher_status",
+    )
+    if vessel["status"] == "skipped":
+        _require_non_empty_string(vessel.get("skipped_reason"), f"{path}.skipped_reason")
+        return
+    _require_keys(
+        vessel,
+        (
+            "command",
+            "command_preview",
+            "exit_code",
+            "stdout_path",
+            "stderr_path",
+            "native_report_dir",
+            "expected_yacht_grading_report_path",
+        ),
+        path,
+    )
+    command = _require_list(vessel["command"], f"{path}.command")
+    if not command or not all(isinstance(item, str) and item for item in command):
+        raise SchemaValidationError(f"{path}.command must contain non-empty strings")
+    _require_non_empty_string(vessel["command_preview"], f"{path}.command_preview")
+    exit_code = vessel["exit_code"]
+    if not isinstance(exit_code, int) or exit_code < 0:
+        raise SchemaValidationError(f"{path}.exit_code must be an integer >= 0")
+    for key in (
+        "stdout_path",
+        "stderr_path",
+        "native_report_dir",
+        "expected_yacht_grading_report_path",
+    ):
+        _require_non_empty_string(vessel.get(key), f"{path}.{key}")
 
 
 def _validate_runtime_instances_comparisons(value: Any) -> None:
