@@ -38,6 +38,7 @@ from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.runtime_plan import build_runtime_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.smoke_report import render_smoke_report
 from yacht.smoke_readiness_report import write_smoke_readiness_report
 from yacht.task_attempt_runner import TaskAgent, run_task_attempts
 from yacht.task_attempt_scorecard import write_task_attempt_scorecard
@@ -314,6 +315,31 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("logbook"),
         help="Directory containing smoke eval artifacts.",
+    )
+
+    smoke_report_parser = subcommands.add_parser(
+        "smoke-report",
+        help="Print a human-readable smoke eval report.",
+    )
+    smoke_report_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help=(
+            "Directory containing smoke-readiness-report.json and "
+            "task-attempt-scorecard.json."
+        ),
+    )
+    smoke_report_parser.add_argument(
+        "--format",
+        choices=("text", "markdown"),
+        default="text",
+        help="Output format for the rendered smoke report.",
+    )
+    smoke_report_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write the rendered smoke report.",
     )
 
     preflight_parser = subcommands.add_parser(
@@ -718,6 +744,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(json.dumps(report, indent=2))
         return 0 if report["status"] == "ready" else 1
+
+    if args.command == "smoke-report":
+        try:
+            report = render_smoke_report(args.logbook, args.format)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(report, encoding="utf-8")
+            return 0
+        print(report, end="")
+        return 0
 
     if args.command == "preflight":
         try:
