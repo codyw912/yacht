@@ -14,6 +14,17 @@ from yacht.smoke_readiness_report import SMOKE_READINESS_REPORT_PATH
 from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 
+SMOKE_REPORT_PATH = Path("smoke-report.txt")
+
+
+def write_smoke_report(logbook_dir: Path) -> str:
+    report = render_smoke_report(logbook_dir)
+    path = logbook_dir / SMOKE_REPORT_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(report, encoding="utf-8")
+    return report
+
+
 def render_smoke_report(logbook_dir: Path, output_format: str = "text") -> str:
     readiness = _load_readiness(logbook_dir)
     scorecard = _load_scorecard(logbook_dir)

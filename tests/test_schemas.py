@@ -427,6 +427,7 @@ class SchemaTests(unittest.TestCase):
                 ],
                 "task_attempt_scorecard": "logbook/task-attempt-scorecard.json",
                 "smoke_readiness_report": "logbook/smoke-readiness-report.json",
+                "smoke_report": "logbook/smoke-report.txt",
                 "real_smoke_runbook": "logbook/real-smoke-runbook.json",
             },
         }

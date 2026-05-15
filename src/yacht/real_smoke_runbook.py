@@ -17,6 +17,7 @@ from yacht.schemas import (
     REAL_SMOKE_RUNBOOK_SCHEMA,
     validate_real_smoke_runbook_document,
 )
+from yacht.smoke_report import SMOKE_REPORT_PATH
 
 
 REAL_SMOKE_RUNBOOK_PATH = Path("real-smoke-runbook.json")
@@ -78,6 +79,7 @@ def render_real_smoke_runbook(runbook: dict[str, Any]) -> str:
             *[f"  - `{path}`" for path in artifacts["task_attempts"]],
             f"- Task attempt scorecard: `{artifacts['task_attempt_scorecard']}`",
             f"- Smoke readiness report: `{artifacts['smoke_readiness_report']}`",
+            f"- Smoke report: `{artifacts['smoke_report']}`",
             f"- Real smoke runbook: `{artifacts['real_smoke_runbook']}`",
             "",
         ]
@@ -137,6 +139,7 @@ def _steps(
                 *artifacts["task_attempts"],
                 artifacts["task_attempt_scorecard"],
                 artifacts["smoke_readiness_report"],
+                artifacts["smoke_report"],
             ],
         },
         {
@@ -177,6 +180,11 @@ def _steps(
             ),
             "artifacts": [artifacts["smoke_readiness_report"]],
         },
+        {
+            "name": "smoke-report",
+            "command": f"uv run yacht smoke-report --logbook {_quote(logbook_dir)}",
+            "artifacts": [artifacts["smoke_report"]],
+        },
     ]
 
 
@@ -216,6 +224,7 @@ def _artifacts(regatta: Regatta, logbook_dir: Path) -> dict[str, Any]:
         ],
         "task_attempt_scorecard": str(logbook_dir / "task-attempt-scorecard.json"),
         "smoke_readiness_report": str(logbook_dir / "smoke-readiness-report.json"),
+        "smoke_report": str(logbook_dir / SMOKE_REPORT_PATH),
         "real_smoke_runbook": str(logbook_dir / REAL_SMOKE_RUNBOOK_PATH),
     }
 
