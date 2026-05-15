@@ -40,6 +40,9 @@ from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.runtime_plan import build_runtime_plan
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.swebench_predictions_from_attempts import (
+    write_swe_bench_predictions_from_attempts,
+)
 from yacht.smoke_report import render_smoke_report
 from yacht.smoke_readiness_report import write_smoke_readiness_report
 from yacht.task_attempt_runner import TaskAgent, run_task_attempts
@@ -155,6 +158,34 @@ def build_parser() -> argparse.ArgumentParser:
     predictions_parser.add_argument(
         "--vessel",
         help="Optional comparison vessel name for per-vessel candidate patches.",
+    )
+
+    predictions_from_attempts_parser = subcommands.add_parser(
+        "predictions-from-attempts",
+        help="Write SWE-bench candidate patches from task attempt artifacts.",
+    )
+    predictions_from_attempts_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    predictions_from_attempts_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing task attempt artifacts.",
+    )
+    predictions_from_attempts_parser.add_argument(
+        "--vessel",
+        required=True,
+        help="Comparison vessel name whose task attempts should become predictions.",
+    )
+    predictions_from_attempts_parser.add_argument(
+        "--comparison",
+        help=(
+            "Optional comparison name when the vessel has attempts in multiple "
+            "comparisons."
+        ),
     )
 
     grading_report_parser = subcommands.add_parser(
@@ -648,6 +679,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 predictions_path=args.input,
                 logbook_dir=args.logbook,
                 vessel_name=args.vessel,
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(summary, indent=2))
+        return 0
+
+    if args.command == "predictions-from-attempts":
+        try:
+            summary = write_swe_bench_predictions_from_attempts(
+                config_path=args.config,
+                logbook_dir=args.logbook,
+                vessel_name=args.vessel,
+                comparison_name=args.comparison,
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)

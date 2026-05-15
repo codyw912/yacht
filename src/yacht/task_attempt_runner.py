@@ -168,11 +168,25 @@ def _task_agent(agent_name: str) -> TaskAgent:
 
 def _task_prompt(regatta: Regatta, vessel: Vessel, task: Task) -> str:
     prompt = f"Task ID: {task.id}\nTitle: {task.title}\n"
+    if _is_swe_bench_course(regatta):
+        prompt += "\nSWE-bench submission instructions:\n"
+        prompt += (
+            "When finished, respond with a JSON object containing a non-empty "
+            "model_patch string. model_patch must be a unified diff candidate patch "
+            "for this task. Do not wrap the JSON in markdown fences.\n"
+        )
     instructions = _rigging_instructions(regatta, vessel)
     if instructions:
         prompt += "\nRigging instructions:\n"
         prompt += "".join(f"- {instruction}\n" for instruction in instructions)
     return prompt
+
+
+def _is_swe_bench_course(regatta: Regatta) -> bool:
+    return (
+        regatta.course.adapter is not None
+        and regatta.course.adapter.kind == "swe-bench"
+    )
 
 
 def _rigging_instructions(regatta: Regatta, vessel: Vessel) -> tuple[str, ...]:
