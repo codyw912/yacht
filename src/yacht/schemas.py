@@ -96,6 +96,7 @@ SMOKE_READINESS_REPORT_VESSEL_STATUSES = {
     "preflight-failed",
     "preflight-invalid",
     "missing-agent-prompt-evidence",
+    "missing-expected-tool-calls",
     "task-attempt-failed",
     "task-attempt-invalid",
 }
@@ -330,6 +331,10 @@ def validate_preflight_document(document: dict[str, Any]) -> None:
         _require_string_list(
             evidence.get("tool_calls", []),
             f"checks[{index}].evidence.tool_calls",
+        )
+        _require_string_list(
+            evidence.get("expected_tool_calls", []),
+            f"checks[{index}].evidence.expected_tool_calls",
         )
 
 
@@ -824,6 +829,9 @@ def _validate_smoke_readiness_vessel(value: Any, path: str) -> None:
             "preflight_artifact_path",
             "task_attempt_artifact_paths",
             "agent_prompt_checks",
+            "tool_call_counts",
+            "expected_tool_calls",
+            "missing_expected_tool_calls",
             "reasons",
         ),
         path,
@@ -849,6 +857,12 @@ def _validate_smoke_readiness_vessel(value: Any, path: str) -> None:
             agent_prompt_checks.get(key),
             f"{path}.agent_prompt_checks.{key}",
         )
+    _validate_tool_call_counts(vessel["tool_call_counts"], f"{path}.tool_call_counts")
+    _require_string_list(vessel["expected_tool_calls"], f"{path}.expected_tool_calls")
+    _require_string_list(
+        vessel["missing_expected_tool_calls"],
+        f"{path}.missing_expected_tool_calls",
+    )
     _require_string_list(vessel["reasons"], f"{path}.reasons")
 
 

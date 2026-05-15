@@ -34,6 +34,7 @@ def write_preflight_artifact(
                 "status": status,
                 "evidence": {
                     "response": {"available": True, "configured": True},
+                    "expected_tool_calls": ["fffind"],
                     "tool_calls": ["fffind"],
                     "transcript_path": f"/tmp/{vessel_name}/fff-smoke.json",
                 },

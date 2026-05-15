@@ -118,6 +118,9 @@
         "preflight_artifact_path",
         "task_attempt_artifact_paths",
         "agent_prompt_checks",
+        "tool_call_counts",
+        "expected_tool_calls",
+        "missing_expected_tool_calls",
         "reasons"
       ],
       "properties": {
@@ -132,6 +135,7 @@
             "preflight-failed",
             "preflight-invalid",
             "missing-agent-prompt-evidence",
+            "missing-expected-tool-calls",
             "task-attempt-failed",
             "task-attempt-invalid"
           ]
@@ -169,6 +173,15 @@
             }
           }
         },
+        "tool_call_counts": {
+          "$ref": "#/$defs/toolCallCounts"
+        },
+        "expected_tool_calls": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "missing_expected_tool_calls": {
+          "$ref": "#/$defs/stringArray"
+        },
         "reasons": {
           "$ref": "#/$defs/stringArray"
         }
@@ -178,6 +191,17 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "toolCallCounts": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
       }
     }
   }

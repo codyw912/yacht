@@ -387,6 +387,9 @@ class SchemaTests(unittest.TestCase):
                                 "total": 1,
                                 "passed": 1,
                             },
+                            "tool_call_counts": {"fffind": 1},
+                            "expected_tool_calls": ["fffind"],
+                            "missing_expected_tool_calls": [],
                             "reasons": [],
                         }
                     ],
