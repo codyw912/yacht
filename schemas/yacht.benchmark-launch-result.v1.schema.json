@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.benchmark-launch-result.v1.schema.json",
+  "title": "YACHT Benchmark Launch Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "regatta", "course", "adapter", "status", "summary", "comparisons"],
+  "properties": {
+    "schema": {
+      "const": "yacht.benchmark-launch-result.v1"
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "dataset", "split", "harness"],
+      "properties": {
+        "kind": {
+          "const": "swe-bench"
+        },
+        "dataset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "split": {
+          "type": "string",
+          "minLength": 1
+        },
+        "harness": {
+          "const": "docker"
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["blocked", "complete", "failed", "partial"]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_vessels",
+        "launched_vessels",
+        "completed_launches",
+        "failed_launches",
+        "skipped_vessels"
+      ],
+      "properties": {
+        "total_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "launched_vessels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed_launches": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_launches": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped_vessels": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "comparisons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "course", "status", "vessels"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "course": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["blocked", "complete", "failed", "partial"]
+          },
+          "vessels": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/launchedVessel"
+                },
+                {
+                  "$ref": "#/$defs/skippedVessel"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "launchedVessel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "status",
+        "launcher_status",
+        "command",
+        "command_preview",
+        "exit_code",
+        "stdout_path",
+        "stderr_path",
+        "native_report_dir",
+        "expected_yacht_grading_report_path"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "failed"]
+        },
+        "launcher_status": {
+          "const": "ready-to-launch"
+        },
+        "command": {
+          "$ref": "#/$defs/command"
+        },
+        "command_preview": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stdout_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stderr_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_report_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_yacht_grading_report_path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "skippedVessel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "launcher_status", "skipped_reason"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "const": "skipped"
+        },
+        "launcher_status": {
+          "type": "string",
+          "enum": [
+            "already-graded",
+            "missing-candidate-patches",
+            "missing-preflight",
+            "missing-runtime-snapshot",
+            "preflight-failed",
+            "ready-to-launch"
+          ]
+        },
+        "skipped_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
+from yacht.benchmark_launch import write_benchmark_launch_result
 from yacht.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.benchmark_readiness_report import render_benchmark_readiness_report
@@ -293,6 +294,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--python-executable",
         default="python",
         help="Python executable prefix to include in generated SWE-bench commands.",
+    )
+
+    benchmark_launch_parser = subcommands.add_parser(
+        "benchmark-launch",
+        help="Execute ready native benchmark launcher commands.",
+    )
+    benchmark_launch_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing benchmark-launcher-handoff.json.",
     )
 
     preflight_report_parser = subcommands.add_parser(
@@ -726,6 +738,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(json.dumps(launcher_handoff, indent=2))
         return 0
+
+    if args.command == "benchmark-launch":
+        try:
+            launch_result = write_benchmark_launch_result(logbook_dir=args.logbook)
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(launch_result, indent=2))
+        return 0 if launch_result["status"] in {"complete", "partial"} else 1
 
     if args.command == "preflight-report":
         try:
