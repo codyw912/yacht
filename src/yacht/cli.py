@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
+from yacht.benchmark_grading_collection import collect_benchmark_grading_reports
 from yacht.benchmark_launch import write_benchmark_launch_result
 from yacht.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
@@ -305,6 +306,22 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("logbook"),
         help="Directory containing benchmark-launcher-handoff.json.",
+    )
+
+    benchmark_collect_grading_parser = subcommands.add_parser(
+        "benchmark-collect-grading",
+        help="Collect native benchmark reports into validated grading artifacts.",
+    )
+    benchmark_collect_grading_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    benchmark_collect_grading_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing benchmark launch artifacts.",
     )
 
     preflight_report_parser = subcommands.add_parser(
@@ -747,6 +764,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(json.dumps(launch_result, indent=2))
         return 0 if launch_result["status"] in {"complete", "partial"} else 1
+
+    if args.command == "benchmark-collect-grading":
+        try:
+            collection = collect_benchmark_grading_reports(
+                config_path=args.config,
+                logbook_dir=args.logbook,
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(collection, indent=2))
+        return 0 if collection["status"] in {"complete", "partial"} else 1
 
     if args.command == "preflight-report":
         try:
