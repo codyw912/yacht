@@ -351,6 +351,92 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(transcript["stdout"], result.response)
             self.assertEqual(transcript["tool_calls"], ["fff"])
 
+    def test_subprocess_prompt_launcher_extracts_pi_jsonl_machine_evidence(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pi_stdout = "\n".join(
+                [
+                    json.dumps({"type": "session", "version": 3}),
+                    json.dumps(
+                        {
+                            "type": "message_end",
+                            "message": {
+                                "role": "assistant",
+                                "api": "anthropic-messages",
+                                "provider": "anthropic",
+                                "model": "claude-haiku-4-5",
+                                "responseId": "msg_123",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": (
+                                            "```json\n"
+                                            '{"available": true, "configured": true, '
+                                            '"tool_calls": ["fffind"]}\n'
+                                            "```"
+                                        ),
+                                    }
+                                ],
+                                "usage": {
+                                    "input": 5,
+                                    "output": 7,
+                                    "cacheRead": 0,
+                                    "cacheWrite": 0,
+                                    "totalTokens": 12,
+                                    "cost": {
+                                        "input": 0.000005,
+                                        "output": 0.000035,
+                                        "cacheRead": 0,
+                                        "cacheWrite": 0,
+                                        "total": 0.00004,
+                                    },
+                                },
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "turn_end",
+                            "toolResults": [{"toolName": "fffind"}],
+                        }
+                    ),
+                ]
+            )
+
+            def runner(request: PiPromptRequest) -> CommandResult:
+                return CommandResult(exit_code=0, stdout=pi_stdout, stderr="")
+
+            request = PiPromptRequest(
+                prompt="Confirm fff availability.",
+                argv=("pi", "--print", "--mode", "json"),
+                env={"HOME": str(root / "home")},
+                cwd=root,
+                transcript_path=root / "transcripts" / "pi.json",
+            )
+
+            result = SubprocessPiPromptLauncher(runner=runner)(request)
+
+            self.assertEqual(
+                result.response,
+                (
+                    "```json\n"
+                    '{"available": true, "configured": true, '
+                    '"tool_calls": ["fffind"]}\n'
+                    "```"
+                ),
+            )
+            self.assertEqual(result.tool_calls, ("fffind",))
+
+            transcript = json.loads(
+                request.transcript_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(transcript["stdout"], pi_stdout)
+            self.assertEqual(transcript["response"], result.response)
+            self.assertEqual(transcript["tool_calls"], ["fffind"])
+            self.assertEqual(transcript["machine_evidence"]["tool_calls"], ["fffind"])
+
     def test_subprocess_task_launcher_captures_result_and_transcript(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
