@@ -98,6 +98,7 @@ uv run yacht validate examples/container-pi-real-task-smoke.toml
 uv run yacht task-attempts examples/container-pi-real-task-smoke.toml --agent pi --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht validate examples/container-pi-fff-real-task-smoke.toml
 uv run yacht real-smoke-eval examples/container-pi-fff-real-task-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
+uv run yacht real-smoke-eval examples/container-pi-fff-real-task-smoke.toml --logbook logbook --workspace . --secret 'anthropic=@op:op://Vault/Anthropic API key/credential'
 uv run yacht validate examples/pi-fff-provisioning.toml
 uv run yacht plan examples/pi-fff-provisioning.toml
 uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace .
@@ -152,6 +153,17 @@ runbook looks right, execute the gated smoke workflow:
 
 ```sh
 uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
+```
+
+In fish, a 1Password-backed run can avoid exporting the Anthropic key:
+
+```fish
+set LOGBOOK /private/tmp/yacht-real-smoke-(date +%Y%m%d-%H%M%S)
+uv run yacht real-smoke-eval examples/container-pi-fff-real-task-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace . \
+  --secret 'anthropic=@op:op://Vault/Anthropic API key/credential'
+uv run yacht smoke-report --logbook "$LOGBOOK"
 ```
 
 The command runs Pi agent preflight first. If preflight blocks, YACHT skips task
@@ -381,6 +393,8 @@ be Python programs.
 Regatta configs may optionally include provisioning sections:
 
 - `secrets` names explicit env/file secret references without storing values.
+  CLI `--secret` values can be literals, `@env:ENV_VAR`, or `@op:op://...`
+  1Password references.
 - `runtimes` defines agent runtime recipes such as `host-nix` plus a flake and command.
 - `riggings` defines named setup and environment changes that vessels can reference.
 - `course.adapter` optionally records a native benchmark harness such as SWE-bench.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -196,9 +197,14 @@ def parse_secret_values(values: list[str]) -> dict[str, str]:
 def _secret_value(name: str, value: str) -> str:
     if not value:
         raise ConfigError(f"secret {name} must be non-empty")
-    if not value.startswith("@env:"):
-        return value
-    env_name = value.removeprefix("@env:")
+    if value.startswith("@env:"):
+        return _read_env_secret(name, value.removeprefix("@env:"))
+    if value.startswith("@op:"):
+        return _read_1password_secret(name, value.removeprefix("@op:"))
+    return value
+
+
+def _read_env_secret(name: str, env_name: str) -> str:
     if not env_name:
         raise ConfigError(f"secret {name} @env reference must name an env var")
     if env_name not in os.environ:
@@ -211,6 +217,29 @@ def _secret_value(name: str, value: str) -> str:
             f"environment variable {env_name} is empty for secret {name}"
         )
     return env_value
+
+
+def _read_1password_secret(name: str, reference: str) -> str:
+    if not reference:
+        raise ConfigError(f"secret {name} @op reference must name a 1Password item")
+    try:
+        result = subprocess.run(
+            ["op", "read", reference],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as error:
+        raise ConfigError(
+            f"1Password CLI failed for secret {name}: {error}"
+        ) from error
+    if result.returncode != 0:
+        message = result.stderr.strip() or "op read failed"
+        raise ConfigError(f"1Password CLI failed for secret {name}: {message}")
+    secret = result.stdout.rstrip("\n")
+    if not secret:
+        raise ConfigError(f"1Password secret {name} is empty")
+    return secret
 
 
 def _comparison_execution_plan(

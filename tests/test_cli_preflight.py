@@ -137,6 +137,34 @@ class CliPreflightTests(unittest.TestCase):
 
         self.assertEqual(secrets, {"anthropic": "env-secret"})
 
+    def test_parse_secret_values_can_read_explicit_1password_reference(self) -> None:
+        with patch("yacht.preflight_runner._read_1password_secret") as read_secret:
+            read_secret.return_value = "op-secret"
+
+            secrets = parse_secret_values(
+                ["anthropic=@op:op://Vault/Anthropic API key/credential"]
+            )
+
+        self.assertEqual(secrets, {"anthropic": "op-secret"})
+        read_secret.assert_called_once_with(
+            "anthropic",
+            "op://Vault/Anthropic API key/credential",
+        )
+
+    def test_parse_secret_values_reports_failed_1password_reference(self) -> None:
+        with patch("yacht.preflight_runner.subprocess.run") as run:
+            run.return_value.returncode = 1
+            run.return_value.stdout = ""
+            run.return_value.stderr = "not signed in\n"
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "1Password CLI failed for secret anthropic: not signed in",
+            ):
+                parse_secret_values(
+                    ["anthropic=@op:op://Vault/Anthropic API key/credential"]
+                )
+
     def test_parse_secret_values_reports_missing_explicit_env_reference(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             with self.assertRaisesRegex(
