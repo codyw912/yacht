@@ -277,6 +277,9 @@ or SWE-bench.
 under `logbook/benchmark-launch/`. The native benchmark harness still owns task
 containers, test execution, and grading output; YACHT records launch status and
 the expected validated grading-report path.
+`yacht benchmark-collect-grading CONFIG --logbook LOGBOOK` reads that launch
+result, finds each completed vessel's native SWE-bench report, validates it, and
+writes the per-vessel YACHT grading artifacts consumed by the scorecard.
 `yacht preflight-report` writes `logbook/preflight-evidence-report.json`, a
 human-auditable eligibility report for each comparison vessel. It explains
 whether the preflight artifact is missing, failed, invalid, or passed without
