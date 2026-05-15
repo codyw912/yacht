@@ -326,6 +326,7 @@ def _execute_agent_prompt_check(
         "prompt": check.prompt or "",
         "exit_code": result.exit_code,
         "response": result.response,
+        "expected_tool_calls": list(check.expect_tool_calls),
         "tool_calls": list(result.tool_calls),
     }
     if response_contract.response_json is not None:

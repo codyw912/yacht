@@ -90,10 +90,17 @@ def _vessel_readiness(
     invalid_attempts = [
         str(path) for path in artifact_paths if not _valid_task_attempt(path)
     ]
+    tool_call_counts = _tool_call_counts(scorecard_vessel)
+    expected_tool_calls = _expected_tool_calls(preflight)
+    missing_expected_tool_calls = _missing_expected_tool_calls(
+        expected_tool_calls,
+        tool_call_counts,
+    )
     reasons = _vessel_reasons(
         preflight=preflight,
         scorecard_vessel=scorecard_vessel,
         invalid_attempts=invalid_attempts,
+        missing_expected_tool_calls=missing_expected_tool_calls,
     )
     status = _vessel_status(reasons)
     return {
@@ -104,6 +111,9 @@ def _vessel_readiness(
         "preflight_artifact_path": str(preflight_path),
         "task_attempt_artifact_paths": [str(path) for path in artifact_paths],
         "agent_prompt_checks": _agent_prompt_check_counts(preflight),
+        "tool_call_counts": tool_call_counts,
+        "expected_tool_calls": expected_tool_calls,
+        "missing_expected_tool_calls": missing_expected_tool_calls,
         "reasons": reasons,
     }
 
@@ -141,6 +151,7 @@ def _vessel_reasons(
     preflight: dict[str, Any] | None,
     scorecard_vessel: dict[str, Any],
     invalid_attempts: list[str],
+    missing_expected_tool_calls: list[str],
 ) -> list[str]:
     reasons: list[str] = []
     if preflight is None:
@@ -153,6 +164,8 @@ def _vessel_reasons(
         reasons.append("task-attempt-failed")
     if invalid_attempts:
         reasons.append("task-attempt-invalid")
+    if missing_expected_tool_calls:
+        reasons.append("missing-expected-tool-calls")
     return reasons
 
 
@@ -180,6 +193,44 @@ def _agent_prompt_check_counts(preflight: dict[str, Any] | None) -> dict[str, in
         "total": len(checks),
         "passed": sum(1 for check in checks if check.get("status") == "passed"),
     }
+
+
+def _tool_call_counts(scorecard_vessel: dict[str, Any]) -> dict[str, int]:
+    counts = scorecard_vessel.get("tool_call_counts", {})
+    if not isinstance(counts, dict):
+        return {}
+    return {
+        str(tool_name): int(count)
+        for tool_name, count in sorted(counts.items())
+        if isinstance(count, int) and count > 0
+    }
+
+
+def _expected_tool_calls(preflight: dict[str, Any] | None) -> list[str]:
+    if preflight is None:
+        return []
+    expected_tool_calls: list[str] = []
+    for check in preflight.get("checks", []):
+        if check.get("kind") != "agent-prompt":
+            continue
+        evidence = check.get("evidence", {})
+        if not isinstance(evidence, dict):
+            continue
+        for tool_call in evidence.get("expected_tool_calls", []):
+            if isinstance(tool_call, str) and tool_call not in expected_tool_calls:
+                expected_tool_calls.append(tool_call)
+    return expected_tool_calls
+
+
+def _missing_expected_tool_calls(
+    expected_tool_calls: list[str],
+    tool_call_counts: dict[str, int],
+) -> list[str]:
+    return [
+        tool_call
+        for tool_call in expected_tool_calls
+        if tool_call_counts.get(tool_call, 0) <= 0
+    ]
 
 
 def _summary(comparisons: list[dict[str, Any]]) -> dict[str, int]:

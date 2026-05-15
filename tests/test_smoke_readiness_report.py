@@ -49,6 +49,10 @@ class SmokeReadinessReportTests(unittest.TestCase):
             self.assertEqual(report["status"], "ready")
             self.assertEqual(report["summary"]["ready_vessels"], 2)
             self.assertEqual(report["summary"]["passed_agent_prompt_checks"], 1)
+            rigged = report["comparisons"][0]["vessels"][1]
+            self.assertEqual(rigged["expected_tool_calls"], ["fffind"])
+            self.assertEqual(rigged["missing_expected_tool_calls"], [])
+            self.assertEqual(rigged["tool_call_counts"], {"fffind": 1})
             self.assertTrue((logbook_dir / "smoke-readiness-report.json").is_file())
 
     def test_smoke_readiness_report_blocks_without_agent_prompt_evidence(
@@ -119,6 +123,49 @@ class SmokeReadinessReportTests(unittest.TestCase):
             self.assertEqual(baseline["status"], "missing-preflight")
             self.assertEqual(baseline["reasons"], ["missing-preflight"])
 
+    def test_smoke_readiness_report_blocks_missing_expected_tool_call(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path, workspace_path, logbook_dir = self._write_fixture(
+                Path(temp_dir)
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-baseline",
+                status="passed",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-plus-fff",
+                status="passed",
+                include_agent_prompt=True,
+            )
+
+            self._run_pi_smoke_eval(
+                config_path,
+                logbook_dir,
+                workspace_path,
+                tool_calls=("bash",),
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    ["smoke-readiness-report", "--logbook", str(logbook_dir)]
+                )
+
+            self.assertEqual(exit_code, 1)
+            report = json.loads(stdout.getvalue())
+            self.assertEqual(report["status"], "blocked")
+            rigged = report["comparisons"][0]["vessels"][1]
+            self.assertEqual(rigged["name"], "pi-plus-fff")
+            self.assertEqual(rigged["status"], "missing-expected-tool-calls")
+            self.assertEqual(rigged["expected_tool_calls"], ["fffind"])
+            self.assertEqual(rigged["missing_expected_tool_calls"], ["fffind"])
+            self.assertEqual(rigged["tool_call_counts"], {"bash": 1})
+            self.assertEqual(rigged["reasons"], ["missing-expected-tool-calls"])
+
     def _write_fixture(self, root: Path) -> tuple[Path, Path, Path]:
         config_path = root / "regatta.toml"
         workspace_path = root / "workspace"
@@ -132,11 +179,13 @@ class SmokeReadinessReportTests(unittest.TestCase):
         config_path: Path,
         logbook_dir: Path,
         workspace_path: Path,
+        tool_calls: tuple[str, ...] = ("fffind",),
     ) -> None:
         def runner(request: PiTaskRequest) -> CommandResult:
+            tool_call_json = json.dumps(list(tool_calls))
             return CommandResult(
                 exit_code=0,
-                stdout='{"completed": true, "tool_calls": ["fffind"]}\n',
+                stdout=f'{{"completed": true, "tool_calls": {tool_call_json}}}\n',
                 stderr="",
             )
 

@@ -249,6 +249,7 @@ class MachinePreflightTests(unittest.TestCase):
                         '{"available": true, "configured": true, "tool_calls": ["fffind"]}'
                         "\n```"
                     ),
+                    "expected_tool_calls": ["fffind"],
                     "response_json": {
                         "available": True,
                         "configured": True,

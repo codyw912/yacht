@@ -320,7 +320,8 @@ Pi task attempts and immediately writes `task-attempt-scorecard.json`, including
 per-vessel and summary `tool_call_counts` rollups for machine evidence.
 `yacht smoke-readiness-report` checks whether the logbook has usable smoke-run
 evidence: passed preflight artifacts, valid task-attempt artifacts, a complete
-task-attempt scorecard, and at least one passed agent-prompt preflight check.
+task-attempt scorecard, at least one passed agent-prompt preflight check, and
+any tool calls that those preflight checks explicitly expected.
 `yacht real-smoke-eval` is the one-command gated path for this sequence: it runs
 Pi agent preflight first, skips task attempts if preflight blocks, then runs Pi
 smoke attempts and writes the smoke readiness report.
