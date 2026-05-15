@@ -4,7 +4,7 @@ Verify that the fff tool is available from the current agent session and that
 it is configured for the isolated runtime state prepared by YACHT.
 
 Requirements:
-- Make one minimal fff tool call that proves the tool is reachable.
+- Make one minimal `fffind` tool call that proves the tool is reachable.
 - Check that fff is configured for this run, including `PI_FFF_MODE=required`.
 - Check that fff state paths are isolated to the trial runtime state when those
   paths are visible to you.
@@ -16,7 +16,7 @@ Return only one JSON object on stdout:
 {
   "available": true,
   "configured": true,
-  "tool_calls": ["fff"],
+  "tool_calls": ["fffind"],
   "checks": {
     "fff_tool_reachable": true,
     "pi_fff_mode_required": true,

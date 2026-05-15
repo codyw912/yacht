@@ -275,7 +275,7 @@ class PiAdapterTests(unittest.TestCase):
                 return AgentPromptResult(
                     exit_code=0,
                     response='{"available": true, "configured": true}',
-                    tool_calls=("fff",),
+                    tool_calls=("fffind",),
                     transcript_path=request.transcript_path,
                 )
 

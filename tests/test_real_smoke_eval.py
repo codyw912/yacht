@@ -31,7 +31,7 @@ class RealSmokeEvalTests(unittest.TestCase):
                     exit_code=0,
                     stdout=(
                         '{"available": true, "configured": true, '
-                        '"tool_calls": ["fff"]}\n'
+                        '"tool_calls": ["fffind"]}\n'
                     ),
                     stderr="",
                 )
@@ -40,7 +40,7 @@ class RealSmokeEvalTests(unittest.TestCase):
                 task_requests.append(request)
                 return CommandResult(
                     exit_code=0,
-                    stdout='{"completed": true, "tool_calls": ["fff"]}\n',
+                    stdout='{"completed": true, "tool_calls": ["fffind"]}\n',
                     stderr="",
                 )
 
@@ -95,7 +95,7 @@ class RealSmokeEvalTests(unittest.TestCase):
                 task_requests.append(request)
                 return CommandResult(
                     exit_code=0,
-                    stdout='{"completed": true, "tool_calls": ["fff"]}\n',
+                    stdout='{"completed": true, "tool_calls": ["fffind"]}\n',
                     stderr="",
                 )
 
@@ -189,7 +189,7 @@ def _config_without_install() -> str:
 def _passing_prompt_runner(request: PiPromptRequest) -> CommandResult:
     return CommandResult(
         exit_code=0,
-        stdout='{"available": true, "configured": true, "tool_calls": ["fff"]}\n',
+        stdout='{"available": true, "configured": true, "tool_calls": ["fffind"]}\n',
         stderr="",
     )
 

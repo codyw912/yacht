@@ -116,7 +116,17 @@ class LocalSmokeTaskAttemptTests(unittest.TestCase):
             baseline = vessels["local-baseline"]
             rigged = vessels["local-agent-with-tool"]
             self.assertEqual(baseline["tool_call_count"], 0)
+            self.assertEqual(baseline["tool_call_counts"], {})
             self.assertEqual(rigged["tool_call_count"], 1)
+            self.assertEqual(rigged["tool_call_counts"], {"local-smoke": 1})
+            self.assertEqual(
+                comparison["summary"]["tool_call_counts"],
+                {"local-smoke": 1},
+            )
+            self.assertEqual(
+                scorecard["summary"]["tool_call_counts"],
+                {"local-smoke": 1},
+            )
             self.assertEqual(rigged["success_rate"], 1.0)
             self.assertTrue((logbook_dir / "task-attempt-scorecard.json").is_file())
 

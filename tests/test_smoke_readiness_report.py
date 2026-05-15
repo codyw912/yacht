@@ -136,7 +136,7 @@ class SmokeReadinessReportTests(unittest.TestCase):
         def runner(request: PiTaskRequest) -> CommandResult:
             return CommandResult(
                 exit_code=0,
-                stdout='{"completed": true, "tool_calls": ["fff"]}\n',
+                stdout='{"completed": true, "tool_calls": ["fffind"]}\n',
                 stderr="",
             )
 

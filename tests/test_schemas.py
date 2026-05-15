@@ -225,6 +225,7 @@ class SchemaTests(unittest.TestCase):
                 "completed_attempts": 2,
                 "failed_attempts": 0,
                 "total_tool_calls": 1,
+                "tool_call_counts": {"local-smoke": 1},
                 "total_tokens": 16,
                 "total_cost": 0.00042,
                 "total_duration_seconds": 0.0,
@@ -238,6 +239,7 @@ class SchemaTests(unittest.TestCase):
                         "completed_attempts": 2,
                         "failed_attempts": 0,
                         "total_tool_calls": 1,
+                        "tool_call_counts": {"local-smoke": 1},
                         "total_tokens": 16,
                         "total_cost": 0.00042,
                         "total_duration_seconds": 0.0,
@@ -251,6 +253,7 @@ class SchemaTests(unittest.TestCase):
                             "failed_attempts": 0,
                             "success_rate": 1.0,
                             "tool_call_count": 1,
+                            "tool_call_counts": {"local-smoke": 1},
                             "total_tokens": 8,
                             "total_cost": 0.00042,
                             "total_duration_seconds": 0.0,
@@ -264,6 +267,63 @@ class SchemaTests(unittest.TestCase):
         }
 
         validate_task_attempt_scorecard_document(document)
+
+    def test_task_attempt_scorecard_rejects_invalid_tool_call_counts(self) -> None:
+        document = {
+            "schema": TASK_ATTEMPT_SCORECARD_SCHEMA,
+            "regatta": "local-agent-preflight-smoke",
+            "course": "local-smoke",
+            "status": "complete",
+            "summary": {
+                "total_comparisons": 1,
+                "total_vessels": 1,
+                "total_attempts": 1,
+                "completed_attempts": 1,
+                "failed_attempts": 0,
+                "total_tool_calls": 1,
+                "tool_call_counts": {"local-smoke": -1},
+                "total_tokens": 8,
+                "total_cost": 0.00042,
+                "total_duration_seconds": 0.0,
+            },
+            "comparisons": [
+                {
+                    "name": "local-agent-preflight",
+                    "summary": {
+                        "total_vessels": 1,
+                        "total_attempts": 1,
+                        "completed_attempts": 1,
+                        "failed_attempts": 0,
+                        "total_tool_calls": 1,
+                        "tool_call_counts": {"local-smoke": 1},
+                        "total_tokens": 8,
+                        "total_cost": 0.00042,
+                        "total_duration_seconds": 0.0,
+                    },
+                    "vessels": [
+                        {
+                            "name": "local-agent-with-tool",
+                            "status": "measured",
+                            "task_attempts": 1,
+                            "completed_attempts": 1,
+                            "failed_attempts": 0,
+                            "success_rate": 1.0,
+                            "tool_call_count": 1,
+                            "tool_call_counts": {"local-smoke": 1},
+                            "total_tokens": 8,
+                            "total_cost": 0.00042,
+                            "total_duration_seconds": 0.0,
+                            "artifact_paths": [
+                                "logbook/task-attempts/local-agent-preflight/local-agent-with-tool/local-smoke-1.json"
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+
+        with self.assertRaisesRegex(ValueError, "summary.tool_call_counts.local-smoke"):
+            validate_task_attempt_scorecard_document(document)
 
     def test_preflight_documents_include_schema_version(self) -> None:
         document = {

@@ -316,7 +316,8 @@ secret references. Pass `--agent pi` to launch those attempts through the Pi
 subprocess adapter; this requires explicit `--secret` values for configured
 secret references and still does not run SWE-bench Docker grading.
 `yacht pi-smoke-eval` is the Pi convenience wrapper for the same path: it runs
-Pi task attempts and immediately writes `task-attempt-scorecard.json`.
+Pi task attempts and immediately writes `task-attempt-scorecard.json`, including
+per-vessel and summary `tool_call_counts` rollups for machine evidence.
 `yacht smoke-readiness-report` checks whether the logbook has usable smoke-run
 evidence: passed preflight artifacts, valid task-attempt artifacts, a complete
 task-attempt scorecard, and at least one passed agent-prompt preflight check.

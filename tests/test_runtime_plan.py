@@ -320,7 +320,7 @@ class RuntimePlanTests(unittest.TestCase):
             )
             self.assertEqual(
                 rigged_vessel["preflight_checks"][-1]["expect_tool_calls"],
-                ["fff"],
+                ["fffind"],
             )
 
     def test_plan_command_prints_resolved_runtime_plan_without_logbook(self) -> None:

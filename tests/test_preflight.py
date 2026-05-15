@@ -217,10 +217,10 @@ class MachinePreflightTests(unittest.TestCase):
                     exit_code=0,
                     response=(
                         "```json\n"
-                        '{"available": true, "configured": true, "tool_calls": ["fff"]}'
+                        '{"available": true, "configured": true, "tool_calls": ["fffind"]}'
                         "\n```"
                     ),
-                    tool_calls=("fff",),
+                    tool_calls=("fffind",),
                     transcript_path=root / "transcripts" / "fff.json",
                 )
 
@@ -246,15 +246,15 @@ class MachinePreflightTests(unittest.TestCase):
                     "exit_code": 0,
                     "response": (
                         "```json\n"
-                        '{"available": true, "configured": true, "tool_calls": ["fff"]}'
+                        '{"available": true, "configured": true, "tool_calls": ["fffind"]}'
                         "\n```"
                     ),
                     "response_json": {
                         "available": True,
                         "configured": True,
-                        "tool_calls": ["fff"],
+                        "tool_calls": ["fffind"],
                     },
-                    "tool_calls": ["fff"],
+                    "tool_calls": ["fffind"],
                     "transcript_path": str(root / "transcripts" / "fff.json"),
                 },
             )
@@ -293,7 +293,7 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(artifact["status"], "failed")
             agent_check = _check_by_name(artifact, "fff-headless-smoke")
             self.assertEqual(agent_check["status"], "failed")
-            self.assertEqual(agent_check["evidence"]["missing_tool_calls"], ["fff"])
+            self.assertEqual(agent_check["evidence"]["missing_tool_calls"], ["fffind"])
 
     def test_execute_preflight_fails_agent_prompt_without_configured_contract(
         self,

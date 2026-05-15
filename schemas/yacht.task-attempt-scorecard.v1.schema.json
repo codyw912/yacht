@@ -112,8 +112,15 @@
           "type": "integer",
           "minimum": 0
         },
+        "tool_call_counts": {
+          "$ref": "#/$defs/toolCallCounts"
+        },
         "total_tokens": {
           "type": "integer",
+          "minimum": 0
+        },
+        "total_cost": {
+          "type": "number",
           "minimum": 0
         },
         "total_duration_seconds": {
@@ -163,8 +170,15 @@
           "type": "integer",
           "minimum": 0
         },
+        "tool_call_counts": {
+          "$ref": "#/$defs/toolCallCounts"
+        },
         "total_tokens": {
           "type": "integer",
+          "minimum": 0
+        },
+        "total_cost": {
+          "type": "number",
           "minimum": 0
         },
         "total_duration_seconds": {
@@ -206,8 +220,15 @@
           "type": "integer",
           "minimum": 0
         },
+        "tool_call_counts": {
+          "$ref": "#/$defs/toolCallCounts"
+        },
         "total_tokens": {
           "type": "integer",
+          "minimum": 0
+        },
+        "total_cost": {
+          "type": "number",
           "minimum": 0
         },
         "total_duration_seconds": {
@@ -220,6 +241,17 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "toolCallCounts": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
       }
     }
   }
