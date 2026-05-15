@@ -141,28 +141,31 @@ class SubprocessPiPromptLauncher:
 
     def __call__(self, request: PiPromptRequest) -> AgentPromptResult:
         result = self._runner(request)
-        tool_calls = _tool_calls_from_output(result.stdout)
+        machine_evidence = _pi_jsonl_machine_evidence(result.stdout)
+        tool_calls = _tool_calls_from_machine_evidence(
+            machine_evidence,
+        ) or _tool_calls_from_output(result.stdout)
+        response = _response_from_pi_jsonl(result.stdout) or result.stdout
         request.transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript: dict[str, Any] = {
+            "prompt": request.prompt,
+            "argv": list(request.argv),
+            "cwd": str(request.cwd),
+            "exit_code": result.exit_code,
+            "stdout": result.stdout,
+            "response": response,
+            "stderr": result.stderr,
+            "tool_calls": list(tool_calls),
+        }
+        if machine_evidence:
+            transcript["machine_evidence"] = machine_evidence
         request.transcript_path.write_text(
-            json.dumps(
-                {
-                    "prompt": request.prompt,
-                    "argv": list(request.argv),
-                    "cwd": str(request.cwd),
-                    "exit_code": result.exit_code,
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                    "tool_calls": list(tool_calls),
-                },
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
+            json.dumps(transcript, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         return AgentPromptResult(
             exit_code=result.exit_code,
-            response=result.stdout,
+            response=response,
             tool_calls=tool_calls,
             transcript_path=request.transcript_path,
         )
@@ -337,6 +340,27 @@ def _last_assistant_message(events: list[dict[str, Any]]) -> dict[str, Any]:
     if not assistant_messages:
         return {}
     return assistant_messages[-1]
+
+
+def _response_from_pi_jsonl(output: str) -> str:
+    events = _jsonl_events(output)
+    if not events or not _looks_like_pi_jsonl(events):
+        return ""
+    return _text_from_message(_last_assistant_message(events))
+
+
+def _text_from_message(message: dict[str, Any]) -> str:
+    text_parts: list[str] = []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return ""
+    for item in content:
+        if not isinstance(item, dict) or item.get("type") != "text":
+            continue
+        text = item.get("text")
+        if isinstance(text, str):
+            text_parts.append(text)
+    return "".join(text_parts)
 
 
 def _usage_without_cost(message: dict[str, Any]) -> dict[str, Any]:

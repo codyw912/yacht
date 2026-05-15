@@ -263,6 +263,43 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(calls[0][1]["HOME"], str(instance.temp_home))
             self.assertEqual(calls[0][2], instance.workspace_path)
 
+    def test_execute_preflight_reads_agent_prompt_file_from_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            regatta, instance = _prepared_runtime(root, vessel_index=1)
+            prompt_path = instance.workspace_path / "preflights" / "pi-fff.md"
+            prompt_path.parent.mkdir(parents=True)
+            prompt_path.write_text("Confirm fff with fffind.\n", encoding="utf-8")
+            calls = []
+
+            def agent_runner(
+                prompt: str,
+                env: dict[str, str],
+                cwd: Path,
+            ) -> AgentPromptResult:
+                calls.append((prompt, env, cwd))
+                return AgentPromptResult(
+                    exit_code=0,
+                    response='{"available": true, "configured": true}',
+                    tool_calls=("fffind",),
+                    transcript_path=None,
+                )
+
+            artifact = execute_preflight(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                instance=instance,
+                artifact_path=root / "logbook" / "preflight" / "pi-plus-fff.json",
+                comparison=regatta.comparisons[0],
+                command_runner=_passing_command,
+                agent_prompt_runner=agent_runner,
+            )
+
+            self.assertEqual(artifact["status"], "passed")
+            agent_check = _check_by_name(artifact, "fff-headless-smoke")
+            self.assertEqual(calls[0][0], "Confirm fff with fffind.\n")
+            self.assertEqual(agent_check["evidence"]["prompt"], calls[0][0])
+
     def test_execute_preflight_fails_agent_prompt_without_expected_tool_call(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -76,6 +76,10 @@ class ContainerImageTests(unittest.TestCase):
         self.assertEqual(rigging.install, ("npm:@ff-labs/pi-fff",))
         self.assertEqual(rigging.env["PI_FFF_MODE"], "required")
         self.assertIn("fffind", rigging.instructions)
+        self.assertEqual(
+            rigging.preflight.checks[2].expect_tool_calls,
+            ("fffind",),
+        )
         self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))
         self.assertEqual(regatta.course.tasks[0].id, "container-pi-fff-smoke-1")
 

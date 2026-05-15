@@ -313,8 +313,9 @@ def _execute_agent_prompt_check(
             },
         }
 
+    prompt = _agent_prompt_text(check.prompt or "", instance.workspace_path)
     result = agent_prompt_runner(
-        check.prompt or "",
+        prompt,
         instance.env,
         instance.workspace_path,
     )
@@ -323,7 +324,7 @@ def _execute_agent_prompt_check(
         name for name in check.expect_tool_calls if name not in result.tool_calls
     ]
     evidence: dict[str, object] = {
-        "prompt": check.prompt or "",
+        "prompt": prompt,
         "exit_code": result.exit_code,
         "response": result.response,
         "expected_tool_calls": list(check.expect_tool_calls),
@@ -349,6 +350,15 @@ def _execute_agent_prompt_check(
         "status": status,
         "evidence": evidence,
     }
+
+
+def _agent_prompt_text(prompt: str, cwd: Path) -> str:
+    prompt_path = Path(prompt)
+    if not prompt_path.is_absolute():
+        prompt_path = cwd / prompt_path
+    if prompt_path.is_file():
+        return prompt_path.read_text(encoding="utf-8")
+    return prompt
 
 
 def _check_result_base(effective_check: EffectiveCheck) -> dict[str, object]:

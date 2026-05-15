@@ -19,6 +19,83 @@ from yacht.preflight import CommandResult
 
 
 class RealSmokeEvalTests(unittest.TestCase):
+    def test_real_smoke_eval_runs_container_pi_fff_example_to_readiness(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "container-pi-fff-real-task-smoke.toml"
+            workspace_path = root / "workspace"
+            logbook_dir = root / "logbook"
+            config_path.write_text(
+                _container_pi_fff_real_smoke_config_without_install(),
+                encoding="utf-8",
+            )
+            workspace_path.mkdir()
+            prompt_requests = []
+            task_requests = []
+
+            def prompt_runner(request: PiPromptRequest) -> CommandResult:
+                prompt_requests.append(request)
+                return CommandResult(
+                    exit_code=0,
+                    stdout=(
+                        '{"available": true, "configured": true, '
+                        '"tool_calls": ["fffind"]}\n'
+                    ),
+                    stderr="",
+                )
+
+            def task_runner(request: PiTaskRequest) -> CommandResult:
+                task_requests.append(request)
+                if "Rigging instructions:" in request.prompt:
+                    tool_calls = ["fffind"]
+                else:
+                    tool_calls = []
+                return CommandResult(
+                    exit_code=0,
+                    stdout=json.dumps(
+                        {"completed": True, "tool_calls": tool_calls},
+                    ),
+                    stderr="",
+                )
+
+            stdout = StringIO()
+            with patch(
+                "yacht.preflight._run_command",
+                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+            ), patch(
+                "yacht.cli.SubprocessPiPromptLauncher",
+                return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
+            ), patch(
+                "yacht.cli.SubprocessPiTaskLauncher",
+                return_value=SubprocessPiTaskLauncher(runner=task_runner),
+            ), redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "real-smoke-eval",
+                        str(config_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_path),
+                        "--secret",
+                        "anthropic=test-secret",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            summary = json.loads(stdout.getvalue())
+            self.assertEqual(summary["status"], "ready")
+            self.assertEqual(summary["preflight"]["status"], "passed")
+            self.assertEqual(summary["smoke_eval"]["status"], "complete")
+            self.assertEqual(summary["readiness"]["status"], "ready")
+            self.assertEqual(len(prompt_requests), 1)
+            self.assertEqual(len(task_requests), 2)
+            rigged = summary["readiness"]["comparisons"][0]["vessels"][1]
+            self.assertEqual(rigged["name"], "pi-container-fff")
+            self.assertEqual(rigged["expected_tool_calls"], ["fffind"])
+            self.assertEqual(rigged["missing_expected_tool_calls"], [])
+            self.assertEqual(rigged["tool_call_counts"], {"fffind": 1})
+
     def test_real_smoke_eval_runs_preflight_attempts_and_readiness(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path, workspace_path, logbook_dir = _write_fixture(Path(temp_dir))
@@ -181,6 +258,15 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
 
 def _config_without_install() -> str:
     return PI_WITH_FFF_CONFIG.replace(
+        'install = ["npm:@ff-labs/pi-fff"]',
+        "install = []",
+    )
+
+
+def _container_pi_fff_real_smoke_config_without_install() -> str:
+    return Path("examples/container-pi-fff-real-task-smoke.toml").read_text(
+        encoding="utf-8",
+    ).replace(
         'install = ["npm:@ff-labs/pi-fff"]',
         "install = []",
     )
