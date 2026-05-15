@@ -7,7 +7,9 @@ authors = [
     { name = "codyw912", email = "32690983+codyw912@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "datasets>=4.8.5",
+]
 
 [project.scripts]
 yacht = "yacht.cli:main"

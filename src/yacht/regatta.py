@@ -25,6 +25,10 @@ class Task:
     id: str
     title: str
     difficulty: int
+    repo: str | None = None
+    repo_url: str | None = None
+    base_commit: str | None = None
+    problem_statement: str | None = None
 
 
 @dataclass(frozen=True)
@@ -300,6 +304,16 @@ def load_regatta(config_path: Path) -> Regatta:
                 id=str(task["id"]),
                 title=str(task["title"]),
                 difficulty=int(task.get("difficulty", 1)),
+                repo=str(task["repo"]) if "repo" in task else None,
+                repo_url=str(task["repo_url"]) if "repo_url" in task else None,
+                base_commit=(
+                    str(task["base_commit"]) if "base_commit" in task else None
+                ),
+                problem_statement=(
+                    str(task["problem_statement"])
+                    if "problem_statement" in task
+                    else None
+                ),
             )
             for task in raw["course"]["tasks"]
         ),

@@ -15,6 +15,10 @@ from yacht.regatta import (
     load_regatta,
 )
 from yacht.runtime_backend import RuntimePreparationError, runtime_backend_for_recipe
+from yacht.swebench_task_context import (
+    materialize_swe_bench_workspace,
+    task_with_swe_bench_context,
+)
 from yacht.task_attempts import AgentTaskResult, write_task_attempt
 
 
@@ -115,13 +119,22 @@ def _run_vessel_task_attempt(
     secret_values: dict[str, str],
     agent: TaskAgent,
 ) -> dict[str, str]:
+    task = _task_for_attempt(regatta, task)
+    attempt_workspace_path = _workspace_for_attempt(
+        regatta=regatta,
+        comparison=comparison,
+        vessel=vessel,
+        task=task,
+        logbook_dir=logbook_dir,
+        workspace_path=workspace_path,
+    )
     try:
         runtime = _runtime_for_vessel(regatta, vessel)
         instance = runtime_backend_for_recipe(runtime).prepare(
             regatta=regatta,
             vessel=vessel,
             trial_root=logbook_dir / "runtime" / comparison.name,
-            workspace_path=workspace_path,
+            workspace_path=attempt_workspace_path,
             secret_values=secret_values,
         )
     except RuntimePreparationError as error:
@@ -175,6 +188,14 @@ def _task_prompt(regatta: Regatta, vessel: Vessel, task: Task) -> str:
             "model_patch string. model_patch must be a unified diff candidate patch "
             "for this task. Do not wrap the JSON in markdown fences.\n"
         )
+        if task.problem_statement is not None:
+            prompt += f"\nProblem statement:\n{task.problem_statement}\n"
+        if task.repo is not None and task.base_commit is not None:
+            prompt += (
+                "\nRepository context:\n"
+                f"- repo: {task.repo}\n"
+                f"- base_commit: {task.base_commit}\n"
+            )
     instructions = _rigging_instructions(regatta, vessel)
     if instructions:
         prompt += "\nRigging instructions:\n"
@@ -186,6 +207,31 @@ def _is_swe_bench_course(regatta: Regatta) -> bool:
     return (
         regatta.course.adapter is not None
         and regatta.course.adapter.kind == "swe-bench"
+    )
+
+
+def _task_for_attempt(regatta: Regatta, task: Task) -> Task:
+    if regatta.course.adapter is None or regatta.course.adapter.kind != "swe-bench":
+        return task
+    return task_with_swe_bench_context(task=task, adapter=regatta.course.adapter)
+
+
+def _workspace_for_attempt(
+    *,
+    regatta: Regatta,
+    comparison: Comparison,
+    vessel: Vessel,
+    task: Task,
+    logbook_dir: Path,
+    workspace_path: Path,
+) -> Path:
+    if regatta.course.adapter is None or regatta.course.adapter.kind != "swe-bench":
+        return workspace_path
+    return materialize_swe_bench_workspace(
+        task=task,
+        workspace_root=logbook_dir / "swe-bench-workspaces",
+        comparison_name=comparison.name,
+        vessel_name=vessel.name,
     )
 
 

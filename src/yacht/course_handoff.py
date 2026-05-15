@@ -62,11 +62,19 @@ def _adapter_to_json(adapter: CourseAdapter) -> dict[str, str]:
 
 
 def _task_to_json(task: Task) -> dict[str, str | int]:
-    return {
+    payload: dict[str, str | int] = {
         "id": task.id,
         "title": task.title,
         "difficulty": task.difficulty,
     }
+    for key, value in (
+        ("repo", task.repo),
+        ("base_commit", task.base_commit),
+        ("problem_statement", task.problem_statement),
+    ):
+        if value is not None:
+            payload[key] = value
+    return payload
 
 
 def _comparison_to_json(comparison: Comparison) -> dict[str, Any]:

@@ -93,11 +93,20 @@ def _status_for_exit_code(exit_code: int) -> str:
 
 
 def _task_to_json(task: Task) -> dict[str, str | int]:
-    return {
+    payload: dict[str, str | int] = {
         "id": task.id,
         "title": task.title,
         "difficulty": task.difficulty,
     }
+    for key, value in (
+        ("repo", task.repo),
+        ("repo_url", task.repo_url),
+        ("base_commit", task.base_commit),
+        ("problem_statement", task.problem_statement),
+    ):
+        if value is not None:
+            payload[key] = value
+    return payload
 
 
 def _runtime_context_to_json(instance: RuntimeInstance) -> dict[str, Any]:
