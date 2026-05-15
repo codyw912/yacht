@@ -127,6 +127,8 @@ uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --
 uv run yacht task-attempts examples/pi-fff-provisioning.toml --agent pi --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht pi-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht smoke-readiness-report --logbook logbook
+uv run yacht smoke-report --logbook logbook
+uv run yacht smoke-report --logbook logbook --format markdown --output logbook/smoke-report.md
 uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic="$ANTHROPIC_API_KEY"
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace . --format markdown
@@ -156,7 +158,9 @@ The command runs Pi agent preflight first. If preflight blocks, YACHT skips task
 attempts and exits nonzero before spending task-run tokens. If it completes,
 inspect `logbook/smoke-readiness-report.json`; `status: "ready"` means the
 logbook has passed preflight evidence, valid task-attempt artifacts, a complete
-task-attempt scorecard, and at least one passed agent-prompt check.
+task-attempt scorecard, and at least one passed agent-prompt check. Use
+`yacht smoke-report --logbook logbook` for a human-readable rollup of readiness,
+attempt status, observed tool calls, expected tool calls, tokens, and cost.
 
 `yacht plan` is a dry run. It prints the resolved runtime and preflight plan
 with isolated runtime placeholders, redacted secret references, and any
@@ -322,6 +326,8 @@ per-vessel and summary `tool_call_counts` rollups for machine evidence.
 evidence: passed preflight artifacts, valid task-attempt artifacts, a complete
 task-attempt scorecard, at least one passed agent-prompt preflight check, and
 any tool calls that those preflight checks explicitly expected.
+`yacht smoke-report` reads the readiness report and task-attempt scorecard back
+into a compact text or Markdown report for PRs, issues, and manual inspection.
 `yacht real-smoke-eval` is the one-command gated path for this sequence: it runs
 Pi agent preflight first, skips task attempts if preflight blocks, then runs Pi
 smoke attempts and writes the smoke readiness report.
