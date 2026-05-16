@@ -48,6 +48,7 @@ class BenchmarkLaunchTests(unittest.TestCase):
             self.assertEqual(result["summary"]["failed_launches"], 0)
             self.assertEqual(len(calls), 2)
             vessel = result["comparisons"][0]["vessels"][0]
+            self.assertEqual(calls[0][1], Path(vessel["native_report_dir"]))
             self.assertEqual(vessel["name"], "pi-baseline")
             self.assertEqual(vessel["status"], "completed")
             self.assertEqual(vessel["exit_code"], 0)

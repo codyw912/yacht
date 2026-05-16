@@ -131,6 +131,7 @@ def _create_repo(path: Path) -> Path:
     _git(path, "init")
     _git(path, "config", "user.email", "test@example.com")
     _git(path, "config", "user.name", "Test User")
+    _git(path, "config", "commit.gpgsign", "false")
     (path / "example.txt").write_text("base\n", encoding="utf-8")
     _git(path, "add", "example.txt")
     _git(path, "commit", "-m", "base")
