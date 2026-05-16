@@ -350,6 +350,34 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 ),
             )
 
+    def test_benchmark_report_includes_agent_usage_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+            _write_task_attempt_scorecard(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn(
+                "Agent usage: Attempts: 2 | Failed: 0 | Tool calls: 7 | "
+                "Tokens: 15643 | Cost: 0.010336 | Duration: 12.500s",
+                stdout.getvalue(),
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-plus-fff | 1 | 0 | bash:1, edit:1, "
+                "fffind:1, read:1 | 6251 | 0.004513 | 5.250s",
+                stdout.getvalue(),
+            )
+
     def test_benchmark_report_command_writes_output_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -599,6 +627,104 @@ def _prepared_multi_vessel_logbook(root: Path) -> Path:
         vessel_name="pi-plus-fff",
     )
     return logbook_dir
+
+
+def _write_task_attempt_scorecard(logbook_dir: Path) -> None:
+    (logbook_dir / "task-attempt-scorecard.json").write_text(
+        json.dumps(
+            {
+                "schema": "yacht.task-attempt-scorecard.v1",
+                "regatta": "pi-fff-comparison",
+                "course": "swe-bench-lite",
+                "status": "complete",
+                "summary": {
+                    "total_comparisons": 1,
+                    "total_vessels": 2,
+                    "total_attempts": 2,
+                    "completed_attempts": 2,
+                    "failed_attempts": 0,
+                    "total_tool_calls": 7,
+                    "tool_call_counts": {
+                        "bash": 2,
+                        "edit": 2,
+                        "fffind": 1,
+                        "read": 2,
+                    },
+                    "total_tokens": 15643,
+                    "total_cost": 0.010336,
+                    "total_duration_seconds": 12.5,
+                },
+                "comparisons": [
+                    {
+                        "name": "pi-vs-pi-fff",
+                        "summary": {
+                            "total_vessels": 2,
+                            "total_attempts": 2,
+                            "completed_attempts": 2,
+                            "failed_attempts": 0,
+                            "total_tool_calls": 7,
+                            "tool_call_counts": {
+                                "bash": 2,
+                                "edit": 2,
+                                "fffind": 1,
+                                "read": 2,
+                            },
+                            "total_tokens": 15643,
+                            "total_cost": 0.010336,
+                            "total_duration_seconds": 12.5,
+                        },
+                        "vessels": [
+                            _task_attempt_vessel(
+                                "pi-baseline",
+                                tools={"bash": 1, "edit": 1, "read": 1},
+                                tokens=9392,
+                                cost=0.005823,
+                                duration=7.25,
+                            ),
+                            _task_attempt_vessel(
+                                "pi-plus-fff",
+                                tools={
+                                    "bash": 1,
+                                    "edit": 1,
+                                    "fffind": 1,
+                                    "read": 1,
+                                },
+                                tokens=6251,
+                                cost=0.004513,
+                                duration=5.25,
+                            ),
+                        ],
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _task_attempt_vessel(
+    name: str,
+    *,
+    tools: dict[str, int],
+    tokens: int,
+    cost: float,
+    duration: float,
+) -> dict[str, object]:
+    return {
+        "name": name,
+        "status": "measured",
+        "task_attempts": 1,
+        "completed_attempts": 1,
+        "failed_attempts": 0,
+        "success_rate": 1.0,
+        "tool_call_count": sum(tools.values()),
+        "tool_call_counts": tools,
+        "total_tokens": tokens,
+        "total_cost": cost,
+        "total_duration_seconds": duration,
+        "artifact_paths": [f"logbook/task-attempts/pi-vs-pi-fff/{name}/task.json"],
+    }
 
 
 if __name__ == "__main__":
