@@ -54,6 +54,17 @@ class BenchmarkScorecardTests(unittest.TestCase):
             self.assertEqual(scorecard["course"], "swe-bench-lite")
             self.assertEqual(scorecard["status"], "partial")
             self.assertEqual(
+                scorecard["next_steps"][0]["command"],
+                [
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-report",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
+            self.assertEqual(
                 scorecard["adapter"],
                 {
                     "kind": "swe-bench",
@@ -274,6 +285,10 @@ class BenchmarkScorecardTests(unittest.TestCase):
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["schema"], "yacht.benchmark-scorecard.v1")
             self.assertEqual(payload["status"], "partial")
+            self.assertEqual(
+                payload["next_steps"][0]["command_preview"],
+                f"uv run yacht benchmark-report --logbook {logbook_dir}",
+            )
 
     def test_benchmark_report_command_prints_comparison_table(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

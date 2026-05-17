@@ -55,6 +55,17 @@ class BenchmarkGradingCollectionTests(unittest.TestCase):
             self.assertEqual(summary["summary"]["collected_reports"], 2)
             self.assertEqual(summary["summary"]["missing_native_reports"], 0)
             self.assertEqual(
+                summary["next_steps"][0]["command"],
+                [
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-scorecard",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
+            self.assertEqual(
                 [vessel["status"] for vessel in summary["comparisons"][0]["vessels"]],
                 ["collected", "collected"],
             )
@@ -150,6 +161,10 @@ class BenchmarkGradingCollectionTests(unittest.TestCase):
             self.assertEqual(summary["status"], "partial")
             self.assertEqual(summary["summary"]["collected_reports"], 1)
             self.assertEqual(summary["summary"]["missing_native_reports"], 1)
+            self.assertEqual(
+                [step["label"] for step in summary["next_steps"]],
+                ["Write benchmark scorecard", "Rerun benchmark launch"],
+            )
             missing_vessel = summary["comparisons"][0]["vessels"][1]
             self.assertEqual(missing_vessel["name"], "pi-plus-fff")
             self.assertEqual(missing_vessel["status"], "missing-native-report")

@@ -53,6 +53,18 @@ class BenchmarkLaunchTests(unittest.TestCase):
             self.assertEqual(vessel["status"], "completed")
             self.assertEqual(vessel["exit_code"], 0)
             self.assertEqual(
+                result["next_steps"][0]["command"],
+                [
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-collect-grading",
+                    "<regatta.toml>",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
+            self.assertEqual(
                 vessel["expected_native_report_path"],
                 str(
                     Path(vessel["native_report_dir"])
@@ -113,6 +125,17 @@ class BenchmarkLaunchTests(unittest.TestCase):
             self.assertEqual(result["summary"]["launched_vessels"], 0)
             self.assertEqual(result["summary"]["skipped_vessels"], 2)
             self.assertEqual(calls, [])
+            self.assertEqual(
+                result["next_steps"][0]["command"],
+                [
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-plan",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
             vessel = result["comparisons"][0]["vessels"][0]
             self.assertEqual(vessel["status"], "skipped")
             self.assertEqual(vessel["skipped_reason"], "missing-candidate-patches")

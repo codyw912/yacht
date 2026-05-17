@@ -203,6 +203,7 @@ def run_real_benchmark_eval(
             "benchmark_launch": benchmark_launch,
             "grading_collection": grading_collection,
             "scorecard": scorecard,
+            "next_steps": scorecard["next_steps"],
             "artifacts": _artifacts(logbook_dir),
         },
     )
@@ -247,6 +248,10 @@ def _blocked_summary(
     ):
         if value is not None:
             summary[key] = value
+    for value in (grading_collection, benchmark_launch):
+        if isinstance(value, dict) and "next_steps" in value:
+            summary["next_steps"] = value["next_steps"]
+            break
     return summary
 
 

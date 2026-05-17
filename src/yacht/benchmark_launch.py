@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from yacht.benchmark_launcher_handoff import BENCHMARK_LAUNCHER_HANDOFF_PATH
+from yacht.next_steps import command_step
 from yacht.preflight import CommandResult
 from yacht.regatta import ConfigError
 from yacht.schemas import BENCHMARK_LAUNCH_RESULT_SCHEMA
@@ -68,6 +69,7 @@ def _build_launch_result(
         },
         "status": _status(summary),
         "summary": summary,
+        "next_steps": _next_steps(logbook_dir, summary),
         "comparisons": comparisons,
     }
 
@@ -177,6 +179,63 @@ def _status(summary: dict[str, int]) -> str:
     if summary["skipped_vessels"]:
         return "partial"
     return "complete"
+
+
+def _next_steps(logbook_dir: Path, summary: dict[str, int]) -> list[dict[str, object]]:
+    if summary["failed_launches"]:
+        return [
+            command_step(
+                label="Inspect launch stderr",
+                reason=(
+                    "One or more native benchmark launches failed; inspect the "
+                    "stderr paths in this artifact before collecting grading."
+                ),
+                command=[
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-launch",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
+        ]
+    if summary["launched_vessels"] == 0:
+        return [
+            command_step(
+                label="Review benchmark readiness",
+                reason=(
+                    "No vessels were ready to launch; inspect blocked inputs before "
+                    "running the native benchmark harness."
+                ),
+                command=[
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-plan",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
+        ]
+    return [
+        command_step(
+            label="Collect benchmark grading",
+            reason=(
+                "Native launches completed; validate the SWE-bench reports and "
+                "write YACHT grading artifacts next."
+            ),
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "benchmark-collect-grading",
+                "<regatta.toml>",
+                "--logbook",
+                str(logbook_dir),
+            ],
+        )
+    ]
 
 
 def _comparison_status(vessels: list[dict[str, Any]]) -> str:

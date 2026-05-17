@@ -6,6 +6,7 @@ from typing import Any
 
 from yacht.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
+from yacht.next_steps import command_step
 from yacht.regatta import ConfigError
 from yacht.schemas import SchemaValidationError, validate_benchmark_launch_result_document
 from yacht.swebench_grading import write_swe_bench_grading_report
@@ -42,6 +43,7 @@ def collect_benchmark_grading_reports(
         },
         "status": _status(summary),
         "summary": summary,
+        "next_steps": _next_steps(logbook_dir, summary),
         "comparisons": comparisons,
     }
     _write_json(logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH, collection)
@@ -185,6 +187,66 @@ def _status(summary: dict[str, int]) -> str:
     ):
         return "complete"
     return "partial"
+
+
+def _next_steps(logbook_dir: Path, summary: dict[str, int]) -> list[dict[str, object]]:
+    steps = []
+    if summary["collected_reports"]:
+        steps.append(
+            command_step(
+                label="Write benchmark scorecard",
+                reason=(
+                    "At least one validated grading report is available; summarize "
+                    "benchmark results into a scorecard."
+                ),
+                command=[
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-scorecard",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
+        )
+    if summary["missing_native_reports"] or summary["invalid_native_reports"]:
+        steps.append(
+            command_step(
+                label="Rerun benchmark launch",
+                reason=(
+                    "Some native SWE-bench reports are missing or invalid; inspect "
+                    "the per-vessel errors in this artifact, then rerun launch or "
+                    "collection."
+                ),
+                command=[
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-launch",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
+        )
+    if not steps:
+        steps.append(
+            command_step(
+                label="Review launch result",
+                reason=(
+                    "No grading reports were collected; inspect launch status before "
+                    "building a scorecard."
+                ),
+                command=[
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-launch",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
+        )
+    return steps
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
