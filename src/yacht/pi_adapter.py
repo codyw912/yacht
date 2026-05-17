@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -176,7 +177,9 @@ class SubprocessPiTaskLauncher:
         self._runner = runner or _run_pi_task_subprocess
 
     def __call__(self, request: PiTaskRequest) -> AgentTaskResult:
+        started_at = time.perf_counter()
         result = self._runner(request)
+        duration_seconds = round(time.perf_counter() - started_at, 3)
         machine_evidence = _pi_jsonl_machine_evidence(result.stdout)
         tool_calls = _tool_calls_from_machine_evidence(
             machine_evidence,
@@ -194,6 +197,7 @@ class SubprocessPiTaskLauncher:
             "response": response,
             "stderr": result.stderr,
             "tool_calls": list(tool_calls),
+            "duration_seconds": duration_seconds,
         }
         if machine_evidence:
             transcript["machine_evidence"] = machine_evidence
@@ -211,7 +215,7 @@ class SubprocessPiTaskLauncher:
                     machine_evidence,
                 )
                 or _estimated_tokens(request.prompt, result.stdout),
-                duration_seconds=0.0,
+                duration_seconds=duration_seconds,
             ),
             machine_evidence=machine_evidence,
         )

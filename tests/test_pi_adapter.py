@@ -467,7 +467,11 @@ class PiAdapterTests(unittest.TestCase):
                 transcript_path=root / "transcripts" / "pi-task.json",
             )
 
-            result = SubprocessPiTaskLauncher(runner=runner)(request)
+            with patch(
+                "yacht.pi_adapter.time.perf_counter",
+                side_effect=(100.0, 102.3456),
+            ):
+                result = SubprocessPiTaskLauncher(runner=runner)(request)
 
             self.assertEqual(requests, [request])
             self.assertEqual(result.exit_code, 0)
@@ -478,7 +482,7 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(result.tool_calls, ("fff",))
             self.assertEqual(result.transcript_path, request.transcript_path)
             self.assertGreater(result.metrics.tokens, 0)
-            self.assertEqual(result.metrics.duration_seconds, 0.0)
+            self.assertEqual(result.metrics.duration_seconds, 2.346)
             self.assertEqual(result.machine_evidence, {})
 
             transcript = json.loads(
@@ -493,6 +497,7 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(transcript["stdout"], result.response)
             self.assertEqual(transcript["stderr"], "")
             self.assertEqual(transcript["tool_calls"], ["fff"])
+            self.assertEqual(transcript["duration_seconds"], 2.346)
             self.assertNotIn("machine_evidence", transcript)
 
     def test_subprocess_task_launcher_extracts_pi_jsonl_machine_evidence(self) -> None:
