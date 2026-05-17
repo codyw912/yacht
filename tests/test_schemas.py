@@ -478,6 +478,9 @@ class SchemaTests(unittest.TestCase):
                             "stdout_path": "logbook/benchmark-launch/stdout.txt",
                             "stderr_path": "logbook/benchmark-launch/stderr.txt",
                             "native_report_dir": "logbook/native-report",
+                            "expected_native_report_path": (
+                                "logbook/native-report/pi-baseline.run-id.json"
+                            ),
                             "expected_yacht_grading_report_path": (
                                 "logbook/course-handoff/swe-bench/vessels/"
                                 "pi-baseline/grading-report.json"
@@ -751,6 +754,9 @@ class SchemaTests(unittest.TestCase):
                             "runtime_instances_artifact_present": True,
                             "runtime_snapshot_status": "matched",
                             "native_report_dir": "native-report",
+                            "expected_native_report_path": (
+                                "native-report/pi-baseline.run-id.json"
+                            ),
                             "command": [
                                 "python",
                                 "-m",
@@ -797,6 +803,9 @@ class SchemaTests(unittest.TestCase):
                             "runtime_instances_artifact_present": False,
                             "runtime_snapshot_status": "missing",
                             "native_report_dir": "native-report",
+                            "expected_native_report_path": (
+                                "native-report/pi-plus-fff.run-id.json"
+                            ),
                         },
                     ],
                 }

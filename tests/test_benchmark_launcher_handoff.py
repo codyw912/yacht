@@ -92,6 +92,14 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
                     / "course-handoff/swe-bench/vessels/pi-baseline/grading-report.json"
                 ),
             )
+            self.assertEqual(
+                vessel["expected_native_report_path"],
+                str(
+                    logbook_dir
+                    / "course-handoff/swe-bench/vessels/pi-baseline/native-report"
+                    / "pi-baseline.pi-fff-comparison__pi-vs-pi-fff__pi-baseline.json"
+                ),
+            )
             saved = json.loads(
                 (logbook_dir / "benchmark-launcher-handoff.json").read_text(
                     encoding="utf-8"

@@ -1584,6 +1584,7 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
             "runtime_instances_artifact_present",
             "runtime_snapshot_status",
             "native_report_dir",
+            "expected_native_report_path",
         ),
         path,
     )
@@ -1601,6 +1602,7 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
         "runtime_instances_artifact_path",
         "runtime_snapshot_status",
         "native_report_dir",
+        "expected_native_report_path",
     ):
         _require_non_empty_string(vessel.get(key), f"{path}.{key}")
     for key in (
@@ -1708,6 +1710,7 @@ def _validate_benchmark_launch_result_vessel(value: Any, path: str) -> None:
             "stdout_path",
             "stderr_path",
             "native_report_dir",
+            "expected_native_report_path",
             "expected_yacht_grading_report_path",
         ),
         path,
@@ -1723,6 +1726,7 @@ def _validate_benchmark_launch_result_vessel(value: Any, path: str) -> None:
         "stdout_path",
         "stderr_path",
         "native_report_dir",
+        "expected_native_report_path",
         "expected_yacht_grading_report_path",
     ):
         _require_non_empty_string(vessel.get(key), f"{path}.{key}")

@@ -58,6 +58,13 @@ def native_report_path_from_launcher_handoff(
         )
 
     vessel = matches[0]
+    native_report_path = vessel.get("expected_native_report_path")
+    if isinstance(native_report_path, str) and native_report_path:
+        path = Path(native_report_path)
+        if not path.exists():
+            raise ConfigError(f"native SWE-bench report not found: {path}")
+        return path
+
     command = vessel.get("command")
     if command is None:
         raise ConfigError(
@@ -215,6 +222,19 @@ def _vessel_to_json(
         gate=gate,
         snapshot_gate=snapshot_gate,
     )
+    native_report_dir = (
+        vessel_artifact_dir(
+            logbook_dir=logbook_dir,
+            handoff=handoff,
+            vessel_name=vessel_name,
+        )
+        / "native-report"
+    )
+    run_id = _run_id(
+        regatta=str(handoff["regatta"]),
+        comparison_name=comparison_name,
+        vessel_name=vessel_name,
+    )
     vessel = {
         "name": vessel_name,
         "status": status,
@@ -228,13 +248,9 @@ def _vessel_to_json(
         "runtime_instances_artifact_path": str(snapshot_gate.artifact_path),
         "runtime_instances_artifact_present": snapshot_gate.artifact_present,
         "runtime_snapshot_status": snapshot_gate.status,
-        "native_report_dir": str(
-            vessel_artifact_dir(
-                logbook_dir=logbook_dir,
-                handoff=handoff,
-                vessel_name=vessel_name,
-            )
-            / "native-report"
+        "native_report_dir": str(native_report_dir),
+        "expected_native_report_path": str(
+            native_report_dir / f"{vessel_name}.{run_id}.json"
         ),
     }
     if status == "ready-to-launch":
@@ -244,6 +260,7 @@ def _vessel_to_json(
             comparison_name=comparison_name,
             vessel_name=vessel_name,
             native_report_dir=Path(str(vessel["native_report_dir"])),
+            run_id=run_id,
             max_workers=max_workers,
             python_command=python_command,
         )
@@ -259,6 +276,7 @@ def _swe_bench_command(
     comparison_name: str,
     vessel_name: str,
     native_report_dir: Path,
+    run_id: str,
     max_workers: int,
     python_command: list[str],
 ) -> list[str]:
@@ -275,11 +293,7 @@ def _swe_bench_command(
         "--max_workers",
         str(max_workers),
         "--run_id",
-        _run_id(
-            regatta=str(handoff["regatta"]),
-            comparison_name=comparison_name,
-            vessel_name=vessel_name,
-        ),
+        run_id,
         "--report_dir",
         str(native_report_dir),
         "--instance_ids",
