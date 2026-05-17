@@ -24,11 +24,12 @@ from yacht.benchmark_launcher_handoff import (
 from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.course_handoff import write_course_handoff
+from yacht.next_steps import command_step
 from yacht.preflight_evidence_report import PREFLIGHT_EVIDENCE_REPORT_PATH
 from yacht.preflight_evidence_report import write_preflight_evidence_report
 from yacht.preflight_runner import AgentPromptRunnerFactory, run_preflight
 from yacht.readiness_gate import evaluate_readiness_gate
-from yacht.regatta import load_regatta
+from yacht.regatta import ConfigError, load_regatta
 from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.swebench_predictions_from_attempts import (
@@ -120,16 +121,44 @@ def run_real_benchmark_eval(
             ),
         )
 
-    predictions = [
-        write_swe_bench_predictions_from_attempts(
-            config_path=config_path,
-            logbook_dir=logbook_dir,
-            vessel_name=vessel_name,
-            comparison_name=comparison.name,
+    predictions = []
+    try:
+        for comparison in regatta.comparisons:
+            for vessel_name in comparison.vessels:
+                predictions.append(
+                    write_swe_bench_predictions_from_attempts(
+                        config_path=config_path,
+                        logbook_dir=logbook_dir,
+                        vessel_name=vessel_name,
+                        comparison_name=comparison.name,
+                    )
+                )
+    except ConfigError as error:
+        return _write_summary(
+            logbook_dir,
+            _blocked_summary(
+                regatta=regatta.name,
+                course=regatta.course.name,
+                course_handoff=course_handoff,
+                preflight=preflight,
+                preflight_evidence_report=preflight_evidence_report,
+                attempts=attempts,
+                task_attempt_scorecard=task_scorecard,
+                predictions=predictions,
+                failed_stage="predictions-from-attempts",
+                error=str(error),
+                skipped=[
+                    "runtime-instances",
+                    "benchmark-plan",
+                    "benchmark-launcher",
+                    "benchmark-launch",
+                    "benchmark-collect-grading",
+                    "benchmark-scorecard",
+                ],
+                logbook_dir=logbook_dir,
+                next_steps=_prediction_failure_next_steps(logbook_dir),
+            ),
         )
-        for comparison in regatta.comparisons
-        for vessel_name in comparison.vessels
-    ]
     runtime_instances = write_runtime_instances_plan(
         config_path=config_path,
         logbook_dir=logbook_dir,
@@ -242,6 +271,9 @@ def _blocked_summary(
     launcher_handoff: dict[str, Any] | None = None,
     benchmark_launch: dict[str, Any] | None = None,
     grading_collection: dict[str, Any] | None = None,
+    failed_stage: str | None = None,
+    error: str | None = None,
+    next_steps: list[dict[str, object]] | None = None,
 ) -> dict[str, Any]:
     summary: dict[str, Any] = {
         "status": "blocked",
@@ -254,6 +286,10 @@ def _blocked_summary(
         "skipped": skipped,
         "artifacts": _artifacts(logbook_dir),
     }
+    if failed_stage is not None:
+        summary["failed_stage"] = failed_stage
+    if error is not None:
+        summary["error"] = error
     for key, value in (
         ("attempts", attempts),
         ("task_attempt_scorecard", task_attempt_scorecard),
@@ -267,11 +303,53 @@ def _blocked_summary(
     ):
         if value is not None:
             summary[key] = value
+    if next_steps is not None:
+        summary["next_steps"] = next_steps
+        return summary
     for value in (grading_collection, benchmark_launch):
         if isinstance(value, dict) and "next_steps" in value:
             summary["next_steps"] = value["next_steps"]
             break
     return summary
+
+
+def _prediction_failure_next_steps(logbook_dir: Path) -> list[dict[str, object]]:
+    return [
+        command_step(
+            label="Inspect task attempts",
+            reason=(
+                "At least one completed task attempt could not be converted into "
+                "a SWE-bench candidate patch. Inspect the task attempt artifacts "
+                "listed in the task attempt scorecard, then rerun the benchmark."
+            ),
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "task-attempt-scorecard",
+                "--logbook",
+                str(logbook_dir),
+            ],
+        ),
+        command_step(
+            label="Rerun real benchmark eval",
+            reason=(
+                "Candidate patch extraction depends on stochastic agent output; "
+                "rerun after inspecting the failed attempt response."
+            ),
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "real-benchmark-eval",
+                "<regatta.toml>",
+                "--logbook",
+                str(logbook_dir),
+                "--workspace",
+                ".",
+            ],
+        ),
+    ]
 
 
 def _artifacts(logbook_dir: Path) -> dict[str, str]:
