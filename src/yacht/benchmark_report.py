@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.benchmark_grading_collection import BENCHMARK_GRADING_COLLECTION_PATH
+from yacht.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.regatta import ConfigError
 from yacht.schemas import (
@@ -27,8 +29,12 @@ def render_benchmark_report(logbook_dir: Path, output_format: str = "text") -> s
         ) from error
     task_attempt_scorecard = _load_task_attempt_scorecard(logbook_dir)
     if output_format == "markdown":
-        return _render_scorecard_markdown(scorecard, task_attempt_scorecard)
-    return _render_scorecard(scorecard, task_attempt_scorecard)
+        return _render_scorecard_markdown(
+            logbook_dir,
+            scorecard,
+            task_attempt_scorecard,
+        )
+    return _render_scorecard(logbook_dir, scorecard, task_attempt_scorecard)
 
 
 def _load_scorecard(path: Path) -> dict[str, Any]:
@@ -60,6 +66,7 @@ def _load_json(path: Path, label: str) -> dict[str, Any]:
 
 
 def _render_scorecard(
+    logbook_dir: Path,
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any] | None,
 ) -> str:
@@ -72,6 +79,8 @@ def _render_scorecard(
         f"Vessels: {summary['total_vessels']} | "
         f"Measured: {summary['measured_vessels']} | "
         f"Missing: {summary['missing_result_vessels']}",
+        _usage_summary_line(task_attempt_scorecard),
+        _artifact_line(logbook_dir),
         "",
         "comparison | baseline | challenger | resolved_delta | rate_delta | "
         "measured | missing | eligible | preflight",
@@ -83,6 +92,7 @@ def _render_scorecard(
 
 
 def _render_scorecard_markdown(
+    logbook_dir: Path,
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any] | None,
 ) -> str:
@@ -97,6 +107,15 @@ def _render_scorecard_markdown(
         f"- Vessels: {summary['total_vessels']}",
         f"- Measured: {summary['measured_vessels']}",
         f"- Missing: {summary['missing_result_vessels']}",
+        *_usage_summary_markdown_lines(task_attempt_scorecard),
+        "",
+        "## Artifacts",
+        "",
+        f"- Logbook: {logbook_dir}",
+        f"- Benchmark scorecard: {logbook_dir / BENCHMARK_SCORECARD_PATH}",
+        f"- Task attempt scorecard: {logbook_dir / TASK_ATTEMPT_SCORECARD_PATH}",
+        f"- Launch result: {logbook_dir / BENCHMARK_LAUNCH_RESULT_PATH}",
+        f"- Grading collection: {logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH}",
         "",
         "| Comparison | Baseline | Challenger | Resolved delta | Rate delta | "
         "Measured | Missing | Eligible | Preflight |",
@@ -159,17 +178,9 @@ def _preflight_reasons(comparison: dict[str, Any]) -> str:
 
 
 def _usage_lines(scorecard: dict[str, Any]) -> list[str]:
-    summary = scorecard["summary"]
     lines = [
         "",
-        "Agent usage: "
-        f"Attempts: {summary['total_attempts']} | "
-        f"Failed: {summary['failed_attempts']} | "
-        f"Tool calls: {summary['total_tool_calls']} | "
-        f"Tokens: {summary['total_tokens']} | "
-        f"Cost: {_cost(summary['total_cost'])} | "
-        f"Duration: {_duration(summary['total_duration_seconds'])}",
-        "",
+        "Agent usage by vessel:",
         "comparison | vessel | attempts | failed | tools | tokens | cost | duration",
     ]
     lines.extend(
@@ -180,17 +191,9 @@ def _usage_lines(scorecard: dict[str, Any]) -> list[str]:
 
 
 def _usage_markdown_lines(scorecard: dict[str, Any]) -> list[str]:
-    summary = scorecard["summary"]
     lines = [
         "",
-        "## Agent usage",
-        "",
-        f"- Attempts: {summary['total_attempts']}",
-        f"- Failed attempts: {summary['failed_attempts']}",
-        f"- Tool calls: {summary['total_tool_calls']}",
-        f"- Tokens: {summary['total_tokens']}",
-        f"- Cost: {_cost(summary['total_cost'])}",
-        f"- Duration: {_duration(summary['total_duration_seconds'])}",
+        "## Agent usage by vessel",
         "",
         "| Comparison | Vessel | Attempts | Failed | Tools | Tokens | Cost | Duration |",
         "| --- | --- | ---: | ---: | --- | ---: | ---: | ---: |",
@@ -200,6 +203,45 @@ def _usage_markdown_lines(scorecard: dict[str, Any]) -> list[str]:
         for comparison, vessel in _usage_vessels(scorecard)
     )
     return lines
+
+
+def _usage_summary_line(scorecard: dict[str, Any] | None) -> str:
+    if scorecard is None:
+        return f"Usage: unavailable (missing {TASK_ATTEMPT_SCORECARD_PATH})"
+    summary = scorecard["summary"]
+    return (
+        "Usage: "
+        f"Attempts: {summary['total_attempts']} | "
+        f"Failed: {summary['failed_attempts']} | "
+        f"Tool calls: {summary['total_tool_calls']} | "
+        f"Tokens: {summary['total_tokens']} | "
+        f"Cost: {_cost(summary['total_cost'])} | "
+        f"Duration: {_duration(summary['total_duration_seconds'])}"
+    )
+
+
+def _usage_summary_markdown_lines(scorecard: dict[str, Any] | None) -> list[str]:
+    if scorecard is None:
+        return [f"- Usage: unavailable (missing {TASK_ATTEMPT_SCORECARD_PATH})"]
+    summary = scorecard["summary"]
+    return [
+        f"- Attempts: {summary['total_attempts']}",
+        f"- Failed attempts: {summary['failed_attempts']}",
+        f"- Tool calls: {summary['total_tool_calls']}",
+        f"- Tokens: {summary['total_tokens']}",
+        f"- Cost: {_cost(summary['total_cost'])}",
+        f"- Duration: {_duration(summary['total_duration_seconds'])}",
+    ]
+
+
+def _artifact_line(logbook_dir: Path) -> str:
+    return (
+        f"Artifacts: logbook={logbook_dir} | "
+        f"scorecard={logbook_dir / BENCHMARK_SCORECARD_PATH} | "
+        f"attempts={logbook_dir / TASK_ATTEMPT_SCORECARD_PATH} | "
+        f"launch={logbook_dir / BENCHMARK_LAUNCH_RESULT_PATH} | "
+        f"grading={logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH}"
+    )
 
 
 def _usage_vessels(

@@ -130,6 +130,7 @@ def _vessel_result(
         "stdout_path": str(stdout_path),
         "stderr_path": str(stderr_path),
         "native_report_dir": str(native_report_dir),
+        "expected_native_report_path": str(vessel["expected_native_report_path"]),
         "expected_yacht_grading_report_path": str(
             vessel["expected_yacht_grading_report_path"]
         ),

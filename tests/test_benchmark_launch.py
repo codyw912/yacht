@@ -52,6 +52,13 @@ class BenchmarkLaunchTests(unittest.TestCase):
             self.assertEqual(vessel["name"], "pi-baseline")
             self.assertEqual(vessel["status"], "completed")
             self.assertEqual(vessel["exit_code"], 0)
+            self.assertEqual(
+                vessel["expected_native_report_path"],
+                str(
+                    Path(vessel["native_report_dir"])
+                    / "pi-baseline.pi-fff-comparison__pi-vs-pi-fff__pi-baseline.json"
+                ),
+            )
             self.assertTrue(Path(vessel["stdout_path"]).is_file())
             self.assertTrue(Path(vessel["stderr_path"]).is_file())
             self.assertIn(

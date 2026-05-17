@@ -298,6 +298,13 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "Benchmark scorecard: pi-fff-comparison / swe-bench-lite",
                         "Status: complete",
                         "Comparisons: 1 | Vessels: 2 | Measured: 2 | Missing: 0",
+                        "Usage: unavailable (missing task-attempt-scorecard.json)",
+                        f"Artifacts: logbook={logbook_dir} | "
+                        f"scorecard={logbook_dir / 'benchmark-scorecard.json'} | "
+                        f"attempts={logbook_dir / 'task-attempt-scorecard.json'} | "
+                        f"launch={logbook_dir / 'benchmark-launch-result.json'} | "
+                        "grading="
+                        f"{logbook_dir / 'benchmark-grading-collection.json'}",
                         "",
                         "comparison | baseline | challenger | resolved_delta | "
                         "rate_delta | measured | missing | eligible | preflight",
@@ -339,6 +346,16 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "- Vessels: 2",
                         "- Measured: 2",
                         "- Missing: 0",
+                        "- Usage: unavailable (missing task-attempt-scorecard.json)",
+                        "",
+                        "## Artifacts",
+                        "",
+                        f"- Logbook: {logbook_dir}",
+                        f"- Benchmark scorecard: {logbook_dir / 'benchmark-scorecard.json'}",
+                        f"- Task attempt scorecard: {logbook_dir / 'task-attempt-scorecard.json'}",
+                        f"- Launch result: {logbook_dir / 'benchmark-launch-result.json'}",
+                        "- Grading collection: "
+                        f"{logbook_dir / 'benchmark-grading-collection.json'}",
                         "",
                         "| Comparison | Baseline | Challenger | Resolved delta | "
                         "Rate delta | Measured | Missing | Eligible | Preflight |",
@@ -368,10 +385,11 @@ class BenchmarkScorecardTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             self.assertIn(
-                "Agent usage: Attempts: 2 | Failed: 0 | Tool calls: 7 | "
+                "Usage: Attempts: 2 | Failed: 0 | Tool calls: 7 | "
                 "Tokens: 15643 | Cost: 0.010336 | Duration: 12.500s",
                 stdout.getvalue(),
             )
+            self.assertIn("Agent usage by vessel:", stdout.getvalue())
             self.assertIn(
                 "pi-vs-pi-fff | pi-plus-fff | 1 | 0 | bash:1, edit:1, "
                 "fffind:1, read:1 | 6251 | 0.004513 | 5.250s",
@@ -414,6 +432,16 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "- Vessels: 2",
                         "- Measured: 2",
                         "- Missing: 0",
+                        "- Usage: unavailable (missing task-attempt-scorecard.json)",
+                        "",
+                        "## Artifacts",
+                        "",
+                        f"- Logbook: {logbook_dir}",
+                        f"- Benchmark scorecard: {logbook_dir / 'benchmark-scorecard.json'}",
+                        f"- Task attempt scorecard: {logbook_dir / 'task-attempt-scorecard.json'}",
+                        f"- Launch result: {logbook_dir / 'benchmark-launch-result.json'}",
+                        "- Grading collection: "
+                        f"{logbook_dir / 'benchmark-grading-collection.json'}",
                         "",
                         "| Comparison | Baseline | Challenger | Resolved delta | "
                         "Rate delta | Measured | Missing | Eligible | Preflight |",
