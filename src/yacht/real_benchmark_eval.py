@@ -23,6 +23,9 @@ from yacht.benchmark_launcher_handoff import (
 )
 from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.benchmark_scorecard import write_benchmark_scorecard
+from yacht.course_handoff import write_course_handoff
+from yacht.preflight_evidence_report import PREFLIGHT_EVIDENCE_REPORT_PATH
+from yacht.preflight_evidence_report import write_preflight_evidence_report
 from yacht.preflight_runner import AgentPromptRunnerFactory, run_preflight
 from yacht.readiness_gate import evaluate_readiness_gate
 from yacht.regatta import load_regatta
@@ -52,6 +55,7 @@ def run_real_benchmark_eval(
     python_executable: str = "python",
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
+    course_handoff = write_course_handoff(config_path, logbook_dir)
     preflight = run_preflight(
         config_path,
         logbook_dir,
@@ -59,13 +63,16 @@ def run_real_benchmark_eval(
         secret_values,
         agent_prompt_runner_factory=agent_prompt_runner_factory,
     )
+    preflight_evidence_report = write_preflight_evidence_report(logbook_dir)
     if preflight["status"] != "passed":
         return _write_summary(
             logbook_dir,
             _blocked_summary(
                 regatta=regatta.name,
                 course=regatta.course.name,
+                course_handoff=course_handoff,
                 preflight=preflight,
+                preflight_evidence_report=preflight_evidence_report,
                 skipped=[
                     "task-attempts",
                     "predictions-from-attempts",
@@ -95,7 +102,9 @@ def run_real_benchmark_eval(
             _blocked_summary(
                 regatta=regatta.name,
                 course=regatta.course.name,
+                course_handoff=course_handoff,
                 preflight=preflight,
+                preflight_evidence_report=preflight_evidence_report,
                 attempts=attempts,
                 task_attempt_scorecard=task_scorecard,
                 skipped=[
@@ -134,7 +143,9 @@ def run_real_benchmark_eval(
             _blocked_summary(
                 regatta=regatta.name,
                 course=regatta.course.name,
+                course_handoff=course_handoff,
                 preflight=preflight,
+                preflight_evidence_report=preflight_evidence_report,
                 attempts=attempts,
                 task_attempt_scorecard=task_scorecard,
                 predictions=predictions,
@@ -170,7 +181,9 @@ def run_real_benchmark_eval(
             _blocked_summary(
                 regatta=regatta.name,
                 course=regatta.course.name,
+                course_handoff=course_handoff,
                 preflight=preflight,
+                preflight_evidence_report=preflight_evidence_report,
                 attempts=attempts,
                 task_attempt_scorecard=task_scorecard,
                 predictions=predictions,
@@ -192,7 +205,9 @@ def run_real_benchmark_eval(
             "regatta": scorecard["regatta"],
             "course": scorecard["course"],
             "agent": "pi",
+            "course_handoff": course_handoff,
             "preflight": preflight,
+            "preflight_evidence_report": preflight_evidence_report,
             "attempts": attempts,
             "task_attempt_scorecard": task_scorecard,
             "predictions": predictions,
@@ -213,7 +228,9 @@ def _blocked_summary(
     *,
     regatta: str,
     course: str,
+    course_handoff: dict[str, Any],
     preflight: dict[str, Any],
+    preflight_evidence_report: dict[str, Any],
     skipped: list[str],
     logbook_dir: Path,
     attempts: dict[str, Any] | None = None,
@@ -231,7 +248,9 @@ def _blocked_summary(
         "regatta": regatta,
         "course": course,
         "agent": "pi",
+        "course_handoff": course_handoff,
         "preflight": preflight,
+        "preflight_evidence_report": preflight_evidence_report,
         "skipped": skipped,
         "artifacts": _artifacts(logbook_dir),
     }
@@ -259,6 +278,7 @@ def _artifacts(logbook_dir: Path) -> dict[str, str]:
     return {
         "logbook": str(logbook_dir),
         "real_benchmark_eval": str(logbook_dir / REAL_BENCHMARK_EVAL_PATH),
+        "preflight_evidence_report": str(logbook_dir / PREFLIGHT_EVIDENCE_REPORT_PATH),
         "runtime_instances": str(logbook_dir / RUNTIME_INSTANCES_PLAN_PATH),
         "task_attempt_scorecard": str(logbook_dir / TASK_ATTEMPT_SCORECARD_PATH),
         "benchmark_execution_plan": str(logbook_dir / BENCHMARK_EXECUTION_PLAN_PATH),
