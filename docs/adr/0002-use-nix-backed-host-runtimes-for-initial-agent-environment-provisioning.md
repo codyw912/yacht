@@ -49,6 +49,5 @@ without launching Pi, installing fff, or invoking Docker.
 
 This keeps YACHT focused on its control-plane responsibility while leaving
 SWE-bench task containers and grading inside the native SWE-bench harness.
-Future backends can add stronger isolation through Nix-built containers, remote
-workers, or hosted execution without renaming the abstraction away from
-`RuntimeBackend`.
+Future backends can add stronger isolation through Nix-built containers or
+remote workers without renaming the abstraction away from `RuntimeBackend`.

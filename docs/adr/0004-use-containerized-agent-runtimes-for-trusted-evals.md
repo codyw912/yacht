@@ -21,8 +21,8 @@ variants.
 
 YACHT will make containerized agent runtimes the trusted execution target.
 `host-nix` remains available as a fast development backend, but container
-runtimes are the path for credible smoke runs, public evals, and hosted or
-community execution.
+runtimes are the path for credible smoke runs, shared evals, and reproducible
+execution.
 
 Container runtimes are still separate from benchmark task environments:
 
@@ -44,8 +44,8 @@ The container runtime contract includes:
   setup commands, transcripts, and tool-call evidence
 
 The public abstraction remains `RuntimeBackend`, not a Docker-specific runner,
-so future backends can use Nix-built images, remote workers, or hosted execution
-without changing regatta concepts.
+so future backends can use Nix-built images or remote workers without changing
+regatta concepts.
 
 ## Consequences
 
