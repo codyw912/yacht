@@ -2,3 +2,8 @@
 logbook/
 __pycache__/
 *.py[cod]
+
+# Local operator notes and generated benchmark spillover.
+/AGENTS.md
+/logs/
+/pi-container-*.json
