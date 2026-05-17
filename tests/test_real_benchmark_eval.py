@@ -250,6 +250,75 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             self.assertEqual(summary["next_steps"][0]["label"], "Rerun benchmark launch")
             self.assertFalse((logbook_dir / "benchmark-scorecard.json").exists())
 
+    def test_blocks_when_attempt_response_cannot_become_candidate_patch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, workspace_path, logbook_dir = _write_fixture(root)
+            adapter = PiAdapter(
+                launcher=SubprocessPiPromptLauncher(
+                    runner=lambda _request: CommandResult(
+                        exit_code=0,
+                        stdout=(
+                            '{"available": true, "configured": true, '
+                            '"tool_calls": ["fffind"]}\n'
+                        ),
+                        stderr="",
+                    )
+                ),
+                task_launcher=SubprocessPiTaskLauncher(
+                    runner=lambda _request: CommandResult(
+                        exit_code=0,
+                        stdout="I cannot produce a patch for this task.\n",
+                        stderr="",
+                    )
+                ),
+            )
+
+            with patch(
+                "yacht.preflight._run_command",
+                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+            ), _without_task_workspace_materialization(workspace_path):
+                summary = run_real_benchmark_eval(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    workspace_path=workspace_path,
+                    secret_values={"anthropic": "test-secret"},
+                    agent_prompt_runner_factory=lambda instance, transcript_dir: (
+                        adapter.agent_prompt_runner(
+                            instance=instance,
+                            transcript_dir=transcript_dir,
+                        )
+                    ),
+                    task_agent=adapter,
+                )
+
+            self.assertEqual(summary["status"], "blocked")
+            self.assertEqual(summary["failed_stage"], "predictions-from-attempts")
+            self.assertIn(
+                "response must be a JSON object with non-empty model_patch",
+                summary["error"],
+            )
+            self.assertEqual(summary["attempts"]["status"], "completed")
+            self.assertEqual(summary["task_attempt_scorecard"]["status"], "complete")
+            self.assertEqual(summary["predictions"], [])
+            self.assertEqual(
+                summary["skipped"],
+                [
+                    "runtime-instances",
+                    "benchmark-plan",
+                    "benchmark-launcher",
+                    "benchmark-launch",
+                    "benchmark-collect-grading",
+                    "benchmark-scorecard",
+                ],
+            )
+            self.assertEqual(summary["next_steps"][0]["label"], "Inspect task attempts")
+            self.assertTrue((logbook_dir / "real-benchmark-eval.json").is_file())
+            self.assertFalse((logbook_dir / "runtime-instances.json").exists())
+            status = build_benchmark_status(logbook_dir)
+            self.assertEqual(status["status"], "partial")
+            self.assertEqual(status["next_steps"][0]["label"], "Inspect task attempts")
+
 
 def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
     config_path = root / "regatta.toml"
