@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from yacht.benchmark_status import build_benchmark_status
 from yacht.cli import main
 from yacht.pi_adapter import (
     PiAdapter,
@@ -89,7 +90,9 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 )
 
             self.assertEqual(summary["status"], "complete")
+            self.assertEqual(summary["course_handoff"]["status"], "planned")
             self.assertEqual(summary["preflight"]["status"], "passed")
+            self.assertEqual(summary["preflight_evidence_report"]["status"], "ready")
             self.assertEqual(summary["attempts"]["status"], "completed")
             self.assertEqual(summary["benchmark_launch"]["status"], "complete")
             self.assertEqual(summary["grading_collection"]["status"], "complete")
@@ -99,6 +102,12 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             self.assertEqual(len(task_requests), 2)
             self.assertEqual(len(native_launches), 2)
             self.assertTrue((logbook_dir / "runtime-instances.json").is_file())
+            self.assertTrue((logbook_dir / "course-handoff.json").is_file())
+            self.assertTrue((logbook_dir / "preflight-evidence-report.json").is_file())
+            self.assertEqual(
+                summary["artifacts"]["preflight_evidence_report"],
+                str(logbook_dir / "preflight-evidence-report.json"),
+            )
             self.assertTrue((logbook_dir / "real-benchmark-eval.json").is_file())
             self.assertEqual(
                 json.loads(
@@ -121,6 +130,10 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                     / "course-handoff/swe-bench/vessels/pi-plus-fff/grading-report.json"
                 ).is_file()
             )
+            status = build_benchmark_status(logbook_dir)
+            preflight_status = status["artifacts"][2]
+            self.assertEqual(preflight_status["label"], "preflight evidence")
+            self.assertEqual(preflight_status["state"], "ready")
 
     def test_real_benchmark_eval_command_runs_full_sequence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -172,6 +185,8 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["status"], "complete")
+            self.assertEqual(payload["course_handoff"]["status"], "planned")
+            self.assertEqual(payload["preflight_evidence_report"]["status"], "ready")
             self.assertEqual(payload["scorecard"]["status"], "complete")
 
     def test_blocks_when_native_launch_writes_no_grading_reports(self) -> None:
@@ -222,6 +237,8 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 )
 
             self.assertEqual(summary["status"], "blocked")
+            self.assertEqual(summary["course_handoff"]["status"], "planned")
+            self.assertEqual(summary["preflight_evidence_report"]["status"], "ready")
             self.assertEqual(
                 summary["grading_collection"]["summary"]["collected_reports"],
                 0,
