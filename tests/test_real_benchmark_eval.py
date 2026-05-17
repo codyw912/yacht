@@ -94,6 +94,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             self.assertEqual(summary["benchmark_launch"]["status"], "complete")
             self.assertEqual(summary["grading_collection"]["status"], "complete")
             self.assertEqual(summary["scorecard"]["status"], "complete")
+            self.assertEqual(summary["next_steps"][0]["label"], "Render benchmark report")
             self.assertEqual(len(prompt_requests), 1)
             self.assertEqual(len(task_requests), 2)
             self.assertEqual(len(native_launches), 2)
@@ -229,6 +230,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 summary["skipped"],
                 ["benchmark-scorecard"],
             )
+            self.assertEqual(summary["next_steps"][0]["label"], "Rerun benchmark launch")
             self.assertFalse((logbook_dir / "benchmark-scorecard.json").exists())
 
 

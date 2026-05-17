@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.course_handoff import COURSE_HANDOFF_PATH
+from yacht.next_steps import command_step
 from yacht.preflight_evidence_report import build_preflight_evidence_report
 from yacht.regatta import ConfigError
 from yacht.schemas import (
@@ -22,6 +23,7 @@ def write_benchmark_scorecard(logbook_dir: Path) -> dict[str, Any]:
     gradings = _load_gradings(logbook_dir, handoff)
     preflight_report = build_preflight_evidence_report(logbook_dir)
     scorecard = _build_scorecard(handoff, gradings, preflight_report)
+    scorecard["next_steps"] = _next_steps(logbook_dir)
     validate_benchmark_scorecard_document(scorecard)
     _write_json(logbook_dir / BENCHMARK_SCORECARD_PATH, scorecard)
     return scorecard
@@ -275,6 +277,45 @@ def _scorecard_status(comparisons: list[dict[str, Any]]) -> str:
     if any(status == "measured" for status in statuses):
         return "partial"
     return "empty"
+
+
+def _next_steps(logbook_dir: Path) -> list[dict[str, object]]:
+    return [
+        command_step(
+            label="Render benchmark report",
+            reason=(
+                "The benchmark scorecard is ready; render a human-readable report "
+                "with benchmark outcomes, usage, and artifact paths."
+            ),
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "benchmark-report",
+                "--logbook",
+                str(logbook_dir),
+            ],
+        ),
+        command_step(
+            label="Write markdown benchmark report",
+            reason=(
+                "Use the markdown report when sharing benchmark results outside the "
+                "terminal."
+            ),
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "benchmark-report",
+                "--logbook",
+                str(logbook_dir),
+                "--format",
+                "markdown",
+                "--output",
+                str(logbook_dir / "benchmark-report.md"),
+            ],
+        ),
+    ]
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
