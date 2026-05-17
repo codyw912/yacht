@@ -18,9 +18,8 @@ also answer:
 - How long did it take?
 - Which artifacts prove the result?
 
-YACHT is designed as open-source infrastructure first. A hosted product can
-build on top of the same concepts with managed runners, secrets, scheduling,
-run history, team workflows, community evals, and richer UI.
+YACHT is designed as open-source infrastructure for reproducible, inspectable
+coding-agent evaluation.
 
 ## Current Status
 
@@ -38,7 +37,7 @@ YACHT now has a real end-to-end benchmark smoke path:
 
 The first verified real benchmark smoke used `django__django-11099`; both
 baseline and fff vessels resolved the task. That is a foundation, not a final
-product. The next phase is making this easier for humans to run, inspect, and
+tool. The next phase is making this easier for humans to run, inspect, and
 extend.
 
 ## Core Concepts
@@ -54,8 +53,8 @@ extend.
 | Logbook | The persisted directory containing a run's wake and scorecards. |
 | Scorecard | The final comparison view across vessels. |
 
-The nautical vocabulary is part of the product identity, but the artifacts stay
-plain JSON so other tools and future hosted services can consume them.
+The nautical vocabulary is part of the project identity, but the artifacts stay
+plain JSON so other tools can consume them.
 
 ## First Real Benchmark
 
@@ -130,8 +129,8 @@ provider credentials.
 
 ## Documentation
 
-- [Product vision](docs/product/vision.md)
-- [Roadmap](docs/product/roadmap.md)
+- [Project vision](docs/project/vision.md)
+- [Roadmap](docs/project/roadmap.md)
 - [Command reference](docs/reference/commands.md)
 - [Schema contract](docs/reference/schemas.md)
 - [Architecture decisions](docs/adr/)
@@ -142,6 +141,6 @@ provider credentials.
 - Keep runtime provisioning separate from benchmark task grading.
 - Make secrets explicit and never copy user-home auth state implicitly.
 - Treat benchmarks, smoke tests, and future evaluators as adapters.
-- Keep public artifacts language-neutral and stable enough for hosted and
-  community workflows.
+- Keep public artifacts language-neutral and stable enough for other tools to
+  consume.
 - Report success together with cost, tokens, time, tool use, and failure modes.

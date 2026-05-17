@@ -2,8 +2,7 @@
 
 YACHT keeps its durable cross-language contract in JSON Schema files under
 `schemas/`. Python is the current control-plane implementation, but persisted
-artifacts should remain consumable by other tools, hosted services, and future
-runners.
+artifacts should remain consumable by other tools and future runners.
 
 ## Core Artifacts
 
@@ -58,4 +57,3 @@ The default preflight failure policy is `abort-group`: if any required
 preflight check fails for a vessel in a comparison, YACHT skips task execution
 for that comparison group rather than spending tokens on an invalid paired
 result.
-

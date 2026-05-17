@@ -1,4 +1,4 @@
-# Product Vision
+# Project Vision
 
 YACHT is an evaluation control plane for agentic coding systems.
 
@@ -15,13 +15,11 @@ YACHT should serve several audiences:
 
 - Tool builders testing whether their tool improves coding-agent outcomes.
 - Agent teams comparing models, prompts, harness policies, and runtime images.
-- Researchers running reproducible public or private evaluations.
+- Researchers running reproducible evaluations.
 - Teams deciding whether a proposed coding-agent setup is reliable enough for
   real workflows.
-- Future hosted-product users who want managed runs, history, sharing, and
-  community evals without operating the local harness directly.
 
-## Product Promise
+## Project Promise
 
 YACHT should make a comparison legible:
 
@@ -33,36 +31,9 @@ YACHT should make a comparison legible:
 - What did it cost in tokens, dollars, time, failures, and tool calls?
 - Which artifacts prove the result?
 
-The scorecard is the visible output, but the logbook is the product core. A
+The scorecard is the visible output, but the logbook is the core artifact. A
 good logbook is inspectable enough for local debugging and structured enough
-for a hosted service to index, compare, and publish.
-
-## Open Source and Hosted Boundaries
-
-The public repo should remain the engine:
-
-- configuration model
-- runtime and rigging recipes
-- benchmark/course adapters
-- preflight checks
-- task attempts
-- artifact schemas
-- report generation
-- local orchestration
-
-A hosted product can layer on:
-
-- managed runner pools
-- team and project organization
-- secrets management
-- scheduled and repeated runs
-- public/community result databases
-- run history and dashboards
-- artifact retention and search
-- collaboration, comments, approvals, and publishing workflows
-
-The hosted product should not require a different domain model. It should read
-and write the same core YACHT concepts and artifacts wherever possible.
+for other tools to index, compare, and publish.
 
 ## Evaluation Scope
 
@@ -94,4 +65,3 @@ Agent attestation is not enough. YACHT should collect machine evidence:
 
 Preflight determines whether a run is valid to execute. Grading determines how
 well a valid run performed. Reports must keep those concerns separate.
-

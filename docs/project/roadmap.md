@@ -1,7 +1,7 @@
 # Roadmap
 
-This roadmap is organized around making YACHT useful as both an open-source
-tool and the engine for a future hosted product.
+This roadmap is organized around making YACHT useful as an open-source tool for
+reproducible coding-agent evaluation.
 
 ## 1. First-Run UX
 
@@ -22,9 +22,10 @@ Near-term slices:
 - Improve error messages so they name the next command to run or artifact to
   inspect.
 
-## 2. Logbook as Product Artifact
+## 2. Logbook as Durable Artifact
 
-Goal: a logbook should be useful to a human, a CLI, and a hosted service.
+Goal: a logbook should be useful to a human, a CLI, and external analysis
+tools.
 
 Near-term slices:
 
@@ -36,7 +37,7 @@ Near-term slices:
   reports, grading reports, and failed gates.
 - Add durable Markdown report output for benchmark runs by default or as a
   documented release checklist step.
-- Add compact JSON summary output for product ingestion.
+- Add compact JSON summary output for automation and analysis.
 
 ## 3. Recipes and Rigging
 
@@ -52,8 +53,8 @@ Near-term slices:
   vessels.
 - Add stricter preflight smoke contracts for tool availability and
   configuration.
-- Preserve a path for private recipes that depend on proprietary tools or
-  organization-specific secrets.
+- Preserve a path for local recipes that depend on organization-specific tools
+  or secrets without committing those details to public examples.
 
 ## 4. More Benchmark and Evaluator Adapters
 
@@ -83,9 +84,10 @@ Near-term slices:
 - Make it clear that LLM outcomes are observations, not deterministic cached
   facts.
 
-## 6. Hosted Product Readiness
+## 6. Ecosystem Readiness
 
-Goal: public artifacts and local workflows are compatible with a hosted YACHT.
+Goal: public artifacts and local workflows are stable enough for other tools
+and scripts to consume.
 
 Near-term slices:
 
@@ -93,7 +95,6 @@ Near-term slices:
 - Ensure all public reports have machine-readable equivalents.
 - Avoid hardcoding local password-manager or user-environment assumptions.
 - Make secrets explicit references, not copied state.
-- Keep runtime backends abstract enough for remote workers and managed
+- Keep runtime backends abstract enough for remote workers and reproducible
   container execution.
-- Treat public/community evals as signed or provenance-rich logbooks.
-
+- Treat shared evals as signed or provenance-rich logbooks.
