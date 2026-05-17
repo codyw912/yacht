@@ -82,6 +82,7 @@ uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.
   --secret anthropic=@env:ANTHROPIC_API_KEY \
   --python-executable "uv run --with swebench python"
 
+uv run yacht benchmark-status --logbook "$LOGBOOK"
 uv run yacht benchmark-report --logbook "$LOGBOOK"
 ```
 
@@ -96,21 +97,24 @@ uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.
   --secret anthropic=@env:ANTHROPIC_API_KEY \
   --python-executable "uv run --with swebench python"
 
+uv run yacht benchmark-status --logbook "$LOGBOOK"
 uv run yacht benchmark-report --logbook "$LOGBOOK"
 ```
 
-The benchmark report includes benchmark outcome and agent usage metrics. For
-example:
+The status report is the first thing to inspect after a run. It shows which
+benchmark artifacts exist, what is missing, and the next recommended command.
+The benchmark report then summarizes benchmark outcome and agent usage metrics.
+For example:
 
 ```text
 Benchmark scorecard: container-pi-fff-real-benchmark-smoke / swe-bench-lite
 Status: complete
 Comparisons: 1 | Vessels: 2 | Measured: 2 | Missing: 0
+Usage: Attempts: 2 | Failed: 0 | Tool calls: 7 | Tokens: 15643 | Cost: 0.010336 | Duration: 0.000s
+Artifacts: logbook=/private/tmp/yacht-real-benchmark-... | scorecard=/private/tmp/yacht-real-benchmark-.../benchmark-scorecard.json | attempts=/private/tmp/yacht-real-benchmark-.../task-attempt-scorecard.json | launch=/private/tmp/yacht-real-benchmark-.../benchmark-launch-result.json | grading=/private/tmp/yacht-real-benchmark-.../benchmark-grading-collection.json
 
 comparison | baseline | challenger | resolved_delta | rate_delta | measured | missing | eligible | preflight
 container-pi-vs-pi-fff-benchmark-smoke | pi-container-baseline | pi-container-fff | +0 | +0.000 | 2/2 | 0 | 2 | preflight-passed:2
-
-Agent usage: Attempts: 2 | Failed: 0 | Tool calls: 7 | Tokens: 15643 | Cost: 0.010336 | Duration: 0.000s
 ```
 
 ## Development Smoke

@@ -24,8 +24,24 @@ uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY \
   --python-executable "uv run --with swebench python"
+uv run yacht benchmark-status --logbook logbook
 uv run yacht benchmark-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
+```
+
+Fish shell:
+
+```fish
+set -x LOGBOOK /private/tmp/yacht-real-benchmark-(date +%Y%m%d-%H%M%S)
+
+uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace . \
+  --secret anthropic=@env:ANTHROPIC_API_KEY \
+  --python-executable "uv run --with swebench python"
+
+uv run yacht benchmark-status --logbook "$LOGBOOK"
+uv run yacht benchmark-report --logbook "$LOGBOOK"
 ```
 
 ## Runtime and Preflight
@@ -70,6 +86,7 @@ uv run yacht benchmark-launcher --logbook logbook --max-workers 1 --python-execu
 uv run yacht benchmark-launch --logbook logbook
 uv run yacht benchmark-collect-grading examples/pi-fff-provisioning.toml --logbook logbook
 uv run yacht benchmark-scorecard --logbook logbook
+uv run yacht benchmark-status --logbook logbook
 uv run yacht benchmark-report --logbook logbook
 ```
 
@@ -85,9 +102,11 @@ uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace . --format markdown
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY --python-executable "uv run --with swebench python"
+uv run yacht benchmark-status --logbook logbook
 ```
 
 `real-benchmark-eval` is the current end-to-end benchmark path: preflight,
 task attempts, candidate patch extraction, runtime snapshots, readiness,
 native launch, grading collection, scorecard, and top-level summary.
-
+`benchmark-status` is the quick inspection command to run after the workflow; it
+prints artifact presence, artifact statuses, and the next recommended command.
