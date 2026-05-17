@@ -14,6 +14,7 @@ from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.benchmark_readiness_report import render_benchmark_readiness_report
 from yacht.benchmark_report import render_benchmark_report
 from yacht.benchmark_scorecard import write_benchmark_scorecard
+from yacht.benchmark_status import render_benchmark_status
 from yacht.course_handoff import write_course_handoff
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
 from yacht.local_smoke_eval import run_local_smoke_eval
@@ -256,6 +257,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         help="Optional path to write the rendered benchmark report.",
+    )
+
+    benchmark_status_parser = subcommands.add_parser(
+        "benchmark-status",
+        help="Print a checklist-style benchmark artifact status report.",
+    )
+    benchmark_status_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory containing benchmark artifacts.",
+    )
+    benchmark_status_parser.add_argument(
+        "--format",
+        choices=("text", "markdown"),
+        default="text",
+        help="Output format for the rendered status report.",
+    )
+    benchmark_status_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write the rendered status report.",
     )
 
     benchmark_plan_parser = subcommands.add_parser(
@@ -781,6 +804,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(report, encoding="utf-8")
+            return 0
+        print(report, end="")
+        return 0
+
+    if args.command == "benchmark-status":
+        report = render_benchmark_status(args.logbook, args.format)
         if args.output is not None:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(report, encoding="utf-8")
