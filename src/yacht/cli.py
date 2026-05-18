@@ -33,6 +33,8 @@ from yacht.preflight_runner import (
 )
 from yacht.readiness_gate import evaluate_readiness_gate
 from yacht.real_benchmark_eval import run_real_benchmark_eval
+from yacht.real_benchmark_runbook import render_real_benchmark_runbook
+from yacht.real_benchmark_runbook import write_real_benchmark_runbook
 from yacht.real_smoke_eval import run_real_smoke_eval
 from yacht.real_smoke_runbook import render_real_smoke_runbook
 from yacht.real_smoke_runbook import write_real_smoke_runbook
@@ -667,6 +669,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format to print. The persisted runbook artifact is always JSON.",
     )
 
+    real_benchmark_runbook_parser = subcommands.add_parser(
+        "real-benchmark-runbook",
+        help="Write commands and expected artifacts for a real benchmark run.",
+    )
+    real_benchmark_runbook_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    real_benchmark_runbook_parser.add_argument(
+        "--logbook",
+        type=Path,
+        default=Path("logbook"),
+        help="Directory where the runbook artifact is written.",
+    )
+    real_benchmark_runbook_parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path.cwd(),
+        help="Workspace path used in generated commands.",
+    )
+    real_benchmark_runbook_parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=1,
+        help="SWE-bench --max_workers value for generated native launch commands.",
+    )
+    real_benchmark_runbook_parser.add_argument(
+        "--python-executable",
+        default="uv run --with swebench python",
+        help="Python executable prefix to include in generated SWE-bench commands.",
+    )
+    real_benchmark_runbook_parser.add_argument(
+        "--format",
+        choices=("json", "markdown"),
+        default="json",
+        help="Output format to print. The persisted runbook artifact is always JSON.",
+    )
+
     return parser
 
 
@@ -1052,6 +1093,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         if args.format == "markdown":
             print(render_real_smoke_runbook(runbook), end="")
+        else:
+            print(json.dumps(runbook, indent=2))
+        return 0
+
+    if args.command == "real-benchmark-runbook":
+        try:
+            runbook = write_real_benchmark_runbook(
+                config_path=args.config,
+                logbook_dir=args.logbook,
+                workspace_path=args.workspace,
+                max_workers=args.max_workers,
+                python_executable=args.python_executable,
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        if args.format == "markdown":
+            print(render_real_benchmark_runbook(runbook), end="")
         else:
             print(json.dumps(runbook, indent=2))
         return 0

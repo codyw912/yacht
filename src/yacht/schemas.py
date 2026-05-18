@@ -20,6 +20,7 @@ TASK_ATTEMPT_SCHEMA = "yacht.task-attempt.v1"
 TASK_ATTEMPT_SCORECARD_SCHEMA = "yacht.task-attempt-scorecard.v1"
 SMOKE_READINESS_REPORT_SCHEMA = "yacht.smoke-readiness-report.v1"
 REAL_SMOKE_RUNBOOK_SCHEMA = "yacht.real-smoke-runbook.v1"
+REAL_BENCHMARK_RUNBOOK_SCHEMA = "yacht.real-benchmark-runbook.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
@@ -820,6 +821,75 @@ def _validate_real_smoke_runbook_artifacts(value: Any) -> None:
         "smoke_readiness_report",
         "smoke_report",
         "real_smoke_runbook",
+    ):
+        _require_non_empty_string(artifacts.get(key), f"artifacts.{key}")
+
+
+def validate_real_benchmark_runbook_document(document: dict[str, Any]) -> None:
+    _require_object(document, "real benchmark runbook")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "regatta",
+            "course",
+            "agent",
+            "secret_placeholders",
+            "steps",
+            "artifacts",
+        ),
+        "real benchmark runbook",
+    )
+    _require_schema(
+        document,
+        REAL_BENCHMARK_RUNBOOK_SCHEMA,
+        "real benchmark runbook",
+    )
+    for key in ("regatta", "course", "agent"):
+        _require_non_empty_string(document[key], key)
+    _validate_real_smoke_secret_placeholders(document["secret_placeholders"])
+    _validate_real_smoke_runbook_steps(document["steps"])
+    _validate_real_benchmark_runbook_artifacts(document["artifacts"])
+
+
+def _validate_real_benchmark_runbook_artifacts(value: Any) -> None:
+    artifacts = _require_object(value, "artifacts")
+    _require_keys(
+        artifacts,
+        (
+            "course_handoff",
+            "preflight",
+            "preflight_evidence_report",
+            "task_attempts",
+            "task_attempt_scorecard",
+            "candidate_patches",
+            "runtime_instances",
+            "benchmark_execution_plan",
+            "benchmark_launcher_handoff",
+            "benchmark_launch_result",
+            "benchmark_grading_collection",
+            "benchmark_scorecard",
+            "benchmark_report",
+            "real_benchmark_eval",
+            "real_benchmark_runbook",
+        ),
+        "artifacts",
+    )
+    for key in ("preflight", "task_attempts", "candidate_patches"):
+        _require_string_list(artifacts[key], f"artifacts.{key}")
+    for key in (
+        "course_handoff",
+        "preflight_evidence_report",
+        "task_attempt_scorecard",
+        "runtime_instances",
+        "benchmark_execution_plan",
+        "benchmark_launcher_handoff",
+        "benchmark_launch_result",
+        "benchmark_grading_collection",
+        "benchmark_scorecard",
+        "benchmark_report",
+        "real_benchmark_eval",
+        "real_benchmark_runbook",
     ):
         _require_non_empty_string(artifacts.get(key), f"artifacts.{key}")
 

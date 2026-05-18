@@ -19,6 +19,9 @@ uv run yacht smoke-report --logbook logbook --format markdown --output logbook/s
 docker build -t yacht/pi-agent-runtime:pi-0.74.0 containers/pi-agent-runtime
 
 uv run yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
+uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml \
+  --logbook logbook \
+  --workspace .
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook logbook \
   --workspace . \
@@ -33,6 +36,10 @@ Fish shell:
 
 ```fish
 set -x LOGBOOK /private/tmp/yacht-real-benchmark-(date +%Y%m%d-%H%M%S)
+
+uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace .
 
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \
@@ -101,10 +108,14 @@ uv run yacht pi-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook -
 uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace . --format markdown
+uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace .
+uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --format markdown
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY --python-executable "uv run --with swebench python"
 uv run yacht benchmark-status --logbook logbook
 ```
 
+`real-benchmark-runbook` writes a shareable plan of the exact commands and
+expected artifacts before spending benchmark tokens.
 `real-benchmark-eval` is the current end-to-end benchmark path: preflight,
 task attempts, candidate patch extraction, runtime snapshots, readiness,
 native launch, grading collection, scorecard, and top-level summary.

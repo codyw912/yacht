@@ -15,6 +15,7 @@ from yacht.schemas import (
     PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
     PREFLIGHT_SCHEMA,
     PREFLIGHT_SUMMARY_SCHEMA,
+    REAL_BENCHMARK_RUNBOOK_SCHEMA,
     REAL_SMOKE_RUNBOOK_SCHEMA,
     REGATTA_SCHEMA,
     RUNTIME_INSTANCES_SCHEMA,
@@ -31,6 +32,7 @@ from yacht.schemas import (
     validate_preflight_document,
     validate_preflight_evidence_report_document,
     validate_preflight_summary_document,
+    validate_real_benchmark_runbook_document,
     validate_real_smoke_runbook_document,
     validate_runtime_instances_document,
     validate_scorecard_document,
@@ -94,6 +96,7 @@ class SchemaTests(unittest.TestCase):
             TASK_ATTEMPT_SCORECARD_SCHEMA,
             SMOKE_READINESS_REPORT_SCHEMA,
             REAL_SMOKE_RUNBOOK_SCHEMA,
+            REAL_BENCHMARK_RUNBOOK_SCHEMA,
         ):
             schema_path = schema_dir / f"{schema_name}.schema.json"
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -436,6 +439,59 @@ class SchemaTests(unittest.TestCase):
         }
 
         validate_real_smoke_runbook_document(document)
+
+    def test_real_benchmark_runbook_documents_include_schema_version(self) -> None:
+        document = {
+            "schema": REAL_BENCHMARK_RUNBOOK_SCHEMA,
+            "regatta": "container-pi-fff-real-benchmark-smoke",
+            "course": "swe-bench-lite",
+            "agent": "pi",
+            "secret_placeholders": [
+                {
+                    "name": "anthropic",
+                    "source": "env",
+                    "ref": "ANTHROPIC_API_KEY",
+                    "argument": "--secret anthropic=@env:ANTHROPIC_API_KEY",
+                }
+            ],
+            "steps": [
+                {
+                    "name": "real-benchmark-eval",
+                    "command": "uv run yacht real-benchmark-eval regatta.toml",
+                    "artifacts": ["logbook/benchmark-scorecard.json"],
+                }
+            ],
+            "artifacts": {
+                "course_handoff": "logbook/course-handoff.json",
+                "preflight": ["logbook/preflight/pi-vs-pi-fff/pi-plus-fff.json"],
+                "preflight_evidence_report": (
+                    "logbook/preflight-evidence-report.json"
+                ),
+                "task_attempts": [
+                    "logbook/task-attempts/pi-vs-pi-fff/pi-plus-fff/task.json"
+                ],
+                "task_attempt_scorecard": "logbook/task-attempt-scorecard.json",
+                "candidate_patches": [
+                    "logbook/course-handoff/swe-bench/vessels/pi-plus-fff/"
+                    "candidate-patches.jsonl"
+                ],
+                "runtime_instances": "logbook/runtime-instances.json",
+                "benchmark_execution_plan": "logbook/benchmark-execution-plan.json",
+                "benchmark_launcher_handoff": (
+                    "logbook/benchmark-launcher-handoff.json"
+                ),
+                "benchmark_launch_result": "logbook/benchmark-launch-result.json",
+                "benchmark_grading_collection": (
+                    "logbook/benchmark-grading-collection.json"
+                ),
+                "benchmark_scorecard": "logbook/benchmark-scorecard.json",
+                "benchmark_report": "logbook/benchmark-report.md",
+                "real_benchmark_eval": "logbook/real-benchmark-eval.json",
+                "real_benchmark_runbook": "logbook/real-benchmark-runbook.json",
+            },
+        }
+
+        validate_real_benchmark_runbook_document(document)
 
     def test_benchmark_launch_result_documents_include_schema_version(self) -> None:
         document = {
