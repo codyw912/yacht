@@ -69,8 +69,16 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
                 summary["artifacts"]["benchmark_report_markdown"],
                 str(report_path),
             )
-            aggregate = summary["aggregate"]
-            self.assertEqual(aggregate["run_count"], 2)
+            self.assertNotIn("aggregate", summary)
+            aggregate_summary = summary["aggregate_summary"]
+            self.assertEqual(aggregate_summary["run_count"], 2)
+            self.assertEqual(
+                aggregate_summary["comparisons"][0]["delta"]["resolved_instances_delta"],
+                1,
+            )
+            aggregate = json.loads(
+                (logbook_dir / "benchmark-aggregate.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(
                 aggregate["comparisons"][0]["delta"]["resolved_instances_delta"],
                 1,
@@ -106,7 +114,8 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertEqual(summary["status"], "partial")
             self.assertEqual(summary["summary"]["completed_runs"], 1)
             self.assertEqual(summary["summary"]["failed_runs"], 1)
-            self.assertEqual(summary["aggregate"]["run_count"], 1)
+            self.assertEqual(summary["aggregate_summary"]["run_count"], 1)
+            self.assertNotIn("aggregate", summary)
 
     def test_benchmark_status_recognizes_repetition_parent_logbooks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
