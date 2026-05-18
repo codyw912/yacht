@@ -326,6 +326,14 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +1.000 | "
                         "2/2 | 0 | 0 | preflight-missing:2",
                         "",
+                        "Benchmark outcomes by vessel:",
+                        "comparison | vessel | status | submitted | resolved | "
+                        "rate | preflight",
+                        "pi-vs-pi-fff | pi-baseline | measured | 1 | 0 | 0.000 | "
+                        "preflight-missing",
+                        "pi-vs-pi-fff | pi-plus-fff | measured | 1 | 1 | 1.000 | "
+                        "preflight-missing",
+                        "",
                     ]
                 ),
             )
@@ -377,6 +385,15 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
                         "| pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +1.000 | "
                         "2/2 | 0 | 0 | preflight-missing:2 |",
+                        "",
+                        "## Benchmark outcomes by vessel",
+                        "",
+                        "| Comparison | Vessel | Status | Submitted | Resolved | Rate | Preflight |",
+                        "| --- | --- | --- | ---: | ---: | ---: | --- |",
+                        "| pi-vs-pi-fff | pi-baseline | measured | 1 | 0 | 0.000 | "
+                        "preflight-missing |",
+                        "| pi-vs-pi-fff | pi-plus-fff | measured | 1 | 1 | 1.000 | "
+                        "preflight-missing |",
                         "",
                     ]
                 ),
@@ -463,6 +480,15 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
                         "| pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +1.000 | "
                         "2/2 | 0 | 0 | preflight-missing:2 |",
+                        "",
+                        "## Benchmark outcomes by vessel",
+                        "",
+                        "| Comparison | Vessel | Status | Submitted | Resolved | Rate | Preflight |",
+                        "| --- | --- | --- | ---: | ---: | ---: | --- |",
+                        "| pi-vs-pi-fff | pi-baseline | measured | 1 | 0 | 0.000 | "
+                        "preflight-missing |",
+                        "| pi-vs-pi-fff | pi-plus-fff | measured | 1 | 1 | 1.000 | "
+                        "preflight-missing |",
                         "",
                     ]
                 ),

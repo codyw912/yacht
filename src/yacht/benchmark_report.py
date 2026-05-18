@@ -86,6 +86,7 @@ def _render_scorecard(
         "measured | missing | eligible | preflight",
     ]
     lines.extend(_comparison_row(comparison) for comparison in scorecard["comparisons"])
+    lines.extend(_outcome_lines(scorecard))
     if task_attempt_scorecard is not None:
         lines.extend(_usage_lines(task_attempt_scorecard))
     return "\n".join(lines) + "\n"
@@ -124,6 +125,7 @@ def _render_scorecard_markdown(
     lines.extend(
         _comparison_markdown_row(comparison) for comparison in scorecard["comparisons"]
     )
+    lines.extend(_outcome_markdown_lines(scorecard))
     if task_attempt_scorecard is not None:
         lines.extend(_usage_markdown_lines(task_attempt_scorecard))
     return "\n".join(lines) + "\n"
@@ -175,6 +177,54 @@ def _preflight_reasons(comparison: dict[str, Any]) -> str:
         reason = str(vessel["preflight_reason"])
         counts[reason] = counts.get(reason, 0) + 1
     return ", ".join(f"{reason}:{count}" for reason, count in counts.items())
+
+
+def _outcome_lines(scorecard: dict[str, Any]) -> list[str]:
+    lines = [
+        "",
+        "Benchmark outcomes by vessel:",
+        "comparison | vessel | status | submitted | resolved | rate | preflight",
+    ]
+    lines.extend(
+        _outcome_row(comparison, vessel)
+        for comparison, vessel in _vessels(scorecard)
+    )
+    return lines
+
+
+def _outcome_markdown_lines(scorecard: dict[str, Any]) -> list[str]:
+    lines = [
+        "",
+        "## Benchmark outcomes by vessel",
+        "",
+        "| Comparison | Vessel | Status | Submitted | Resolved | Rate | Preflight |",
+        "| --- | --- | --- | ---: | ---: | ---: | --- |",
+    ]
+    lines.extend(
+        f"| {_outcome_row(comparison, vessel)} |"
+        for comparison, vessel in _vessels(scorecard)
+    )
+    return lines
+
+
+def _vessels(scorecard: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    return [
+        (comparison, vessel)
+        for comparison in scorecard["comparisons"]
+        for vessel in comparison["vessels"]
+    ]
+
+
+def _outcome_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
+    return (
+        f"{comparison['name']} | "
+        f"{vessel['name']} | "
+        f"{vessel['status']} | "
+        f"{vessel['submitted_instances']} | "
+        f"{vessel['resolved_instances']} | "
+        f"{_rate(vessel['resolution_rate'])} | "
+        f"{vessel['preflight_reason']}"
+    )
 
 
 def _usage_lines(scorecard: dict[str, Any]) -> list[str]:
@@ -247,11 +297,7 @@ def _artifact_line(logbook_dir: Path) -> str:
 def _usage_vessels(
     scorecard: dict[str, Any],
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    return [
-        (comparison, vessel)
-        for comparison in scorecard["comparisons"]
-        for vessel in comparison["vessels"]
-    ]
+    return _vessels(scorecard)
 
 
 def _usage_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
@@ -275,6 +321,10 @@ def _tool_counts(value: dict[str, int]) -> str:
 
 def _cost(value: float) -> str:
     return f"{float(value):.6f}"
+
+
+def _rate(value: float) -> str:
+    return f"{float(value):.3f}"
 
 
 def _duration(value: float) -> str:
