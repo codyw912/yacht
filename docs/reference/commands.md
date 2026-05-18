@@ -99,6 +99,7 @@ uv run yacht benchmark-collect-grading examples/pi-fff-provisioning.toml --logbo
 uv run yacht benchmark-scorecard --logbook logbook
 uv run yacht benchmark-status --logbook logbook
 uv run yacht benchmark-report --logbook logbook
+uv run yacht benchmark-aggregate --logbook logbook-1 --logbook logbook-2
 ```
 
 The native benchmark harness owns task containers, test execution, and grading.
@@ -113,6 +114,8 @@ and tool calls down by task. Use `--vessel` and `--task` to narrow the detailed
 sections while keeping the full benchmark summary for context. Completed
 scorecards and `benchmark-status` include a filtered inspection command for the
 first challenger/task outcome.
+Use `benchmark-aggregate` with multiple completed benchmark logbooks to inspect
+aggregate resolution and usage across repeated runs.
 
 ## One-Command Workflows
 
