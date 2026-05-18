@@ -34,6 +34,10 @@ uv run yacht benchmark-report --logbook logbook --vessel pi-container-fff --task
 uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
 ```
 
+Use `examples/container-pi-fff-real-benchmark-small.toml` with the same command
+sequence when you want a two-instance SWE-bench Lite smoke instead of the
+cheaper one-instance default.
+
 Fish shell:
 
 ```fish

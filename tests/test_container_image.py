@@ -116,6 +116,25 @@ class ContainerImageTests(unittest.TestCase):
         self.assertEqual(regatta.vessels[1].name, "pi-container-fff")
         self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))
 
+    def test_real_container_pi_fff_benchmark_small_has_explicit_task_set(self) -> None:
+        regatta = load_regatta(
+            Path("examples/container-pi-fff-real-benchmark-small.toml")
+        )
+        runtime = regatta.runtime_recipes["pi-container"]
+
+        self.assertEqual(regatta.name, "container-pi-fff-real-benchmark-small")
+        self.assertEqual(regatta.course.name, "swe-bench-lite")
+        self.assertIsNotNone(regatta.course.adapter)
+        self.assertEqual(
+            [task.id for task in regatta.course.tasks],
+            ["django__django-11099", "django__django-11179"],
+        )
+        self.assertEqual(runtime.image, PI_AGENT_IMAGE)
+        self.assertEqual(runtime.required_secrets, ("anthropic",))
+        self.assertEqual(regatta.vessels[0].name, "pi-container-baseline")
+        self.assertEqual(regatta.vessels[1].name, "pi-container-fff")
+        self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))
+
     def test_pi_container_dockerfile_builds_pinned_pi_agent(self) -> None:
         dockerfile = Path("containers/pi-agent-runtime/Dockerfile")
         contents = dockerfile.read_text(encoding="utf-8")

@@ -79,6 +79,24 @@ class CourseHandoffTests(unittest.TestCase):
                 handoff,
             )
 
+    def test_small_benchmark_example_handoff_lists_all_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+
+            handoff = write_course_handoff(
+                Path("examples/container-pi-fff-real-benchmark-small.toml"),
+                logbook_dir,
+            )
+
+            self.assertEqual(
+                [task["id"] for task in handoff["tasks"]],
+                ["django__django-11099", "django__django-11179"],
+            )
+            self.assertEqual(
+                handoff["comparisons"][0]["name"],
+                "container-pi-vs-pi-fff-benchmark-small",
+            )
+
     def test_course_handoff_requires_course_adapter(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

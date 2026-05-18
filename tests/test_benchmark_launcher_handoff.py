@@ -5,6 +5,7 @@ from contextlib import redirect_stderr
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+from typing import Any
 
 from tests.benchmark_fixtures import PI_FFF_CONFIG_PATH
 from tests.benchmark_fixtures import PI_FFF_PREDICTIONS_PATH
@@ -13,10 +14,12 @@ from tests.benchmark_fixtures import write_runtime_snapshot
 from tests.benchmark_fixtures import write_vessel_candidate
 from tests.benchmark_fixtures import write_vessel_preflight
 from tests.benchmark_fixtures import write_vessel_ready_inputs
+from tests.preflight_artifacts import write_preflight_artifact
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
 from yacht.course_handoff import write_course_handoff
 from yacht.regatta import ConfigError
+from yacht.swebench_artifacts import candidate_patches_path
 from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.swebench_grading import write_swe_bench_grading_report
 from yacht.swebench_predictions import write_swe_bench_predictions
@@ -106,6 +109,42 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
                 )
             )
             self.assertEqual(saved, handoff)
+
+    def test_launcher_handoff_includes_all_small_benchmark_instance_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = Path("examples/container-pi-fff-real-benchmark-small.toml")
+            logbook_dir = root / "logbook"
+            handoff = write_course_handoff(config_path, logbook_dir)
+            _write_candidate_patches(
+                logbook_dir=logbook_dir,
+                handoff=handoff,
+                vessel_name="pi-container-baseline",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                regatta_name="container-pi-fff-real-benchmark-small",
+                comparison_name="container-pi-vs-pi-fff-benchmark-small",
+                vessel_name="pi-container-baseline",
+                status="passed",
+            )
+            write_runtime_snapshot(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                workspace_path=root / "workspace",
+            )
+
+            launcher = write_benchmark_launcher_handoff(
+                logbook_dir=logbook_dir,
+                python_executable="uv run python",
+            )
+
+            command = launcher["comparisons"][0]["vessels"][0]["command"]
+            instance_ids_index = command.index("--instance_ids")
+            self.assertEqual(
+                command[instance_ids_index + 1 :],
+                ["django__django-11099", "django__django-11179"],
+            )
 
     def test_launcher_handoff_reports_missing_and_already_graded_vessels(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -324,6 +363,36 @@ def _prepared_mixed_logbook(root: Path) -> Path:
         vessel_name="pi-plus-fff",
     )
     return logbook_dir
+
+
+def _write_candidate_patches(
+    *,
+    logbook_dir: Path,
+    handoff: dict[str, Any],
+    vessel_name: str,
+) -> None:
+    path = candidate_patches_path(
+        logbook_dir=logbook_dir,
+        handoff=handoff,
+        vessel_name=vessel_name,
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    records = [
+        {
+            "instance_id": str(task["id"]),
+            "model_name_or_path": vessel_name,
+            "model_patch": (
+                "diff --git a/example.py b/example.py\n"
+                "--- a/example.py\n"
+                "+++ b/example.py\n"
+            ),
+        }
+        for task in handoff["tasks"]
+    ]
+    path.write_text(
+        "\n".join(json.dumps(record) for record in records) + "\n",
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":
