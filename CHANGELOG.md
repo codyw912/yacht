@@ -1,0 +1,17 @@
+# Changelog
+
+## 0.1.0 - First Usable Benchmark Smoke
+
+- Added a real end-to-end SWE-bench Lite smoke path for containerized Pi
+  baseline vs containerized Pi+fff.
+- Added runtime and rigging preflight evidence before task tokens are spent.
+- Added SWE-bench task context loading, per-task repository checkout, agent
+  task attempts, candidate patch extraction, native SWE-bench Docker grading,
+  and normalized benchmark scorecards.
+- Added a one-task smoke config and a two-task small smoke config:
+  `examples/container-pi-fff-real-benchmark-smoke.toml` and
+  `examples/container-pi-fff-real-benchmark-small.toml`.
+- Added benchmark status and report output with notable deltas, per-vessel
+  usage, per-task usage, per-task outcomes, and artifact paths.
+- Added runbook generation for real benchmark runs so users can inspect the
+  exact commands and expected artifacts before spending provider tokens.
