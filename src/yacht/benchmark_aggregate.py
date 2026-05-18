@@ -15,6 +15,7 @@ from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 
 BENCHMARK_AGGREGATE_SCHEMA = "yacht.benchmark-aggregate.v1"
+BENCHMARK_AGGREGATE_PATH = Path("benchmark-aggregate.json")
 
 
 def build_benchmark_aggregate(logbook_dirs: list[Path]) -> dict[str, Any]:
