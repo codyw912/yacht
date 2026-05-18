@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 import sys
+import tempfile
 from pathlib import Path
 from typing import Sequence
 
@@ -687,8 +689,11 @@ def build_parser() -> argparse.ArgumentParser:
     real_benchmark_repetitions_parser.add_argument(
         "--logbook",
         type=Path,
-        default=Path("logbook"),
-        help="Parent directory where repeated benchmark artifacts are written.",
+        default=None,
+        help=(
+            "Parent directory where repeated benchmark artifacts are written. "
+            "Defaults to a timestamped directory under the system temp directory."
+        ),
     )
     real_benchmark_repetitions_parser.add_argument(
         "--workspace",
@@ -1184,7 +1189,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             summary = run_real_benchmark_repetitions(
                 config_path=args.config,
-                logbook_dir=args.logbook,
+                logbook_dir=args.logbook
+                or _default_repeated_benchmark_logbook(args.config),
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
                 repetitions=args.repetitions,
@@ -1244,6 +1250,20 @@ def _print_json(payload: dict[str, object]) -> None:
 
 def _stderr_progress(message: str) -> None:
     print(f"yacht: {message}", file=sys.stderr, flush=True)
+
+
+def _default_repeated_benchmark_logbook(config_path: Path) -> Path:
+    regatta = load_regatta(config_path)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    return (
+        Path(tempfile.gettempdir())
+        / f"yacht-{_path_slug(regatta.name)}-{timestamp}"
+    )
+
+
+def _path_slug(value: str) -> str:
+    slug = "".join(character if character.isalnum() else "-" for character in value)
+    return "-".join(part for part in slug.lower().split("-") if part) or "benchmark"
 
 
 def _agent_prompt_runner_factory(
