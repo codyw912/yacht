@@ -125,6 +125,8 @@ uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smo
 uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --format markdown
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht benchmark-status --logbook logbook
+uv run yacht benchmark-report --logbook logbook
+uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
 ```
 
 `real-benchmark-runbook` writes a shareable plan of the exact commands and
