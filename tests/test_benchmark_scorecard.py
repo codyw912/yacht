@@ -427,6 +427,109 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 "fffind:1, read:1 | 6251 | 0.004513 | 5.250s",
                 stdout.getvalue(),
             )
+            self.assertIn("Benchmark task outcomes by vessel:", stdout.getvalue())
+            self.assertIn(
+                "pi-vs-pi-fff | pi-baseline | django__django-11099 | "
+                "unresolved | "
+                "logbook/task-attempts/pi-vs-pi-fff/pi-baseline/"
+                "django__django-11099.json",
+                stdout.getvalue(),
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-plus-fff | django__django-11099 | "
+                "resolved | "
+                "logbook/task-attempts/pi-vs-pi-fff/pi-plus-fff/"
+                "django__django-11099.json",
+                stdout.getvalue(),
+            )
+            self.assertIn("Benchmark artifacts by vessel:", stdout.getvalue())
+            self.assertIn(
+                str(
+                    logbook_dir
+                    / "course-handoff"
+                    / "swe-bench"
+                    / "vessels"
+                    / "pi-plus-fff"
+                    / "candidate-patches.jsonl"
+                ),
+                stdout.getvalue(),
+            )
+            self.assertIn(
+                str(
+                    logbook_dir
+                    / "course-handoff"
+                    / "swe-bench"
+                    / "vessels"
+                    / "pi-plus-fff"
+                    / "grading-report.json"
+                ),
+                stdout.getvalue(),
+            )
+
+    def test_benchmark_report_includes_collected_native_report_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+            _write_task_attempt_scorecard(logbook_dir)
+            _write_grading_collection(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn(
+                str(logbook_dir / "native-report" / "pi-plus-fff.json"),
+                stdout.getvalue(),
+            )
+            self.assertIn(
+                str(
+                    logbook_dir
+                    / "course-handoff"
+                    / "swe-bench"
+                    / "vessels"
+                    / "pi-plus-fff"
+                    / "grading-report.json"
+                ),
+                stdout.getvalue(),
+            )
+
+    def test_benchmark_report_markdown_includes_drilldown_when_usage_available(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+            _write_task_attempt_scorecard(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--format",
+                        "markdown",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("## Benchmark task outcomes by vessel", stdout.getvalue())
+            self.assertIn(
+                "| pi-vs-pi-fff | pi-plus-fff | django__django-11099 | "
+                "resolved | "
+                "logbook/task-attempts/pi-vs-pi-fff/pi-plus-fff/"
+                "django__django-11099.json |",
+                stdout.getvalue(),
+            )
+            self.assertIn("## Benchmark artifacts by vessel", stdout.getvalue())
 
     def test_benchmark_report_command_writes_output_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -792,7 +895,72 @@ def _task_attempt_vessel(
         "total_tokens": tokens,
         "total_cost": cost,
         "total_duration_seconds": duration,
-        "artifact_paths": [f"logbook/task-attempts/pi-vs-pi-fff/{name}/task.json"],
+        "artifact_paths": [
+            f"logbook/task-attempts/pi-vs-pi-fff/{name}/django__django-11099.json"
+        ],
+    }
+
+
+def _write_grading_collection(logbook_dir: Path) -> None:
+    (logbook_dir / "benchmark-grading-collection.json").write_text(
+        json.dumps(
+            {
+                "schema": "yacht.benchmark-grading-collection.v1",
+                "regatta": "pi-fff-comparison",
+                "course": "swe-bench-lite",
+                "adapter": {
+                    "kind": "swe-bench",
+                    "dataset": "princeton-nlp/SWE-bench_Lite",
+                    "split": "test",
+                    "harness": "docker",
+                },
+                "status": "complete",
+                "summary": {
+                    "total_vessels": 2,
+                    "completed_launches": 2,
+                    "collected_reports": 2,
+                    "missing_native_reports": 0,
+                    "invalid_native_reports": 0,
+                    "skipped_vessels": 0,
+                },
+                "comparisons": [
+                    {
+                        "name": "pi-vs-pi-fff",
+                        "course": "swe-bench-lite",
+                        "status": "complete",
+                        "vessels": [
+                            _grading_collection_vessel(logbook_dir, "pi-baseline"),
+                            _grading_collection_vessel(logbook_dir, "pi-plus-fff"),
+                        ],
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _grading_collection_vessel(
+    logbook_dir: Path,
+    vessel_name: str,
+) -> dict[str, object]:
+    return {
+        "name": vessel_name,
+        "launch_status": "completed",
+        "status": "collected",
+        "native_report_path": str(logbook_dir / "native-report" / f"{vessel_name}.json"),
+        "grading_report_path": str(
+            logbook_dir
+            / "course-handoff"
+            / "swe-bench"
+            / "vessels"
+            / vessel_name
+            / "grading-report.json"
+        ),
+        "submitted_instances": 1,
+        "resolved_instances": 1 if vessel_name == "pi-plus-fff" else 0,
+        "resolution_rate": 1.0 if vessel_name == "pi-plus-fff" else 0.0,
     }
 
 

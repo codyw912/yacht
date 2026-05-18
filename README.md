@@ -111,7 +111,8 @@ uv run yacht benchmark-report --logbook "$LOGBOOK"
 
 The status report is the first thing to inspect after a run. It shows which
 benchmark artifacts exist, what is missing, and the next recommended command.
-The benchmark report then summarizes benchmark outcome and agent usage metrics.
+The benchmark report then summarizes benchmark outcome, agent usage metrics,
+per-task outcomes, and the relevant per-vessel artifact paths.
 For example:
 
 ```text
