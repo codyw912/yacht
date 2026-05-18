@@ -197,6 +197,59 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             self.assertEqual(runbook["schema"], "yacht.real-benchmark-runbook.v1")
             self.assertEqual(runbook["regatta"], "pi-fff-comparison")
 
+    def test_real_benchmark_runbook_lists_small_task_set_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workspace_path = root / "workspace"
+            logbook_dir = root / "logbook"
+            workspace_path.mkdir()
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "real-benchmark-runbook",
+                        "examples/container-pi-fff-real-benchmark-small.toml",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            runbook = json.loads(stdout.getvalue())
+            self.assertEqual(
+                runbook["regatta"],
+                "container-pi-fff-real-benchmark-small",
+            )
+
+            commands = {step["name"]: step["command"] for step in runbook["steps"]}
+            self.assertIn(
+                "--vessel pi-container-fff --task django__django-11099",
+                commands["benchmark-report-filtered"],
+            )
+            self.assertIn(
+                str(
+                    logbook_dir
+                    / "task-attempts"
+                    / "container-pi-vs-pi-fff-benchmark-small"
+                    / "pi-container-fff"
+                    / "django__django-11099.json"
+                ),
+                runbook["artifacts"]["task_attempts"],
+            )
+            self.assertIn(
+                str(
+                    logbook_dir
+                    / "task-attempts"
+                    / "container-pi-vs-pi-fff-benchmark-small"
+                    / "pi-container-fff"
+                    / "django__django-11179.json"
+                ),
+                runbook["artifacts"]["task_attempts"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

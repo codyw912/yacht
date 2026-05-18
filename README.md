@@ -91,6 +91,10 @@ uv run yacht benchmark-report --logbook "$LOGBOOK"
 uv run yacht benchmark-report --logbook "$LOGBOOK" --vessel pi-container-fff
 ```
 
+The default smoke config runs one SWE-bench Lite instance to keep iteration
+cheap. For a slightly broader two-instance check, use
+`examples/container-pi-fff-real-benchmark-small.toml` with the same commands.
+
 Fish shell:
 
 ```fish

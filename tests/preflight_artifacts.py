@@ -8,6 +8,7 @@ def write_preflight_artifact(
     comparison_name: str,
     vessel_name: str,
     status: str,
+    regatta_name: str = "pi-fff-comparison",
     include_agent_prompt: bool = False,
 ) -> None:
     artifact_path = logbook_dir / "preflight" / comparison_name / f"{vessel_name}.json"
@@ -44,7 +45,7 @@ def write_preflight_artifact(
         json.dumps(
             {
                 "schema": "yacht.preflight.v1",
-                "regatta": "pi-fff-comparison",
+                "regatta": regatta_name,
                 "comparison": comparison_name,
                 "vessel": vessel_name,
                 "runtime": "pi",
