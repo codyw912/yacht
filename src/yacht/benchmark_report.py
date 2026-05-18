@@ -81,7 +81,10 @@ def _render_aggregate_report(path: Path, output_format: str) -> str:
 
 
 def _aggregate_with_run_details(aggregate: dict[str, Any]) -> dict[str, Any]:
-    if all("runs" in comparison for comparison in aggregate["comparisons"]):
+    if all(
+        _comparison_has_run_statistics(comparison)
+        for comparison in aggregate["comparisons"]
+    ):
         return aggregate
     logbooks = aggregate.get("logbooks")
     if not isinstance(logbooks, list) or not all(
@@ -89,6 +92,14 @@ def _aggregate_with_run_details(aggregate: dict[str, Any]) -> dict[str, Any]:
     ):
         return aggregate
     return build_benchmark_aggregate([Path(logbook) for logbook in logbooks])
+
+
+def _comparison_has_run_statistics(comparison: dict[str, Any]) -> bool:
+    return (
+        "runs" in comparison
+        and "delta_statistics" in comparison
+        and all("statistics" in vessel for vessel in comparison.get("vessels", []))
+    )
 
 
 def _load_scorecard(path: Path) -> dict[str, Any]:

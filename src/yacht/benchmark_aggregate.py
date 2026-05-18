@@ -123,13 +123,15 @@ def _aggregate_comparison(
         _aggregate_vessel(comparison_name, vessel_name, runs)
         for vessel_name in vessel_names
     ]
+    run_summaries = _aggregate_runs(comparison_name, vessel_names, runs)
     return {
         "name": comparison_name,
         "baseline": vessel_names[0],
         "challenger": vessel_names[1],
         "vessels": vessels,
-        "runs": _aggregate_runs(comparison_name, vessel_names, runs),
+        "runs": run_summaries,
         "delta": _aggregate_delta(vessels),
+        "delta_statistics": _delta_statistics(run_summaries),
     }
 
 
@@ -165,6 +167,9 @@ def _aggregate_vessel(
             cost += float(usage_vessel["total_cost"])
             duration += float(usage_vessel["total_duration_seconds"])
             tool_calls += int(usage_vessel["tool_call_count"])
+    run_vessels = [
+        _run_vessel(comparison_name, vessel_name, run) for run in runs
+    ]
     return {
         "name": vessel_name,
         "runs": len(runs),
@@ -178,6 +183,7 @@ def _aggregate_vessel(
         "total_cost": round(cost, 6),
         "total_duration_seconds": round(duration, 3),
         "total_tool_calls": tool_calls,
+        "statistics": _vessel_statistics(run_vessels),
     }
 
 
@@ -211,23 +217,78 @@ def _aggregate_runs(
     vessel_names: list[str],
     runs: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    return [
-        {
-            "index": index,
-            "logbook": str(run["logbook"]),
-            "vessels": [
-                _run_vessel(comparison_name, vessel_name, run)
-                for vessel_name in vessel_names
-            ],
-            "delta": _run_delta(
-                [
-                    _run_vessel(comparison_name, vessel_name, run)
-                    for vessel_name in vessel_names
-                ]
-            ),
-        }
-        for index, run in enumerate(runs, start=1)
-    ]
+    run_summaries = []
+    for index, run in enumerate(runs, start=1):
+        vessels = [
+            _run_vessel(comparison_name, vessel_name, run)
+            for vessel_name in vessel_names
+        ]
+        run_summaries.append(
+            {
+                "index": index,
+                "logbook": str(run["logbook"]),
+                "vessels": vessels,
+                "delta": _run_delta(vessels),
+            }
+        )
+    return run_summaries
+
+
+def _vessel_statistics(run_vessels: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "resolution_rate": _stats(
+            [float(vessel["resolution_rate"]) for vessel in run_vessels],
+            digits=3,
+        ),
+        "tokens": _stats([int(vessel["tokens"]) for vessel in run_vessels]),
+        "cost": _stats(
+            [float(vessel["cost"]) for vessel in run_vessels],
+            digits=6,
+        ),
+        "duration_seconds": _stats(
+            [float(vessel["duration_seconds"]) for vessel in run_vessels],
+            digits=3,
+        ),
+        "tool_calls": _stats([int(vessel["tool_calls"]) for vessel in run_vessels]),
+    }
+
+
+def _delta_statistics(run_summaries: list[dict[str, Any]]) -> dict[str, Any]:
+    deltas = [run["delta"] for run in run_summaries]
+    return {
+        "baseline_vessel": deltas[0]["baseline_vessel"],
+        "challenger_vessel": deltas[0]["challenger_vessel"],
+        "resolved_instances_delta": _stats(
+            [int(delta["resolved_instances_delta"]) for delta in deltas],
+        ),
+        "resolution_rate_delta": _stats(
+            [float(delta["resolution_rate_delta"]) for delta in deltas],
+            digits=3,
+        ),
+        "tokens_delta": _stats([int(delta["tokens_delta"]) for delta in deltas]),
+        "cost_delta": _stats(
+            [float(delta["cost_delta"]) for delta in deltas],
+            digits=6,
+        ),
+        "duration_seconds_delta": _stats(
+            [float(delta["duration_seconds_delta"]) for delta in deltas],
+            digits=3,
+        ),
+        "tool_calls_delta": _stats(
+            [int(delta["tool_calls_delta"]) for delta in deltas],
+        ),
+    }
+
+
+def _stats(values: list[float | int], *, digits: int = 3) -> dict[str, Any]:
+    if not values:
+        return {"runs": 0, "mean": 0.0, "min": 0, "max": 0}
+    return {
+        "runs": len(values),
+        "mean": round(sum(values) / len(values), digits),
+        "min": round(min(values), digits),
+        "max": round(max(values), digits),
+    }
 
 
 def _run_vessel(
@@ -342,6 +403,32 @@ def _render_text(aggregate: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "Aggregate statistics by vessel:",
+            "comparison | vessel | rate_mean | rate_range | tokens_mean | "
+            "tokens_range | cost_mean | cost_range | duration_mean | "
+            "duration_range | tool_calls_mean | tool_calls_range",
+        ]
+    )
+    for comparison in aggregate["comparisons"]:
+        lines.extend(
+            _vessel_statistics_row(comparison, vessel)
+            for vessel in comparison["vessels"]
+        )
+    lines.extend(
+        [
+            "",
+            "Aggregate delta statistics:",
+            "comparison | baseline | challenger | rate_mean | rate_range | "
+            "tokens_mean | tokens_range | cost_mean | cost_range | "
+            "duration_mean | duration_range | tool_calls_mean | tool_calls_range",
+        ]
+    )
+    lines.extend(
+        _delta_statistics_row(comparison) for comparison in aggregate["comparisons"]
+    )
+    lines.extend(
+        [
+            "",
             "Aggregate runs by vessel:",
             "comparison | run | vessel | status | submitted | resolved | rate | "
             "tokens | cost | duration | tool_calls | logbook",
@@ -385,6 +472,37 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             f"| {_vessel_row(comparison, vessel)} |"
             for vessel in comparison["vessels"]
         )
+    lines.extend(
+        [
+            "",
+            "## Aggregate statistics by vessel",
+            "",
+            "| Comparison | Vessel | Rate mean | Rate range | Tokens mean | "
+            "Tokens range | Cost mean | Cost range | Duration mean | "
+            "Duration range | Tool calls mean | Tool calls range |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for comparison in aggregate["comparisons"]:
+        lines.extend(
+            f"| {_vessel_statistics_row(comparison, vessel)} |"
+            for vessel in comparison["vessels"]
+        )
+    lines.extend(
+        [
+            "",
+            "## Aggregate delta statistics",
+            "",
+            "| Comparison | Baseline | Challenger | Rate mean | Rate range | "
+            "Tokens mean | Tokens range | Cost mean | Cost range | "
+            "Duration mean | Duration range | Tool calls mean | Tool calls range |",
+            "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    lines.extend(
+        f"| {_delta_statistics_row(comparison)} |"
+        for comparison in aggregate["comparisons"]
+    )
     lines.extend(
         [
             "",
@@ -436,6 +554,43 @@ def _vessel_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
     )
 
 
+def _vessel_statistics_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
+    stats = vessel["statistics"]
+    return (
+        f"{comparison['name']} | "
+        f"{vessel['name']} | "
+        f"{_stats_rate_mean(stats['resolution_rate'])} | "
+        f"{_stats_rate_range(stats['resolution_rate'])} | "
+        f"{_stats_number_mean(stats['tokens'])} | "
+        f"{_stats_number_range(stats['tokens'])} | "
+        f"{_stats_cost_mean(stats['cost'])} | "
+        f"{_stats_cost_range(stats['cost'])} | "
+        f"{_stats_duration_mean(stats['duration_seconds'])} | "
+        f"{_stats_duration_range(stats['duration_seconds'])} | "
+        f"{_stats_number_mean(stats['tool_calls'])} | "
+        f"{_stats_number_range(stats['tool_calls'])}"
+    )
+
+
+def _delta_statistics_row(comparison: dict[str, Any]) -> str:
+    stats = comparison["delta_statistics"]
+    return (
+        f"{comparison['name']} | "
+        f"{stats['baseline_vessel']} | "
+        f"{stats['challenger_vessel']} | "
+        f"{_stats_signed_rate_mean(stats['resolution_rate_delta'])} | "
+        f"{_stats_signed_rate_range(stats['resolution_rate_delta'])} | "
+        f"{_stats_signed_number_mean(stats['tokens_delta'])} | "
+        f"{_stats_signed_number_range(stats['tokens_delta'])} | "
+        f"{_stats_signed_cost_mean(stats['cost_delta'])} | "
+        f"{_stats_signed_cost_range(stats['cost_delta'])} | "
+        f"{_stats_signed_duration_mean(stats['duration_seconds_delta'])} | "
+        f"{_stats_signed_duration_range(stats['duration_seconds_delta'])} | "
+        f"{_stats_signed_number_mean(stats['tool_calls_delta'])} | "
+        f"{_stats_signed_number_range(stats['tool_calls_delta'])}"
+    )
+
+
 def _run_vessel_row(
     comparison: dict[str, Any],
     run: dict[str, Any],
@@ -483,3 +638,67 @@ def _cost(value: float) -> str:
 
 def _duration(value: float) -> str:
     return f"{float(value):.3f}s"
+
+
+def _stats_rate_mean(stats: dict[str, Any]) -> str:
+    return _rate(stats["mean"])
+
+
+def _stats_rate_range(stats: dict[str, Any]) -> str:
+    return f"{_rate(stats['min'])}..{_rate(stats['max'])}"
+
+
+def _stats_number_mean(stats: dict[str, Any]) -> str:
+    return f"{float(stats['mean']):.1f}"
+
+
+def _stats_number_range(stats: dict[str, Any]) -> str:
+    return f"{stats['min']}..{stats['max']}"
+
+
+def _stats_cost_mean(stats: dict[str, Any]) -> str:
+    return _cost(stats["mean"])
+
+
+def _stats_cost_range(stats: dict[str, Any]) -> str:
+    return f"{_cost(stats['min'])}..{_cost(stats['max'])}"
+
+
+def _stats_duration_mean(stats: dict[str, Any]) -> str:
+    return _duration(stats["mean"])
+
+
+def _stats_duration_range(stats: dict[str, Any]) -> str:
+    return f"{_duration(stats['min'])}..{_duration(stats['max'])}"
+
+
+def _stats_signed_rate_mean(stats: dict[str, Any]) -> str:
+    return _signed_rate(stats["mean"])
+
+
+def _stats_signed_rate_range(stats: dict[str, Any]) -> str:
+    return f"{_signed_rate(stats['min'])}..{_signed_rate(stats['max'])}"
+
+
+def _stats_signed_number_mean(stats: dict[str, Any]) -> str:
+    return f"{float(stats['mean']):+.1f}"
+
+
+def _stats_signed_number_range(stats: dict[str, Any]) -> str:
+    return f"{int(stats['min']):+d}..{int(stats['max']):+d}"
+
+
+def _stats_signed_cost_mean(stats: dict[str, Any]) -> str:
+    return _signed_cost(stats["mean"])
+
+
+def _stats_signed_cost_range(stats: dict[str, Any]) -> str:
+    return f"{_signed_cost(stats['min'])}..{_signed_cost(stats['max'])}"
+
+
+def _stats_signed_duration_mean(stats: dict[str, Any]) -> str:
+    return _signed_duration(stats["mean"])
+
+
+def _stats_signed_duration_range(stats: dict[str, Any]) -> str:
+    return f"{_signed_duration(stats['min'])}..{_signed_duration(stats['max'])}"

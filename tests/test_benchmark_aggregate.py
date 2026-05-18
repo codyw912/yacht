@@ -121,6 +121,49 @@ class BenchmarkAggregateTests(unittest.TestCase):
                 },
             )
             self.assertEqual(
+                comparison["delta_statistics"],
+                {
+                    "baseline_vessel": "pi-baseline",
+                    "challenger_vessel": "pi-plus-fff",
+                    "resolved_instances_delta": {
+                        "runs": 2,
+                        "mean": 0.5,
+                        "min": 0,
+                        "max": 1,
+                    },
+                    "resolution_rate_delta": {
+                        "runs": 2,
+                        "mean": 0.5,
+                        "min": 0.0,
+                        "max": 1.0,
+                    },
+                    "tokens_delta": {
+                        "runs": 2,
+                        "mean": 1100.0,
+                        "min": 1100,
+                        "max": 1100,
+                    },
+                    "cost_delta": {
+                        "runs": 2,
+                        "mean": 0.0011,
+                        "min": 0.0011,
+                        "max": 0.0011,
+                    },
+                    "duration_seconds_delta": {
+                        "runs": 2,
+                        "mean": 1.1,
+                        "min": 1.1,
+                        "max": 1.1,
+                    },
+                    "tool_calls_delta": {
+                        "runs": 2,
+                        "mean": 1.0,
+                        "min": 1,
+                        "max": 1,
+                    },
+                },
+            )
+            self.assertEqual(
                 comparison["vessels"],
                 [
                     {
@@ -136,6 +179,38 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "total_cost": 0.002,
                         "total_duration_seconds": 20.0,
                         "total_tool_calls": 6,
+                        "statistics": {
+                            "resolution_rate": {
+                                "runs": 2,
+                                "mean": 0.5,
+                                "min": 0.0,
+                                "max": 1.0,
+                            },
+                            "tokens": {
+                                "runs": 2,
+                                "mean": 1000.0,
+                                "min": 1000,
+                                "max": 1000,
+                            },
+                            "cost": {
+                                "runs": 2,
+                                "mean": 0.001,
+                                "min": 0.001,
+                                "max": 0.001,
+                            },
+                            "duration_seconds": {
+                                "runs": 2,
+                                "mean": 10.0,
+                                "min": 10.0,
+                                "max": 10.0,
+                            },
+                            "tool_calls": {
+                                "runs": 2,
+                                "mean": 3.0,
+                                "min": 3,
+                                "max": 3,
+                            },
+                        },
                     },
                     {
                         "name": "pi-plus-fff",
@@ -150,6 +225,38 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "total_cost": 0.0042,
                         "total_duration_seconds": 22.2,
                         "total_tool_calls": 8,
+                        "statistics": {
+                            "resolution_rate": {
+                                "runs": 2,
+                                "mean": 1.0,
+                                "min": 1.0,
+                                "max": 1.0,
+                            },
+                            "tokens": {
+                                "runs": 2,
+                                "mean": 2100.0,
+                                "min": 2100,
+                                "max": 2100,
+                            },
+                            "cost": {
+                                "runs": 2,
+                                "mean": 0.0021,
+                                "min": 0.0021,
+                                "max": 0.0021,
+                            },
+                            "duration_seconds": {
+                                "runs": 2,
+                                "mean": 11.1,
+                                "min": 11.1,
+                                "max": 11.1,
+                            },
+                            "tool_calls": {
+                                "runs": 2,
+                                "mean": 4.0,
+                                "min": 4,
+                                "max": 4,
+                            },
+                        },
                     },
                 ],
             )
@@ -189,6 +296,21 @@ class BenchmarkAggregateTests(unittest.TestCase):
             self.assertIn(
                 "pi-vs-pi-fff | pi-plus-fff | 2 | 2 | 2 | 2 | 1.000 | "
                 "2 | 4200 | 0.004200 | 22.200s | 8",
+                report,
+            )
+            self.assertIn("Aggregate statistics by vessel:", report)
+            self.assertIn(
+                "pi-vs-pi-fff | pi-baseline | 0.500 | 0.000..1.000 | "
+                "1000.0 | 1000..1000 | 0.001000 | 0.001000..0.001000 | "
+                "10.000s | 10.000s..10.000s | 3.0 | 3..3",
+                report,
+            )
+            self.assertIn("Aggregate delta statistics:", report)
+            self.assertIn(
+                "pi-vs-pi-fff | pi-baseline | pi-plus-fff | +0.500 | "
+                "+0.000..+1.000 | +1100.0 | +1100..+1100 | +0.001100 | "
+                "+0.001100..+0.001100 | +1.100s | +1.100s..+1.100s | "
+                "+1.0 | +1..+1",
                 report,
             )
             self.assertIn("Aggregate runs by vessel:", report)
@@ -286,6 +408,47 @@ class BenchmarkAggregateTests(unittest.TestCase):
             report = stdout.getvalue()
             self.assertIn("Aggregate runs by vessel:", report)
             self.assertIn("series/runs/run-002", report)
+
+    def test_benchmark_report_enriches_parent_aggregate_without_statistics(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _write_logbook(
+                root / "series/runs/run-001",
+                baseline_resolved=1,
+                fff_resolved=1,
+            )
+            second = _write_logbook(
+                root / "series/runs/run-002",
+                baseline_resolved=0,
+                fff_resolved=1,
+            )
+            parent = root / "series"
+            aggregate = build_benchmark_aggregate([first, second])
+            for comparison in aggregate["comparisons"]:
+                del comparison["delta_statistics"]
+                for vessel in comparison["vessels"]:
+                    del vessel["statistics"]
+            (parent / "benchmark-aggregate.json").write_text(
+                json.dumps(aggregate) + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(parent),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            report = stdout.getvalue()
+            self.assertIn("Aggregate statistics by vessel:", report)
+            self.assertIn("Aggregate delta statistics:", report)
 
     def test_benchmark_aggregate_requires_compatible_regattas(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
