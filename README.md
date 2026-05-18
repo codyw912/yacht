@@ -33,12 +33,13 @@ YACHT now has a real end-to-end benchmark smoke path:
 - agent task attempts and transcripts
 - candidate patch extraction
 - native SWE-bench Docker grading
-- benchmark scorecards with outcome, token, cost, and tool-use metrics
+- benchmark scorecards with outcome, token, cost, duration, and tool-use metrics
 
 The first verified real benchmark smoke used `django__django-11099`; both
-baseline and fff vessels resolved the task. That is a foundation, not a final
-tool. The next phase is making this easier for humans to run, inspect, and
-extend.
+baseline and fff vessels resolved the task. A two-task smoke using
+`django__django-11099` and `django__django-11179` has also completed end to
+end. That is a foundation, not a final tool. The next phase is making this
+easier for humans to run, inspect, and extend.
 
 ## Core Concepts
 
@@ -115,21 +116,28 @@ uv run yacht benchmark-report --logbook "$LOGBOOK"
 The status report is the first thing to inspect after a run. It shows which
 benchmark artifacts exist, what is missing, and the next recommended command.
 The benchmark report then summarizes benchmark outcome, agent usage metrics,
-per-task outcomes, and the relevant per-vessel artifact paths.
-Use `--vessel` and `--task` to narrow the detailed sections when inspecting a
-specific run. After a scorecard exists, `benchmark-status` recommends a
-filtered inspection command for the first challenger/task outcome.
+notable deltas, per-task outcomes, per-task usage, and the relevant per-vessel
+artifact paths. Use `--vessel` and `--task` to narrow the detailed sections
+when inspecting a specific run. After a scorecard exists, `benchmark-status`
+recommends a filtered inspection command for the first challenger/task outcome.
 For example:
 
 ```text
-Benchmark scorecard: container-pi-fff-real-benchmark-smoke / swe-bench-lite
+Benchmark scorecard: container-pi-fff-real-benchmark-small / swe-bench-lite
 Status: complete
 Comparisons: 1 | Vessels: 2 | Measured: 2 | Missing: 0
-Usage: Attempts: 2 | Failed: 0 | Tool calls: 7 | Tokens: 15643 | Cost: 0.010336 | Duration: 0.000s
+Usage: Attempts: 4 | Failed: 0 | Tool calls: 15 | Tokens: 63084 | Cost: 0.020688 | Duration: 210.332s
 Artifacts: logbook=/private/tmp/yacht-real-benchmark-... | scorecard=/private/tmp/yacht-real-benchmark-.../benchmark-scorecard.json | attempts=/private/tmp/yacht-real-benchmark-.../task-attempt-scorecard.json | launch=/private/tmp/yacht-real-benchmark-.../benchmark-launch-result.json | grading=/private/tmp/yacht-real-benchmark-.../benchmark-grading-collection.json
 
+Notable deltas:
+container-pi-vs-pi-fff-benchmark-small: pi-container-fff vs pi-container-baseline | resolved +0 | rate +0.000 | tokens +10988 | cost +0.001650 | duration +7.792s | tool_calls +3
+
 comparison | baseline | challenger | resolved_delta | rate_delta | measured | missing | eligible | preflight
-container-pi-vs-pi-fff-benchmark-smoke | pi-container-baseline | pi-container-fff | +0 | +0.000 | 2/2 | 0 | 2 | preflight-passed:2
+container-pi-vs-pi-fff-benchmark-small | pi-container-baseline | pi-container-fff | +0 | +0.000 | 2/2 | 0 | 2 | preflight-passed:2
+
+Agent usage by task:
+comparison | vessel | task | tools | tokens | cost | duration | attempt_artifact
+container-pi-vs-pi-fff-benchmark-small | pi-container-fff | django__django-11179 | fffind:1, read:1, bash:1, edit:1 | 25492 | 0.006795 | 75.793s | /private/tmp/yacht-real-benchmark-.../task-attempts/.../django__django-11179.json
 ```
 
 ## Development Smoke
