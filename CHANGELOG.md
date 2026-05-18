@@ -16,6 +16,8 @@
   expose individual run usage, outcomes, and child logbook paths.
 - Added automatic `benchmark-report.md` generation for repeated benchmark parent
   logbooks when at least one child run completes.
+- Added timestamped default logbooks for `real-benchmark-repetitions` when
+  `--logbook` is omitted.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

@@ -27,7 +27,6 @@ uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht real-benchmark-repetitions examples/container-pi-fff-real-benchmark-smoke.toml \
-  --logbook benchmark-series \
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY \
   --repetitions 3
@@ -133,7 +132,7 @@ uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logb
 uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace .
 uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --format markdown
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
-uv run yacht real-benchmark-repetitions examples/container-pi-fff-real-benchmark-smoke.toml --logbook benchmark-series --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY --repetitions 3
+uv run yacht real-benchmark-repetitions examples/container-pi-fff-real-benchmark-smoke.toml --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY --repetitions 3
 uv run yacht benchmark-status --logbook logbook
 uv run yacht benchmark-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
@@ -150,8 +149,9 @@ stdout reserved for the final JSON artifact.
 `runs/run-001`, `runs/run-002`, and so on under a parent logbook, then writes
 `real-benchmark-repetitions.json` and `benchmark-aggregate.json` for completed
 child runs. When at least one child run completes, it also writes
-`benchmark-report.md`. The parent logbook works with `benchmark-status` and
-`benchmark-report`; the report renders the aggregate when no single-run
-`benchmark-scorecard.json` is present.
+`benchmark-report.md`. If `--logbook` is omitted, YACHT creates a timestamped
+parent logbook under the system temp directory. The parent logbook works with
+`benchmark-status` and `benchmark-report`; the report renders the aggregate when
+no single-run `benchmark-scorecard.json` is present.
 `benchmark-status` is the quick inspection command to run after the workflow; it
 prints artifact presence, artifact statuses, and the next recommended command.

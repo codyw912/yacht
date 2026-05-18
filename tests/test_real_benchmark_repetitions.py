@@ -276,6 +276,47 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertEqual(payload["status"], "complete")
             self.assertEqual(stderr.getvalue(), "yacht: mock progress\n")
 
+    def test_command_generates_logbook_when_omitted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            stdout = StringIO()
+
+            def fake_runner(**kwargs):
+                return {
+                    "schema": "yacht.real-benchmark-repetitions.v1",
+                    "status": "complete",
+                    "regatta": "pi-fff-comparison",
+                    "course": "swe-bench-lite",
+                    "artifacts": {"logbook": str(kwargs["logbook_dir"])},
+                }
+
+            with patch(
+                "yacht.cli._default_repeated_benchmark_logbook",
+                return_value=root / "generated-series",
+            ), patch(
+                "yacht.cli.run_real_benchmark_repetitions",
+                side_effect=fake_runner,
+            ), redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "real-benchmark-repetitions",
+                        str(config_path),
+                        "--workspace",
+                        str(root),
+                        "--repetitions",
+                        "2",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(
+                payload["artifacts"]["logbook"],
+                str(root / "generated-series"),
+            )
+
 
 def _write_repetition_series(root: Path) -> Path:
     config_path = root / "regatta.toml"
