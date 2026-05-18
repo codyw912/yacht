@@ -149,7 +149,8 @@ stdout reserved for the final JSON artifact.
 `real-benchmark-repetitions` runs that same path sequentially into
 `runs/run-001`, `runs/run-002`, and so on under a parent logbook, then writes
 `real-benchmark-repetitions.json` and `benchmark-aggregate.json` for completed
-child runs. The parent logbook works with `benchmark-status` and
+child runs. When at least one child run completes, it also writes
+`benchmark-report.md`. The parent logbook works with `benchmark-status` and
 `benchmark-report`; the report renders the aggregate when no single-run
 `benchmark-scorecard.json` is present.
 `benchmark-status` is the quick inspection command to run after the workflow; it

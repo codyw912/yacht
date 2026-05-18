@@ -7,6 +7,7 @@ from typing import Any
 
 from yacht.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.benchmark_aggregate import build_benchmark_aggregate
+from yacht.benchmark_aggregate import render_benchmark_aggregate_document
 from yacht.benchmark_launch import CommandRunner
 from yacht.benchmark_launcher_handoff import DEFAULT_SWEBENCH_PYTHON_EXECUTABLE
 from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
@@ -22,6 +23,7 @@ from yacht.task_attempt_runner import TaskAgent
 REAL_BENCHMARK_REPETITIONS_SCHEMA = "yacht.real-benchmark-repetitions.v1"
 REAL_BENCHMARK_REPETITIONS_PATH = Path("real-benchmark-repetitions.json")
 REPETITION_RUNS_DIR = Path("runs")
+BENCHMARK_REPORT_MARKDOWN_PATH = Path("benchmark-report.md")
 
 EvalRunner = Callable[[Path], dict[str, Any]]
 
@@ -112,6 +114,10 @@ def run_real_benchmark_repetitions(
         )
         aggregate = build_benchmark_aggregate(aggregate_logbooks)
         _write_json(logbook_dir / BENCHMARK_AGGREGATE_PATH, aggregate)
+        (logbook_dir / BENCHMARK_REPORT_MARKDOWN_PATH).write_text(
+            render_benchmark_aggregate_document(aggregate, "markdown"),
+            encoding="utf-8",
+        )
     else:
         _progress(progress, "benchmark aggregate: skipped; no completed runs")
 
@@ -190,6 +196,9 @@ def _summary(
                 logbook_dir / REAL_BENCHMARK_REPETITIONS_PATH
             ),
             "benchmark_aggregate": str(logbook_dir / BENCHMARK_AGGREGATE_PATH),
+            "benchmark_report_markdown": str(
+                logbook_dir / BENCHMARK_REPORT_MARKDOWN_PATH
+            ),
         },
         "next_steps": _next_steps(logbook_dir, runs),
     }

@@ -59,6 +59,16 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             )
             self.assertTrue((logbook_dir / "real-benchmark-repetitions.json").is_file())
             self.assertTrue((logbook_dir / "benchmark-aggregate.json").is_file())
+            report_path = logbook_dir / "benchmark-report.md"
+            self.assertTrue(report_path.is_file())
+            self.assertIn(
+                "## Benchmark aggregate",
+                report_path.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                summary["artifacts"]["benchmark_report_markdown"],
+                str(report_path),
+            )
             aggregate = summary["aggregate"]
             self.assertEqual(aggregate["run_count"], 2)
             self.assertEqual(
