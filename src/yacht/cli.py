@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from yacht.benchmark_aggregate import render_benchmark_aggregate
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.benchmark_grading_collection import collect_benchmark_grading_reports
 from yacht.benchmark_launch import write_benchmark_launch_result
@@ -268,6 +269,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         help="Optional path to write the rendered benchmark report.",
+    )
+
+    benchmark_aggregate_parser = subcommands.add_parser(
+        "benchmark-aggregate",
+        help="Aggregate completed benchmark scorecards across logbooks.",
+    )
+    benchmark_aggregate_parser.add_argument(
+        "--logbook",
+        type=Path,
+        action="append",
+        required=True,
+        help="Benchmark logbook directory to include. Pass once per run.",
+    )
+    benchmark_aggregate_parser.add_argument(
+        "--format",
+        choices=("text", "markdown", "json"),
+        default="text",
+        help="Output format for the aggregate report.",
+    )
+    benchmark_aggregate_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write the aggregate report.",
     )
 
     benchmark_status_parser = subcommands.add_parser(
@@ -856,6 +880,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 vessel_name=args.vessel,
                 task_id=args.task,
             )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(report, encoding="utf-8")
+            return 0
+        print(report, end="")
+        return 0
+
+    if args.command == "benchmark-aggregate":
+        try:
+            report = render_benchmark_aggregate(args.logbook, args.format)
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1

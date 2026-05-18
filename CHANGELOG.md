@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added `benchmark-aggregate` for summarizing resolution and usage across
+  multiple completed benchmark logbooks.
+
 ## 0.1.0 - First Usable Benchmark Smoke
 
 - Added a real end-to-end SWE-bench Lite smoke path for containerized Pi
