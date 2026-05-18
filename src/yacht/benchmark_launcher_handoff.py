@@ -19,6 +19,7 @@ from yacht.swebench_artifacts import vessel_artifact_dir
 
 
 BENCHMARK_LAUNCHER_HANDOFF_PATH = Path("benchmark-launcher-handoff.json")
+DEFAULT_SWEBENCH_PYTHON_EXECUTABLE = "uv run --with swebench python"
 
 
 def native_report_path_from_launcher_handoff(
@@ -84,7 +85,7 @@ def write_benchmark_launcher_handoff(
     *,
     logbook_dir: Path,
     max_workers: int = 1,
-    python_executable: str = "python",
+    python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
 ) -> dict[str, Any]:
     if max_workers < 1:
         raise ConfigError("max_workers must be an integer >= 1")

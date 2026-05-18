@@ -19,6 +19,7 @@ from yacht.benchmark_launch import (
 )
 from yacht.benchmark_launcher_handoff import (
     BENCHMARK_LAUNCHER_HANDOFF_PATH,
+    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
     write_benchmark_launcher_handoff,
 )
 from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
@@ -53,7 +54,7 @@ def run_real_benchmark_eval(
     task_agent: TaskAgent,
     benchmark_command_runner: CommandRunner | None = None,
     max_workers: int = 1,
-    python_executable: str = "python",
+    python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
     course_handoff = write_course_handoff(config_path, logbook_dir)
