@@ -531,6 +531,112 @@ class BenchmarkScorecardTests(unittest.TestCase):
             )
             self.assertIn("## Benchmark artifacts by vessel", stdout.getvalue())
 
+    def test_benchmark_report_can_filter_detail_rows_by_vessel_and_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+            _write_task_attempt_scorecard(logbook_dir)
+            _write_grading_collection(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--vessel",
+                        "pi-plus-fff",
+                        "--task",
+                        "django__django-11099",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            report = stdout.getvalue()
+            self.assertIn(
+                "Filter: vessel=pi-plus-fff | task=django__django-11099",
+                report,
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-plus-fff | measured | 1 | 1 | 1.000 | "
+                "preflight-missing",
+                report,
+            )
+            self.assertNotIn(
+                "pi-vs-pi-fff | pi-baseline | measured | 1 | 0 | 0.000 | "
+                "preflight-missing",
+                report,
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-plus-fff | django__django-11099 | "
+                "resolved | "
+                "logbook/task-attempts/pi-vs-pi-fff/pi-plus-fff/"
+                "django__django-11099.json",
+                report,
+            )
+            self.assertNotIn(
+                "logbook/task-attempts/pi-vs-pi-fff/pi-baseline/"
+                "django__django-11099.json",
+                report,
+            )
+            self.assertIn(
+                str(logbook_dir / "native-report" / "pi-plus-fff.json"),
+                report,
+            )
+
+    def test_benchmark_report_filter_reports_unknown_vessel(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--vessel",
+                        "missing-vessel",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn(
+                "benchmark report vessel filter matched no vessel: missing-vessel",
+                stderr.getvalue(),
+            )
+            self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_benchmark_report_filter_reports_unknown_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--task",
+                        "missing-task",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn(
+                "benchmark report task filter matched no task: missing-task",
+                stderr.getvalue(),
+            )
+            self.assertNotIn("Traceback", stderr.getvalue())
+
     def test_benchmark_report_command_writes_output_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -949,7 +1055,9 @@ def _grading_collection_vessel(
         "name": vessel_name,
         "launch_status": "completed",
         "status": "collected",
-        "native_report_path": str(logbook_dir / "native-report" / f"{vessel_name}.json"),
+        "native_report_path": str(
+            logbook_dir / "native-report" / f"{vessel_name}.json"
+        ),
         "grading_report_path": str(
             logbook_dir
             / "course-handoff"

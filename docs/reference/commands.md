@@ -29,6 +29,8 @@ uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.
   --python-executable "uv run --with swebench python"
 uv run yacht benchmark-status --logbook logbook
 uv run yacht benchmark-report --logbook logbook
+uv run yacht benchmark-report --logbook logbook --vessel pi-container-fff
+uv run yacht benchmark-report --logbook logbook --vessel pi-container-fff --task django__django-11099
 uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
 ```
 
@@ -101,7 +103,8 @@ The native benchmark harness owns task containers, test execution, and grading.
 YACHT owns the handoff, gates, launch records, normalized grading artifacts, and
 scorecards. `benchmark-report` includes comparison outcomes, usage metrics,
 per-task outcomes, and per-vessel artifact paths when task attempt data is
-available.
+available. Use `--vessel` and `--task` to narrow the detailed sections while
+keeping the full benchmark summary for context.
 
 ## One-Command Workflows
 
