@@ -13,6 +13,7 @@ from yacht.schemas import (
     validate_benchmark_scorecard_document,
     validate_task_attempt_scorecard_document,
 )
+from yacht.swebench_artifacts import candidate_patches_path, grading_report_path
 from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 
@@ -89,6 +90,20 @@ def _render_scorecard(
     lines.extend(_outcome_lines(scorecard))
     if task_attempt_scorecard is not None:
         lines.extend(_usage_lines(task_attempt_scorecard))
+        lines.extend(
+            _task_outcome_lines(
+                scorecard,
+                task_attempt_scorecard,
+            )
+        )
+        lines.extend(
+            _artifact_drilldown_lines(
+                logbook_dir,
+                scorecard,
+                task_attempt_scorecard,
+                _load_grading_collection(logbook_dir),
+            )
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -128,7 +143,28 @@ def _render_scorecard_markdown(
     lines.extend(_outcome_markdown_lines(scorecard))
     if task_attempt_scorecard is not None:
         lines.extend(_usage_markdown_lines(task_attempt_scorecard))
+        lines.extend(
+            _task_outcome_markdown_lines(
+                scorecard,
+                task_attempt_scorecard,
+            )
+        )
+        lines.extend(
+            _artifact_drilldown_markdown_lines(
+                logbook_dir,
+                scorecard,
+                task_attempt_scorecard,
+                _load_grading_collection(logbook_dir),
+            )
+        )
     return "\n".join(lines) + "\n"
+
+
+def _load_grading_collection(logbook_dir: Path) -> dict[str, Any] | None:
+    path = logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH
+    if not path.exists():
+        return None
+    return _load_json(path, "benchmark grading collection artifact")
 
 
 def _comparison_row(comparison: dict[str, Any]) -> str:
@@ -311,6 +347,309 @@ def _usage_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
         f"{_cost(vessel['total_cost'])} | "
         f"{_duration(vessel['total_duration_seconds'])}"
     )
+
+
+def _task_outcome_lines(
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any],
+) -> list[str]:
+    lines = [
+        "",
+        "Benchmark task outcomes by vessel:",
+        "comparison | vessel | task | result | attempt_artifact",
+    ]
+    lines.extend(
+        _task_outcome_row(row)
+        for row in _task_outcome_rows(scorecard, task_attempt_scorecard)
+    )
+    return lines
+
+
+def _task_outcome_markdown_lines(
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any],
+) -> list[str]:
+    lines = [
+        "",
+        "## Benchmark task outcomes by vessel",
+        "",
+        "| Comparison | Vessel | Task | Result | Attempt artifact |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    lines.extend(
+        f"| {_task_outcome_row(row)} |"
+        for row in _task_outcome_rows(scorecard, task_attempt_scorecard)
+    )
+    return lines
+
+
+def _task_outcome_rows(
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any],
+) -> list[dict[str, str]]:
+    attempts_by_vessel = _attempt_artifacts_by_vessel(task_attempt_scorecard)
+    rows = []
+    for comparison, vessel in _vessels(scorecard):
+        task_results = _task_results(vessel)
+        if not task_results:
+            rows.append(
+                {
+                    "comparison": str(comparison["name"]),
+                    "vessel": str(vessel["name"]),
+                    "task": "-",
+                    "result": str(vessel["status"]),
+                    "attempt_artifact": _attempt_artifact(
+                        attempts_by_vessel,
+                        str(comparison["name"]),
+                        str(vessel["name"]),
+                        None,
+                    ),
+                }
+            )
+            continue
+        for task_id, result in task_results:
+            rows.append(
+                {
+                    "comparison": str(comparison["name"]),
+                    "vessel": str(vessel["name"]),
+                    "task": task_id,
+                    "result": result,
+                    "attempt_artifact": _attempt_artifact(
+                        attempts_by_vessel,
+                        str(comparison["name"]),
+                        str(vessel["name"]),
+                        task_id,
+                    ),
+                }
+            )
+    return rows
+
+
+def _task_results(vessel: dict[str, Any]) -> list[tuple[str, str]]:
+    resolved = [(str(task_id), "resolved") for task_id in vessel.get("resolved_ids", [])]
+    unresolved = [
+        (str(task_id), "unresolved") for task_id in vessel.get("unresolved_ids", [])
+    ]
+    return resolved + unresolved
+
+
+def _task_outcome_row(row: dict[str, str]) -> str:
+    return (
+        f"{row['comparison']} | "
+        f"{row['vessel']} | "
+        f"{row['task']} | "
+        f"{row['result']} | "
+        f"{row['attempt_artifact']}"
+    )
+
+
+def _artifact_drilldown_lines(
+    logbook_dir: Path,
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any],
+    grading_collection: dict[str, Any] | None,
+) -> list[str]:
+    lines = [
+        "",
+        "Benchmark artifacts by vessel:",
+        "comparison | vessel | artifact | path",
+    ]
+    lines.extend(
+        _artifact_drilldown_row(row)
+        for row in _artifact_drilldown_rows(
+            logbook_dir,
+            scorecard,
+            task_attempt_scorecard,
+            grading_collection,
+        )
+    )
+    return lines
+
+
+def _artifact_drilldown_markdown_lines(
+    logbook_dir: Path,
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any],
+    grading_collection: dict[str, Any] | None,
+) -> list[str]:
+    lines = [
+        "",
+        "## Benchmark artifacts by vessel",
+        "",
+        "| Comparison | Vessel | Artifact | Path |",
+        "| --- | --- | --- | --- |",
+    ]
+    lines.extend(
+        f"| {_artifact_drilldown_row(row)} |"
+        for row in _artifact_drilldown_rows(
+            logbook_dir,
+            scorecard,
+            task_attempt_scorecard,
+            grading_collection,
+        )
+    )
+    return lines
+
+
+def _artifact_drilldown_rows(
+    logbook_dir: Path,
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any],
+    grading_collection: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    attempts_by_vessel = _attempt_artifacts_by_vessel(task_attempt_scorecard)
+    grading_by_vessel = _grading_artifacts_by_vessel(grading_collection)
+    rows = []
+    for comparison, vessel in _vessels(scorecard):
+        vessel_name = str(vessel["name"])
+        comparison_name = str(comparison["name"])
+        rows.extend(
+            _artifact_rows(
+                comparison_name=comparison_name,
+                vessel_name=vessel_name,
+                artifacts={
+                    "preflight": str(vessel["preflight_artifact_path"]),
+                    "attempts": _attempt_artifact(
+                        attempts_by_vessel,
+                        comparison_name,
+                        vessel_name,
+                        None,
+                    ),
+                    "candidate_patches": _candidate_patches_artifact(
+                        logbook_dir,
+                        scorecard,
+                        vessel_name,
+                    ),
+                    "grading_report": _grading_report_artifact(
+                        logbook_dir,
+                        scorecard,
+                        vessel_name,
+                        grading_by_vessel,
+                    ),
+                    "native_report": grading_by_vessel.get(vessel_name, {}).get(
+                        "native_report",
+                        "-",
+                    ),
+                },
+            )
+        )
+    return rows
+
+
+def _artifact_drilldown_row(row: dict[str, str]) -> str:
+    return (
+        f"{row['comparison']} | "
+        f"{row['vessel']} | "
+        f"{row['artifact']} | "
+        f"{row['path']}"
+    )
+
+
+def _artifact_rows(
+    *,
+    comparison_name: str,
+    vessel_name: str,
+    artifacts: dict[str, str],
+) -> list[dict[str, str]]:
+    return [
+        {
+            "comparison": comparison_name,
+            "vessel": vessel_name,
+            "artifact": artifact,
+            "path": path,
+        }
+        for artifact, path in artifacts.items()
+    ]
+
+
+def _attempt_artifacts_by_vessel(
+    scorecard: dict[str, Any],
+) -> dict[tuple[str, str], list[str]]:
+    return {
+        (str(comparison["name"]), str(vessel["name"])): [
+            str(path) for path in vessel["artifact_paths"]
+        ]
+        for comparison in scorecard["comparisons"]
+        for vessel in comparison["vessels"]
+    }
+
+
+def _attempt_artifact(
+    attempts_by_vessel: dict[tuple[str, str], list[str]],
+    comparison_name: str,
+    vessel_name: str,
+    task_id: str | None,
+) -> str:
+    artifacts = attempts_by_vessel.get((comparison_name, vessel_name), [])
+    if task_id is None:
+        return _joined(artifacts)
+    matched = [
+        artifact
+        for artifact in artifacts
+        if Path(artifact).stem == task_id
+    ]
+    return _joined(matched)
+
+
+def _candidate_patches_artifact(
+    logbook_dir: Path,
+    scorecard: dict[str, Any],
+    vessel_name: str,
+) -> str:
+    return str(
+        candidate_patches_path(
+            logbook_dir=logbook_dir,
+            handoff=_artifact_handoff(scorecard),
+            vessel_name=vessel_name,
+        )
+    )
+
+
+def _grading_report_artifact(
+    logbook_dir: Path,
+    scorecard: dict[str, Any],
+    vessel_name: str,
+    grading_by_vessel: dict[str, dict[str, str]],
+) -> str:
+    grading_report = grading_by_vessel.get(vessel_name, {}).get("grading_report")
+    if grading_report:
+        return grading_report
+    return str(
+        grading_report_path(
+            logbook_dir=logbook_dir,
+            handoff=_artifact_handoff(scorecard),
+            vessel_name=vessel_name,
+        )
+    )
+
+
+def _artifact_handoff(scorecard: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "adapter": {
+            "kind": str(scorecard["adapter"]["kind"]),
+        },
+    }
+
+
+def _grading_artifacts_by_vessel(
+    grading_collection: dict[str, Any] | None,
+) -> dict[str, dict[str, str]]:
+    if grading_collection is None:
+        return {}
+    return {
+        str(vessel["name"]): {
+            "native_report": str(vessel.get("native_report_path", "-")),
+            "grading_report": str(vessel.get("grading_report_path", "-")),
+        }
+        for comparison in grading_collection.get("comparisons", [])
+        for vessel in comparison.get("vessels", [])
+    }
+
+
+def _joined(values: list[str]) -> str:
+    if not values:
+        return "-"
+    return ", ".join(values)
 
 
 def _tool_counts(value: dict[str, int]) -> str:

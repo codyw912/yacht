@@ -99,7 +99,9 @@ uv run yacht benchmark-report --logbook logbook
 
 The native benchmark harness owns task containers, test execution, and grading.
 YACHT owns the handoff, gates, launch records, normalized grading artifacts, and
-scorecards.
+scorecards. `benchmark-report` includes comparison outcomes, usage metrics,
+per-task outcomes, and per-vessel artifact paths when task attempt data is
+available.
 
 ## One-Command Workflows
 
