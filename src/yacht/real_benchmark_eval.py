@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,7 @@ from yacht.task_attempt_scorecard import write_task_attempt_scorecard
 
 
 REAL_BENCHMARK_EVAL_PATH = Path("real-benchmark-eval.json")
+ProgressReporter = Callable[[str], None]
 
 
 def run_real_benchmark_eval(
@@ -55,9 +57,17 @@ def run_real_benchmark_eval(
     benchmark_command_runner: CommandRunner | None = None,
     max_workers: int = 1,
     python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
+    _progress(
+        progress,
+        f"real benchmark eval started: {regatta.name} / {regatta.course.name}; "
+        f"logbook={logbook_dir}",
+    )
+    _progress(progress, "course handoff: writing")
     course_handoff = write_course_handoff(config_path, logbook_dir)
+    _progress(progress, "preflight: running")
     preflight = run_preflight(
         config_path,
         logbook_dir,
@@ -65,8 +75,10 @@ def run_real_benchmark_eval(
         secret_values,
         agent_prompt_runner_factory=agent_prompt_runner_factory,
     )
+    _progress(progress, f"preflight: {preflight['status']}")
     preflight_evidence_report = write_preflight_evidence_report(logbook_dir)
     if preflight["status"] != "passed":
+        _progress(progress, "real benchmark eval blocked: preflight failed")
         return _write_summary(
             logbook_dir,
             _blocked_summary(
@@ -89,6 +101,7 @@ def run_real_benchmark_eval(
             ),
         )
 
+    _progress(progress, "task attempts: running")
     attempts = run_task_attempts(
         config_path=config_path,
         logbook_dir=logbook_dir,
@@ -97,8 +110,10 @@ def run_real_benchmark_eval(
         agent_name="pi",
         task_agent=task_agent,
     )
+    _progress(progress, f"task attempts: {attempts['status']}")
     task_scorecard = write_task_attempt_scorecard(logbook_dir)
     if attempts["status"] != "completed":
+        _progress(progress, "real benchmark eval blocked: task attempts incomplete")
         return _write_summary(
             logbook_dir,
             _blocked_summary(
@@ -124,6 +139,7 @@ def run_real_benchmark_eval(
 
     predictions = []
     try:
+        _progress(progress, "candidate patches: extracting from task attempts")
         for comparison in regatta.comparisons:
             for vessel_name in comparison.vessels:
                 predictions.append(
@@ -135,6 +151,10 @@ def run_real_benchmark_eval(
                     )
                 )
     except ConfigError as error:
+        _progress(
+            progress,
+            "real benchmark eval blocked: candidate patch extraction failed",
+        )
         return _write_summary(
             logbook_dir,
             _blocked_summary(
@@ -160,14 +180,18 @@ def run_real_benchmark_eval(
                 next_steps=_prediction_failure_next_steps(logbook_dir),
             ),
         )
+    _progress(progress, "runtime instances: resolving")
     runtime_instances = write_runtime_instances_plan(
         config_path=config_path,
         logbook_dir=logbook_dir,
         workspace_path=workspace_path,
     )
+    _progress(progress, "benchmark plan: writing")
     benchmark_plan = write_benchmark_execution_plan(logbook_dir)
+    _progress(progress, "readiness gate: evaluating")
     readiness_gate = evaluate_readiness_gate(logbook_dir)
     if readiness_gate.blocked_vessel_count:
+        _progress(progress, "real benchmark eval blocked: readiness gate blocked")
         return _write_summary(
             logbook_dir,
             _blocked_summary(
@@ -192,20 +216,29 @@ def run_real_benchmark_eval(
             ),
         )
 
+    _progress(progress, "benchmark launcher handoff: writing")
     launcher_handoff = write_benchmark_launcher_handoff(
         logbook_dir=logbook_dir,
         max_workers=max_workers,
         python_executable=python_executable,
     )
+    _progress(progress, "benchmark launch: running native harness")
     benchmark_launch = write_benchmark_launch_result(
         logbook_dir=logbook_dir,
         command_runner=benchmark_command_runner,
     )
+    _progress(progress, f"benchmark launch: {benchmark_launch['status']}")
+    _progress(progress, "grading collection: collecting native reports")
     grading_collection = collect_benchmark_grading_reports(
         config_path=config_path,
         logbook_dir=logbook_dir,
     )
+    _progress(progress, f"grading collection: {grading_collection['status']}")
     if int(grading_collection["summary"]["collected_reports"]) == 0:
+        _progress(
+            progress,
+            "real benchmark eval blocked: no grading reports collected",
+        )
         return _write_summary(
             logbook_dir,
             _blocked_summary(
@@ -227,7 +260,9 @@ def run_real_benchmark_eval(
                 logbook_dir=logbook_dir,
             ),
         )
+    _progress(progress, "benchmark scorecard: writing")
     scorecard = write_benchmark_scorecard(logbook_dir)
+    _progress(progress, f"real benchmark eval complete: {scorecard['status']}")
     return _write_summary(
         logbook_dir,
         {
@@ -378,3 +413,8 @@ def _write_summary(logbook_dir: Path, summary: dict[str, Any]) -> dict[str, Any]
         encoding="utf-8",
     )
     return summary
+
+
+def _progress(progress: ProgressReporter | None, message: str) -> None:
+    if progress is not None:
+        progress(message)

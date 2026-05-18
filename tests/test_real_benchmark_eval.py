@@ -1,7 +1,7 @@
 import json
 import tempfile
 import unittest
-from contextlib import contextmanager, redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -141,6 +141,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             config_path, workspace_path, logbook_dir = _write_fixture(root)
 
             stdout = StringIO()
+            stderr = StringIO()
             with patch(
                 "yacht.preflight._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
@@ -168,7 +169,9 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             ), patch(
                 "yacht.benchmark_launch._run_command",
                 side_effect=_benchmark_command_result,
-            ), _without_task_workspace_materialization(workspace_path), redirect_stdout(stdout):
+            ), _without_task_workspace_materialization(workspace_path), redirect_stdout(
+                stdout
+            ), redirect_stderr(stderr):
                 exit_code = main(
                     [
                         "real-benchmark-eval",
@@ -188,6 +191,11 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             self.assertEqual(payload["course_handoff"]["status"], "planned")
             self.assertEqual(payload["preflight_evidence_report"]["status"], "ready")
             self.assertEqual(payload["scorecard"]["status"], "complete")
+            progress = stderr.getvalue()
+            self.assertIn("yacht: real benchmark eval started:", progress)
+            self.assertIn("yacht: preflight: running", progress)
+            self.assertIn("yacht: benchmark launch: running native harness", progress)
+            self.assertIn("yacht: real benchmark eval complete: complete", progress)
             launcher_handoff = json.loads(
                 (logbook_dir / "benchmark-launcher-handoff.json").read_text(
                     encoding="utf-8"

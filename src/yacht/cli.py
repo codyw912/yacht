@@ -1172,6 +1172,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 task_agent=_task_attempt_agent("pi"),
                 max_workers=args.max_workers,
                 python_executable=args.python_executable,
+                progress=_stderr_progress,
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
@@ -1191,6 +1192,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 task_agent=_task_attempt_agent("pi"),
                 max_workers=args.max_workers,
                 python_executable=args.python_executable,
+                progress=_stderr_progress,
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
@@ -1238,6 +1240,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _print_json(payload: dict[str, object]) -> None:
     print(json.dumps(payload, indent=2))
+
+
+def _stderr_progress(message: str) -> None:
+    print(f"yacht: {message}", file=sys.stderr, flush=True)
 
 
 def _agent_prompt_runner_factory(

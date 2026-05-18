@@ -143,6 +143,8 @@ expected artifacts before spending benchmark tokens.
 `real-benchmark-eval` is the current end-to-end benchmark path: preflight,
 task attempts, candidate patch extraction, runtime snapshots, readiness,
 native launch, grading collection, scorecard, and top-level summary.
+Long-running real benchmark commands print progress updates to stderr and keep
+stdout reserved for the final JSON artifact.
 `real-benchmark-repetitions` runs that same path sequentially into
 `runs/run-001`, `runs/run-002`, and so on under a parent logbook, then writes
 `real-benchmark-repetitions.json` and `benchmark-aggregate.json` for completed
