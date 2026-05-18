@@ -43,6 +43,13 @@ def render_benchmark_aggregate(
     output_format: str = "text",
 ) -> str:
     aggregate = build_benchmark_aggregate(logbook_dirs)
+    return render_benchmark_aggregate_document(aggregate, output_format)
+
+
+def render_benchmark_aggregate_document(
+    aggregate: dict[str, Any],
+    output_format: str = "text",
+) -> str:
     if output_format == "json":
         return json.dumps(aggregate, indent=2) + "\n"
     if output_format == "markdown":

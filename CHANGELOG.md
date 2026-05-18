@@ -6,6 +6,8 @@
   multiple completed benchmark logbooks.
 - Added `real-benchmark-repetitions` to run repeated real benchmark evals into
   child logbooks and persist an aggregate summary.
+- Added `benchmark-status` and `benchmark-report` support for repeated-run parent
+  logbooks.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

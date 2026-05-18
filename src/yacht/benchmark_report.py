@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
+from yacht.benchmark_aggregate import BENCHMARK_AGGREGATE_SCHEMA
+from yacht.benchmark_aggregate import render_benchmark_aggregate_document
 from yacht.benchmark_grading_collection import BENCHMARK_GRADING_COLLECTION_PATH
 from yacht.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
@@ -27,7 +30,18 @@ def render_benchmark_report(
 ) -> str:
     scorecard_path = logbook_dir / BENCHMARK_SCORECARD_PATH
     if not scorecard_path.exists():
-        raise ConfigError(f"benchmark scorecard artifact not found: {scorecard_path}")
+        aggregate_path = logbook_dir / BENCHMARK_AGGREGATE_PATH
+        if aggregate_path.exists():
+            if vessel_name is not None or task_id is not None:
+                raise ConfigError(
+                    "benchmark report filters require a single-run benchmark "
+                    "scorecard; repeated-run aggregate reports cannot be filtered"
+                )
+            return _render_aggregate_report(aggregate_path, output_format)
+        raise ConfigError(
+            f"benchmark scorecard artifact not found: {scorecard_path}; "
+            f"benchmark aggregate artifact not found: {aggregate_path}"
+        )
     scorecard = _load_scorecard(scorecard_path)
     try:
         validate_benchmark_scorecard_document(scorecard)
@@ -52,6 +66,16 @@ def render_benchmark_report(
         vessel_name,
         task_id,
     )
+
+
+def _render_aggregate_report(path: Path, output_format: str) -> str:
+    aggregate = _load_json(path, "benchmark aggregate artifact")
+    if aggregate.get("schema") != BENCHMARK_AGGREGATE_SCHEMA:
+        raise ConfigError(
+            "benchmark aggregate artifact is invalid: "
+            f"schema must be {BENCHMARK_AGGREGATE_SCHEMA}"
+        )
+    return render_benchmark_aggregate_document(aggregate, output_format)
 
 
 def _load_scorecard(path: Path) -> dict[str, Any]:

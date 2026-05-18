@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
 from yacht.benchmark_grading_collection import BENCHMARK_GRADING_COLLECTION_PATH
 from yacht.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
@@ -13,6 +14,7 @@ from yacht.course_handoff import COURSE_HANDOFF_PATH
 from yacht.next_steps import command_step
 from yacht.preflight_evidence_report import PREFLIGHT_EVIDENCE_REPORT_PATH
 from yacht.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
+from yacht.real_benchmark_repetitions import REAL_BENCHMARK_REPETITIONS_PATH
 from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
@@ -25,6 +27,8 @@ def render_benchmark_status(logbook_dir: Path, output_format: str = "text") -> s
 
 
 def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
+    if _is_repetition_logbook(logbook_dir):
+        return _build_repetition_benchmark_status(logbook_dir)
     artifacts = [_artifact_status(logbook_dir, label, path) for label, path in _STAGES]
     return {
         "schema": "yacht.benchmark-status.v1",
@@ -47,6 +51,29 @@ _STAGES = (
     ("benchmark grading collection", BENCHMARK_GRADING_COLLECTION_PATH),
     ("benchmark scorecard", BENCHMARK_SCORECARD_PATH),
 )
+
+
+_REPETITION_STAGES = (
+    ("real benchmark repetitions", REAL_BENCHMARK_REPETITIONS_PATH),
+    ("benchmark aggregate", BENCHMARK_AGGREGATE_PATH),
+)
+
+
+def _is_repetition_logbook(logbook_dir: Path) -> bool:
+    return any((logbook_dir / path).exists() for _, path in _REPETITION_STAGES)
+
+
+def _build_repetition_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
+    artifacts = [
+        _artifact_status(logbook_dir, label, path) for label, path in _REPETITION_STAGES
+    ]
+    return {
+        "schema": "yacht.benchmark-status.v1",
+        "logbook": str(logbook_dir),
+        "status": _repetition_overall_status(artifacts),
+        "artifacts": artifacts,
+        "next_steps": _repetition_next_steps(logbook_dir, artifacts),
+    }
 
 
 def _artifact_status(
@@ -107,6 +134,18 @@ def _overall_status(artifacts: list[dict[str, Any]]) -> str:
     return "empty"
 
 
+def _repetition_overall_status(artifacts: list[dict[str, Any]]) -> str:
+    states = [str(artifact["state"]) for artifact in artifacts]
+    if "invalid" in states:
+        return "invalid"
+    repetitions = _artifact_by_label(artifacts, "real benchmark repetitions")
+    if repetitions["present"]:
+        return str(repetitions["state"])
+    if any(artifact["present"] for artifact in artifacts):
+        return "partial"
+    return "empty"
+
+
 def _next_steps(
     logbook_dir: Path,
     artifacts: list[dict[str, Any]],
@@ -154,6 +193,57 @@ def _next_steps(
                 str(logbook_dir),
                 "--workspace",
                 ".",
+            ],
+        )
+    ]
+
+
+def _repetition_next_steps(
+    logbook_dir: Path,
+    artifacts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    repetitions = _artifact_by_label(artifacts, "real benchmark repetitions")
+    steps = repetitions.get("next_steps")
+    if isinstance(steps, list) and steps:
+        return [step for step in steps if isinstance(step, dict)]
+    aggregate = _artifact_by_label(artifacts, "benchmark aggregate")
+    if aggregate["present"]:
+        return [
+            command_step(
+                label="Render benchmark report",
+                reason=(
+                    "The repeated-run aggregate exists; render the aggregate "
+                    "resolution and usage report."
+                ),
+                command=[
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-report",
+                    "--logbook",
+                    str(logbook_dir),
+                ],
+            )
+        ]
+    return [
+        command_step(
+            label="Run repeated real benchmark eval",
+            reason=(
+                "No repeated benchmark aggregate is available; start or rerun "
+                "the repeated benchmark workflow."
+            ),
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "real-benchmark-repetitions",
+                "<regatta.toml>",
+                "--logbook",
+                str(logbook_dir),
+                "--workspace",
+                ".",
+                "--repetitions",
+                "3",
             ],
         )
     ]
