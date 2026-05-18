@@ -263,6 +263,56 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(calls[0][1]["HOME"], str(instance.temp_home))
             self.assertEqual(calls[0][2], instance.workspace_path)
 
+    def test_execute_preflight_accepts_fenced_json_with_surrounding_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            regatta, instance = _prepared_runtime(root, vessel_index=1)
+
+            def agent_runner(
+                prompt: str,
+                env: dict[str, str],
+                cwd: Path,
+            ) -> AgentPromptResult:
+                return AgentPromptResult(
+                    exit_code=0,
+                    response=(
+                        "All checks pass.\n\n"
+                        "```json\n"
+                        "{\n"
+                        '  "available": true,\n'
+                        '  "configured": true,\n'
+                        '  "tool_calls": ["fffind"]\n'
+                        "}\n"
+                        "```\n\n"
+                        "Verification summary: fffind returned results."
+                    ),
+                    tool_calls=("fffind",),
+                    transcript_path=root / "transcripts" / "fff.json",
+                )
+
+            artifact = execute_preflight(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                instance=instance,
+                artifact_path=root / "logbook" / "preflight" / "pi-plus-fff.json",
+                comparison=regatta.comparisons[0],
+                command_runner=_passing_command,
+                agent_prompt_runner=agent_runner,
+            )
+
+            self.assertEqual(artifact["status"], "passed")
+            agent_check = _check_by_name(artifact, "fff-headless-smoke")
+            self.assertEqual(agent_check["status"], "passed")
+            self.assertEqual(
+                agent_check["evidence"]["response_json"],
+                {
+                    "available": True,
+                    "configured": True,
+                    "tool_calls": ["fffind"],
+                },
+            )
+            self.assertNotIn("response_contract_errors", agent_check["evidence"])
+
     def test_execute_preflight_reads_agent_prompt_file_from_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
