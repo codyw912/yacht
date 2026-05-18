@@ -146,6 +146,8 @@ native launch, grading collection, scorecard, and top-level summary.
 `real-benchmark-repetitions` runs that same path sequentially into
 `runs/run-001`, `runs/run-002`, and so on under a parent logbook, then writes
 `real-benchmark-repetitions.json` and `benchmark-aggregate.json` for completed
-child runs.
+child runs. The parent logbook works with `benchmark-status` and
+`benchmark-report`; the report renders the aggregate when no single-run
+`benchmark-scorecard.json` is present.
 `benchmark-status` is the quick inspection command to run after the workflow; it
 prints artifact presence, artifact statuses, and the next recommended command.

@@ -193,17 +193,21 @@ def _next_steps(logbook_dir: Path, runs: list[dict[str, Any]]) -> list[dict[str,
                 ],
             )
         ]
-    command = ["uv", "run", "yacht", "benchmark-aggregate"]
-    for child_logbook in aggregate_logbooks:
-        command.extend(["--logbook", child_logbook])
     return [
         command_step(
-            label="Render aggregate benchmark report",
+            label="Render benchmark report",
             reason=(
-                "At least one repetition produced a benchmark scorecard; render "
-                "the aggregate deltas and usage across completed runs."
+                "At least one repetition produced a benchmark scorecard; render the "
+                "parent aggregate report with benchmark outcomes and usage."
             ),
-            command=command,
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "benchmark-report",
+                "--logbook",
+                str(logbook_dir),
+            ],
         )
     ]
 

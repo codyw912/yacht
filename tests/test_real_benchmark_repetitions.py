@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from tests.test_benchmark_aggregate import _write_logbook
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from yacht.benchmark_status import render_benchmark_status
 from yacht.cli import main
 from yacht.real_benchmark_repetitions import run_real_benchmark_repetitions
 from yacht.regatta import ConfigError
@@ -97,6 +98,65 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertEqual(summary["summary"]["failed_runs"], 1)
             self.assertEqual(summary["aggregate"]["run_count"], 1)
 
+    def test_benchmark_status_recognizes_repetition_parent_logbooks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _write_repetition_series(Path(temp_dir))
+
+            report = render_benchmark_status(logbook_dir)
+
+            self.assertIn("Benchmark status:", report)
+            self.assertIn("complete | real benchmark repetitions", report)
+            self.assertIn("present | benchmark aggregate", report)
+            self.assertIn("1. Render benchmark report", report)
+            self.assertIn(f"uv run yacht benchmark-report --logbook {logbook_dir}", report)
+
+    def test_benchmark_report_renders_repetition_parent_aggregate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _write_repetition_series(Path(temp_dir))
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            report = stdout.getvalue()
+            self.assertIn("Benchmark aggregate: pi-fff-comparison / swe-bench-lite", report)
+            self.assertIn("Runs: 2", report)
+            self.assertIn("Aggregate deltas:", report)
+
+    def test_benchmark_report_rejects_filters_for_repetition_parent_aggregate(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _write_repetition_series(Path(temp_dir))
+            stdout = StringIO()
+            stderr = StringIO()
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--vessel",
+                        "pi-plus-fff",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn(
+                "repeated-run aggregate reports cannot be filtered",
+                stderr.getvalue(),
+            )
+            self.assertNotIn("Traceback", stderr.getvalue())
+
     def test_requires_positive_repetitions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -166,6 +226,31 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertEqual(stdout.getvalue(), "")
             self.assertIn("error: invalid regatta config: boom", stderr.getvalue())
             self.assertNotIn("Traceback", stderr.getvalue())
+
+
+def _write_repetition_series(root: Path) -> Path:
+    config_path = root / "regatta.toml"
+    config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+    logbook_dir = root / "series"
+
+    def eval_runner(child_logbook: Path) -> dict[str, object]:
+        resolved = 1 if child_logbook.name == "run-001" else 0
+        _write_logbook(
+            child_logbook,
+            baseline_resolved=resolved,
+            fff_resolved=1,
+        )
+        return {"status": "complete"}
+
+    run_real_benchmark_repetitions(
+        config_path=config_path,
+        logbook_dir=logbook_dir,
+        workspace_path=root,
+        secret_values={},
+        repetitions=2,
+        eval_runner=eval_runner,
+    )
+    return logbook_dir
 
 
 if __name__ == "__main__":
