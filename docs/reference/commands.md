@@ -120,7 +120,8 @@ sections while keeping the full benchmark summary for context. Completed
 scorecards and `benchmark-status` include a filtered inspection command for the
 first challenger/task outcome.
 Use `benchmark-aggregate` with multiple completed benchmark logbooks to inspect
-aggregate resolution and usage across repeated runs.
+aggregate resolution and usage across repeated runs. Aggregate reports include
+per-run vessel rows with child logbook paths so outliers can be inspected.
 
 ## One-Command Workflows
 
