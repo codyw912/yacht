@@ -473,6 +473,41 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 stdout.getvalue(),
             )
 
+    def test_benchmark_report_includes_agent_usage_by_task_when_attempts_exist(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+            _write_task_attempt_scorecard_with_attempt_artifacts(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            report = stdout.getvalue()
+            self.assertIn("Agent usage by task:", report)
+            self.assertIn(
+                "comparison | vessel | task | tools | tokens | cost | duration | "
+                "attempt_artifact",
+                report,
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-plus-fff | django__django-11099 | "
+                "bash:1, edit:1, fffind:1, read:1 | 6251 | 0.004513 | "
+                "5.250s | "
+                f"{logbook_dir}/task-attempts/pi-vs-pi-fff/pi-plus-fff/"
+                "django__django-11099.json",
+                report,
+            )
+
     def test_benchmark_report_includes_collected_native_report_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
@@ -529,6 +564,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             self.assertIn("## Benchmark task outcomes by vessel", stdout.getvalue())
+            self.assertNotIn("## Agent usage by task", stdout.getvalue())
             self.assertIn(
                 "| pi-vs-pi-fff | pi-plus-fff | django__django-11099 | "
                 "resolved | "
@@ -538,11 +574,43 @@ class BenchmarkScorecardTests(unittest.TestCase):
             )
             self.assertIn("## Benchmark artifacts by vessel", stdout.getvalue())
 
+    def test_benchmark_report_markdown_includes_agent_usage_by_task_when_attempts_exist(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+            _write_task_attempt_scorecard_with_attempt_artifacts(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--format",
+                        "markdown",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            report = stdout.getvalue()
+            self.assertIn("## Agent usage by task", report)
+            self.assertIn(
+                "| pi-vs-pi-fff | pi-plus-fff | django__django-11099 | "
+                "bash:1, edit:1, fffind:1, read:1 | 6251 | 0.004513 | "
+                "5.250s | "
+                f"{logbook_dir}/task-attempts/pi-vs-pi-fff/pi-plus-fff/"
+                "django__django-11099.json |",
+                report,
+            )
+
     def test_benchmark_report_can_filter_detail_rows_by_vessel_and_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
             write_benchmark_scorecard(logbook_dir)
-            _write_task_attempt_scorecard(logbook_dir)
+            _write_task_attempt_scorecard_with_attempt_artifacts(logbook_dir)
             _write_grading_collection(logbook_dir)
 
             stdout = StringIO()
@@ -577,8 +645,16 @@ class BenchmarkScorecardTests(unittest.TestCase):
             )
             self.assertIn(
                 "pi-vs-pi-fff | pi-plus-fff | django__django-11099 | "
+                "bash:1, edit:1, fffind:1, read:1 | 6251 | 0.004513 | "
+                "5.250s | "
+                f"{logbook_dir}/task-attempts/pi-vs-pi-fff/pi-plus-fff/"
+                "django__django-11099.json",
+                report,
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-plus-fff | django__django-11099 | "
                 "resolved | "
-                "logbook/task-attempts/pi-vs-pi-fff/pi-plus-fff/"
+                f"{logbook_dir}/task-attempts/pi-vs-pi-fff/pi-plus-fff/"
                 "django__django-11099.json",
                 report,
             )
@@ -988,6 +1064,38 @@ def _write_task_attempt_scorecard(logbook_dir: Path) -> None:
     )
 
 
+def _write_task_attempt_scorecard_with_attempt_artifacts(logbook_dir: Path) -> None:
+    _write_task_attempt_scorecard(logbook_dir)
+    scorecard_path = logbook_dir / "task-attempt-scorecard.json"
+    scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
+    for comparison in scorecard["comparisons"]:
+        for vessel in comparison["vessels"]:
+            artifact_path = (
+                logbook_dir
+                / "task-attempts"
+                / comparison["name"]
+                / vessel["name"]
+                / "django__django-11099.json"
+            )
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(
+                    _task_attempt_artifact(
+                        comparison_name=comparison["name"],
+                        vessel_name=vessel["name"],
+                        tool_calls=_expanded_tool_calls(vessel["tool_call_counts"]),
+                        tokens=vessel["total_tokens"],
+                        cost=vessel["total_cost"],
+                        duration=vessel["total_duration_seconds"],
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            vessel["artifact_paths"] = [str(artifact_path)]
+    scorecard_path.write_text(json.dumps(scorecard) + "\n", encoding="utf-8")
+
+
 def _task_attempt_vessel(
     name: str,
     *,
@@ -1011,6 +1119,65 @@ def _task_attempt_vessel(
         "artifact_paths": [
             f"logbook/task-attempts/pi-vs-pi-fff/{name}/django__django-11099.json"
         ],
+    }
+
+
+def _expanded_tool_calls(tool_counts: dict[str, int]) -> list[str]:
+    return [
+        tool
+        for tool, count in tool_counts.items()
+        for _ in range(count)
+    ]
+
+
+def _task_attempt_artifact(
+    *,
+    comparison_name: str,
+    vessel_name: str,
+    tool_calls: list[str],
+    tokens: int,
+    cost: float,
+    duration: float,
+) -> dict[str, object]:
+    return {
+        "schema": "yacht.task-attempt.v1",
+        "regatta": "pi-fff-comparison",
+        "course": "swe-bench-lite",
+        "comparison": comparison_name,
+        "vessel": vessel_name,
+        "model": "haiku",
+        "rigging": ["pi-fff"] if vessel_name == "pi-plus-fff" else [],
+        "runtime": "pi-container",
+        "status": "completed",
+        "task": {
+            "id": "django__django-11099",
+            "title": "Fix a SWE-bench Lite regression",
+            "difficulty": 3,
+        },
+        "runtime_context": {
+            "backend": "container",
+            "temp_home": "/tmp/yacht/home",
+            "workspace_path": "/tmp/yacht/workspace",
+            "command_prefix": ["docker", "run"],
+            "command": ["pi"],
+            "cleanup_paths": ["/tmp/yacht"],
+        },
+        "prompt": "Return a candidate patch.",
+        "agent": {
+            "exit_code": 0,
+            "response": '{"model_patch": "diff --git a/example.py b/example.py"}',
+            "tool_calls": tool_calls,
+            "transcript_path": "/tmp/yacht/transcript.json",
+            "machine_evidence": {
+                "format": "pi-jsonl",
+                "cost": {"total": cost},
+            },
+        },
+        "metrics": {
+            "tokens": tokens,
+            "duration_seconds": duration,
+        },
+        "secret_refs": [],
     }
 
 
