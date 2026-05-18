@@ -82,6 +82,73 @@ class BenchmarkStatusTests(unittest.TestCase):
             self.assertEqual(scorecard["state"], "invalid")
             self.assertIn("invalid JSON", scorecard["detail"])
 
+    def test_uses_scorecard_filtered_inspection_next_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir()
+            (logbook_dir / "real-benchmark-eval.json").write_text(
+                json.dumps(
+                    {
+                        "status": "complete",
+                        "next_steps": [
+                            {
+                                "label": "Render benchmark report",
+                                "reason": "Older summary next step.",
+                                "command": [
+                                    "uv",
+                                    "run",
+                                    "yacht",
+                                    "benchmark-report",
+                                    "--logbook",
+                                    str(logbook_dir),
+                                ],
+                                "command_preview": (
+                                    "uv run yacht benchmark-report --logbook "
+                                    f"{logbook_dir}"
+                                ),
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (logbook_dir / "benchmark-scorecard.json").write_text(
+                json.dumps(
+                    {
+                        "status": "complete",
+                        "next_steps": [
+                            {
+                                "label": "Inspect filtered benchmark details",
+                                "reason": "Inspect one vessel/task.",
+                                "command": [
+                                    "uv",
+                                    "run",
+                                    "yacht",
+                                    "benchmark-report",
+                                    "--logbook",
+                                    str(logbook_dir),
+                                    "--vessel",
+                                    "pi-plus-fff",
+                                    "--task",
+                                    "django__django-11099",
+                                ],
+                                "command_preview": (
+                                    "uv run yacht benchmark-report --logbook "
+                                    f"{logbook_dir} --vessel pi-plus-fff --task "
+                                    "django__django-11099"
+                                ),
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            report = render_benchmark_status(logbook_dir)
+
+            self.assertIn("1. Inspect filtered benchmark details", report)
+            self.assertIn("--vessel pi-plus-fff --task django__django-11099", report)
+
     def test_benchmark_status_command_writes_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

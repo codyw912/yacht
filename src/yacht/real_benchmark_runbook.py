@@ -124,6 +124,7 @@ def build_real_benchmark_runbook(
         raise ConfigError("max_workers must be an integer >= 1")
     regatta = load_regatta(config_path)
     artifacts = _artifacts(regatta, logbook_dir)
+    inspection_target = _inspection_target(regatta)
     secret_placeholders = _secret_placeholders(regatta)
     runbook = {
         "schema": REAL_BENCHMARK_RUNBOOK_SCHEMA,
@@ -139,6 +140,7 @@ def build_real_benchmark_runbook(
             python_executable=python_executable,
             secret_placeholders=secret_placeholders,
             artifacts=artifacts,
+            inspection_target=inspection_target,
         ),
         "artifacts": artifacts,
     }
@@ -155,6 +157,7 @@ def _steps(
     python_executable: str,
     secret_placeholders: list[dict[str, str]],
     artifacts: dict[str, Any],
+    inspection_target: dict[str, str],
 ) -> list[dict[str, Any]]:
     secrets = " ".join(placeholder["argument"] for placeholder in secret_placeholders)
     secret_suffix = f" {secrets}" if secrets else ""
@@ -196,6 +199,14 @@ def _steps(
         {
             "name": "benchmark-report",
             "command": f"uv run yacht benchmark-report --logbook {_quote(logbook_dir)}",
+            "artifacts": [artifacts["benchmark_scorecard"]],
+        },
+        {
+            "name": "benchmark-report-filtered",
+            "command": _filtered_report_command(
+                logbook_dir=logbook_dir,
+                target=inspection_target,
+            ),
             "artifacts": [artifacts["benchmark_scorecard"]],
         },
         {
@@ -299,6 +310,28 @@ def _task_attempt_path(
         / comparison.name
         / vessel.name
         / f"{task_id}.json"
+    )
+
+
+def _inspection_target(regatta: Regatta) -> dict[str, str]:
+    comparison = regatta.comparisons[0]
+    vessel_name = comparison.vessels[-1]
+    task_id = regatta.course.tasks[0].id
+    return {
+        "vessel": vessel_name,
+        "task": task_id,
+    }
+
+
+def _filtered_report_command(
+    *,
+    logbook_dir: Path,
+    target: dict[str, str],
+) -> str:
+    return (
+        f"uv run yacht benchmark-report --logbook {_quote(logbook_dir)} "
+        f"--vessel {_quote_text(target['vessel'])} "
+        f"--task {_quote_text(target['task'])}"
     )
 
 

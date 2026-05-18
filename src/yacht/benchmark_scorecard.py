@@ -23,7 +23,7 @@ def write_benchmark_scorecard(logbook_dir: Path) -> dict[str, Any]:
     gradings = _load_gradings(logbook_dir, handoff)
     preflight_report = build_preflight_evidence_report(logbook_dir)
     scorecard = _build_scorecard(handoff, gradings, preflight_report)
-    scorecard["next_steps"] = _next_steps(logbook_dir)
+    scorecard["next_steps"] = _next_steps(logbook_dir, scorecard["comparisons"])
     validate_benchmark_scorecard_document(scorecard)
     _write_json(logbook_dir / BENCHMARK_SCORECARD_PATH, scorecard)
     return scorecard
@@ -279,8 +279,11 @@ def _scorecard_status(comparisons: list[dict[str, Any]]) -> str:
     return "empty"
 
 
-def _next_steps(logbook_dir: Path) -> list[dict[str, object]]:
-    return [
+def _next_steps(
+    logbook_dir: Path,
+    comparisons: list[dict[str, Any]],
+) -> list[dict[str, object]]:
+    steps = [
         command_step(
             label="Render benchmark report",
             reason=(
@@ -296,6 +299,11 @@ def _next_steps(logbook_dir: Path) -> list[dict[str, object]]:
                 str(logbook_dir),
             ],
         ),
+    ]
+    inspection_step = _inspection_step(logbook_dir, comparisons)
+    if inspection_step is not None:
+        steps.append(inspection_step)
+    steps.append(
         command_step(
             label="Write markdown benchmark report",
             reason=(
@@ -315,6 +323,64 @@ def _next_steps(logbook_dir: Path) -> list[dict[str, object]]:
                 str(logbook_dir / "benchmark-report.md"),
             ],
         ),
+    )
+    return steps
+
+
+def _inspection_step(
+    logbook_dir: Path,
+    comparisons: list[dict[str, Any]],
+) -> dict[str, object] | None:
+    target = _inspection_target(comparisons)
+    if target is None:
+        return None
+    vessel_name, task_id = target
+    return command_step(
+        label="Inspect filtered benchmark details",
+        reason=(
+            "Use a filtered report when investigating a specific vessel/task "
+            "outcome, usage, and artifact path set."
+        ),
+        command=[
+            "uv",
+            "run",
+            "yacht",
+            "benchmark-report",
+            "--logbook",
+            str(logbook_dir),
+            "--vessel",
+            vessel_name,
+            "--task",
+            task_id,
+        ],
+    )
+
+
+def _inspection_target(
+    comparisons: list[dict[str, Any]],
+) -> tuple[str, str] | None:
+    for comparison in comparisons:
+        challenger_name = str(comparison["delta"]["challenger_vessel"])
+        for vessel in _inspection_ordered_vessels(
+            comparison["vessels"],
+            challenger_name,
+        ):
+            task_ids = [
+                *[str(task_id) for task_id in vessel.get("resolved_ids", [])],
+                *[str(task_id) for task_id in vessel.get("unresolved_ids", [])],
+            ]
+            if task_ids:
+                return str(vessel["name"]), task_ids[0]
+    return None
+
+
+def _inspection_ordered_vessels(
+    vessels: list[dict[str, Any]],
+    challenger_name: str,
+) -> list[dict[str, Any]]:
+    return [
+        *[vessel for vessel in vessels if str(vessel["name"]) == challenger_name],
+        *[vessel for vessel in vessels if str(vessel["name"]) != challenger_name],
     ]
 
 

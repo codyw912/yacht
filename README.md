@@ -115,7 +115,8 @@ benchmark artifacts exist, what is missing, and the next recommended command.
 The benchmark report then summarizes benchmark outcome, agent usage metrics,
 per-task outcomes, and the relevant per-vessel artifact paths.
 Use `--vessel` and `--task` to narrow the detailed sections when inspecting a
-specific run.
+specific run. After a scorecard exists, `benchmark-status` recommends a
+filtered inspection command for the first challenger/task outcome.
 For example:
 
 ```text

@@ -289,6 +289,13 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 payload["next_steps"][0]["command_preview"],
                 f"uv run yacht benchmark-report --logbook {logbook_dir}",
             )
+            self.assertEqual(
+                payload["next_steps"][1]["command_preview"],
+                (
+                    f"uv run yacht benchmark-report --logbook {logbook_dir} "
+                    "--vessel pi-plus-fff --task django__django-11099"
+                ),
+            )
 
     def test_benchmark_report_command_prints_comparison_table(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

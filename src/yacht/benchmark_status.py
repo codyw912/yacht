@@ -112,8 +112,8 @@ def _next_steps(
     artifacts: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     for label in (
-        "real benchmark eval",
         "benchmark scorecard",
+        "real benchmark eval",
         "benchmark grading collection",
         "benchmark launch result",
     ):

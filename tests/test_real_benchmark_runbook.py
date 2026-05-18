@@ -74,6 +74,13 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
                 f"uv run yacht benchmark-report --logbook {logbook_dir}",
             )
             self.assertEqual(
+                commands["benchmark-report-filtered"],
+                (
+                    f"uv run yacht benchmark-report --logbook {logbook_dir} "
+                    "--vessel pi-plus-fff --task django__django-11099"
+                ),
+            )
+            self.assertEqual(
                 commands["benchmark-report-markdown"],
                 (
                     f"uv run yacht benchmark-report --logbook {logbook_dir} "
@@ -176,6 +183,7 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             self.assertIn("### Commands", markdown)
             self.assertIn("```sh\nuv run yacht real-benchmark-eval", markdown)
             self.assertIn("--secret anthropic=@env:ANTHROPIC_API_KEY", markdown)
+            self.assertIn("--vessel pi-plus-fff --task django__django-11099", markdown)
             self.assertIn("### Expected Artifacts", markdown)
             self.assertIn("logbook/preflight-evidence-report.json", markdown)
             self.assertIn("logbook/benchmark-scorecard.json", markdown)
