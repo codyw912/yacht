@@ -20,6 +20,8 @@
   `--logbook` is omitted.
 - Compacted `real-benchmark-repetitions` output by replacing the embedded full
   aggregate with a smaller aggregate summary and artifact paths.
+- Added repeated-run aggregate statistics for resolution rate, tokens, cost,
+  duration, and tool calls by vessel and comparison delta.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 
