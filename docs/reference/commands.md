@@ -104,7 +104,9 @@ YACHT owns the handoff, gates, launch records, normalized grading artifacts, and
 scorecards. `benchmark-report` includes comparison outcomes, usage metrics,
 per-task outcomes, and per-vessel artifact paths when task attempt data is
 available. Use `--vessel` and `--task` to narrow the detailed sections while
-keeping the full benchmark summary for context.
+keeping the full benchmark summary for context. Completed scorecards and
+`benchmark-status` include a filtered inspection command for the first
+challenger/task outcome.
 
 ## One-Command Workflows
 
