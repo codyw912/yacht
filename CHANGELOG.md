@@ -12,6 +12,8 @@
   JSON object in a Markdown fence with surrounding text.
 - Added stderr progress updates for long-running real benchmark commands while
   preserving final JSON on stdout.
+- Added per-run rows to benchmark aggregate reports so repeated benchmark runs
+  expose individual run usage, outcomes, and child logbook paths.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

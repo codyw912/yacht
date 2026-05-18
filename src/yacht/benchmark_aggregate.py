@@ -128,6 +128,7 @@ def _aggregate_comparison(
         "baseline": vessel_names[0],
         "challenger": vessel_names[1],
         "vessels": vessels,
+        "runs": _aggregate_runs(comparison_name, vessel_names, runs),
         "delta": _aggregate_delta(vessels),
     }
 
@@ -205,6 +206,89 @@ def _aggregate_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _aggregate_runs(
+    comparison_name: str,
+    vessel_names: list[str],
+    runs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "index": index,
+            "logbook": str(run["logbook"]),
+            "vessels": [
+                _run_vessel(comparison_name, vessel_name, run)
+                for vessel_name in vessel_names
+            ],
+            "delta": _run_delta(
+                [
+                    _run_vessel(comparison_name, vessel_name, run)
+                    for vessel_name in vessel_names
+                ]
+            ),
+        }
+        for index, run in enumerate(runs, start=1)
+    ]
+
+
+def _run_vessel(
+    comparison_name: str,
+    vessel_name: str,
+    run: dict[str, Any],
+) -> dict[str, Any]:
+    vessel = _vessel_by_name(
+        _comparison_by_name(run["scorecard"], comparison_name),
+        vessel_name,
+    )
+    usage_vessel = _usage_vessel(run["attempt_scorecard"], comparison_name, vessel_name)
+    submitted = int(vessel["submitted_instances"])
+    resolved = int(vessel["resolved_instances"])
+    payload = {
+        "name": vessel_name,
+        "status": str(vessel["status"]),
+        "submitted_instances": submitted,
+        "resolved_instances": resolved,
+        "resolution_rate": resolved / submitted if submitted else 0.0,
+        "tokens": 0,
+        "cost": 0.0,
+        "duration_seconds": 0.0,
+        "tool_calls": 0,
+    }
+    if usage_vessel is not None:
+        payload.update(
+            {
+                "tokens": int(usage_vessel["total_tokens"]),
+                "cost": round(float(usage_vessel["total_cost"]), 6),
+                "duration_seconds": round(
+                    float(usage_vessel["total_duration_seconds"]),
+                    3,
+                ),
+                "tool_calls": int(usage_vessel["tool_call_count"]),
+            }
+        )
+    return payload
+
+
+def _run_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:
+    baseline = vessels[0]
+    challenger = vessels[1]
+    return {
+        "baseline_vessel": baseline["name"],
+        "challenger_vessel": challenger["name"],
+        "resolved_instances_delta": int(challenger["resolved_instances"])
+        - int(baseline["resolved_instances"]),
+        "resolution_rate_delta": float(challenger["resolution_rate"])
+        - float(baseline["resolution_rate"]),
+        "tokens_delta": int(challenger["tokens"]) - int(baseline["tokens"]),
+        "cost_delta": round(float(challenger["cost"]) - float(baseline["cost"]), 6),
+        "duration_seconds_delta": round(
+            float(challenger["duration_seconds"]) - float(baseline["duration_seconds"]),
+            3,
+        ),
+        "tool_calls_delta": int(challenger["tool_calls"])
+        - int(baseline["tool_calls"]),
+    }
+
+
 def _comparison_by_name(scorecard: dict[str, Any], name: str) -> dict[str, Any]:
     for comparison in scorecard["comparisons"]:
         if comparison["name"] == name:
@@ -255,6 +339,19 @@ def _render_text(aggregate: dict[str, Any]) -> str:
     )
     for comparison in aggregate["comparisons"]:
         lines.extend(_vessel_row(comparison, vessel) for vessel in comparison["vessels"])
+    lines.extend(
+        [
+            "",
+            "Aggregate runs by vessel:",
+            "comparison | run | vessel | status | submitted | resolved | rate | "
+            "tokens | cost | duration | tool_calls | logbook",
+        ]
+    )
+    for comparison in aggregate["comparisons"]:
+        for run in comparison["runs"]:
+            lines.extend(
+                _run_vessel_row(comparison, run, vessel) for vessel in run["vessels"]
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -288,6 +385,22 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             f"| {_vessel_row(comparison, vessel)} |"
             for vessel in comparison["vessels"]
         )
+    lines.extend(
+        [
+            "",
+            "## Aggregate runs by vessel",
+            "",
+            "| Comparison | Run | Vessel | Status | Submitted | Resolved | Rate | "
+            "Tokens | Cost | Duration | Tool calls | Logbook |",
+            "| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+        ]
+    )
+    for comparison in aggregate["comparisons"]:
+        for run in comparison["runs"]:
+            lines.extend(
+                f"| {_run_vessel_row(comparison, run, vessel)} |"
+                for vessel in run["vessels"]
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -320,6 +433,27 @@ def _vessel_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
         f"{_cost(vessel['total_cost'])} | "
         f"{_duration(vessel['total_duration_seconds'])} | "
         f"{vessel['total_tool_calls']}"
+    )
+
+
+def _run_vessel_row(
+    comparison: dict[str, Any],
+    run: dict[str, Any],
+    vessel: dict[str, Any],
+) -> str:
+    return (
+        f"{comparison['name']} | "
+        f"{run['index']} | "
+        f"{vessel['name']} | "
+        f"{vessel['status']} | "
+        f"{vessel['submitted_instances']} | "
+        f"{vessel['resolved_instances']} | "
+        f"{_rate(vessel['resolution_rate'])} | "
+        f"{vessel['tokens']} | "
+        f"{_cost(vessel['cost'])} | "
+        f"{_duration(vessel['duration_seconds'])} | "
+        f"{vessel['tool_calls']} | "
+        f"{run['logbook']}"
     )
 
 

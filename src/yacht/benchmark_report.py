@@ -6,6 +6,7 @@ from typing import Any
 
 from yacht.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.benchmark_aggregate import BENCHMARK_AGGREGATE_SCHEMA
+from yacht.benchmark_aggregate import build_benchmark_aggregate
 from yacht.benchmark_aggregate import render_benchmark_aggregate_document
 from yacht.benchmark_grading_collection import BENCHMARK_GRADING_COLLECTION_PATH
 from yacht.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
@@ -75,7 +76,19 @@ def _render_aggregate_report(path: Path, output_format: str) -> str:
             "benchmark aggregate artifact is invalid: "
             f"schema must be {BENCHMARK_AGGREGATE_SCHEMA}"
         )
+    aggregate = _aggregate_with_run_details(aggregate)
     return render_benchmark_aggregate_document(aggregate, output_format)
+
+
+def _aggregate_with_run_details(aggregate: dict[str, Any]) -> dict[str, Any]:
+    if all("runs" in comparison for comparison in aggregate["comparisons"]):
+        return aggregate
+    logbooks = aggregate.get("logbooks")
+    if not isinstance(logbooks, list) or not all(
+        isinstance(logbook, str) for logbook in logbooks
+    ):
+        return aggregate
+    return build_benchmark_aggregate([Path(logbook) for logbook in logbooks])
 
 
 def _load_scorecard(path: Path) -> dict[str, Any]:

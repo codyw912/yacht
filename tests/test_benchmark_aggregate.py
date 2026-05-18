@@ -27,6 +27,87 @@ class BenchmarkAggregateTests(unittest.TestCase):
             comparison = aggregate["comparisons"][0]
             self.assertEqual(comparison["name"], "pi-vs-pi-fff")
             self.assertEqual(
+                comparison["runs"],
+                [
+                    {
+                        "index": 1,
+                        "logbook": str(first),
+                        "vessels": [
+                            {
+                                "name": "pi-baseline",
+                                "status": "measured",
+                                "submitted_instances": 1,
+                                "resolved_instances": 1,
+                                "resolution_rate": 1.0,
+                                "tokens": 1000,
+                                "cost": 0.001,
+                                "duration_seconds": 10.0,
+                                "tool_calls": 3,
+                            },
+                            {
+                                "name": "pi-plus-fff",
+                                "status": "measured",
+                                "submitted_instances": 1,
+                                "resolved_instances": 1,
+                                "resolution_rate": 1.0,
+                                "tokens": 2100,
+                                "cost": 0.0021,
+                                "duration_seconds": 11.1,
+                                "tool_calls": 4,
+                            },
+                        ],
+                        "delta": {
+                            "baseline_vessel": "pi-baseline",
+                            "challenger_vessel": "pi-plus-fff",
+                            "resolved_instances_delta": 0,
+                            "resolution_rate_delta": 0.0,
+                            "tokens_delta": 1100,
+                            "cost_delta": 0.0011,
+                            "duration_seconds_delta": 1.1,
+                            "tool_calls_delta": 1,
+                        },
+                    },
+                    {
+                        "index": 2,
+                        "logbook": str(second),
+                        "vessels": [
+                            {
+                                "name": "pi-baseline",
+                                "status": "measured",
+                                "submitted_instances": 1,
+                                "resolved_instances": 0,
+                                "resolution_rate": 0.0,
+                                "tokens": 1000,
+                                "cost": 0.001,
+                                "duration_seconds": 10.0,
+                                "tool_calls": 3,
+                            },
+                            {
+                                "name": "pi-plus-fff",
+                                "status": "measured",
+                                "submitted_instances": 1,
+                                "resolved_instances": 1,
+                                "resolution_rate": 1.0,
+                                "tokens": 2100,
+                                "cost": 0.0021,
+                                "duration_seconds": 11.1,
+                                "tool_calls": 4,
+                            },
+                        ],
+                        "delta": {
+                            "baseline_vessel": "pi-baseline",
+                            "challenger_vessel": "pi-plus-fff",
+                            "resolved_instances_delta": 1,
+                            "resolution_rate_delta": 1.0,
+                            "tokens_delta": 1100,
+                            "cost_delta": 0.0011,
+                            "duration_seconds_delta": 1.1,
+                            "tool_calls_delta": 1,
+                        },
+                    },
+                ],
+            )
+            self.assertEqual(
                 comparison["delta"],
                 {
                     "baseline_vessel": "pi-baseline",
@@ -93,7 +174,10 @@ class BenchmarkAggregateTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             report = stdout.getvalue()
-            self.assertIn("Benchmark aggregate: pi-fff-comparison / swe-bench-lite", report)
+            self.assertIn(
+                "Benchmark aggregate: pi-fff-comparison / swe-bench-lite",
+                report,
+            )
             self.assertIn("Runs: 2", report)
             self.assertIn("Aggregate deltas:", report)
             self.assertIn(
@@ -105,6 +189,17 @@ class BenchmarkAggregateTests(unittest.TestCase):
             self.assertIn(
                 "pi-vs-pi-fff | pi-plus-fff | 2 | 2 | 2 | 2 | 1.000 | "
                 "2 | 4200 | 0.004200 | 22.200s | 8",
+                report,
+            )
+            self.assertIn("Aggregate runs by vessel:", report)
+            self.assertIn(
+                "pi-vs-pi-fff | 2 | pi-baseline | measured | 1 | 0 | 0.000 | "
+                "1000 | 0.001000 | 10.000s | 3 |",
+                report,
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | 2 | pi-plus-fff | measured | 1 | 1 | 1.000 | "
+                "2100 | 0.002100 | 11.100s | 4 |",
                 report,
             )
 
@@ -152,6 +247,45 @@ class BenchmarkAggregateTests(unittest.TestCase):
             self.assertEqual(stdout.getvalue(), "")
             self.assertIn("benchmark scorecard artifact not found", stderr.getvalue())
             self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_benchmark_report_enriches_older_parent_aggregate_artifacts(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _write_logbook(
+                root / "series/runs/run-001",
+                baseline_resolved=1,
+                fff_resolved=1,
+            )
+            second = _write_logbook(
+                root / "series/runs/run-002",
+                baseline_resolved=0,
+                fff_resolved=1,
+            )
+            parent = root / "series"
+            aggregate = build_benchmark_aggregate([first, second])
+            for comparison in aggregate["comparisons"]:
+                del comparison["runs"]
+            (parent / "benchmark-aggregate.json").write_text(
+                json.dumps(aggregate) + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(parent),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            report = stdout.getvalue()
+            self.assertIn("Aggregate runs by vessel:", report)
+            self.assertIn("series/runs/run-002", report)
 
     def test_benchmark_aggregate_requires_compatible_regattas(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
