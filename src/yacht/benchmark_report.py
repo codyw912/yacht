@@ -11,6 +11,7 @@ from yacht.regatta import ConfigError
 from yacht.schemas import (
     SchemaValidationError,
     validate_benchmark_scorecard_document,
+    validate_task_attempt_document,
     validate_task_attempt_scorecard_document,
 )
 from yacht.swebench_artifacts import candidate_patches_path, grading_report_path
@@ -115,6 +116,7 @@ def _render_scorecard(
             _usage_lines(
                 task_attempt_scorecard,
                 scorecard,
+                logbook_dir,
                 vessel_name,
                 task_id,
             )
@@ -182,6 +184,7 @@ def _render_scorecard_markdown(
             _usage_markdown_lines(
                 task_attempt_scorecard,
                 scorecard,
+                logbook_dir,
                 vessel_name,
                 task_id,
             )
@@ -407,6 +410,7 @@ def _outcome_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
 def _usage_lines(
     scorecard: dict[str, Any],
     benchmark_scorecard: dict[str, Any],
+    logbook_dir: Path,
     vessel_name: str | None,
     task_id: str | None,
 ) -> list[str]:
@@ -424,12 +428,30 @@ def _usage_lines(
             task_id,
         )
     )
+    task_rows = _task_usage_rows(
+        scorecard,
+        benchmark_scorecard,
+        logbook_dir,
+        vessel_name,
+        task_id,
+    )
+    if task_rows:
+        lines.extend(
+            [
+                "",
+                "Agent usage by task:",
+                "comparison | vessel | task | tools | tokens | cost | duration | "
+                "attempt_artifact",
+            ]
+        )
+        lines.extend(_task_usage_row(row) for row in task_rows)
     return lines
 
 
 def _usage_markdown_lines(
     scorecard: dict[str, Any],
     benchmark_scorecard: dict[str, Any],
+    logbook_dir: Path,
     vessel_name: str | None,
     task_id: str | None,
 ) -> list[str]:
@@ -450,6 +472,25 @@ def _usage_markdown_lines(
             task_id,
         )
     )
+    task_rows = _task_usage_rows(
+        scorecard,
+        benchmark_scorecard,
+        logbook_dir,
+        vessel_name,
+        task_id,
+    )
+    if task_rows:
+        lines.extend(
+            [
+                "",
+                "## Agent usage by task",
+                "",
+                "| Comparison | Vessel | Task | Tools | Tokens | Cost | Duration | "
+                "Attempt artifact |",
+                "| --- | --- | --- | --- | ---: | ---: | ---: | --- |",
+            ]
+        )
+        lines.extend(f"| {_task_usage_row(row)} |" for row in task_rows)
     return lines
 
 
@@ -523,6 +564,118 @@ def _usage_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
         f"{vessel['total_tokens']} | "
         f"{_cost(vessel['total_cost'])} | "
         f"{_duration(vessel['total_duration_seconds'])}"
+    )
+
+
+def _task_usage_rows(
+    scorecard: dict[str, Any],
+    benchmark_scorecard: dict[str, Any],
+    logbook_dir: Path,
+    vessel_name: str | None,
+    task_id: str | None,
+) -> list[dict[str, str]]:
+    benchmark_vessels = {
+        (str(comparison["name"]), str(vessel["name"])): vessel
+        for comparison, vessel in _vessels(benchmark_scorecard)
+    }
+    rows = []
+    for comparison, vessel in _vessels(scorecard):
+        comparison_name = str(comparison["name"])
+        current_vessel_name = str(vessel["name"])
+        benchmark_vessel = benchmark_vessels[(comparison_name, current_vessel_name)]
+        if not _matches_filters(benchmark_vessel, vessel_name, task_id):
+            continue
+        for artifact in vessel["artifact_paths"]:
+            attempt = _load_task_attempt_artifact(
+                logbook_dir,
+                str(artifact),
+            )
+            if attempt is None:
+                continue
+            current_task_id = str(attempt["task"]["id"])
+            if task_id is not None and current_task_id != task_id:
+                continue
+            rows.append(
+                {
+                    "comparison": comparison_name,
+                    "vessel": current_vessel_name,
+                    "task": current_task_id,
+                    "tools": _tool_counts(_tool_call_counts(attempt)),
+                    "tokens": str(attempt["metrics"]["tokens"]),
+                    "cost": _optional_cost(_attempt_cost(attempt)),
+                    "duration": _duration(
+                        float(attempt["metrics"]["duration_seconds"])
+                    ),
+                    "attempt_artifact": str(artifact),
+                }
+            )
+    return rows
+
+
+def _load_task_attempt_artifact(
+    logbook_dir: Path,
+    artifact_path: str,
+) -> dict[str, Any] | None:
+    path = _resolve_artifact_path(logbook_dir, artifact_path)
+    if not path.exists():
+        return None
+    attempt = _load_json(path, "task attempt artifact")
+    try:
+        validate_task_attempt_document(attempt)
+    except SchemaValidationError as error:
+        raise ConfigError(
+            f"task attempt artifact is invalid: {path}: {error}"
+        ) from error
+    return attempt
+
+
+def _resolve_artifact_path(logbook_dir: Path, artifact_path: str) -> Path:
+    path = Path(artifact_path)
+    if path.is_absolute():
+        return path
+    candidate = logbook_dir.parent / path
+    if candidate.exists():
+        return candidate
+    return path
+
+
+def _tool_call_counts(attempt: dict[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for tool_call in attempt["agent"].get("tool_calls", []):
+        tool_name = str(tool_call)
+        counts[tool_name] = counts.get(tool_name, 0) + 1
+    return counts
+
+
+def _attempt_cost(attempt: dict[str, Any]) -> float | None:
+    machine_evidence = attempt["agent"].get("machine_evidence", {})
+    if not isinstance(machine_evidence, dict):
+        return None
+    cost = machine_evidence.get("cost", {})
+    if not isinstance(cost, dict):
+        return None
+    total = cost.get("total")
+    if isinstance(total, int | float):
+        return float(total)
+    return None
+
+
+def _optional_cost(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return _cost(value)
+
+
+def _task_usage_row(row: dict[str, str]) -> str:
+    return (
+        f"{row['comparison']} | "
+        f"{row['vessel']} | "
+        f"{row['task']} | "
+        f"{row['tools']} | "
+        f"{row['tokens']} | "
+        f"{row['cost']} | "
+        f"{row['duration']} | "
+        f"{row['attempt_artifact']}"
     )
 
 
