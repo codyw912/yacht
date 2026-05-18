@@ -10,6 +10,8 @@
   logbooks.
 - Fixed agent-prompt preflight JSON extraction when agents wrap the required
   JSON object in a Markdown fence with surrounding text.
+- Added stderr progress updates for long-running real benchmark commands while
+  preserving final JSON on stdout.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

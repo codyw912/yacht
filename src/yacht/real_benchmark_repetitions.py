@@ -13,6 +13,7 @@ from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.next_steps import command_step
 from yacht.preflight_runner import AgentPromptRunnerFactory
 from yacht.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
+from yacht.real_benchmark_eval import ProgressReporter
 from yacht.real_benchmark_eval import run_real_benchmark_eval
 from yacht.regatta import ConfigError, load_regatta
 from yacht.task_attempt_runner import TaskAgent
@@ -38,10 +39,16 @@ def run_real_benchmark_repetitions(
     max_workers: int = 1,
     python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
     eval_runner: EvalRunner | None = None,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     if repetitions < 1:
         raise ConfigError("real benchmark repetitions must be at least 1")
     regatta = load_regatta(config_path)
+    _progress(
+        progress,
+        f"real benchmark repetitions started: {regatta.name} / {regatta.course.name}; "
+        f"repetitions={repetitions}; logbook={logbook_dir}",
+    )
     if eval_runner is None:
         if agent_prompt_runner_factory is None or task_agent is None:
             raise ConfigError(
@@ -56,6 +63,7 @@ def run_real_benchmark_repetitions(
             benchmark_command_runner=benchmark_command_runner,
             max_workers=max_workers,
             python_executable=python_executable,
+            progress=progress,
         )
 
     runs = []
@@ -66,9 +74,19 @@ def run_real_benchmark_repetitions(
             raise ConfigError(
                 f"repetition child logbook already exists: {child_logbook}"
             )
+        _progress(
+            progress,
+            f"repetition {index}/{repetitions} started: logbook={child_logbook}",
+        )
         run_summary = eval_runner(child_logbook)
         scorecard_path = child_logbook / BENCHMARK_SCORECARD_PATH
         scorecard_present = scorecard_path.is_file()
+        _progress(
+            progress,
+            f"repetition {index}/{repetitions} finished: "
+            f"status={run_summary.get('status', 'unknown')}; "
+            f"scorecard={'present' if scorecard_present else 'missing'}",
+        )
         if scorecard_present:
             aggregate_logbooks.append(child_logbook)
         runs.append(
@@ -88,8 +106,14 @@ def run_real_benchmark_repetitions(
 
     aggregate = None
     if aggregate_logbooks:
+        _progress(
+            progress,
+            f"benchmark aggregate: writing {len(aggregate_logbooks)} completed run(s)",
+        )
         aggregate = build_benchmark_aggregate(aggregate_logbooks)
         _write_json(logbook_dir / BENCHMARK_AGGREGATE_PATH, aggregate)
+    else:
+        _progress(progress, "benchmark aggregate: skipped; no completed runs")
 
     summary = _summary(
         regatta=regatta.name,
@@ -99,6 +123,7 @@ def run_real_benchmark_repetitions(
         runs=runs,
         aggregate=aggregate,
     )
+    _progress(progress, f"real benchmark repetitions complete: {summary['status']}")
     return _write_json(logbook_dir / REAL_BENCHMARK_REPETITIONS_PATH, summary)
 
 
@@ -112,6 +137,7 @@ def _real_benchmark_eval_runner(
     benchmark_command_runner: CommandRunner | None,
     max_workers: int,
     python_executable: str,
+    progress: ProgressReporter | None,
 ) -> EvalRunner:
     def run(child_logbook: Path) -> dict[str, Any]:
         return run_real_benchmark_eval(
@@ -124,6 +150,7 @@ def _real_benchmark_eval_runner(
             benchmark_command_runner=benchmark_command_runner,
             max_workers=max_workers,
             python_executable=python_executable,
+            progress=progress,
         )
 
     return run
@@ -219,3 +246,8 @@ def _write_json(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
         encoding="utf-8",
     )
     return payload
+
+
+def _progress(progress: ProgressReporter | None, message: str) -> None:
+    if progress is not None:
+        progress(message)

@@ -227,6 +227,45 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertIn("error: invalid regatta config: boom", stderr.getvalue())
             self.assertNotIn("Traceback", stderr.getvalue())
 
+    def test_command_prints_progress_to_stderr_without_polluting_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            stdout = StringIO()
+            stderr = StringIO()
+
+            def fake_runner(**kwargs):
+                kwargs["progress"]("mock progress")
+                return {
+                    "schema": "yacht.real-benchmark-repetitions.v1",
+                    "status": "complete",
+                    "regatta": "pi-fff-comparison",
+                    "course": "swe-bench-lite",
+                }
+
+            with patch(
+                "yacht.cli.run_real_benchmark_repetitions",
+                side_effect=fake_runner,
+            ), redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "real-benchmark-repetitions",
+                        str(config_path),
+                        "--logbook",
+                        str(root / "series"),
+                        "--workspace",
+                        str(root),
+                        "--repetitions",
+                        "2",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["status"], "complete")
+            self.assertEqual(stderr.getvalue(), "yacht: mock progress\n")
+
 
 def _write_repetition_series(root: Path) -> Path:
     config_path = root / "regatta.toml"
