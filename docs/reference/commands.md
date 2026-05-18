@@ -25,8 +25,7 @@ uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smo
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook logbook \
   --workspace . \
-  --secret anthropic=@env:ANTHROPIC_API_KEY \
-  --python-executable "uv run --with swebench python"
+  --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht benchmark-status --logbook logbook
 uv run yacht benchmark-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook --vessel pi-container-fff
@@ -50,8 +49,7 @@ uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smo
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \
   --workspace . \
-  --secret anthropic=@env:ANTHROPIC_API_KEY \
-  --python-executable "uv run --with swebench python"
+  --secret anthropic=@env:ANTHROPIC_API_KEY
 
 uv run yacht benchmark-status --logbook "$LOGBOOK"
 uv run yacht benchmark-report --logbook "$LOGBOOK"
@@ -95,7 +93,7 @@ uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbo
 uv run yacht benchmark-plan --logbook logbook
 uv run yacht benchmark-readiness-report --logbook logbook
 uv run yacht readiness-gate --logbook logbook --output logbook/benchmark-readiness-summary.json
-uv run yacht benchmark-launcher --logbook logbook --max-workers 1 --python-executable "uv run --with swebench python"
+uv run yacht benchmark-launcher --logbook logbook --max-workers 1
 uv run yacht benchmark-launch --logbook logbook
 uv run yacht benchmark-collect-grading examples/pi-fff-provisioning.toml --logbook logbook
 uv run yacht benchmark-scorecard --logbook logbook
@@ -105,7 +103,10 @@ uv run yacht benchmark-report --logbook logbook
 
 The native benchmark harness owns task containers, test execution, and grading.
 YACHT owns the handoff, gates, launch records, normalized grading artifacts, and
-scorecards. `benchmark-report` includes comparison outcomes, usage metrics,
+scorecards. `benchmark-launcher` and `real-benchmark-eval` use
+`uv run --with swebench python` by default for SWE-bench launches; pass
+`--python-executable` only when using a different managed harness environment.
+`benchmark-report` includes comparison outcomes, usage metrics,
 per-task outcomes, and per-vessel artifact paths when task attempt data is
 available. Use `--vessel` and `--task` to narrow the detailed sections while
 keeping the full benchmark summary for context. Completed scorecards and
@@ -121,7 +122,7 @@ uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logb
 uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace . --format markdown
 uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace .
 uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --format markdown
-uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY --python-executable "uv run --with swebench python"
+uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
 uv run yacht benchmark-status --logbook logbook
 ```
 

@@ -61,8 +61,7 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
                     f"uv run yacht real-benchmark-eval {config_path} "
                     f"--logbook {logbook_dir} --workspace {workspace_path} "
                     "--secret anthropic=@env:ANTHROPIC_API_KEY "
-                    "--max-workers 1 "
-                    "--python-executable 'uv run --with swebench python'"
+                    "--max-workers 1"
                 ),
             )
             self.assertEqual(
@@ -183,6 +182,7 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             self.assertIn("### Commands", markdown)
             self.assertIn("```sh\nuv run yacht real-benchmark-eval", markdown)
             self.assertIn("--secret anthropic=@env:ANTHROPIC_API_KEY", markdown)
+            self.assertNotIn("--python-executable", markdown)
             self.assertIn("--vessel pi-plus-fff --task django__django-11099", markdown)
             self.assertIn("### Expected Artifacts", markdown)
             self.assertIn("logbook/preflight-evidence-report.json", markdown)
@@ -196,6 +196,40 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             )
             self.assertEqual(runbook["schema"], "yacht.real-benchmark-runbook.v1")
             self.assertEqual(runbook["regatta"], "pi-fff-comparison")
+
+    def test_real_benchmark_runbook_keeps_custom_python_executable_override(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            logbook_dir = root / "logbook"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            workspace_path.mkdir()
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "real-benchmark-runbook",
+                        str(config_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_path),
+                        "--python-executable",
+                        "custom python",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            runbook = json.loads(stdout.getvalue())
+            commands = {step["name"]: step["command"] for step in runbook["steps"]}
+            self.assertIn(
+                "--python-executable 'custom python'",
+                commands["real-benchmark-eval"],
+            )
 
     def test_real_benchmark_runbook_lists_small_task_set_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

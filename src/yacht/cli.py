@@ -9,6 +9,7 @@ from typing import Sequence
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.benchmark_grading_collection import collect_benchmark_grading_reports
 from yacht.benchmark_launch import write_benchmark_launch_result
+from yacht.benchmark_launcher_handoff import DEFAULT_SWEBENCH_PYTHON_EXECUTABLE
 from yacht.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.benchmark_readiness_report import render_benchmark_readiness_report
@@ -358,7 +359,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     benchmark_launcher_parser.add_argument(
         "--python-executable",
-        default="python",
+        default=DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
         help="Python executable prefix to include in generated SWE-bench commands.",
     )
 
@@ -645,7 +646,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     real_benchmark_eval_parser.add_argument(
         "--python-executable",
-        default="python",
+        default=DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
         help="Python executable prefix to include in generated SWE-bench commands.",
     )
 
@@ -706,7 +707,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     real_benchmark_runbook_parser.add_argument(
         "--python-executable",
-        default="uv run --with swebench python",
+        default=DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
         help="Python executable prefix to include in generated SWE-bench commands.",
     )
     real_benchmark_runbook_parser.add_argument(

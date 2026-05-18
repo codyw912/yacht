@@ -8,7 +8,10 @@ from typing import Any
 from yacht.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
 from yacht.benchmark_grading_collection import BENCHMARK_GRADING_COLLECTION_PATH
 from yacht.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
-from yacht.benchmark_launcher_handoff import BENCHMARK_LAUNCHER_HANDOFF_PATH
+from yacht.benchmark_launcher_handoff import (
+    BENCHMARK_LAUNCHER_HANDOFF_PATH,
+    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
+)
 from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.course_handoff import COURSE_HANDOFF_PATH
 from yacht.preflight_evidence_report import PREFLIGHT_EVIDENCE_REPORT_PATH
@@ -40,7 +43,7 @@ def write_real_benchmark_runbook(
     logbook_dir: Path,
     workspace_path: Path,
     max_workers: int = 1,
-    python_executable: str = "uv run --with swebench python",
+    python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
 ) -> dict[str, Any]:
     runbook = build_real_benchmark_runbook(
         config_path=config_path,
@@ -161,12 +164,15 @@ def _steps(
 ) -> list[dict[str, Any]]:
     secrets = " ".join(placeholder["argument"] for placeholder in secret_placeholders)
     secret_suffix = f" {secrets}" if secrets else ""
+    python_suffix = ""
+    if python_executable != DEFAULT_SWEBENCH_PYTHON_EXECUTABLE:
+        python_suffix = f" --python-executable {_quote_text(python_executable)}"
     benchmark_eval_command = (
         "uv run yacht real-benchmark-eval "
         f"{_quote(config_path)} --logbook {_quote(logbook_dir)} "
         f"--workspace {_quote(workspace_path)}{secret_suffix} "
-        f"--max-workers {max_workers} "
-        f"--python-executable {_quote_text(python_executable)}"
+        f"--max-workers {max_workers}"
+        f"{python_suffix}"
     )
     return [
         {

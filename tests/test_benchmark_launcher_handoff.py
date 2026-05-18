@@ -284,6 +284,8 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             self.assertEqual(payload["schema"], "yacht.benchmark-launcher-handoff.v1")
             self.assertEqual(payload["status"], "ready-to-launch")
             command = payload["comparisons"][0]["vessels"][0]["command"]
+            self.assertEqual(command[:4], ["uv", "run", "--with", "swebench"])
+            self.assertEqual(command[4], "python")
             self.assertIn("--max_workers", command)
             self.assertIn("3", command)
             self.assertTrue((logbook_dir / "benchmark-launcher-handoff.json").is_file())

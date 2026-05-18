@@ -188,6 +188,16 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             self.assertEqual(payload["course_handoff"]["status"], "planned")
             self.assertEqual(payload["preflight_evidence_report"]["status"], "ready")
             self.assertEqual(payload["scorecard"]["status"], "complete")
+            launcher_handoff = json.loads(
+                (logbook_dir / "benchmark-launcher-handoff.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            command = launcher_handoff["comparisons"][0]["vessels"][0]["command"]
+            self.assertEqual(
+                command[:5],
+                ["uv", "run", "--with", "swebench", "python"],
+            )
 
     def test_blocks_when_native_launch_writes_no_grading_reports(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -83,8 +83,7 @@ uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smo
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \
   --workspace . \
-  --secret anthropic=@env:ANTHROPIC_API_KEY \
-  --python-executable "uv run --with swebench python"
+  --secret anthropic=@env:ANTHROPIC_API_KEY
 
 uv run yacht benchmark-status --logbook "$LOGBOOK"
 uv run yacht benchmark-report --logbook "$LOGBOOK"
@@ -107,8 +106,7 @@ uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smo
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \
   --workspace . \
-  --secret anthropic=@env:ANTHROPIC_API_KEY \
-  --python-executable "uv run --with swebench python"
+  --secret anthropic=@env:ANTHROPIC_API_KEY
 
 uv run yacht benchmark-status --logbook "$LOGBOOK"
 uv run yacht benchmark-report --logbook "$LOGBOOK"

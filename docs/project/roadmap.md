@@ -13,8 +13,6 @@ Near-term slices:
 - Add `yacht doctor` for host prerequisites: Docker, runtime image,
   configured secrets, native SWE-bench harness, writable logbook paths, and
   basic network access.
-- Default the SWE-bench harness launcher to a working managed command such as
-  `uv run --with swebench python`, or model it explicitly in config.
 - Add a focused first benchmark runbook for
   `examples/container-pi-fff-real-benchmark-smoke.toml`.
 - Clean generated native harness files from the repo root by default and guide
