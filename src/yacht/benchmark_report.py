@@ -17,7 +17,13 @@ from yacht.swebench_artifacts import candidate_patches_path, grading_report_path
 from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 
-def render_benchmark_report(logbook_dir: Path, output_format: str = "text") -> str:
+def render_benchmark_report(
+    logbook_dir: Path,
+    output_format: str = "text",
+    *,
+    vessel_name: str | None = None,
+    task_id: str | None = None,
+) -> str:
     scorecard_path = logbook_dir / BENCHMARK_SCORECARD_PATH
     if not scorecard_path.exists():
         raise ConfigError(f"benchmark scorecard artifact not found: {scorecard_path}")
@@ -29,13 +35,22 @@ def render_benchmark_report(logbook_dir: Path, output_format: str = "text") -> s
             f"benchmark scorecard artifact is invalid: {error}"
         ) from error
     task_attempt_scorecard = _load_task_attempt_scorecard(logbook_dir)
+    _validate_filters(scorecard, vessel_name, task_id)
     if output_format == "markdown":
         return _render_scorecard_markdown(
             logbook_dir,
             scorecard,
             task_attempt_scorecard,
+            vessel_name,
+            task_id,
         )
-    return _render_scorecard(logbook_dir, scorecard, task_attempt_scorecard)
+    return _render_scorecard(
+        logbook_dir,
+        scorecard,
+        task_attempt_scorecard,
+        vessel_name,
+        task_id,
+    )
 
 
 def _load_scorecard(path: Path) -> dict[str, Any]:
@@ -70,6 +85,8 @@ def _render_scorecard(
     logbook_dir: Path,
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any] | None,
+    vessel_name: str | None,
+    task_id: str | None,
 ) -> str:
     summary = scorecard["summary"]
     lines = [
@@ -82,18 +99,32 @@ def _render_scorecard(
         f"Missing: {summary['missing_result_vessels']}",
         _usage_summary_line(task_attempt_scorecard),
         _artifact_line(logbook_dir),
-        "",
-        "comparison | baseline | challenger | resolved_delta | rate_delta | "
-        "measured | missing | eligible | preflight",
     ]
+    lines.extend(_filter_lines(vessel_name, task_id))
+    lines.extend(
+        [
+            "",
+            "comparison | baseline | challenger | resolved_delta | rate_delta | "
+            "measured | missing | eligible | preflight",
+        ]
+    )
     lines.extend(_comparison_row(comparison) for comparison in scorecard["comparisons"])
-    lines.extend(_outcome_lines(scorecard))
+    lines.extend(_outcome_lines(scorecard, vessel_name, task_id))
     if task_attempt_scorecard is not None:
-        lines.extend(_usage_lines(task_attempt_scorecard))
+        lines.extend(
+            _usage_lines(
+                task_attempt_scorecard,
+                scorecard,
+                vessel_name,
+                task_id,
+            )
+        )
         lines.extend(
             _task_outcome_lines(
                 scorecard,
                 task_attempt_scorecard,
+                vessel_name,
+                task_id,
             )
         )
         lines.extend(
@@ -102,6 +133,8 @@ def _render_scorecard(
                 scorecard,
                 task_attempt_scorecard,
                 _load_grading_collection(logbook_dir),
+                vessel_name,
+                task_id,
             )
         )
     return "\n".join(lines) + "\n"
@@ -111,6 +144,8 @@ def _render_scorecard_markdown(
     logbook_dir: Path,
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any] | None,
+    vessel_name: str | None,
+    task_id: str | None,
 ) -> str:
     summary = scorecard["summary"]
     lines = [
@@ -124,6 +159,7 @@ def _render_scorecard_markdown(
         f"- Measured: {summary['measured_vessels']}",
         f"- Missing: {summary['missing_result_vessels']}",
         *_usage_summary_markdown_lines(task_attempt_scorecard),
+        *_filter_markdown_lines(vessel_name, task_id),
         "",
         "## Artifacts",
         "",
@@ -140,13 +176,22 @@ def _render_scorecard_markdown(
     lines.extend(
         _comparison_markdown_row(comparison) for comparison in scorecard["comparisons"]
     )
-    lines.extend(_outcome_markdown_lines(scorecard))
+    lines.extend(_outcome_markdown_lines(scorecard, vessel_name, task_id))
     if task_attempt_scorecard is not None:
-        lines.extend(_usage_markdown_lines(task_attempt_scorecard))
+        lines.extend(
+            _usage_markdown_lines(
+                task_attempt_scorecard,
+                scorecard,
+                vessel_name,
+                task_id,
+            )
+        )
         lines.extend(
             _task_outcome_markdown_lines(
                 scorecard,
                 task_attempt_scorecard,
+                vessel_name,
+                task_id,
             )
         )
         lines.extend(
@@ -155,6 +200,8 @@ def _render_scorecard_markdown(
                 scorecard,
                 task_attempt_scorecard,
                 _load_grading_collection(logbook_dir),
+                vessel_name,
+                task_id,
             )
         )
     return "\n".join(lines) + "\n"
@@ -165,6 +212,57 @@ def _load_grading_collection(logbook_dir: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     return _load_json(path, "benchmark grading collection artifact")
+
+
+def _validate_filters(
+    scorecard: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
+) -> None:
+    if vessel_name is not None and not any(
+        str(vessel["name"]) == vessel_name for _, vessel in _vessels(scorecard)
+    ):
+        raise ConfigError(
+            f"benchmark report vessel filter matched no vessel: {vessel_name}"
+        )
+    if task_id is not None and not any(
+        _vessel_has_task(vessel, task_id) for _, vessel in _vessels(scorecard)
+    ):
+        raise ConfigError(f"benchmark report task filter matched no task: {task_id}")
+    if vessel_name is not None and task_id is not None and not any(
+        _matches_filters(vessel, vessel_name, task_id)
+        for _, vessel in _vessels(scorecard)
+    ):
+        raise ConfigError(
+            "benchmark report filters matched no vessel/task pair: "
+            f"{vessel_name} / {task_id}"
+        )
+
+
+def _filter_lines(vessel_name: str | None, task_id: str | None) -> list[str]:
+    parts = _filter_parts(vessel_name, task_id)
+    if not parts:
+        return []
+    return [f"Filter: {' | '.join(parts)}"]
+
+
+def _filter_markdown_lines(
+    vessel_name: str | None,
+    task_id: str | None,
+) -> list[str]:
+    parts = _filter_parts(vessel_name, task_id)
+    if not parts:
+        return []
+    return [f"- Filter: {' | '.join(parts)}"]
+
+
+def _filter_parts(vessel_name: str | None, task_id: str | None) -> list[str]:
+    parts = []
+    if vessel_name is not None:
+        parts.append(f"vessel={vessel_name}")
+    if task_id is not None:
+        parts.append(f"task={task_id}")
+    return parts
 
 
 def _comparison_row(comparison: dict[str, Any]) -> str:
@@ -215,7 +313,11 @@ def _preflight_reasons(comparison: dict[str, Any]) -> str:
     return ", ".join(f"{reason}:{count}" for reason, count in counts.items())
 
 
-def _outcome_lines(scorecard: dict[str, Any]) -> list[str]:
+def _outcome_lines(
+    scorecard: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
+) -> list[str]:
     lines = [
         "",
         "Benchmark outcomes by vessel:",
@@ -223,12 +325,16 @@ def _outcome_lines(scorecard: dict[str, Any]) -> list[str]:
     ]
     lines.extend(
         _outcome_row(comparison, vessel)
-        for comparison, vessel in _vessels(scorecard)
+        for comparison, vessel in _filtered_vessels(scorecard, vessel_name, task_id)
     )
     return lines
 
 
-def _outcome_markdown_lines(scorecard: dict[str, Any]) -> list[str]:
+def _outcome_markdown_lines(
+    scorecard: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
+) -> list[str]:
     lines = [
         "",
         "## Benchmark outcomes by vessel",
@@ -238,7 +344,7 @@ def _outcome_markdown_lines(scorecard: dict[str, Any]) -> list[str]:
     ]
     lines.extend(
         f"| {_outcome_row(comparison, vessel)} |"
-        for comparison, vessel in _vessels(scorecard)
+        for comparison, vessel in _filtered_vessels(scorecard, vessel_name, task_id)
     )
     return lines
 
@@ -248,6 +354,41 @@ def _vessels(scorecard: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, 
         (comparison, vessel)
         for comparison in scorecard["comparisons"]
         for vessel in comparison["vessels"]
+    ]
+
+
+def _filtered_vessels(
+    scorecard: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    return [
+        (comparison, vessel)
+        for comparison, vessel in _vessels(scorecard)
+        if _matches_filters(vessel, vessel_name, task_id)
+    ]
+
+
+def _matches_filters(
+    vessel: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
+) -> bool:
+    if vessel_name is not None and str(vessel["name"]) != vessel_name:
+        return False
+    if task_id is not None and not _vessel_has_task(vessel, task_id):
+        return False
+    return True
+
+
+def _vessel_has_task(vessel: dict[str, Any], task_id: str) -> bool:
+    return task_id in {str(value) for value in _task_ids(vessel)}
+
+
+def _task_ids(vessel: dict[str, Any]) -> list[Any]:
+    return [
+        *vessel.get("resolved_ids", []),
+        *vessel.get("unresolved_ids", []),
     ]
 
 
@@ -263,7 +404,12 @@ def _outcome_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
     )
 
 
-def _usage_lines(scorecard: dict[str, Any]) -> list[str]:
+def _usage_lines(
+    scorecard: dict[str, Any],
+    benchmark_scorecard: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
+) -> list[str]:
     lines = [
         "",
         "Agent usage by vessel:",
@@ -271,22 +417,38 @@ def _usage_lines(scorecard: dict[str, Any]) -> list[str]:
     ]
     lines.extend(
         _usage_row(comparison, vessel)
-        for comparison, vessel in _usage_vessels(scorecard)
+        for comparison, vessel in _usage_vessels(
+            scorecard,
+            benchmark_scorecard,
+            vessel_name,
+            task_id,
+        )
     )
     return lines
 
 
-def _usage_markdown_lines(scorecard: dict[str, Any]) -> list[str]:
+def _usage_markdown_lines(
+    scorecard: dict[str, Any],
+    benchmark_scorecard: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
+) -> list[str]:
     lines = [
         "",
         "## Agent usage by vessel",
         "",
-        "| Comparison | Vessel | Attempts | Failed | Tools | Tokens | Cost | Duration |",
+        "| Comparison | Vessel | Attempts | Failed | Tools | Tokens | Cost | "
+        "Duration |",
         "| --- | --- | ---: | ---: | --- | ---: | ---: | ---: |",
     ]
     lines.extend(
         f"| {_usage_row(comparison, vessel)} |"
-        for comparison, vessel in _usage_vessels(scorecard)
+        for comparison, vessel in _usage_vessels(
+            scorecard,
+            benchmark_scorecard,
+            vessel_name,
+            task_id,
+        )
     )
     return lines
 
@@ -332,8 +494,23 @@ def _artifact_line(logbook_dir: Path) -> str:
 
 def _usage_vessels(
     scorecard: dict[str, Any],
+    benchmark_scorecard: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    return _vessels(scorecard)
+    benchmark_vessels = {
+        (str(comparison["name"]), str(vessel["name"])): vessel
+        for comparison, vessel in _vessels(benchmark_scorecard)
+    }
+    return [
+        (comparison, vessel)
+        for comparison, vessel in _vessels(scorecard)
+        if _matches_filters(
+            benchmark_vessels[(str(comparison["name"]), str(vessel["name"]))],
+            vessel_name,
+            task_id,
+        )
+    ]
 
 
 def _usage_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
@@ -352,6 +529,8 @@ def _usage_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
 def _task_outcome_lines(
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
 ) -> list[str]:
     lines = [
         "",
@@ -360,7 +539,12 @@ def _task_outcome_lines(
     ]
     lines.extend(
         _task_outcome_row(row)
-        for row in _task_outcome_rows(scorecard, task_attempt_scorecard)
+        for row in _task_outcome_rows(
+            scorecard,
+            task_attempt_scorecard,
+            vessel_name,
+            task_id,
+        )
     )
     return lines
 
@@ -368,6 +552,8 @@ def _task_outcome_lines(
 def _task_outcome_markdown_lines(
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any],
+    vessel_name: str | None,
+    task_id: str | None,
 ) -> list[str]:
     lines = [
         "",
@@ -378,7 +564,12 @@ def _task_outcome_markdown_lines(
     ]
     lines.extend(
         f"| {_task_outcome_row(row)} |"
-        for row in _task_outcome_rows(scorecard, task_attempt_scorecard)
+        for row in _task_outcome_rows(
+            scorecard,
+            task_attempt_scorecard,
+            vessel_name,
+            task_id,
+        )
     )
     return lines
 
@@ -386,10 +577,12 @@ def _task_outcome_markdown_lines(
 def _task_outcome_rows(
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any],
+    vessel_name: str | None,
+    filter_task_id: str | None,
 ) -> list[dict[str, str]]:
     attempts_by_vessel = _attempt_artifacts_by_vessel(task_attempt_scorecard)
     rows = []
-    for comparison, vessel in _vessels(scorecard):
+    for comparison, vessel in _filtered_vessels(scorecard, vessel_name, filter_task_id):
         task_results = _task_results(vessel)
         if not task_results:
             rows.append(
@@ -407,18 +600,20 @@ def _task_outcome_rows(
                 }
             )
             continue
-        for task_id, result in task_results:
+        for result_task_id, result in task_results:
+            if filter_task_id is not None and result_task_id != filter_task_id:
+                continue
             rows.append(
                 {
                     "comparison": str(comparison["name"]),
                     "vessel": str(vessel["name"]),
-                    "task": task_id,
+                    "task": result_task_id,
                     "result": result,
                     "attempt_artifact": _attempt_artifact(
                         attempts_by_vessel,
                         str(comparison["name"]),
                         str(vessel["name"]),
-                        task_id,
+                        result_task_id,
                     ),
                 }
             )
@@ -426,7 +621,9 @@ def _task_outcome_rows(
 
 
 def _task_results(vessel: dict[str, Any]) -> list[tuple[str, str]]:
-    resolved = [(str(task_id), "resolved") for task_id in vessel.get("resolved_ids", [])]
+    resolved = [
+        (str(task_id), "resolved") for task_id in vessel.get("resolved_ids", [])
+    ]
     unresolved = [
         (str(task_id), "unresolved") for task_id in vessel.get("unresolved_ids", [])
     ]
@@ -448,6 +645,8 @@ def _artifact_drilldown_lines(
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any],
     grading_collection: dict[str, Any] | None,
+    vessel_name: str | None,
+    task_id: str | None,
 ) -> list[str]:
     lines = [
         "",
@@ -461,6 +660,8 @@ def _artifact_drilldown_lines(
             scorecard,
             task_attempt_scorecard,
             grading_collection,
+            vessel_name,
+            task_id,
         )
     )
     return lines
@@ -471,6 +672,8 @@ def _artifact_drilldown_markdown_lines(
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any],
     grading_collection: dict[str, Any] | None,
+    vessel_name: str | None,
+    task_id: str | None,
 ) -> list[str]:
     lines = [
         "",
@@ -486,6 +689,8 @@ def _artifact_drilldown_markdown_lines(
             scorecard,
             task_attempt_scorecard,
             grading_collection,
+            vessel_name,
+            task_id,
         )
     )
     return lines
@@ -496,40 +701,40 @@ def _artifact_drilldown_rows(
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any],
     grading_collection: dict[str, Any] | None,
+    vessel_name: str | None,
+    task_id: str | None,
 ) -> list[dict[str, str]]:
     attempts_by_vessel = _attempt_artifacts_by_vessel(task_attempt_scorecard)
     grading_by_vessel = _grading_artifacts_by_vessel(grading_collection)
     rows = []
-    for comparison, vessel in _vessels(scorecard):
-        vessel_name = str(vessel["name"])
+    for comparison, vessel in _filtered_vessels(scorecard, vessel_name, task_id):
+        filtered_vessel_name = str(vessel["name"])
         comparison_name = str(comparison["name"])
+        grading_artifacts = grading_by_vessel.get(filtered_vessel_name, {})
         rows.extend(
             _artifact_rows(
                 comparison_name=comparison_name,
-                vessel_name=vessel_name,
+                vessel_name=filtered_vessel_name,
                 artifacts={
                     "preflight": str(vessel["preflight_artifact_path"]),
                     "attempts": _attempt_artifact(
                         attempts_by_vessel,
                         comparison_name,
-                        vessel_name,
-                        None,
+                        filtered_vessel_name,
+                        task_id,
                     ),
                     "candidate_patches": _candidate_patches_artifact(
                         logbook_dir,
                         scorecard,
-                        vessel_name,
+                        filtered_vessel_name,
                     ),
                     "grading_report": _grading_report_artifact(
                         logbook_dir,
                         scorecard,
-                        vessel_name,
+                        filtered_vessel_name,
                         grading_by_vessel,
                     ),
-                    "native_report": grading_by_vessel.get(vessel_name, {}).get(
-                        "native_report",
-                        "-",
-                    ),
+                    "native_report": grading_artifacts.get("native_report", "-"),
                 },
             )
         )

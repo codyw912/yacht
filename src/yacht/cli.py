@@ -256,6 +256,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format for the rendered benchmark report.",
     )
     benchmark_report_parser.add_argument(
+        "--vessel",
+        help="Only show per-vessel details for this vessel name.",
+    )
+    benchmark_report_parser.add_argument(
+        "--task",
+        help="Only show per-vessel details for this benchmark task id.",
+    )
+    benchmark_report_parser.add_argument(
         "--output",
         type=Path,
         help="Optional path to write the rendered benchmark report.",
@@ -841,7 +849,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "benchmark-report":
         try:
-            report = render_benchmark_report(args.logbook, args.format)
+            report = render_benchmark_report(
+                args.logbook,
+                args.format,
+                vessel_name=args.vessel,
+                task_id=args.task,
+            )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1

@@ -88,6 +88,7 @@ uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.
 
 uv run yacht benchmark-status --logbook "$LOGBOOK"
 uv run yacht benchmark-report --logbook "$LOGBOOK"
+uv run yacht benchmark-report --logbook "$LOGBOOK" --vessel pi-container-fff
 ```
 
 Fish shell:
@@ -113,6 +114,8 @@ The status report is the first thing to inspect after a run. It shows which
 benchmark artifacts exist, what is missing, and the next recommended command.
 The benchmark report then summarizes benchmark outcome, agent usage metrics,
 per-task outcomes, and the relevant per-vessel artifact paths.
+Use `--vessel` and `--task` to narrow the detailed sections when inspecting a
+specific run.
 For example:
 
 ```text
