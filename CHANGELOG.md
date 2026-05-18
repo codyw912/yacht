@@ -8,6 +8,8 @@
   child logbooks and persist an aggregate summary.
 - Added `benchmark-status` and `benchmark-report` support for repeated-run parent
   logbooks.
+- Fixed agent-prompt preflight JSON extraction when agents wrap the required
+  JSON object in a Markdown fence with surrounding text.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

@@ -395,7 +395,7 @@ def _agent_response_contract(response: str) -> AgentResponseContract:
 
 
 def parse_agent_response_json(response: str) -> dict[str, object] | None:
-    for candidate in (response, _markdown_fenced_body(response)):
+    for candidate in (response, _markdown_fenced_body(response), *_fenced_bodies(response)):
         if candidate is None:
             continue
         try:
@@ -414,6 +414,24 @@ def _markdown_fenced_body(response: str) -> str | None:
     if not lines[0].startswith("```") or lines[-1] != "```":
         return None
     return "\n".join(lines[1:-1])
+
+
+def _fenced_bodies(response: str) -> list[str]:
+    bodies = []
+    lines = response.splitlines()
+    index = 0
+    while index < len(lines):
+        if not lines[index].startswith("```"):
+            index += 1
+            continue
+        start = index + 1
+        index = start
+        while index < len(lines) and lines[index] != "```":
+            index += 1
+        if index < len(lines):
+            bodies.append("\n".join(lines[start:index]))
+        index += 1
+    return bodies
 
 
 def _is_under(parent: Path, child: Path) -> bool:
