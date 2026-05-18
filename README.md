@@ -161,6 +161,7 @@ provider credentials.
 - [Command reference](docs/reference/commands.md)
 - [Schema contract](docs/reference/schemas.md)
 - [Architecture decisions](docs/adr/)
+- [Changelog](CHANGELOG.md)
 
 ## Design Principles
 
