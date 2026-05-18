@@ -1,0 +1,217 @@
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from yacht.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
+from yacht.benchmark_aggregate import build_benchmark_aggregate
+from yacht.benchmark_launch import CommandRunner
+from yacht.benchmark_launcher_handoff import DEFAULT_SWEBENCH_PYTHON_EXECUTABLE
+from yacht.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
+from yacht.next_steps import command_step
+from yacht.preflight_runner import AgentPromptRunnerFactory
+from yacht.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
+from yacht.real_benchmark_eval import run_real_benchmark_eval
+from yacht.regatta import ConfigError, load_regatta
+from yacht.task_attempt_runner import TaskAgent
+
+
+REAL_BENCHMARK_REPETITIONS_SCHEMA = "yacht.real-benchmark-repetitions.v1"
+REAL_BENCHMARK_REPETITIONS_PATH = Path("real-benchmark-repetitions.json")
+REPETITION_RUNS_DIR = Path("runs")
+
+EvalRunner = Callable[[Path], dict[str, Any]]
+
+
+def run_real_benchmark_repetitions(
+    *,
+    config_path: Path,
+    logbook_dir: Path,
+    workspace_path: Path,
+    secret_values: dict[str, str],
+    repetitions: int,
+    agent_prompt_runner_factory: AgentPromptRunnerFactory | None = None,
+    task_agent: TaskAgent | None = None,
+    benchmark_command_runner: CommandRunner | None = None,
+    max_workers: int = 1,
+    python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
+    eval_runner: EvalRunner | None = None,
+) -> dict[str, Any]:
+    if repetitions < 1:
+        raise ConfigError("real benchmark repetitions must be at least 1")
+    regatta = load_regatta(config_path)
+    if eval_runner is None:
+        if agent_prompt_runner_factory is None or task_agent is None:
+            raise ConfigError(
+                "real benchmark repetitions require an agent prompt runner and task agent"
+            )
+        eval_runner = _real_benchmark_eval_runner(
+            config_path=config_path,
+            workspace_path=workspace_path,
+            secret_values=secret_values,
+            agent_prompt_runner_factory=agent_prompt_runner_factory,
+            task_agent=task_agent,
+            benchmark_command_runner=benchmark_command_runner,
+            max_workers=max_workers,
+            python_executable=python_executable,
+        )
+
+    runs = []
+    aggregate_logbooks = []
+    for index in range(1, repetitions + 1):
+        child_logbook = logbook_dir / REPETITION_RUNS_DIR / f"run-{index:03d}"
+        if child_logbook.exists():
+            raise ConfigError(
+                f"repetition child logbook already exists: {child_logbook}"
+            )
+        run_summary = eval_runner(child_logbook)
+        scorecard_path = child_logbook / BENCHMARK_SCORECARD_PATH
+        scorecard_present = scorecard_path.is_file()
+        if scorecard_present:
+            aggregate_logbooks.append(child_logbook)
+        runs.append(
+            {
+                "index": index,
+                "logbook": str(child_logbook),
+                "status": str(run_summary.get("status", "unknown")),
+                "scorecard_present": scorecard_present,
+                "artifacts": {
+                    "real_benchmark_eval": str(
+                        child_logbook / REAL_BENCHMARK_EVAL_PATH
+                    ),
+                    "benchmark_scorecard": str(scorecard_path),
+                },
+            }
+        )
+
+    aggregate = None
+    if aggregate_logbooks:
+        aggregate = build_benchmark_aggregate(aggregate_logbooks)
+        _write_json(logbook_dir / BENCHMARK_AGGREGATE_PATH, aggregate)
+
+    summary = _summary(
+        regatta=regatta.name,
+        course=regatta.course.name,
+        logbook_dir=logbook_dir,
+        repetitions=repetitions,
+        runs=runs,
+        aggregate=aggregate,
+    )
+    return _write_json(logbook_dir / REAL_BENCHMARK_REPETITIONS_PATH, summary)
+
+
+def _real_benchmark_eval_runner(
+    *,
+    config_path: Path,
+    workspace_path: Path,
+    secret_values: dict[str, str],
+    agent_prompt_runner_factory: AgentPromptRunnerFactory,
+    task_agent: TaskAgent,
+    benchmark_command_runner: CommandRunner | None,
+    max_workers: int,
+    python_executable: str,
+) -> EvalRunner:
+    def run(child_logbook: Path) -> dict[str, Any]:
+        return run_real_benchmark_eval(
+            config_path=config_path,
+            logbook_dir=child_logbook,
+            workspace_path=workspace_path,
+            secret_values=secret_values,
+            agent_prompt_runner_factory=agent_prompt_runner_factory,
+            task_agent=task_agent,
+            benchmark_command_runner=benchmark_command_runner,
+            max_workers=max_workers,
+            python_executable=python_executable,
+        )
+
+    return run
+
+
+def _summary(
+    *,
+    regatta: str,
+    course: str,
+    logbook_dir: Path,
+    repetitions: int,
+    runs: list[dict[str, Any]],
+    aggregate: dict[str, Any] | None,
+) -> dict[str, Any]:
+    completed_runs = sum(1 for run in runs if run["scorecard_present"])
+    failed_runs = repetitions - completed_runs
+    status = "complete"
+    if completed_runs == 0:
+        status = "blocked"
+    elif failed_runs:
+        status = "partial"
+    summary: dict[str, Any] = {
+        "schema": REAL_BENCHMARK_REPETITIONS_SCHEMA,
+        "status": status,
+        "regatta": regatta,
+        "course": course,
+        "summary": {
+            "repetitions": repetitions,
+            "completed_runs": completed_runs,
+            "failed_runs": failed_runs,
+            "aggregate_logbooks": completed_runs,
+        },
+        "runs": runs,
+        "artifacts": {
+            "logbook": str(logbook_dir),
+            "real_benchmark_repetitions": str(
+                logbook_dir / REAL_BENCHMARK_REPETITIONS_PATH
+            ),
+            "benchmark_aggregate": str(logbook_dir / BENCHMARK_AGGREGATE_PATH),
+        },
+        "next_steps": _next_steps(logbook_dir, runs),
+    }
+    if aggregate is not None:
+        summary["aggregate"] = aggregate
+    return summary
+
+
+def _next_steps(logbook_dir: Path, runs: list[dict[str, Any]]) -> list[dict[str, object]]:
+    aggregate_logbooks = [
+        str(run["logbook"]) for run in runs if bool(run["scorecard_present"])
+    ]
+    if not aggregate_logbooks:
+        return [
+            command_step(
+                label="Inspect child benchmark runs",
+                reason=(
+                    "No repetition produced a benchmark scorecard. Inspect the "
+                    "child logbooks to find the first blocked stage."
+                ),
+                command=[
+                    "uv",
+                    "run",
+                    "yacht",
+                    "benchmark-status",
+                    "--logbook",
+                    str(runs[0]["logbook"]),
+                ],
+            )
+        ]
+    command = ["uv", "run", "yacht", "benchmark-aggregate"]
+    for child_logbook in aggregate_logbooks:
+        command.extend(["--logbook", child_logbook])
+    return [
+        command_step(
+            label="Render aggregate benchmark report",
+            reason=(
+                "At least one repetition produced a benchmark scorecard; render "
+                "the aggregate deltas and usage across completed runs."
+            ),
+            command=command,
+        )
+    ]
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return payload

@@ -26,6 +26,11 @@ uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.
   --logbook logbook \
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY
+uv run yacht real-benchmark-repetitions examples/container-pi-fff-real-benchmark-smoke.toml \
+  --logbook benchmark-series \
+  --workspace . \
+  --secret anthropic=@env:ANTHROPIC_API_KEY \
+  --repetitions 3
 uv run yacht benchmark-status --logbook logbook
 uv run yacht benchmark-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook --vessel pi-container-fff
@@ -127,6 +132,7 @@ uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logb
 uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace .
 uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --format markdown
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
+uv run yacht real-benchmark-repetitions examples/container-pi-fff-real-benchmark-smoke.toml --logbook benchmark-series --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY --repetitions 3
 uv run yacht benchmark-status --logbook logbook
 uv run yacht benchmark-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
@@ -137,5 +143,9 @@ expected artifacts before spending benchmark tokens.
 `real-benchmark-eval` is the current end-to-end benchmark path: preflight,
 task attempts, candidate patch extraction, runtime snapshots, readiness,
 native launch, grading collection, scorecard, and top-level summary.
+`real-benchmark-repetitions` runs that same path sequentially into
+`runs/run-001`, `runs/run-002`, and so on under a parent logbook, then writes
+`real-benchmark-repetitions.json` and `benchmark-aggregate.json` for completed
+child runs.
 `benchmark-status` is the quick inspection command to run after the workflow; it
 prints artifact presence, artifact statuses, and the next recommended command.
