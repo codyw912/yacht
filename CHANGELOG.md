@@ -18,6 +18,8 @@
   logbooks when at least one child run completes.
 - Added timestamped default logbooks for `real-benchmark-repetitions` when
   `--logbook` is omitted.
+- Compacted `real-benchmark-repetitions` output by replacing the embedded full
+  aggregate with a smaller aggregate summary and artifact paths.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

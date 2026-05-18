@@ -203,8 +203,36 @@ def _summary(
         "next_steps": _next_steps(logbook_dir, runs),
     }
     if aggregate is not None:
-        summary["aggregate"] = aggregate
+        summary["aggregate_summary"] = _aggregate_summary(aggregate)
     return summary
+
+
+def _aggregate_summary(aggregate: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_count": aggregate["run_count"],
+        "comparisons": [
+            {
+                "name": comparison["name"],
+                "baseline": comparison["baseline"],
+                "challenger": comparison["challenger"],
+                "delta": comparison["delta"],
+                "vessels": [
+                    {
+                        "name": vessel["name"],
+                        "submitted_instances": vessel["submitted_instances"],
+                        "resolved_instances": vessel["resolved_instances"],
+                        "resolution_rate": vessel["resolution_rate"],
+                        "total_tokens": vessel["total_tokens"],
+                        "total_cost": vessel["total_cost"],
+                        "total_duration_seconds": vessel["total_duration_seconds"],
+                        "total_tool_calls": vessel["total_tool_calls"],
+                    }
+                    for vessel in comparison["vessels"]
+                ],
+            }
+            for comparison in aggregate["comparisons"]
+        ],
+    }
 
 
 def _next_steps(logbook_dir: Path, runs: list[dict[str, Any]]) -> list[dict[str, object]]:
