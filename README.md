@@ -159,6 +159,7 @@ provider credentials.
 - [Project vision](docs/project/vision.md)
 - [Roadmap](docs/project/roadmap.md)
 - [Command reference](docs/reference/commands.md)
+- [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)
 - [Architecture decisions](docs/adr/)
 - [Changelog](CHANGELOG.md)

@@ -8,7 +8,8 @@ Run the same checks that CI runs:
 uv sync --locked
 uv run --locked -m unittest discover -s tests
 uv run --locked -m compileall src tests
-uv run --locked yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-logbook-local
+uv run --locked yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
+uv run --locked yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook /tmp/yacht-runbook-local --workspace . --format markdown
 ```
 
 ## PR Workflow
