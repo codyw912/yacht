@@ -328,6 +328,10 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "grading="
                         f"{logbook_dir / 'benchmark-grading-collection.json'}",
                         "",
+                        "Notable deltas:",
+                        "pi-vs-pi-fff: pi-plus-fff vs pi-baseline | resolved +1 | "
+                        "rate +1.000",
+                        "",
                         "comparison | baseline | challenger | resolved_delta | "
                         "rate_delta | measured | missing | eligible | preflight",
                         "pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +1.000 | "
@@ -378,6 +382,11 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "- Missing: 0",
                         "- Usage: unavailable (missing task-attempt-scorecard.json)",
                         "",
+                        "## Notable deltas",
+                        "",
+                        "- pi-vs-pi-fff: pi-plus-fff vs pi-baseline | resolved +1 | "
+                        "rate +1.000",
+                        "",
                         "## Artifacts",
                         "",
                         f"- Logbook: {logbook_dir}",
@@ -426,6 +435,12 @@ class BenchmarkScorecardTests(unittest.TestCase):
             self.assertIn(
                 "Usage: Attempts: 2 | Failed: 0 | Tool calls: 7 | "
                 "Tokens: 15643 | Cost: 0.010336 | Duration: 12.500s",
+                stdout.getvalue(),
+            )
+            self.assertIn(
+                "pi-vs-pi-fff: pi-plus-fff vs pi-baseline | resolved +1 | "
+                "rate +1.000 | tokens -3141 | cost -0.001310 | "
+                "duration -2.000s | tool_calls +1",
                 stdout.getvalue(),
             )
             self.assertIn("Agent usage by vessel:", stdout.getvalue())
@@ -757,6 +772,11 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "- Measured: 2",
                         "- Missing: 0",
                         "- Usage: unavailable (missing task-attempt-scorecard.json)",
+                        "",
+                        "## Notable deltas",
+                        "",
+                        "- pi-vs-pi-fff: pi-plus-fff vs pi-baseline | resolved +1 | "
+                        "rate +1.000",
                         "",
                         "## Artifacts",
                         "",

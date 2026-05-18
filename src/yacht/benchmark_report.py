@@ -102,6 +102,7 @@ def _render_scorecard(
         _artifact_line(logbook_dir),
     ]
     lines.extend(_filter_lines(vessel_name, task_id))
+    lines.extend(_notable_delta_lines(scorecard, task_attempt_scorecard))
     lines.extend(
         [
             "",
@@ -162,6 +163,10 @@ def _render_scorecard_markdown(
         f"- Missing: {summary['missing_result_vessels']}",
         *_usage_summary_markdown_lines(task_attempt_scorecard),
         *_filter_markdown_lines(vessel_name, task_id),
+        "",
+        "## Notable deltas",
+        "",
+        *_notable_delta_markdown_lines(scorecard, task_attempt_scorecard),
         "",
         "## Artifacts",
         "",
@@ -268,6 +273,88 @@ def _filter_parts(vessel_name: str | None, task_id: str | None) -> list[str]:
     return parts
 
 
+def _notable_delta_lines(
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any] | None,
+) -> list[str]:
+    return [
+        "",
+        "Notable deltas:",
+        *[
+            _notable_delta_row(comparison, task_attempt_scorecard)
+            for comparison in scorecard["comparisons"]
+        ],
+    ]
+
+
+def _notable_delta_markdown_lines(
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any] | None,
+) -> list[str]:
+    return [
+        f"- {_notable_delta_row(comparison, task_attempt_scorecard)}"
+        for comparison in scorecard["comparisons"]
+    ]
+
+
+def _notable_delta_row(
+    comparison: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any] | None,
+) -> str:
+    delta = comparison["delta"]
+    baseline_name = str(delta["baseline_vessel"])
+    challenger_name = str(delta["challenger_vessel"])
+    parts = [
+        f"{comparison['name']}: {challenger_name} vs {baseline_name}",
+        f"resolved {_signed_int(delta['resolved_instances_delta'])}",
+        f"rate {_signed_float(delta['resolution_rate_delta'])}",
+    ]
+    usage_delta = _usage_delta(
+        task_attempt_scorecard,
+        comparison_name=str(comparison["name"]),
+        baseline_name=baseline_name,
+        challenger_name=challenger_name,
+    )
+    if usage_delta is not None:
+        parts.extend(
+            [
+                f"tokens {_signed_int(usage_delta['tokens'])}",
+                f"cost {_signed_cost(usage_delta['cost'])}",
+                f"duration {_signed_duration(usage_delta['duration'])}",
+                f"tool_calls {_signed_int(usage_delta['tool_calls'])}",
+            ]
+        )
+    return " | ".join(parts)
+
+
+def _usage_delta(
+    task_attempt_scorecard: dict[str, Any] | None,
+    *,
+    comparison_name: str,
+    baseline_name: str,
+    challenger_name: str,
+) -> dict[str, int | float] | None:
+    if task_attempt_scorecard is None:
+        return None
+    usage = {
+        (str(comparison["name"]), str(vessel["name"])): vessel
+        for comparison in task_attempt_scorecard["comparisons"]
+        for vessel in comparison["vessels"]
+    }
+    baseline = usage.get((comparison_name, baseline_name))
+    challenger = usage.get((comparison_name, challenger_name))
+    if baseline is None or challenger is None:
+        return None
+    return {
+        "tokens": int(challenger["total_tokens"]) - int(baseline["total_tokens"]),
+        "cost": float(challenger["total_cost"]) - float(baseline["total_cost"]),
+        "duration": float(challenger["total_duration_seconds"])
+        - float(baseline["total_duration_seconds"]),
+        "tool_calls": int(challenger["tool_call_count"])
+        - int(baseline["tool_call_count"]),
+    }
+
+
 def _comparison_row(comparison: dict[str, Any]) -> str:
     delta = comparison["delta"]
     summary = comparison["summary"]
@@ -306,6 +393,14 @@ def _signed_int(value: int) -> str:
 
 def _signed_float(value: float) -> str:
     return f"{value:+.3f}"
+
+
+def _signed_cost(value: float) -> str:
+    return f"{value:+.6f}"
+
+
+def _signed_duration(value: float) -> str:
+    return f"{value:+.3f}s"
 
 
 def _preflight_reasons(comparison: dict[str, Any]) -> str:
