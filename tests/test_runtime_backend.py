@@ -242,9 +242,10 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
 
     def test_prepare_rejects_non_host_nix_runtime_recipe(self) -> None:
         config = PI_WITH_FFF_CONFIG.replace(
-            'backend = "host-nix"\nflake = "path:.#pi"',
+            'backend = "host-nix"\nagent = "pi"\nflake = "path:.#pi"',
             (
                 'backend = "container"\n'
+                'agent = "pi"\n'
                 'image = "yacht/pi-agent-runtime:pi-0.74.0"'
             ),
         )

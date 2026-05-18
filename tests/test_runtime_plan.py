@@ -164,10 +164,32 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(plan["regatta"], "pi-fff-comparison")
             self.assertEqual(plan["course"], "swe-bench-lite")
             self.assertEqual(plan["mode"], "dry-run")
+            self.assertEqual(
+                plan["surfaces"],
+                {
+                    "agent_harnesses": ["pi"],
+                    "tools": ["fff"],
+                    "benchmark": {
+                        "name": "swe-bench-lite",
+                        "adapter": "swe-bench",
+                        "dataset": "princeton-nlp/SWE-bench_Lite",
+                        "split": "test",
+                        "execution_harness": "docker",
+                    },
+                },
+            )
             comparison = plan["comparisons"][0]
             self.assertEqual(comparison["name"], "pi-vs-pi-fff")
             rigged = comparison["vessels"][1]
             self.assertEqual(rigged["name"], "pi-plus-fff")
+            self.assertEqual(rigged["agent"], "pi")
+            self.assertEqual(
+                rigged["surfaces"],
+                {
+                    "agent_harness": "pi",
+                    "tools": ["fff"],
+                },
+            )
             self.assertEqual(rigged["runtime"], "pi")
             self.assertEqual(rigged["backend"], "host-nix")
             self.assertEqual(
@@ -255,6 +277,20 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(plan["course"], "swe-bench-lite")
             self.assertEqual(plan["preflight_failure_policy"], "abort-group")
             self.assertEqual(
+                plan["surfaces"],
+                {
+                    "agent_harnesses": ["pi"],
+                    "tools": ["fff"],
+                    "benchmark": {
+                        "name": "swe-bench-lite",
+                        "adapter": "swe-bench",
+                        "dataset": "princeton-nlp/SWE-bench_Lite",
+                        "split": "test",
+                        "execution_harness": "docker",
+                    },
+                },
+            )
+            self.assertEqual(
                 plan["course_adapter"],
                 {
                     "kind": "swe-bench",
@@ -283,6 +319,14 @@ class RuntimePlanTests(unittest.TestCase):
 
             rigged_vessel = plan["vessels"][1]
             self.assertEqual(rigged_vessel["name"], "pi-plus-fff")
+            self.assertEqual(
+                rigged_vessel["surfaces"],
+                {
+                    "agent_harness": "pi",
+                    "tools": ["fff"],
+                },
+            )
+            self.assertEqual(rigged_vessel["runtime"]["agent"], "pi")
             self.assertEqual(rigged_vessel["runtime"]["backend"], "host-nix")
             self.assertEqual(
                 rigged_vessel["runtime"]["command_prefix"],
@@ -322,6 +366,22 @@ class RuntimePlanTests(unittest.TestCase):
                 rigged_vessel["preflight_checks"][-1]["expect_tool_calls"],
                 ["fffind"],
             )
+
+    def test_build_runtime_plan_infers_agent_surface_from_runtime_command(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace('agent = "pi"\n', "").replace(
+            'tools = ["fff"]\n',
+            "",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            plan = build_runtime_plan(config_path)
+
+            self.assertEqual(plan["surfaces"]["agent_harnesses"], ["pi"])
+            self.assertEqual(plan["surfaces"]["tools"], [])
+            self.assertEqual(plan["vessels"][1]["surfaces"]["agent_harness"], "pi")
+            self.assertNotIn("tools", plan["vessels"][1]["surfaces"])
 
     def test_plan_command_prints_resolved_runtime_plan_without_logbook(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

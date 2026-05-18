@@ -16,6 +16,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi-container]
 backend = "container"
+agent = "pi"
 image = "yacht/pi-agent-runtime:pi-0.74.0"
 command = ["pi", "--provider", "anthropic", "--model", "haiku", "--print", "--mode", "json", "--no-tools"]
 container_home = "/home/yacht"

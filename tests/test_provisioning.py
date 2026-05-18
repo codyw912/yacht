@@ -31,6 +31,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi]
 backend = "host-nix"
+agent = "pi"
 flake = "path:.#pi"
 command = ["pi"]
 required_secrets = ["anthropic"]
@@ -43,6 +44,7 @@ checks = [
 ]
 
 [riggings.pi-fff]
+tools = ["fff"]
 install = ["npm:@ff-labs/pi-fff"]
 instructions = "Use fff for codebase memory and navigation."
 
@@ -93,6 +95,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi-container]
 backend = "container"
+agent = "pi"
 image = "yacht/pi-agent-runtime:pi-0.74.0"
 command = ["pi"]
 container_home = "/home/yacht"
@@ -106,6 +109,7 @@ checks = [
 ]
 
 [riggings.pi-fff]
+tools = ["fff"]
 install = ["npm:@ff-labs/pi-fff"]
 instructions = "Use fff for codebase memory and navigation."
 
@@ -152,7 +156,9 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(regatta.vessels[0].rigging, ())
             self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))
             self.assertEqual(regatta.runtime_recipes["pi"].backend, "host-nix")
+            self.assertEqual(regatta.runtime_recipes["pi"].agent, "pi")
             self.assertEqual(regatta.runtime_recipes["pi"].command, ("pi",))
+            self.assertEqual(regatta.rigging_recipes["pi-fff"].tools, ("fff",))
             self.assertEqual(
                 regatta.rigging_recipes["pi-fff"].env["PI_FFF_MODE"],
                 "required",

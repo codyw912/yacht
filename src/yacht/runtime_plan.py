@@ -8,7 +8,6 @@ from yacht.container_runtime import container_command_prefix_template
 from yacht.regatta import (
     Comparison,
     ConfigError,
-    CourseAdapter,
     PreflightCheck,
     PreflightRecipe,
     Regatta,
@@ -18,6 +17,9 @@ from yacht.regatta import (
     Vessel,
     load_regatta,
 )
+from yacht.surface_metadata import agent_for_runtime
+from yacht.surface_metadata import regatta_surfaces_to_json
+from yacht.surface_metadata import vessel_surfaces_to_json
 
 
 ISOLATED_ENV = {
@@ -33,6 +35,7 @@ def build_runtime_plan(config_path: Path) -> dict[str, Any]:
     plan: dict[str, Any] = {
         "regatta": regatta.name,
         "course": regatta.course.name,
+        "surfaces": regatta_surfaces_to_json(regatta),
     }
     if regatta.course.adapter is not None:
         plan["course_adapter"] = _course_adapter_to_json(
@@ -67,6 +70,7 @@ def _vessel_to_json(regatta: Regatta, vessel: Vessel) -> dict[str, Any]:
         "name": vessel.name,
         "model": vessel.model,
         "rigging": list(vessel.rigging),
+        "surfaces": vessel_surfaces_to_json(runtime, riggings),
         "runtime": _runtime_to_json(runtime),
         "env": env,
         "secret_refs": [
@@ -172,6 +176,7 @@ def _runtime_to_json(runtime: RuntimeRecipe) -> dict[str, Any]:
     payload = {
         "name": runtime.name,
         "backend": runtime.backend,
+        "agent": agent_for_runtime(runtime),
         "command_prefix": _command_prefix(runtime),
         "command": list(runtime.command),
         "mounts": list(runtime.mounts),

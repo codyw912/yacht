@@ -22,6 +22,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi]
 backend = "host-nix"
+agent = "pi"
 flake = "path:.#pi"
 command = ["pi"]
 required_secrets = ["anthropic"]
@@ -34,6 +35,7 @@ checks = [
 ]
 
 [riggings.pi-fff]
+tools = ["fff"]
 install = ["npm:@ff-labs/pi-fff"]
 instructions = "Use fff for codebase memory and navigation."
 

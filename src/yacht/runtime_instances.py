@@ -12,12 +12,16 @@ from yacht.regatta import (
     Comparison,
     ConfigError,
     Regatta,
+    RiggingRecipe,
     RuntimeRecipe,
     Vessel,
     load_regatta,
 )
 from yacht.schemas import RUNTIME_INSTANCES_SCHEMA
 from yacht.schemas import validate_runtime_instances_document
+from yacht.surface_metadata import agent_for_runtime
+from yacht.surface_metadata import regatta_surfaces_to_json
+from yacht.surface_metadata import vessel_surfaces_to_json
 
 
 RUNTIME_INSTANCES_PLAN_PATH = Path("runtime-instances.json")
@@ -35,6 +39,7 @@ def build_runtime_instances_plan(
         "schema": RUNTIME_INSTANCES_SCHEMA,
         "regatta": regatta.name,
         "course": regatta.course.name,
+        "surfaces": regatta_surfaces_to_json(regatta),
         "mode": "dry-run",
         "workspace_path": str(workspace_path),
         "comparisons": [
@@ -94,6 +99,7 @@ def _vessel_to_json(
     trial_root = logbook_dir / "runtime" / comparison.name / vessel.name
     try:
         runtime = _runtime_for_vessel(regatta, vessel)
+        riggings = _riggings_for_vessel(regatta, vessel)
         if runtime.backend == "host-nix":
             resolution = resolve_host_nix_runtime(
                 regatta=regatta,
@@ -117,6 +123,8 @@ def _vessel_to_json(
         "name": vessel.name,
         "runtime": resolution.runtime.name,
         "backend": resolution.runtime.backend,
+        "agent": agent_for_runtime(resolution.runtime),
+        "surfaces": vessel_surfaces_to_json(resolution.runtime, riggings),
         "trial_root": str(resolution.instance_root),
         "temp_home": str(resolution.temp_home),
         "workspace_path": str(resolution.workspace_path),
@@ -138,6 +146,13 @@ def _runtime_for_vessel(regatta: Regatta, vessel: Vessel) -> RuntimeRecipe:
     if vessel.runtime is None:
         raise ConfigError(f"vessel {vessel.name} does not define a runtime")
     return regatta.runtime_recipes[vessel.runtime]
+
+
+def _riggings_for_vessel(
+    regatta: Regatta,
+    vessel: Vessel,
+) -> tuple[RiggingRecipe, ...]:
+    return tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
 
 
 def _vessel_by_name(regatta: Regatta, name: str) -> Vessel:

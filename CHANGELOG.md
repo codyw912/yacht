@@ -22,6 +22,8 @@
   aggregate with a smaller aggregate summary and artifact paths.
 - Added repeated-run aggregate statistics for resolution rate, tokens, cost,
   duration, and tool calls by vessel and comparison delta.
+- Added explicit agent/tool/benchmark surface metadata to provisioning configs,
+  runtime plans, runtime instance dry-runs, and real benchmark runbooks.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 
