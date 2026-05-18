@@ -76,6 +76,10 @@ Run the benchmark smoke:
 ```sh
 LOGBOOK=/private/tmp/yacht-real-benchmark-$(date +%Y%m%d-%H%M%S)
 
+uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace .
+
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \
   --workspace . \
@@ -90,6 +94,10 @@ Fish shell:
 
 ```fish
 set -x LOGBOOK /private/tmp/yacht-real-benchmark-(date +%Y%m%d-%H%M%S)
+
+uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace .
 
 uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \

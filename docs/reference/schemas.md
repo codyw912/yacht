@@ -41,6 +41,8 @@ artifacts should remain consumable by other tools and future runners.
   results.
 - `yacht.benchmark-scorecard.v1.schema.json` for benchmark comparison
   scorecards.
+- `yacht.real-benchmark-runbook.v1.schema.json` for shareable real benchmark
+  runbooks.
 
 ## Configuration Sections
 
