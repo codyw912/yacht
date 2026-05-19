@@ -32,6 +32,7 @@ PREFLIGHT_CHECK_KINDS = {
     "env",
     "mcp-server",
     "path-isolation",
+    "runtime-capability",
     "tool-call",
 }
 PREFLIGHT_STATUSES = {"passed", "failed", "error", "skipped"}
@@ -45,6 +46,7 @@ PREFLIGHT_EVIDENCE_REPORT_VESSEL_STATUSES = {
     "preflight-failed",
     "preflight-invalid",
     "preflight-skipped",
+    "unsupported-rigging-capability",
 }
 BENCHMARK_SCORECARD_STATUSES = {"complete", "partial", "empty"}
 BENCHMARK_SCORECARD_VESSEL_STATUSES = {"measured", "missing"}
@@ -1922,6 +1924,11 @@ def _validate_preflight_summary_checks(value: Any, path: str) -> None:
             _require_non_empty_string(
                 check["omitted_reason"],
                 f"{check_path}.omitted_reason",
+            )
+        if "failure_reason" in check:
+            _require_non_empty_string(
+                check["failure_reason"],
+                f"{check_path}.failure_reason",
             )
 
 

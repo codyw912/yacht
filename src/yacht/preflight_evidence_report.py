@@ -139,7 +139,7 @@ def _vessel_to_json(
             reason="preflight-passed",
             error=None,
         )
-    status = f"preflight-{preflight_status}"
+    status = _blocked_status(artifact, preflight_status)
     return _vessel_report(
         vessel_name=vessel_name,
         artifact_path=artifact_path,
@@ -149,6 +149,16 @@ def _vessel_to_json(
         reason=status,
         error=None,
     )
+
+
+def _blocked_status(artifact: dict[str, Any], preflight_status: str) -> str:
+    if preflight_status == "failed" and any(
+        str(check.get("kind")) == "runtime-capability"
+        and str(check.get("status")) == "failed"
+        for check in artifact["checks"]
+    ):
+        return "unsupported-rigging-capability"
+    return f"preflight-{preflight_status}"
 
 
 def _load_preflight_artifact(path: Path) -> dict[str, Any]:

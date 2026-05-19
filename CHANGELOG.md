@@ -33,6 +33,8 @@
   configured agent, tool, and benchmark harness metadata used for the run.
 - Runtime plans and dry-run instances now report whether typed rigging install
   steps are supported by the selected runtime backend before setup commands run.
+- Preflight now blocks unsupported rigging install capabilities with explicit
+  `runtime-capability` evidence before any runtime setup commands are executed.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

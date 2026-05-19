@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,9 +24,11 @@ from yacht.regatta import (
     Vessel,
     load_regatta,
 )
+from yacht.runtime_capabilities import rigging_capabilities_to_json
 from yacht.runtime_backend import RuntimePreparationError, runtime_backend_for_recipe
 from yacht.schemas import (
     PREFLIGHT_SUMMARY_SCHEMA,
+    validate_preflight_document,
     validate_preflight_summary_document,
 )
 
@@ -48,6 +51,7 @@ class PlannedPreflightCheck:
     prompt: str | None = None
     expect_tool_calls: tuple[str, ...] = ()
     transcript_dir: Path | None = None
+    failure_reason: str | None = None
 
     def to_execution_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -63,6 +67,8 @@ class PlannedPreflightCheck:
         }
         if self.omitted_reason is not None:
             payload["omitted_reason"] = self.omitted_reason
+        if self.failure_reason is not None:
+            payload["failure_reason"] = self.failure_reason
         if self.command:
             payload["command"] = list(self.command)
         if self.env:
@@ -87,6 +93,8 @@ class PlannedPreflightCheck:
         }
         if self.omitted_reason is not None:
             payload["omitted_reason"] = self.omitted_reason
+        if self.failure_reason is not None:
+            payload["failure_reason"] = self.failure_reason
         return payload
 
 
@@ -304,14 +312,21 @@ def _planned_preflight_checks(
     transcript_dir: Path,
     include_agent_checks: bool,
 ) -> list[PlannedPreflightCheck]:
-    checks = _planned_checks_from_recipe(
-        origin="runtime",
-        origin_name=runtime.name,
-        recipe_required=runtime.preflight.required,
-        checks=runtime.preflight.checks,
+    checks = _planned_rigging_capability_checks(
+        runtime=runtime,
+        riggings=riggings,
         artifact_path=artifact_path,
-        transcript_dir=transcript_dir,
-        include_agent_checks=include_agent_checks,
+    )
+    checks.extend(
+        _planned_checks_from_recipe(
+            origin="runtime",
+            origin_name=runtime.name,
+            recipe_required=runtime.preflight.required,
+            checks=runtime.preflight.checks,
+            artifact_path=artifact_path,
+            transcript_dir=transcript_dir,
+            include_agent_checks=include_agent_checks,
+        )
     )
     for rigging in riggings:
         checks.extend(
@@ -326,6 +341,29 @@ def _planned_preflight_checks(
             )
         )
     return checks
+
+
+def _planned_rigging_capability_checks(
+    *,
+    runtime: RuntimeRecipe,
+    riggings: tuple[RiggingRecipe, ...],
+    artifact_path: Path,
+) -> list[PlannedPreflightCheck]:
+    capabilities = rigging_capabilities_to_json(runtime, riggings)
+    return [
+        PlannedPreflightCheck(
+            name=f"rigging-capability-{check['origin_name']}-{check['method']}",
+            kind="runtime-capability",
+            origin=str(check["origin"]),
+            origin_name=str(check["origin_name"]),
+            required=True,
+            included=True,
+            artifact_path=artifact_path,
+            failure_reason=str(check["reason"]),
+        )
+        for check in capabilities["install_checks"]
+        if not bool(check["supported"])
+    ]
 
 
 def _planned_checks_from_recipe(
@@ -383,6 +421,8 @@ def _planned_check(
 
 
 def _check_inclusion(kind: str, include_agent_checks: bool) -> tuple[bool, str | None]:
+    if kind == "runtime-capability":
+        return True, None
     if kind in MACHINE_CHECK_KINDS:
         return True, None
     if kind in AGENT_CHECK_KINDS:
@@ -441,6 +481,25 @@ def _run_vessel_preflight(
             workspace_path=workspace_path,
             include_agent_checks=include_agent_checks,
         )
+        capability_failures = _capability_failure_checks(plan)
+        if capability_failures:
+            artifact = _write_capability_failure_artifact(
+                regatta=regatta,
+                comparison=comparison,
+                vessel=vessel,
+                plan=plan,
+                checks=capability_failures,
+            )
+            status = str(artifact["status"])
+            return {
+                "name": vessel.name,
+                "status": status,
+                "evidence_artifact_path": str(plan.artifact_path),
+                "checks": _summary_checks(
+                    checks=plan.checks,
+                    artifact=artifact,
+                ),
+            }
         instance = runtime_backend_for_recipe(plan.runtime).prepare(
             regatta=regatta,
             vessel=vessel,
@@ -480,6 +539,90 @@ def _run_vessel_preflight(
             artifact=artifact,
         ),
     }
+
+
+def _capability_failure_checks(
+    plan: PlannedVesselPreflight,
+) -> tuple[PlannedPreflightCheck, ...]:
+    return tuple(
+        check
+        for check in plan.checks
+        if check.kind == "runtime-capability" and check.failure_reason is not None
+    )
+
+
+def _write_capability_failure_artifact(
+    *,
+    regatta: Regatta,
+    comparison: Comparison,
+    vessel: Vessel,
+    plan: PlannedVesselPreflight,
+    checks: tuple[PlannedPreflightCheck, ...],
+) -> dict[str, Any]:
+    runtime = plan.runtime
+    riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
+    artifact = {
+        "schema": "yacht.preflight.v1",
+        "regatta": regatta.name,
+        "comparison": comparison.name,
+        "vessel": vessel.name,
+        "runtime": runtime.name,
+        "workspace_path": str(plan.workspace_path),
+        "temp_home": str(plan.trial_root / "home"),
+        "command_prefix": [],
+        "cleanup_paths": [str(plan.trial_root)],
+        "runtime_setup": [],
+        "status": "failed",
+        "failure_policy": regatta.preflight.failure_policy,
+        "secret_refs": _secret_refs(regatta, runtime, riggings),
+        "checks": [_capability_failure_check_to_json(check) for check in checks],
+    }
+    validate_preflight_document(artifact)
+    plan.artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    plan.artifact_path.write_text(
+        json.dumps(artifact, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return artifact
+
+
+def _capability_failure_check_to_json(
+    check: PlannedPreflightCheck,
+) -> dict[str, Any]:
+    return {
+        "name": check.name,
+        "kind": check.kind,
+        "origin": check.origin,
+        "origin_name": check.origin_name,
+        "required": check.required,
+        "status": "failed",
+        "evidence": {
+            "reason": check.failure_reason or "unsupported runtime capability",
+        },
+    }
+
+
+def _secret_refs(
+    regatta: Regatta,
+    runtime: RuntimeRecipe,
+    riggings: tuple[RiggingRecipe, ...],
+) -> list[dict[str, object]]:
+    names = list(runtime.required_secrets)
+    for rigging in riggings:
+        names.extend(rigging.required_secrets)
+    refs = []
+    for name in dict.fromkeys(names):
+        secret = regatta.secrets[name]
+        ref = secret.name or secret.path or f"secret:{name}"
+        refs.append(
+            {
+                "name": name,
+                "source": secret.source,
+                "ref": ref,
+                "redacted": True,
+            }
+        )
+    return refs
 
 
 def _summary_checks(
