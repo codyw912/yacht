@@ -17,6 +17,7 @@ from yacht.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
 from yacht.real_benchmark_eval import ProgressReporter
 from yacht.real_benchmark_eval import run_real_benchmark_eval
 from yacht.regatta import ConfigError, load_regatta
+from yacht.surface_metadata import regatta_surfaces_to_json
 from yacht.task_attempt_runner import TaskAgent
 
 
@@ -47,6 +48,7 @@ def run_real_benchmark_repetitions(
     if repetitions < 1:
         raise ConfigError("real benchmark repetitions must be at least 1")
     regatta = load_regatta(config_path)
+    surfaces = regatta_surfaces_to_json(regatta)
     _progress(
         progress,
         f"real benchmark repetitions started: {regatta.name} / {regatta.course.name}; "
@@ -129,6 +131,7 @@ def run_real_benchmark_repetitions(
         regatta=regatta.name,
         course=regatta.course.name,
         agent_name=agent_name,
+        surfaces=surfaces,
         logbook_dir=logbook_dir,
         repetitions=repetitions,
         runs=runs,
@@ -174,6 +177,7 @@ def _summary(
     regatta: str,
     course: str,
     agent_name: str | None,
+    surfaces: dict[str, Any],
     logbook_dir: Path,
     repetitions: int,
     runs: list[dict[str, Any]],
@@ -191,6 +195,7 @@ def _summary(
         "status": status,
         "regatta": regatta,
         "course": course,
+        "surfaces": surfaces,
         "summary": {
             "repetitions": repetitions,
             "completed_runs": completed_runs,

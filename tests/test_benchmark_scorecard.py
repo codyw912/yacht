@@ -349,6 +349,29 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 ),
             )
 
+    def test_benchmark_report_prints_surface_summary_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            _write_real_benchmark_eval_surfaces(logbook_dir)
+            write_benchmark_scorecard(logbook_dir)
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn(
+                "Surfaces: agents=pi | tools=fff | "
+                "benchmark=swe-bench/princeton-nlp/SWE-bench_Lite/test/docker",
+                stdout.getvalue(),
+            )
+
     def test_benchmark_report_command_prints_markdown_table(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
@@ -1008,6 +1031,27 @@ def _prepared_multi_vessel_logbook(root: Path) -> Path:
         vessel_name="pi-plus-fff",
     )
     return logbook_dir
+
+
+def _write_real_benchmark_eval_surfaces(logbook_dir: Path) -> None:
+    (logbook_dir / "real-benchmark-eval.json").write_text(
+        json.dumps(
+            {
+                "status": "complete",
+                "surfaces": {
+                    "agent_harnesses": ["pi"],
+                    "tools": ["fff"],
+                    "benchmark": {
+                        "adapter": "swe-bench",
+                        "dataset": "princeton-nlp/SWE-bench_Lite",
+                        "split": "test",
+                        "execution_harness": "docker",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def _write_task_attempt_scorecard(logbook_dir: Path) -> None:

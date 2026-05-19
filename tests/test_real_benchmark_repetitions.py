@@ -51,6 +51,20 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
 
             self.assertEqual(summary["schema"], "yacht.real-benchmark-repetitions.v1")
             self.assertEqual(summary["status"], "complete")
+            self.assertEqual(
+                summary["surfaces"],
+                {
+                    "agent_harnesses": ["pi"],
+                    "benchmark": {
+                        "adapter": "swe-bench",
+                        "dataset": "princeton-nlp/SWE-bench_Lite",
+                        "execution_harness": "docker",
+                        "name": "swe-bench-lite",
+                        "split": "test",
+                    },
+                    "tools": ["fff"],
+                },
+            )
             self.assertEqual(summary["summary"]["repetitions"], 2)
             self.assertEqual(summary["summary"]["completed_runs"], 2)
             self.assertEqual(
@@ -124,6 +138,11 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             report = render_benchmark_status(logbook_dir)
 
             self.assertIn("Benchmark status:", report)
+            self.assertIn(
+                "Surfaces: agents=pi | tools=fff | "
+                "benchmark=swe-bench/princeton-nlp/SWE-bench_Lite/test/docker",
+                report,
+            )
             self.assertIn("complete | real benchmark repetitions", report)
             self.assertIn("present | benchmark aggregate", report)
             self.assertIn("1. Render benchmark report", report)

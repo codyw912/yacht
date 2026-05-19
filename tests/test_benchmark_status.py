@@ -66,6 +66,39 @@ class BenchmarkStatusTests(unittest.TestCase):
                 report,
             )
 
+    def test_renders_surface_summary_when_real_benchmark_eval_is_available(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir()
+            (logbook_dir / "real-benchmark-eval.json").write_text(
+                json.dumps(
+                    {
+                        "status": "complete",
+                        "surfaces": {
+                            "agent_harnesses": ["pi"],
+                            "tools": ["fff"],
+                            "benchmark": {
+                                "adapter": "swe-bench",
+                                "dataset": "princeton-nlp/SWE-bench_Lite",
+                                "split": "test",
+                                "execution_harness": "docker",
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            report = render_benchmark_status(logbook_dir)
+
+            self.assertIn(
+                "Surfaces: agents=pi | tools=fff | "
+                "benchmark=swe-bench/princeton-nlp/SWE-bench_Lite/test/docker",
+                report,
+            )
+
     def test_reports_invalid_artifacts_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
