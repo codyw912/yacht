@@ -81,6 +81,15 @@ checks = [
 """
 
 
+UNSUPPORTED_INSTALL_CONFIG = PASSING_PREFLIGHT_CONFIG + """
+[[riggings.unsupported.install]]
+method = "package"
+target = "pytest"
+runtime = "python"
+package = "pytest"
+"""
+
+
 CONTAINER_PREFLIGHT_CONFIG = """
 [regatta]
 name = "container-preflight"
@@ -310,6 +319,65 @@ class CliPreflightTests(unittest.TestCase):
             artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
             self.assertEqual(artifact["status"], "failed")
 
+    def test_preflight_blocks_unsupported_rigging_capability_before_prepare(
+        self,
+    ) -> None:
+        config = UNSUPPORTED_INSTALL_CONFIG.replace(
+            'name = "baseline"\nmodel = "mock"\nruntime = "mock"',
+            (
+                'name = "baseline"\nmodel = "mock"\nruntime = "mock"\n'
+                'rigging = ["unsupported"]'
+            ),
+        ).replace(
+            'name = "rigged"\nmodel = "mock"\nruntime = "mock"',
+            (
+                'name = "rigged"\nmodel = "mock"\nruntime = "mock"\n'
+                'rigging = ["unsupported"]'
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, logbook_dir, workspace_dir = _write_preflight_inputs(
+                config,
+                root,
+            )
+
+            summary = run_preflight(
+                config_path,
+                logbook_dir,
+                workspace_dir,
+                {"token": "test-secret"},
+            )
+
+            self.assertEqual(summary["status"], "invalid")
+            baseline = summary["comparisons"][0]["vessels"][0]
+            self.assertEqual(baseline["status"], "failed")
+            capability_check = _check_by_name(
+                baseline,
+                "rigging-capability-unsupported-package",
+            )
+            self.assertEqual(capability_check["kind"], "runtime-capability")
+            self.assertEqual(capability_check["status"], "failed")
+            self.assertIn("does not support", capability_check["failure_reason"])
+            artifact = json.loads(
+                (
+                    logbook_dir
+                    / "preflight"
+                    / "baseline-vs-rigged"
+                    / "baseline.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(artifact["status"], "failed")
+            self.assertEqual(
+                artifact["checks"][0]["evidence"]["reason"],
+                (
+                    "runtime backend host-nix does not support rigging install "
+                    "method package yet"
+                ),
+            )
+            self.assertFalse((logbook_dir / "runtime").exists())
+
     def test_run_preflight_can_include_agent_prompt_checks_when_factory_is_supplied(
         self,
     ) -> None:
@@ -505,6 +573,49 @@ class CliPreflightTests(unittest.TestCase):
                 "agent preflight disabled",
             )
             self.assertEqual(agent_check["artifact_path"], None)
+
+    def test_preflight_dry_run_includes_unsupported_rigging_capability_check(
+        self,
+    ) -> None:
+        config = UNSUPPORTED_INSTALL_CONFIG.replace(
+            'name = "rigged"\nmodel = "mock"\nruntime = "mock"',
+            (
+                'name = "rigged"\nmodel = "mock"\nruntime = "mock"\n'
+                'rigging = ["unsupported"]'
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, logbook_dir, workspace_dir = _write_preflight_inputs(
+                config,
+                root,
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "preflight",
+                        str(config_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_dir),
+                        "--dry-run",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            rigged = payload["comparisons"][0]["vessels"][1]
+            capability_check = _check_by_name(
+                rigged,
+                "rigging-capability-unsupported-package",
+            )
+            self.assertEqual(capability_check["kind"], "runtime-capability")
+            self.assertTrue(capability_check["included"])
+            self.assertIn("does not support", capability_check["failure_reason"])
 
     def test_preflight_dry_run_includes_agent_prompt_checks_when_enabled(self) -> None:
         config = AGENT_PREFLIGHT_CONFIG.replace(

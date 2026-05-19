@@ -71,6 +71,48 @@ class PreflightEvidenceReportTests(unittest.TestCase):
             self.assertEqual(vessel["reason"], "preflight-invalid")
             self.assertIn("wrong-vessel", vessel["error"])
 
+    def test_report_surfaces_unsupported_rigging_capability_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_logbook(Path(temp_dir))
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-baseline",
+                status="passed",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-plus-fff",
+                status="failed",
+            )
+            artifact_path = logbook_dir / "preflight/pi-vs-pi-fff/pi-plus-fff.json"
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+            artifact["checks"] = [
+                {
+                    "name": "rigging-capability-pi-fff-package",
+                    "kind": "runtime-capability",
+                    "origin": "rigging",
+                    "origin_name": "pi-fff",
+                    "required": True,
+                    "status": "failed",
+                    "evidence": {
+                        "reason": (
+                            "runtime backend host-nix does not support rigging "
+                            "install method package yet"
+                        )
+                    },
+                }
+            ]
+            artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+
+            report = write_preflight_evidence_report(logbook_dir)
+
+            vessel = report["comparisons"][0]["vessels"][1]
+            self.assertEqual(vessel["status"], "unsupported-rigging-capability")
+            self.assertEqual(vessel["reason"], "unsupported-rigging-capability")
+            self.assertFalse(vessel["eligible_for_benchmark"])
+
     def test_preflight_report_command_writes_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = _prepared_logbook(Path(temp_dir))

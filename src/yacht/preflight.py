@@ -20,7 +20,7 @@ from yacht.runtime_process import subprocess_env
 from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
-MACHINE_CHECK_KINDS = {"command", "env", "path-isolation"}
+MACHINE_CHECK_KINDS = {"command", "env", "path-isolation", "runtime-capability"}
 AGENT_CHECK_KINDS = {"agent-prompt"}
 
 
@@ -220,6 +220,8 @@ def _execute_check(
         return _execute_env_check(effective_check, instance)
     if check.kind == "path-isolation":
         return _execute_path_isolation_check(effective_check, instance)
+    if check.kind == "runtime-capability":
+        return _execute_runtime_capability_check(effective_check)
     if check.kind == "agent-prompt":
         return _execute_agent_prompt_check(effective_check, instance, agent_prompt_runner)
     raise ValueError(f"unsupported preflight check kind {check.kind}")
@@ -293,6 +295,18 @@ def _execute_path_isolation_check(
         **_check_result_base(effective_check),
         "status": status,
         "evidence": evidence,
+    }
+
+
+def _execute_runtime_capability_check(
+    effective_check: EffectiveCheck,
+) -> dict[str, object]:
+    return {
+        **_check_result_base(effective_check),
+        "status": "passed",
+        "evidence": {
+            "reason": "runtime capability check passed during planning",
+        },
     }
 
 
