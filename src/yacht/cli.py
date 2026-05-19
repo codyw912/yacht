@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Sequence
 
+from yacht.agent_selection import configured_agent_name
 from yacht.benchmark_aggregate import render_benchmark_aggregate
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.benchmark_grading_collection import collect_benchmark_grading_reports
@@ -1168,13 +1169,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "real-benchmark-eval":
         try:
+            agent_name = configured_agent_name(args.config)
             summary = run_real_benchmark_eval(
                 config_path=args.config,
                 logbook_dir=args.logbook,
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
-                agent_prompt_runner_factory=_agent_prompt_runner_factory("pi"),
-                task_agent=_task_attempt_agent("pi"),
+                agent_prompt_runner_factory=_agent_prompt_runner_factory(agent_name),
+                task_agent=_task_attempt_agent(agent_name),
+                agent_name=agent_name,
                 max_workers=args.max_workers,
                 python_executable=args.python_executable,
                 progress=_stderr_progress,
@@ -1187,6 +1190,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "real-benchmark-repetitions":
         try:
+            agent_name = configured_agent_name(args.config)
             summary = run_real_benchmark_repetitions(
                 config_path=args.config,
                 logbook_dir=args.logbook
@@ -1194,8 +1198,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
                 repetitions=args.repetitions,
-                agent_prompt_runner_factory=_agent_prompt_runner_factory("pi"),
-                task_agent=_task_attempt_agent("pi"),
+                agent_name=agent_name,
+                agent_prompt_runner_factory=_agent_prompt_runner_factory(agent_name),
+                task_agent=_task_attempt_agent(agent_name),
                 max_workers=args.max_workers,
                 python_executable=args.python_executable,
                 progress=_stderr_progress,
