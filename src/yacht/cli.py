@@ -23,6 +23,7 @@ from yacht.benchmark_status import render_benchmark_status
 from yacht.course_handoff import write_course_handoff
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
 from yacht.local_smoke_eval import run_local_smoke_eval
+from yacht.preflight_evidence_report import render_preflight_evidence_report
 from yacht.preflight_evidence_report import write_preflight_evidence_report
 from yacht.pi_adapter import (
     PiAdapter,
@@ -427,6 +428,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("logbook"),
         help="Directory containing handoff and preflight artifacts.",
+    )
+    preflight_report_parser.add_argument(
+        "--format",
+        choices=("json", "text", "markdown"),
+        default="json",
+        help="Output format for the preflight evidence report.",
+    )
+    preflight_report_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write the rendered preflight report.",
     )
 
     smoke_readiness_report_parser = subcommands.add_parser(
@@ -1046,7 +1058,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
-        print(json.dumps(report, indent=2))
+        rendered = render_preflight_evidence_report(report, args.format)
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(rendered, encoding="utf-8")
+            return 0
+        print(rendered, end="")
         return 0
 
     if args.command == "smoke-readiness-report":

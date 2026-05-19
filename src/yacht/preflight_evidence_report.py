@@ -23,6 +23,19 @@ def write_preflight_evidence_report(logbook_dir: Path) -> dict[str, Any]:
     return report
 
 
+def render_preflight_evidence_report(
+    report: dict[str, Any],
+    output_format: str = "json",
+) -> str:
+    if output_format == "json":
+        return json.dumps(report, indent=2) + "\n"
+    if output_format == "markdown":
+        return _render_markdown(report)
+    if output_format == "text":
+        return _render_text(report)
+    raise ValueError(f"unsupported preflight report output format: {output_format}")
+
+
 def build_preflight_evidence_report(logbook_dir: Path) -> dict[str, Any]:
     handoff = _load_handoff(logbook_dir)
     report = _build_report(logbook_dir, handoff)
@@ -229,6 +242,97 @@ def _aggregate_status(statuses: list[str]) -> str:
     if all(status in {"ready", "eligible"} for status in statuses):
         return "ready"
     return "blocked"
+
+
+def _render_text(report: dict[str, Any]) -> str:
+    summary = _report_summary(report)
+    lines = [
+        f"Preflight report: {report['regatta']} / {report['course']}",
+        f"Status: {report['status']}",
+        (
+            "Summary: "
+            f"eligible={summary['eligible']} | "
+            f"blocked={summary['blocked']} | "
+            f"missing={summary['missing']} | "
+            f"invalid={summary['invalid']} | "
+            f"total={summary['total']}"
+        ),
+        "",
+        "comparison | vessel | status | eligible | reason | preflight | artifact",
+    ]
+    lines.extend(_text_vessel_row(row) for row in _vessel_rows(report))
+    return "\n".join(lines) + "\n"
+
+
+def _render_markdown(report: dict[str, Any]) -> str:
+    summary = _report_summary(report)
+    lines = [
+        "## Preflight report",
+        "",
+        f"- Regatta: {report['regatta']}",
+        f"- Course: {report['course']}",
+        f"- Status: {report['status']}",
+        (
+            "- Summary: "
+            f"eligible={summary['eligible']}, "
+            f"blocked={summary['blocked']}, "
+            f"missing={summary['missing']}, "
+            f"invalid={summary['invalid']}, "
+            f"total={summary['total']}"
+        ),
+        "",
+        "| Comparison | Vessel | Status | Eligible | Reason | Preflight | Artifact |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    lines.extend(_markdown_vessel_row(row) for row in _vessel_rows(report))
+    return "\n".join(lines) + "\n"
+
+
+def _report_summary(report: dict[str, Any]) -> dict[str, int]:
+    rows = _vessel_rows(report)
+    return {
+        "total": len(rows),
+        "eligible": sum(1 for row in rows if row["eligible"]),
+        "blocked": sum(1 for row in rows if not row["eligible"]),
+        "missing": sum(1 for row in rows if row["preflight_status"] == "missing"),
+        "invalid": sum(1 for row in rows if row["preflight_status"] == "invalid"),
+    }
+
+
+def _vessel_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for comparison in report["comparisons"]:
+        for vessel in comparison["vessels"]:
+            rows.append(
+                {
+                    "comparison": str(comparison["name"]),
+                    "vessel": str(vessel["name"]),
+                    "status": str(vessel["status"]),
+                    "eligible": bool(vessel["eligible_for_benchmark"]),
+                    "reason": str(vessel["reason"]),
+                    "preflight_status": str(vessel["preflight_status"]),
+                    "artifact": str(vessel["preflight_artifact_path"]),
+                }
+            )
+    return rows
+
+
+def _text_vessel_row(row: dict[str, Any]) -> str:
+    eligible = "yes" if row["eligible"] else "no"
+    return (
+        f"{row['comparison']} | {row['vessel']} | {row['status']} | "
+        f"{eligible} | {row['reason']} | {row['preflight_status']} | "
+        f"{row['artifact']}"
+    )
+
+
+def _markdown_vessel_row(row: dict[str, Any]) -> str:
+    eligible = "yes" if row["eligible"] else "no"
+    return (
+        f"| {row['comparison']} | {row['vessel']} | {row['status']} | "
+        f"{eligible} | {row['reason']} | {row['preflight_status']} | "
+        f"{row['artifact']} |"
+    )
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
