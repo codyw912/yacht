@@ -29,6 +29,7 @@ from yacht.schemas import (
     REAL_BENCHMARK_RUNBOOK_SCHEMA,
     validate_real_benchmark_runbook_document,
 )
+from yacht.surface_metadata import regatta_surfaces_to_json
 from yacht.swebench_artifacts import candidate_patches_path
 from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
@@ -63,6 +64,7 @@ def render_real_benchmark_runbook(runbook: dict[str, Any]) -> str:
         f"- Regatta: `{runbook['regatta']}`",
         f"- Course: `{runbook['course']}`",
         f"- Agent: `{runbook['agent']}`",
+        f"- Tools: `{_surface_tools(runbook)}`",
         "",
         "### Secrets",
         "",
@@ -129,11 +131,13 @@ def build_real_benchmark_runbook(
     artifacts = _artifacts(regatta, logbook_dir)
     inspection_target = _inspection_target(regatta)
     secret_placeholders = _secret_placeholders(regatta)
+    surfaces = regatta_surfaces_to_json(regatta)
     runbook = {
         "schema": REAL_BENCHMARK_RUNBOOK_SCHEMA,
         "regatta": regatta.name,
         "course": regatta.course.name,
-        "agent": "pi",
+        "agent": _primary_agent(surfaces),
+        "surfaces": surfaces,
         "secret_placeholders": secret_placeholders,
         "steps": _steps(
             config_path=config_path,
@@ -149,6 +153,23 @@ def build_real_benchmark_runbook(
     }
     validate_real_benchmark_runbook_document(runbook)
     return runbook
+
+
+def _primary_agent(surfaces: dict[str, Any]) -> str:
+    agents = surfaces.get("agent_harnesses", [])
+    if isinstance(agents, list) and agents and isinstance(agents[0], str):
+        return agents[0]
+    return "unknown"
+
+
+def _surface_tools(runbook: dict[str, Any]) -> str:
+    surfaces = runbook.get("surfaces", {})
+    if not isinstance(surfaces, dict):
+        return "none"
+    tools = surfaces.get("tools", [])
+    if not isinstance(tools, list) or not tools:
+        return "none"
+    return ", ".join(str(tool) for tool in tools)
 
 
 def _steps(

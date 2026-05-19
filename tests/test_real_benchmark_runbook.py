@@ -39,6 +39,20 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             self.assertEqual(runbook["course"], "swe-bench-lite")
             self.assertEqual(runbook["agent"], "pi")
             self.assertEqual(
+                runbook["surfaces"],
+                {
+                    "agent_harnesses": ["pi"],
+                    "tools": ["fff"],
+                    "benchmark": {
+                        "name": "swe-bench-lite",
+                        "adapter": "swe-bench",
+                        "dataset": "princeton-nlp/SWE-bench_Lite",
+                        "split": "test",
+                        "execution_harness": "docker",
+                    },
+                },
+            )
+            self.assertEqual(
                 runbook["secret_placeholders"],
                 [
                     {

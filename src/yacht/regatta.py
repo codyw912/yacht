@@ -95,11 +95,13 @@ class RuntimeRecipe:
     required_secrets: tuple[str, ...] = ()
     mounts: tuple[str, ...] = ()
     preflight: PreflightRecipe = field(default_factory=PreflightRecipe)
+    agent: str | None = None
 
 
 @dataclass(frozen=True)
 class RiggingRecipe:
     name: str
+    tools: tuple[str, ...] = ()
     install: tuple[str, ...] = ()
     env: dict[str, str] = field(default_factory=dict)
     required_secrets: tuple[str, ...] = ()
@@ -388,6 +390,7 @@ def _parse_runtime_recipes(raw: dict[str, Any]) -> dict[str, RuntimeRecipe]:
             name=str(name),
             backend=str(runtime["backend"]),
             command=tuple(str(item) for item in runtime["command"]),
+            agent=str(runtime["agent"]) if "agent" in runtime else None,
             flake=str(runtime["flake"]) if "flake" in runtime else None,
             image=str(runtime["image"]) if "image" in runtime else None,
             container_home=str(runtime.get("container_home", "/home/yacht")),
@@ -410,6 +413,7 @@ def _parse_rigging_recipes(raw: dict[str, Any]) -> dict[str, RiggingRecipe]:
     return {
         str(name): RiggingRecipe(
             name=str(name),
+            tools=tuple(str(item) for item in rigging.get("tools", ())),
             install=tuple(str(item) for item in rigging.get("install", ())),
             env={
                 str(key): str(value)

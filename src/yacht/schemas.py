@@ -2144,6 +2144,11 @@ def _validate_runtime_recipes(
         )
         _require_non_empty_string(runtime["backend"], f"runtimes.{runtime_name}.backend")
         _validate_runtime_backend_fields(runtime, f"runtimes.{runtime_name}")
+        if "agent" in runtime:
+            _require_non_empty_string(
+                runtime.get("agent"),
+                f"runtimes.{runtime_name}.agent",
+            )
         command = _require_list(runtime["command"], f"runtimes.{runtime_name}.command")
         if not command or not all(isinstance(item, str) and item for item in command):
             raise SchemaValidationError(
@@ -2210,6 +2215,10 @@ def _validate_rigging_recipes(
     riggings = _optional_named_table(document, "riggings")
     for rigging_name, rigging_value in riggings.items():
         rigging = _require_object(rigging_value, f"riggings.{rigging_name}")
+        _require_string_list(
+            rigging.get("tools", []),
+            f"riggings.{rigging_name}.tools",
+        )
         _require_string_list(
             rigging.get("install", []),
             f"riggings.{rigging_name}.install",
