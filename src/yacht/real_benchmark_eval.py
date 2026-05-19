@@ -82,6 +82,10 @@ def run_real_benchmark_eval(
     preflight_evidence_report = write_preflight_evidence_report(logbook_dir)
     if preflight["status"] != "passed":
         _progress(progress, "real benchmark eval blocked: preflight failed")
+        blocked_preflight = _blocked_preflight_summary(
+            preflight=preflight,
+            preflight_evidence_report=preflight_evidence_report,
+        )
         return _write_summary(
             logbook_dir,
             _blocked_summary(
@@ -92,6 +96,15 @@ def run_real_benchmark_eval(
                 preflight_evidence_report=preflight_evidence_report,
                 agent_name=agent_name,
                 surfaces=surfaces,
+                summary_counts={
+                    "blocked_preflight_vessels": blocked_preflight[
+                        "blocked_vessel_count"
+                    ],
+                    "total_preflight_vessels": blocked_preflight[
+                        "total_vessel_count"
+                    ],
+                },
+                blocked_preflight=blocked_preflight,
                 skipped=[
                     "task-attempts",
                     "predictions-from-attempts",
@@ -103,6 +116,10 @@ def run_real_benchmark_eval(
                     "benchmark-scorecard",
                 ],
                 logbook_dir=logbook_dir,
+                next_steps=_preflight_failure_next_steps(
+                    logbook_dir,
+                    blocked_preflight,
+                ),
             ),
         )
 
@@ -314,6 +331,8 @@ def _blocked_summary(
     surfaces: dict[str, Any],
     skipped: list[str],
     logbook_dir: Path,
+    summary_counts: dict[str, Any] | None = None,
+    blocked_preflight: dict[str, Any] | None = None,
     attempts: dict[str, Any] | None = None,
     task_attempt_scorecard: dict[str, Any] | None = None,
     predictions: list[dict[str, Any]] | None = None,
@@ -339,8 +358,12 @@ def _blocked_summary(
         "skipped": skipped,
         "artifacts": _artifacts(logbook_dir),
     }
+    if summary_counts is not None:
+        summary["summary"] = summary_counts
     if failed_stage is not None:
         summary["failed_stage"] = failed_stage
+    if blocked_preflight is not None:
+        summary["blocked_preflight"] = blocked_preflight
     if error is not None:
         summary["error"] = error
     for key, value in (
@@ -364,6 +387,122 @@ def _blocked_summary(
             summary["next_steps"] = value["next_steps"]
             break
     return summary
+
+
+def _blocked_preflight_summary(
+    *,
+    preflight: dict[str, Any],
+    preflight_evidence_report: dict[str, Any],
+) -> dict[str, Any]:
+    checks_by_vessel = _preflight_checks_by_vessel(preflight)
+    blocked_vessels = []
+    total = 0
+    for comparison in preflight_evidence_report["comparisons"]:
+        comparison_name = str(comparison["name"])
+        for vessel in comparison["vessels"]:
+            total += 1
+            if bool(vessel["eligible_for_benchmark"]):
+                continue
+            vessel_name = str(vessel["name"])
+            blocked_vessels.append(
+                {
+                    "comparison": comparison_name,
+                    "vessel": vessel_name,
+                    "status": str(vessel["status"]),
+                    "reason": str(vessel["reason"]),
+                    "preflight_status": str(vessel["preflight_status"]),
+                    "preflight_artifact_path": str(
+                        vessel["preflight_artifact_path"]
+                    ),
+                    "failed_checks": checks_by_vessel.get(
+                        (comparison_name, vessel_name),
+                        [],
+                    ),
+                }
+            )
+    return {
+        "blocked_vessel_count": len(blocked_vessels),
+        "total_vessel_count": total,
+        "vessels": blocked_vessels,
+    }
+
+
+def _preflight_checks_by_vessel(
+    preflight: dict[str, Any],
+) -> dict[tuple[str, str], list[dict[str, str]]]:
+    checks: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for comparison in preflight["comparisons"]:
+        comparison_name = str(comparison["name"])
+        for vessel in comparison["vessels"]:
+            failed_checks = []
+            for check in vessel["checks"]:
+                if str(check["status"]) in {"passed", "omitted"}:
+                    continue
+                payload = {
+                    "name": str(check["name"]),
+                    "kind": str(check["kind"]),
+                    "status": str(check["status"]),
+                    "origin": str(check["origin"]),
+                    "origin_name": str(check["origin_name"]),
+                }
+                if "failure_reason" in check:
+                    payload["reason"] = str(check["failure_reason"])
+                if "omitted_reason" in check:
+                    payload["reason"] = str(check["omitted_reason"])
+                failed_checks.append(payload)
+            checks[(comparison_name, str(vessel["name"]))] = failed_checks
+    return checks
+
+
+def _preflight_failure_next_steps(
+    logbook_dir: Path,
+    blocked_preflight: dict[str, Any],
+) -> list[dict[str, object]]:
+    first = None
+    vessels = blocked_preflight.get("vessels")
+    if isinstance(vessels, list) and vessels:
+        candidate = vessels[0]
+        if isinstance(candidate, dict):
+            first = candidate
+    reason = "Preflight blocked one or more vessels."
+    if first is not None:
+        reason = (
+            "Preflight blocked "
+            f"{first['comparison']}/{first['vessel']} with reason "
+            f"{first['reason']}; inspect {first['preflight_artifact_path']}."
+        )
+    return [
+        command_step(
+            label="Inspect preflight evidence",
+            reason=reason,
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "preflight-report",
+                "--logbook",
+                str(logbook_dir),
+            ],
+        ),
+        command_step(
+            label="Rerun real benchmark eval after fixing preflight",
+            reason=(
+                "After fixing the runtime or rigging capability issue, rerun the "
+                "real benchmark workflow with the same config and logbook."
+            ),
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "real-benchmark-eval",
+                "<regatta.toml>",
+                "--logbook",
+                str(logbook_dir),
+                "--workspace",
+                ".",
+            ],
+        ),
+    ]
 
 
 def _prediction_failure_next_steps(logbook_dir: Path) -> list[dict[str, object]]:

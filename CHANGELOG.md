@@ -35,6 +35,8 @@
   steps are supported by the selected runtime backend before setup commands run.
 - Preflight now blocks unsupported rigging install capabilities with explicit
   `runtime-capability` evidence before any runtime setup commands are executed.
+- Real benchmark summaries now include blocked preflight vessel details and
+  next steps that point directly to preflight evidence when preflight blocks.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

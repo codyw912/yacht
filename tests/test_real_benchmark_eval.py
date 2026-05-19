@@ -223,6 +223,105 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 ["uv", "run", "--with", "swebench", "python"],
             )
 
+    def test_blocks_with_preflight_guidance_for_unsupported_rigging_capability(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            logbook_dir = root / "logbook"
+            config_path.write_text(
+                PI_WITH_FFF_CONFIG.replace(
+                    'method = "agent-extension"',
+                    'method = "package"',
+                ),
+                encoding="utf-8",
+            )
+            workspace_path.mkdir()
+            adapter = PiAdapter(
+                launcher=SubprocessPiPromptLauncher(
+                    runner=lambda _request: CommandResult(
+                        exit_code=0,
+                        stdout='{"available": true, "configured": true}\n',
+                        stderr="",
+                    )
+                ),
+                task_launcher=SubprocessPiTaskLauncher(
+                    runner=lambda _request: CommandResult(
+                        exit_code=0,
+                        stdout=json.dumps({"model_patch": MODEL_PATCH}),
+                        stderr="",
+                    )
+                ),
+            )
+
+            with patch(
+                "yacht.preflight._run_command",
+                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+            ):
+                summary = run_real_benchmark_eval(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    workspace_path=workspace_path,
+                    secret_values={"anthropic": "test-secret"},
+                    agent_prompt_runner_factory=lambda instance, transcript_dir: (
+                        adapter.agent_prompt_runner(
+                            instance=instance,
+                            transcript_dir=transcript_dir,
+                        )
+                    ),
+                    task_agent=adapter,
+                    agent_name="pi",
+                )
+
+            self.assertEqual(summary["status"], "blocked")
+            self.assertEqual(summary["preflight"]["status"], "invalid")
+            self.assertEqual(
+                summary["summary"],
+                {
+                    "blocked_preflight_vessels": 1,
+                    "total_preflight_vessels": 2,
+                },
+            )
+            self.assertEqual(
+                summary["blocked_preflight"]["vessels"][0]["reason"],
+                "unsupported-rigging-capability",
+            )
+            self.assertEqual(
+                summary["blocked_preflight"]["vessels"][0]["failed_checks"][0],
+                {
+                    "name": "rigging-capability-pi-fff-package",
+                    "kind": "runtime-capability",
+                    "status": "failed",
+                    "origin": "rigging",
+                    "origin_name": "pi-fff",
+                    "reason": (
+                        "runtime backend host-nix does not support rigging install "
+                        "method package yet"
+                    ),
+                },
+            )
+            self.assertEqual(
+                summary["next_steps"][0]["label"],
+                "Inspect preflight evidence",
+            )
+            self.assertIn(
+                "unsupported-rigging-capability",
+                summary["next_steps"][0]["reason"],
+            )
+            self.assertFalse((logbook_dir / "task-attempts").exists())
+            status = build_benchmark_status(logbook_dir)
+            self.assertEqual(status["status"], "partial")
+            self.assertEqual(
+                status["next_steps"][0]["label"],
+                "Inspect preflight evidence",
+            )
+            self.assertIn(
+                "blocked_preflight_vessels=1",
+                status["artifacts"][0]["detail"],
+            )
+
     def test_blocks_when_native_launch_writes_no_grading_reports(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
