@@ -283,6 +283,12 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
                     "status": "complete",
                     "regatta": "pi-fff-comparison",
                     "course": "swe-bench-lite",
+                    "summary": {
+                        "repetitions": 2,
+                        "completed_runs": 2,
+                        "failed_runs": 0,
+                        "aggregate_logbooks": 2,
+                    },
                 }
 
             with patch(
@@ -303,8 +309,13 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
                 )
 
             self.assertEqual(exit_code, 0)
-            payload = json.loads(stdout.getvalue())
-            self.assertEqual(payload["status"], "complete")
+            report = stdout.getvalue()
+            self.assertIn(
+                "Real benchmark repetitions: pi-fff-comparison / swe-bench-lite",
+                report,
+            )
+            self.assertIn("Status: complete", report)
+            self.assertIn("Runs: 2 | completed=2 | failed=0 | aggregated=2", report)
             self.assertEqual(stderr.getvalue(), "yacht: mock progress\n")
 
     def test_command_generates_logbook_when_omitted(self) -> None:
@@ -338,6 +349,8 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
                         str(root),
                         "--repetitions",
                         "2",
+                        "--format",
+                        "json",
                     ]
                 )
 
@@ -347,6 +360,48 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
                 payload["artifacts"]["logbook"],
                 str(root / "generated-series"),
             )
+
+    def test_command_prints_json_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            stdout = StringIO()
+
+            with patch(
+                "yacht.cli.run_real_benchmark_repetitions",
+                return_value={
+                    "schema": "yacht.real-benchmark-repetitions.v1",
+                    "status": "complete",
+                    "regatta": "pi-fff-comparison",
+                    "course": "swe-bench-lite",
+                    "summary": {
+                        "repetitions": 2,
+                        "completed_runs": 2,
+                        "failed_runs": 0,
+                        "aggregate_logbooks": 2,
+                    },
+                },
+            ), redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "real-benchmark-repetitions",
+                        str(config_path),
+                        "--logbook",
+                        str(root / "series"),
+                        "--workspace",
+                        str(root),
+                        "--repetitions",
+                        "2",
+                        "--format",
+                        "json",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["status"], "complete")
+            self.assertEqual(payload["summary"]["completed_runs"], 2)
 
 
 def _write_repetition_series(root: Path) -> Path:
