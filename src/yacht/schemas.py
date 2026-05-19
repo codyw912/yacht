@@ -2219,7 +2219,7 @@ def _validate_rigging_recipes(
             rigging.get("tools", []),
             f"riggings.{rigging_name}.tools",
         )
-        _require_string_list(
+        _validate_rigging_install_steps(
             rigging.get("install", []),
             f"riggings.{rigging_name}.install",
         )
@@ -2244,6 +2244,41 @@ def _validate_rigging_recipes(
                     f"secret {secret}"
                 )
     return set(riggings)
+
+
+def _validate_rigging_install_steps(value: Any, path: str) -> None:
+    steps = _require_list(value, path)
+    for index, step_value in enumerate(steps):
+        step_path = f"{path}[{index}]"
+        if isinstance(step_value, str):
+            if not step_value:
+                raise SchemaValidationError(f"{step_path} must be a non-empty string")
+            continue
+        step = _require_object(step_value, step_path)
+        _require_keys(step, ("method", "target"), step_path)
+        _require_allowed_value(
+            step.get("method"),
+            {
+                "agent-extension",
+                "mcp-server",
+                "package",
+                "binary",
+                "container-image",
+                "preinstalled",
+                "custom-command",
+            },
+            f"{step_path}.method",
+        )
+        _require_non_empty_string(step.get("target"), f"{step_path}.target")
+        for key in ("agent", "runtime", "package", "source"):
+            if key in step:
+                _require_non_empty_string(step.get(key), f"{step_path}.{key}")
+        if "command" in step:
+            command = _require_list(step["command"], f"{step_path}.command")
+            if not command or not all(isinstance(item, str) and item for item in command):
+                raise SchemaValidationError(
+                    f"{step_path}.command must contain non-empty strings"
+                )
 
 
 def _validate_preflight_recipe(value: Any, path: str) -> None:

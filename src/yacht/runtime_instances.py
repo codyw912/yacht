@@ -125,6 +125,11 @@ def _vessel_to_json(
         "backend": resolution.runtime.backend,
         "agent": agent_for_runtime(resolution.runtime),
         "surfaces": vessel_surfaces_to_json(resolution.runtime, riggings),
+        "install": [
+            step.to_json()
+            for rigging in riggings
+            for step in rigging.install
+        ],
         "trial_root": str(resolution.instance_root),
         "temp_home": str(resolution.temp_home),
         "workspace_path": str(resolution.workspace_path),

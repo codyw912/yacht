@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
 from yacht.pi_adapter import (
     PiAdapter,
     PiAdapterNotConfigured,
@@ -734,8 +734,8 @@ def _prepared_runtime(root: Path):
 
 def _config_without_install() -> str:
     return PI_WITH_FFF_CONFIG.replace(
-        'install = ["npm:@ff-labs/pi-fff"]',
-        "install = []",
+        PI_FFF_TYPED_INSTALL,
+        "install = []\n",
     )
 
 

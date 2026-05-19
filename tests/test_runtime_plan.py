@@ -190,6 +190,17 @@ class RuntimePlanTests(unittest.TestCase):
                     "tools": ["fff"],
                 },
             )
+            self.assertEqual(
+                rigged["install"],
+                [
+                    {
+                        "method": "agent-extension",
+                        "target": "npm:@ff-labs/pi-fff",
+                        "agent": "pi",
+                        "package": "@ff-labs/pi-fff",
+                    }
+                ],
+            )
             self.assertEqual(rigged["runtime"], "pi")
             self.assertEqual(rigged["backend"], "host-nix")
             self.assertEqual(
@@ -327,6 +338,17 @@ class RuntimePlanTests(unittest.TestCase):
                 },
             )
             self.assertEqual(rigged_vessel["runtime"]["agent"], "pi")
+            self.assertEqual(
+                rigged_vessel["install"],
+                [
+                    {
+                        "method": "agent-extension",
+                        "target": "npm:@ff-labs/pi-fff",
+                        "agent": "pi",
+                        "package": "@ff-labs/pi-fff",
+                    }
+                ],
+            )
             self.assertEqual(rigged_vessel["runtime"]["backend"], "host-nix")
             self.assertEqual(
                 rigged_vessel["runtime"]["command_prefix"],

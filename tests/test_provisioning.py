@@ -6,6 +6,14 @@ from yacht.regatta import ConfigError, load_regatta
 from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
+PI_FFF_TYPED_INSTALL = """[[riggings.pi-fff.install]]
+method = "agent-extension"
+target = "npm:@ff-labs/pi-fff"
+agent = "pi"
+package = "@ff-labs/pi-fff"
+
+"""
+
 PI_WITH_FFF_CONFIG = """
 [regatta]
 name = "pi-fff-comparison"
@@ -45,8 +53,13 @@ checks = [
 
 [riggings.pi-fff]
 tools = ["fff"]
-install = ["npm:@ff-labs/pi-fff"]
 instructions = "Use fff for codebase memory and navigation."
+
+[[riggings.pi-fff.install]]
+method = "agent-extension"
+target = "npm:@ff-labs/pi-fff"
+agent = "pi"
+package = "@ff-labs/pi-fff"
 
 [riggings.pi-fff.env]
 PI_FFF_MODE = "required"
@@ -110,8 +123,13 @@ checks = [
 
 [riggings.pi-fff]
 tools = ["fff"]
-install = ["npm:@ff-labs/pi-fff"]
 instructions = "Use fff for codebase memory and navigation."
+
+[[riggings.pi-fff.install]]
+method = "agent-extension"
+target = "npm:@ff-labs/pi-fff"
+agent = "pi"
+package = "@ff-labs/pi-fff"
 
 [riggings.pi-fff.env]
 PI_FFF_MODE = "required"
@@ -159,6 +177,11 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(regatta.runtime_recipes["pi"].agent, "pi")
             self.assertEqual(regatta.runtime_recipes["pi"].command, ("pi",))
             self.assertEqual(regatta.rigging_recipes["pi-fff"].tools, ("fff",))
+            install = regatta.rigging_recipes["pi-fff"].install[0]
+            self.assertEqual(install.method, "agent-extension")
+            self.assertEqual(install.target, "npm:@ff-labs/pi-fff")
+            self.assertEqual(install.agent, "pi")
+            self.assertEqual(install.package, "@ff-labs/pi-fff")
             self.assertEqual(
                 regatta.rigging_recipes["pi-fff"].env["PI_FFF_MODE"],
                 "required",
@@ -207,6 +230,37 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(runtime.flake, None)
             self.assertEqual(runtime.container_home, "/home/yacht")
             self.assertEqual(runtime.container_workspace, "/workspace")
+
+    def test_legacy_rigging_install_string_is_normalized(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            PI_FFF_TYPED_INSTALL,
+            'install = ["npm:@ff-labs/pi-fff"]\n',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+
+            install = regatta.rigging_recipes["pi-fff"].install[0]
+            self.assertEqual(install.method, "agent-extension")
+            self.assertEqual(install.target, "npm:@ff-labs/pi-fff")
+            self.assertTrue(install.legacy)
+
+    def test_rigging_install_requires_supported_method(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            'method = "agent-extension"',
+            'method = "npm"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "riggings.pi-fff.install\\[0\\].method must be one of",
+            ):
+                load_regatta(config_path)
 
     def test_swe_bench_course_adapter_requires_dataset_split_and_harness(self) -> None:
         cases = {

@@ -73,7 +73,9 @@ class ContainerImageTests(unittest.TestCase):
                 "json",
             ),
         )
-        self.assertEqual(rigging.install, ("npm:@ff-labs/pi-fff",))
+        self.assertEqual(rigging.install[0].method, "agent-extension")
+        self.assertEqual(rigging.install[0].target, "npm:@ff-labs/pi-fff")
+        self.assertEqual(rigging.install[0].agent, "pi")
         self.assertEqual(rigging.env["PI_FFF_MODE"], "required")
         self.assertIn("fffind", rigging.instructions)
         self.assertEqual(
@@ -111,7 +113,9 @@ class ContainerImageTests(unittest.TestCase):
                 "json",
             ),
         )
-        self.assertEqual(rigging.install, ("npm:@ff-labs/pi-fff",))
+        self.assertEqual(rigging.install[0].method, "agent-extension")
+        self.assertEqual(rigging.install[0].target, "npm:@ff-labs/pi-fff")
+        self.assertEqual(rigging.install[0].agent, "pi")
         self.assertEqual(regatta.vessels[0].name, "pi-container-baseline")
         self.assertEqual(regatta.vessels[1].name, "pi-container-fff")
         self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))

@@ -99,10 +99,41 @@ class RuntimeRecipe:
 
 
 @dataclass(frozen=True)
+class RiggingInstallStep:
+    method: str
+    target: str
+    agent: str | None = None
+    runtime: str | None = None
+    package: str | None = None
+    source: str | None = None
+    command: tuple[str, ...] = ()
+    legacy: bool = False
+
+    def to_json(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "method": self.method,
+            "target": self.target,
+        }
+        if self.agent is not None:
+            payload["agent"] = self.agent
+        if self.runtime is not None:
+            payload["runtime"] = self.runtime
+        if self.package is not None:
+            payload["package"] = self.package
+        if self.source is not None:
+            payload["source"] = self.source
+        if self.command:
+            payload["command"] = list(self.command)
+        if self.legacy:
+            payload["legacy"] = True
+        return payload
+
+
+@dataclass(frozen=True)
 class RiggingRecipe:
     name: str
     tools: tuple[str, ...] = ()
-    install: tuple[str, ...] = ()
+    install: tuple[RiggingInstallStep, ...] = ()
     env: dict[str, str] = field(default_factory=dict)
     required_secrets: tuple[str, ...] = ()
     instructions: str = ""
@@ -414,7 +445,10 @@ def _parse_rigging_recipes(raw: dict[str, Any]) -> dict[str, RiggingRecipe]:
         str(name): RiggingRecipe(
             name=str(name),
             tools=tuple(str(item) for item in rigging.get("tools", ())),
-            install=tuple(str(item) for item in rigging.get("install", ())),
+            install=tuple(
+                _parse_rigging_install_step(item)
+                for item in rigging.get("install", ())
+            ),
             env={
                 str(key): str(value)
                 for key, value in rigging.get("env", {}).items()
@@ -427,6 +461,25 @@ def _parse_rigging_recipes(raw: dict[str, Any]) -> dict[str, RiggingRecipe]:
         )
         for name, rigging in raw.get("riggings", {}).items()
     }
+
+
+def _parse_rigging_install_step(raw: Any) -> RiggingInstallStep:
+    if isinstance(raw, str):
+        return RiggingInstallStep(
+            method="agent-extension",
+            target=raw,
+            legacy=True,
+        )
+    step = raw
+    return RiggingInstallStep(
+        method=str(step["method"]),
+        target=str(step["target"]),
+        agent=str(step["agent"]) if "agent" in step else None,
+        runtime=str(step["runtime"]) if "runtime" in step else None,
+        package=str(step["package"]) if "package" in step else None,
+        source=str(step["source"]) if "source" in step else None,
+        command=tuple(str(item) for item in step.get("command", ())),
+    )
 
 
 def _parse_preflight_recipe(raw: dict[str, Any]) -> PreflightRecipe:

@@ -14,6 +14,7 @@ from yacht.host_nix_runtime import resolve_host_nix_runtime
 from yacht.regatta import (
     ConfigError,
     Regatta,
+    RiggingInstallStep,
     RuntimeInstance,
     RuntimeRecipe,
     RuntimeSetupResult,
@@ -171,17 +172,20 @@ def _apply_rigging_installs(
 ) -> list[RuntimeSetupResult]:
     results = []
     for rigging in resolution.riggings:
-        for target in rigging.install:
-            argv = resolution.command_prefix + _setup_command(
+        for step in rigging.install:
+            setup_command = _setup_command(
                 resolution.command,
-                target,
+                step,
             )
+            if setup_command is None:
+                continue
+            argv = resolution.command_prefix + setup_command
             setup_result = setup_runner(argv, env, resolution.workspace_path)
             result = RuntimeSetupResult(
                 origin="rigging",
                 origin_name=rigging.name,
                 action="install",
-                target=target,
+                target=step.target,
                 argv=argv,
                 exit_code=setup_result.exit_code,
                 stdout=setup_result.stdout,
@@ -191,15 +195,25 @@ def _apply_rigging_installs(
             if result.exit_code != 0:
                 raise RuntimePreparationError(
                     "failed to install rigging "
-                    f"{rigging.name} target {target}: {result.stderr.strip()}"
+                    f"{rigging.name} target {step.target}: {result.stderr.strip()}"
                 )
     return results
 
 
-def _setup_command(command: tuple[str, ...], target: str) -> tuple[str, ...]:
+def _setup_command(
+    command: tuple[str, ...],
+    step: RiggingInstallStep,
+) -> tuple[str, ...] | None:
+    method = step.method
+    if method == "preinstalled":
+        return None
+    if method != "agent-extension":
+        raise RuntimePreparationError(
+            f"rigging install method {method} is not executable yet"
+        )
     if not command:
         raise RuntimePreparationError("runtime command must not be empty")
-    return (command[0], "install", target)
+    return (command[0], "install", step.target)
 
 
 def _run_setup_command(

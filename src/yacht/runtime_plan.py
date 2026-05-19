@@ -72,6 +72,11 @@ def _vessel_to_json(regatta: Regatta, vessel: Vessel) -> dict[str, Any]:
         "rigging": list(vessel.rigging),
         "surfaces": vessel_surfaces_to_json(runtime, riggings),
         "runtime": _runtime_to_json(runtime),
+        "install": [
+            step.to_json()
+            for rigging in riggings
+            for step in rigging.install
+        ],
         "env": env,
         "secret_refs": [
             _secret_ref_to_json(name, regatta.secrets[name]) for name in required_secrets
