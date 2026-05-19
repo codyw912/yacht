@@ -36,8 +36,13 @@ checks = [
 
 [riggings.pi-fff]
 tools = ["fff"]
-install = ["npm:@ff-labs/pi-fff"]
 instructions = "Use fff for codebase memory and navigation."
+
+[[riggings.pi-fff.install]]
+method = "agent-extension"
+target = "npm:@ff-labs/pi-fff"
+agent = "pi"
+package = "@ff-labs/pi-fff"
 
 [riggings.pi-fff.env]
 PI_FFF_MODE = "required"

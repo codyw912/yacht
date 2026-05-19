@@ -24,6 +24,9 @@
   duration, and tool calls by vessel and comparison delta.
 - Added explicit agent/tool/benchmark surface metadata to provisioning configs,
   runtime plans, runtime instance dry-runs, and real benchmark runbooks.
+- Added typed rigging install steps so tool setup can describe agent extensions,
+  MCP servers, packages, binaries, container images, preinstalled tools, or
+  custom commands without treating npm as the generic install model.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

@@ -219,6 +219,31 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                     secret_values={"anthropic": "test-secret"},
                 )
 
+    def test_prepare_rejects_non_executable_install_method(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            'method = "agent-extension"',
+            'method = "mcp-server"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            config_path.write_text(config, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(
+                RuntimePreparationError,
+                "rigging install method mcp-server is not executable yet",
+            ):
+                HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
+                    regatta=regatta,
+                    vessel=regatta.vessels[1],
+                    trial_root=root / "trial",
+                    workspace_path=workspace_path,
+                    secret_values={"anthropic": "test-secret"},
+                )
+
     def test_prepare_requires_explicit_secret_values(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -6,7 +6,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
 from yacht.benchmark_status import build_benchmark_status
 from yacht.cli import main
 from yacht.pi_adapter import (
@@ -344,8 +344,8 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
     logbook_dir = root / "logbook"
     config_path.write_text(
         PI_WITH_FFF_CONFIG.replace(
-            'install = ["npm:@ff-labs/pi-fff"]',
-            "install = []",
+            PI_FFF_TYPED_INSTALL,
+            "install = []\n",
         ),
         encoding="utf-8",
     )
