@@ -18,6 +18,8 @@ from yacht.schemas import (
     validate_task_attempt_document,
     validate_task_attempt_scorecard_document,
 )
+from yacht.surface_summary import format_surface_summary
+from yacht.surface_summary import load_logbook_surfaces
 from yacht.swebench_artifacts import candidate_patches_path, grading_report_path
 from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
@@ -141,6 +143,7 @@ def _render_scorecard(
     lines = [
         f"Benchmark scorecard: {scorecard['regatta']} / {scorecard['course']}",
         f"Status: {scorecard['status']}",
+        *_surface_text_lines(logbook_dir),
         "Comparisons: "
         f"{summary['total_comparisons']} | "
         f"Vessels: {summary['total_vessels']} | "
@@ -205,6 +208,7 @@ def _render_scorecard_markdown(
         f"- Regatta: {scorecard['regatta']}",
         f"- Course: {scorecard['course']}",
         f"- Status: {scorecard['status']}",
+        *_surface_markdown_lines(logbook_dir),
         f"- Comparisons: {summary['total_comparisons']}",
         f"- Vessels: {summary['total_vessels']}",
         f"- Measured: {summary['measured_vessels']}",
@@ -268,6 +272,20 @@ def _load_grading_collection(logbook_dir: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     return _load_json(path, "benchmark grading collection artifact")
+
+
+def _surface_text_lines(logbook_dir: Path) -> list[str]:
+    summary = format_surface_summary(load_logbook_surfaces(logbook_dir))
+    if summary is None:
+        return []
+    return [f"Surfaces: {summary}"]
+
+
+def _surface_markdown_lines(logbook_dir: Path) -> list[str]:
+    summary = format_surface_summary(load_logbook_surfaces(logbook_dir))
+    if summary is None:
+        return []
+    return [f"- Surfaces: {summary}"]
 
 
 def _validate_filters(

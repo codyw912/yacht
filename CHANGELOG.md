@@ -29,6 +29,8 @@
   custom commands without treating npm as the generic install model.
 - Real benchmark commands now select the agent harness from configured runtime
   surface metadata instead of assuming Pi at the orchestration boundary.
+- Real benchmark artifacts, status output, and scorecard reports now surface the
+  configured agent, tool, and benchmark harness metadata used for the run.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

@@ -92,6 +92,20 @@ class RealBenchmarkEvalTests(unittest.TestCase):
 
             self.assertEqual(summary["status"], "complete")
             self.assertEqual(summary["agent"], "pi")
+            self.assertEqual(
+                summary["surfaces"],
+                {
+                    "agent_harnesses": ["pi"],
+                    "benchmark": {
+                        "adapter": "swe-bench",
+                        "dataset": "princeton-nlp/SWE-bench_Lite",
+                        "execution_harness": "docker",
+                        "name": "swe-bench-lite",
+                        "split": "test",
+                    },
+                    "tools": ["fff"],
+                },
+            )
             self.assertEqual(summary["course_handoff"]["status"], "planned")
             self.assertEqual(summary["preflight"]["status"], "passed")
             self.assertEqual(summary["preflight_evidence_report"]["status"], "ready")

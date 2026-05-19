@@ -34,6 +34,7 @@ from yacht.readiness_gate import evaluate_readiness_gate
 from yacht.regatta import ConfigError, load_regatta
 from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.runtime_instances import write_runtime_instances_plan
+from yacht.surface_metadata import regatta_surfaces_to_json
 from yacht.swebench_predictions_from_attempts import (
     write_swe_bench_predictions_from_attempts,
 )
@@ -61,6 +62,7 @@ def run_real_benchmark_eval(
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
+    surfaces = regatta_surfaces_to_json(regatta)
     _progress(
         progress,
         f"real benchmark eval started: {regatta.name} / {regatta.course.name}; "
@@ -89,6 +91,7 @@ def run_real_benchmark_eval(
                 preflight=preflight,
                 preflight_evidence_report=preflight_evidence_report,
                 agent_name=agent_name,
+                surfaces=surfaces,
                 skipped=[
                     "task-attempts",
                     "predictions-from-attempts",
@@ -125,6 +128,7 @@ def run_real_benchmark_eval(
                 preflight=preflight,
                 preflight_evidence_report=preflight_evidence_report,
                 agent_name=agent_name,
+                surfaces=surfaces,
                 attempts=attempts,
                 task_attempt_scorecard=task_scorecard,
                 skipped=[
@@ -167,6 +171,7 @@ def run_real_benchmark_eval(
                 preflight=preflight,
                 preflight_evidence_report=preflight_evidence_report,
                 agent_name=agent_name,
+                surfaces=surfaces,
                 attempts=attempts,
                 task_attempt_scorecard=task_scorecard,
                 predictions=predictions,
@@ -205,6 +210,7 @@ def run_real_benchmark_eval(
                 preflight=preflight,
                 preflight_evidence_report=preflight_evidence_report,
                 agent_name=agent_name,
+                surfaces=surfaces,
                 attempts=attempts,
                 task_attempt_scorecard=task_scorecard,
                 predictions=predictions,
@@ -253,6 +259,7 @@ def run_real_benchmark_eval(
                 preflight=preflight,
                 preflight_evidence_report=preflight_evidence_report,
                 agent_name=agent_name,
+                surfaces=surfaces,
                 attempts=attempts,
                 task_attempt_scorecard=task_scorecard,
                 predictions=predictions,
@@ -276,6 +283,7 @@ def run_real_benchmark_eval(
             "regatta": scorecard["regatta"],
             "course": scorecard["course"],
             "agent": agent_name,
+            "surfaces": surfaces,
             "course_handoff": course_handoff,
             "preflight": preflight,
             "preflight_evidence_report": preflight_evidence_report,
@@ -303,6 +311,7 @@ def _blocked_summary(
     preflight: dict[str, Any],
     preflight_evidence_report: dict[str, Any],
     agent_name: str,
+    surfaces: dict[str, Any],
     skipped: list[str],
     logbook_dir: Path,
     attempts: dict[str, Any] | None = None,
@@ -323,6 +332,7 @@ def _blocked_summary(
         "regatta": regatta,
         "course": course,
         "agent": agent_name,
+        "surfaces": surfaces,
         "course_handoff": course_handoff,
         "preflight": preflight,
         "preflight_evidence_report": preflight_evidence_report,

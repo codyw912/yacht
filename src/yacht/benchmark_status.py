@@ -16,6 +16,8 @@ from yacht.preflight_evidence_report import PREFLIGHT_EVIDENCE_REPORT_PATH
 from yacht.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
 from yacht.real_benchmark_repetitions import REAL_BENCHMARK_REPETITIONS_PATH
 from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
+from yacht.surface_summary import format_surface_summary
+from yacht.surface_summary import load_logbook_surfaces
 from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 
@@ -34,6 +36,7 @@ def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
         "schema": "yacht.benchmark-status.v1",
         "logbook": str(logbook_dir),
         "status": _overall_status(artifacts),
+        "surfaces": load_logbook_surfaces(logbook_dir),
         "artifacts": artifacts,
         "next_steps": _next_steps(logbook_dir, artifacts),
     }
@@ -71,6 +74,7 @@ def _build_repetition_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
         "schema": "yacht.benchmark-status.v1",
         "logbook": str(logbook_dir),
         "status": _repetition_overall_status(artifacts),
+        "surfaces": load_logbook_surfaces(logbook_dir),
         "artifacts": artifacts,
         "next_steps": _repetition_next_steps(logbook_dir, artifacts),
     }
@@ -263,6 +267,7 @@ def _render_text(status: dict[str, Any]) -> str:
     lines = [
         f"Benchmark status: {status['logbook']}",
         f"Status: {status['status']}",
+        *_surface_text_lines(status),
         "",
         "state | artifact | path | detail",
     ]
@@ -278,6 +283,7 @@ def _render_markdown(status: dict[str, Any]) -> str:
         "",
         f"- Logbook: {status['logbook']}",
         f"- Status: {status['status']}",
+        *_surface_markdown_lines(status),
         "",
         "| State | Artifact | Path | Detail |",
         "| --- | --- | --- | --- |",
@@ -297,6 +303,20 @@ def _artifact_row(artifact: dict[str, Any]) -> str:
         f"{artifact['state']} | {artifact['label']} | "
         f"{artifact['path']} | {artifact['detail']}"
     )
+
+
+def _surface_text_lines(status: dict[str, Any]) -> list[str]:
+    summary = format_surface_summary(status.get("surfaces"))
+    if summary is None:
+        return []
+    return [f"Surfaces: {summary}"]
+
+
+def _surface_markdown_lines(status: dict[str, Any]) -> list[str]:
+    summary = format_surface_summary(status.get("surfaces"))
+    if summary is None:
+        return []
+    return [f"- Surfaces: {summary}"]
 
 
 def _text_next_step_lines(steps: list[dict[str, Any]]) -> list[str]:
