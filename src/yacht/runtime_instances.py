@@ -17,6 +17,7 @@ from yacht.regatta import (
     Vessel,
     load_regatta,
 )
+from yacht.runtime_capabilities import rigging_capabilities_to_json
 from yacht.schemas import RUNTIME_INSTANCES_SCHEMA
 from yacht.schemas import validate_runtime_instances_document
 from yacht.surface_metadata import agent_for_runtime
@@ -125,6 +126,10 @@ def _vessel_to_json(
         "backend": resolution.runtime.backend,
         "agent": agent_for_runtime(resolution.runtime),
         "surfaces": vessel_surfaces_to_json(resolution.runtime, riggings),
+        "rigging_capabilities": rigging_capabilities_to_json(
+            resolution.runtime,
+            riggings,
+        ),
         "install": [
             step.to_json()
             for rigging in riggings

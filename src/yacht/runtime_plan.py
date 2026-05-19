@@ -17,6 +17,7 @@ from yacht.regatta import (
     Vessel,
     load_regatta,
 )
+from yacht.runtime_capabilities import rigging_capabilities_to_json
 from yacht.surface_metadata import agent_for_runtime
 from yacht.surface_metadata import regatta_surfaces_to_json
 from yacht.surface_metadata import vessel_surfaces_to_json
@@ -72,6 +73,7 @@ def _vessel_to_json(regatta: Regatta, vessel: Vessel) -> dict[str, Any]:
         "rigging": list(vessel.rigging),
         "surfaces": vessel_surfaces_to_json(runtime, riggings),
         "runtime": _runtime_to_json(runtime),
+        "rigging_capabilities": rigging_capabilities_to_json(runtime, riggings),
         "install": [
             step.to_json()
             for rigging in riggings

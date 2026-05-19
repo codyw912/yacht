@@ -25,6 +25,7 @@ from yacht.regatta import (
     load_regatta,
 )
 from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
+from yacht.runtime_capabilities import rigging_capabilities_to_json
 from yacht.schemas import (
     REAL_BENCHMARK_RUNBOOK_SCHEMA,
     validate_real_benchmark_runbook_document,
@@ -65,6 +66,10 @@ def render_real_benchmark_runbook(runbook: dict[str, Any]) -> str:
         f"- Course: `{runbook['course']}`",
         f"- Agent: `{runbook['agent']}`",
         f"- Tools: `{_surface_tools(runbook)}`",
+        "",
+        "### Runtime Capabilities",
+        "",
+        *_runtime_capability_lines(runbook),
         "",
         "### Secrets",
         "",
@@ -138,6 +143,7 @@ def build_real_benchmark_runbook(
         "course": regatta.course.name,
         "agent": _primary_agent(surfaces),
         "surfaces": surfaces,
+        "rigging_capabilities": _rigging_capabilities(regatta),
         "secret_placeholders": secret_placeholders,
         "steps": _steps(
             config_path=config_path,
@@ -170,6 +176,34 @@ def _surface_tools(runbook: dict[str, Any]) -> str:
     if not isinstance(tools, list) or not tools:
         return "none"
     return ", ".join(str(tool) for tool in tools)
+
+
+def _runtime_capability_lines(runbook: dict[str, Any]) -> list[str]:
+    capabilities = runbook.get("rigging_capabilities")
+    if not isinstance(capabilities, list) or not capabilities:
+        return ["- None"]
+    return [
+        "- "
+        f"`{capability['vessel']}`: `{capability['status']}` "
+        f"({capability['runtime_backend']}; "
+        f"methods={', '.join(capability['supported_install_methods']) or 'none'})"
+        for capability in capabilities
+        if isinstance(capability, dict)
+    ]
+
+
+def _rigging_capabilities(regatta: Regatta) -> list[dict[str, Any]]:
+    capabilities = []
+    for vessel in regatta.vessels:
+        if vessel.runtime is None:
+            continue
+        runtime = regatta.runtime_recipes[vessel.runtime]
+        riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
+        payload = rigging_capabilities_to_json(runtime, riggings)
+        payload["vessel"] = vessel.name
+        payload["runtime"] = runtime.name
+        capabilities.append(payload)
+    return capabilities
 
 
 def _steps(

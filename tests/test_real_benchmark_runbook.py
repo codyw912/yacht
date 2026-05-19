@@ -53,6 +53,26 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
                 },
             )
             self.assertEqual(
+                runbook["rigging_capabilities"][1],
+                {
+                    "vessel": "pi-plus-fff",
+                    "runtime": "pi",
+                    "status": "supported",
+                    "runtime_backend": "host-nix",
+                    "runtime_agent": "pi",
+                    "supported_install_methods": ["agent-extension", "preinstalled"],
+                    "install_checks": [
+                        {
+                            "origin": "rigging",
+                            "origin_name": "pi-fff",
+                            "method": "agent-extension",
+                            "target": "npm:@ff-labs/pi-fff",
+                            "supported": True,
+                        }
+                    ],
+                },
+            )
+            self.assertEqual(
                 runbook["secret_placeholders"],
                 [
                     {
@@ -193,6 +213,8 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             markdown = stdout.getvalue()
             self.assertIn("## Real Benchmark Runbook", markdown)
             self.assertIn("Regatta: `pi-fff-comparison`", markdown)
+            self.assertIn("### Runtime Capabilities", markdown)
+            self.assertIn("`pi-plus-fff`: `supported`", markdown)
             self.assertIn("### Commands", markdown)
             self.assertIn("```sh\nuv run yacht real-benchmark-eval", markdown)
             self.assertIn("--secret anthropic=@env:ANTHROPIC_API_KEY", markdown)

@@ -201,6 +201,24 @@ class RuntimePlanTests(unittest.TestCase):
                     }
                 ],
             )
+            self.assertEqual(
+                rigged["rigging_capabilities"],
+                {
+                    "status": "supported",
+                    "runtime_backend": "host-nix",
+                    "runtime_agent": "pi",
+                    "supported_install_methods": ["agent-extension", "preinstalled"],
+                    "install_checks": [
+                        {
+                            "origin": "rigging",
+                            "origin_name": "pi-fff",
+                            "method": "agent-extension",
+                            "target": "npm:@ff-labs/pi-fff",
+                            "supported": True,
+                        }
+                    ],
+                },
+            )
             self.assertEqual(rigged["runtime"], "pi")
             self.assertEqual(rigged["backend"], "host-nix")
             self.assertEqual(
@@ -349,6 +367,14 @@ class RuntimePlanTests(unittest.TestCase):
                     }
                 ],
             )
+            self.assertEqual(
+                rigged_vessel["rigging_capabilities"]["status"],
+                "supported",
+            )
+            self.assertEqual(
+                rigged_vessel["rigging_capabilities"]["supported_install_methods"],
+                ["agent-extension", "preinstalled"],
+            )
             self.assertEqual(rigged_vessel["runtime"]["backend"], "host-nix")
             self.assertEqual(
                 rigged_vessel["runtime"]["command_prefix"],
@@ -404,6 +430,36 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(plan["surfaces"]["tools"], [])
             self.assertEqual(plan["vessels"][1]["surfaces"]["agent_harness"], "pi")
             self.assertNotIn("tools", plan["vessels"][1]["surfaces"])
+
+    def test_build_runtime_plan_reports_unsupported_install_capability(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            'method = "agent-extension"',
+            'method = "mcp-server"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            plan = build_runtime_plan(config_path)
+
+            capabilities = plan["vessels"][1]["rigging_capabilities"]
+            self.assertEqual(capabilities["status"], "unsupported")
+            self.assertEqual(
+                capabilities["install_checks"],
+                [
+                    {
+                        "origin": "rigging",
+                        "origin_name": "pi-fff",
+                        "method": "mcp-server",
+                        "target": "npm:@ff-labs/pi-fff",
+                        "supported": False,
+                        "reason": (
+                            "runtime backend host-nix does not support rigging "
+                            "install method mcp-server yet"
+                        ),
+                    }
+                ],
+            )
 
     def test_plan_command_prints_resolved_runtime_plan_without_logbook(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

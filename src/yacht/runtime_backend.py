@@ -20,6 +20,7 @@ from yacht.regatta import (
     RuntimeSetupResult,
     Vessel,
 )
+from yacht.runtime_capabilities import unsupported_rigging_capability_reasons
 from yacht.runtime_process import subprocess_env
 
 
@@ -170,6 +171,12 @@ def _apply_rigging_installs(
     env: dict[str, str],
     setup_runner: SetupCommandRunner,
 ) -> list[RuntimeSetupResult]:
+    unsupported = unsupported_rigging_capability_reasons(
+        resolution.runtime,
+        resolution.riggings,
+    )
+    if unsupported:
+        raise RuntimePreparationError("; ".join(unsupported))
     results = []
     for rigging in resolution.riggings:
         for step in rigging.install:
