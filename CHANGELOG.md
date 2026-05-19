@@ -31,6 +31,8 @@
   surface metadata instead of assuming Pi at the orchestration boundary.
 - Real benchmark artifacts, status output, and scorecard reports now surface the
   configured agent, tool, and benchmark harness metadata used for the run.
+- Runtime plans and dry-run instances now report whether typed rigging install
+  steps are supported by the selected runtime backend before setup commands run.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

@@ -234,7 +234,74 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 RuntimePreparationError,
-                "rigging install method mcp-server is not executable yet",
+                (
+                    "runtime backend host-nix does not support rigging install "
+                    "method mcp-server yet"
+                ),
+            ):
+                HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
+                    regatta=regatta,
+                    vessel=regatta.vessels[1],
+                    trial_root=root / "trial",
+                    workspace_path=workspace_path,
+                    secret_values={"anthropic": "test-secret"},
+                )
+
+    def test_prepare_rejects_unsupported_install_before_partial_setup(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            'method = "agent-extension"',
+            'method = "package"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            config_path.write_text(config, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+            calls = []
+
+            def setup_runner(
+                argv: tuple[str, ...],
+                env: dict[str, str],
+                cwd: Path,
+            ) -> SetupProcessResult:
+                calls.append((argv, env, cwd))
+                return SetupProcessResult(exit_code=0, stdout="", stderr="")
+
+            with self.assertRaisesRegex(
+                RuntimePreparationError,
+                (
+                    "runtime backend host-nix does not support rigging install "
+                    "method package yet"
+                ),
+            ):
+                HostNixRuntimeBackend(setup_runner=setup_runner).prepare(
+                    regatta=regatta,
+                    vessel=regatta.vessels[1],
+                    trial_root=root / "trial",
+                    workspace_path=workspace_path,
+                    secret_values={"anthropic": "test-secret"},
+                )
+
+            self.assertEqual(calls, [])
+
+    def test_prepare_rejects_agent_extension_for_different_agent(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            'agent = "pi"\npackage = "@ff-labs/pi-fff"',
+            'agent = "codex"\npackage = "@ff-labs/pi-fff"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            config_path.write_text(config, encoding="utf-8")
+            workspace_path.mkdir()
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(
+                RuntimePreparationError,
+                "agent-extension install targets agent codex, but runtime agent is pi",
             ):
                 HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
                     regatta=regatta,
