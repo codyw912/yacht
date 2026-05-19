@@ -9,6 +9,7 @@ from pathlib import Path
 from tests.preflight_artifacts import write_preflight_artifact
 from yacht.cli import main
 from yacht.course_handoff import write_course_handoff
+from yacht.preflight_evidence_report import render_preflight_evidence_report
 from yacht.preflight_evidence_report import write_preflight_evidence_report
 
 
@@ -131,6 +132,75 @@ class PreflightEvidenceReportTests(unittest.TestCase):
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["schema"], "yacht.preflight-evidence-report.v1")
             self.assertEqual(payload["status"], "blocked")
+
+    def test_render_preflight_report_as_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_logbook(Path(temp_dir))
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-baseline",
+                status="passed",
+            )
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-plus-fff",
+                status="failed",
+            )
+
+            report = write_preflight_evidence_report(logbook_dir)
+
+            rendered = render_preflight_evidence_report(report, "text")
+            self.assertIn(
+                "Preflight report: pi-fff-comparison / swe-bench-lite",
+                rendered,
+            )
+            self.assertIn("Status: blocked", rendered)
+            self.assertIn(
+                "Summary: eligible=1 | blocked=1 | missing=0 | invalid=0 | total=2",
+                rendered,
+            )
+            self.assertIn(
+                (
+                    "pi-vs-pi-fff | pi-plus-fff | preflight-failed | no | "
+                    "preflight-failed | failed | "
+                ),
+                rendered,
+            )
+
+    def test_preflight_report_command_writes_markdown_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook_dir = _prepared_logbook(root)
+            output_path = root / "preflight-report.md"
+            write_preflight_artifact(
+                logbook_dir=logbook_dir,
+                comparison_name="pi-vs-pi-fff",
+                vessel_name="pi-baseline",
+                status="passed",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "preflight-report",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--format",
+                        "markdown",
+                        "--output",
+                        str(output_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(stdout.getvalue(), "")
+            rendered = output_path.read_text(encoding="utf-8")
+            self.assertIn("## Preflight report", rendered)
+            self.assertIn("| Comparison | Vessel | Status | Eligible |", rendered)
+            self.assertIn("| pi-vs-pi-fff | pi-baseline | eligible | yes |", rendered)
 
     def test_preflight_report_command_reports_errors_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
