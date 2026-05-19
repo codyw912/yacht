@@ -99,8 +99,25 @@ def _aggregate_with_run_details(aggregate: dict[str, Any]) -> dict[str, Any]:
 def _comparison_has_run_statistics(comparison: dict[str, Any]) -> bool:
     return (
         "runs" in comparison
-        and "delta_statistics" in comparison
-        and all("statistics" in vessel for vessel in comparison.get("vessels", []))
+        and _statistics_include_stdev(comparison.get("delta_statistics"))
+        and all(
+            _statistics_include_stdev(vessel.get("statistics"))
+            for vessel in comparison.get("vessels", [])
+        )
+    )
+
+
+def _statistics_include_stdev(statistics: Any) -> bool:
+    if not isinstance(statistics, dict):
+        return False
+    metric_keys = [
+        key
+        for key in statistics
+        if key not in {"baseline_vessel", "challenger_vessel"}
+    ]
+    return bool(metric_keys) and all(
+        isinstance(statistics.get(key), dict) and "stdev" in statistics[key]
+        for key in metric_keys
     )
 
 

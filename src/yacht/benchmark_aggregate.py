@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -282,10 +283,13 @@ def _delta_statistics(run_summaries: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _stats(values: list[float | int], *, digits: int = 3) -> dict[str, Any]:
     if not values:
-        return {"runs": 0, "mean": 0.0, "min": 0, "max": 0}
+        return {"runs": 0, "mean": 0.0, "stdev": 0.0, "min": 0, "max": 0}
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / len(values)
     return {
         "runs": len(values),
-        "mean": round(sum(values) / len(values), digits),
+        "mean": round(mean, digits),
+        "stdev": round(math.sqrt(variance), digits),
         "min": round(min(values), digits),
         "max": round(max(values), digits),
     }
@@ -417,6 +421,19 @@ def _render_text(aggregate: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "Aggregate variability by vessel:",
+            "comparison | vessel | rate_stdev | tokens_stdev | cost_stdev | "
+            "duration_stdev | tool_calls_stdev",
+        ]
+    )
+    for comparison in aggregate["comparisons"]:
+        lines.extend(
+            _vessel_variability_row(comparison, vessel)
+            for vessel in comparison["vessels"]
+        )
+    lines.extend(
+        [
+            "",
             "Aggregate delta statistics:",
             "comparison | baseline | challenger | rate_mean | rate_range | "
             "tokens_mean | tokens_range | cost_mean | cost_range | "
@@ -425,6 +442,17 @@ def _render_text(aggregate: dict[str, Any]) -> str:
     )
     lines.extend(
         _delta_statistics_row(comparison) for comparison in aggregate["comparisons"]
+    )
+    lines.extend(
+        [
+            "",
+            "Aggregate delta variability:",
+            "comparison | baseline | challenger | resolved_stdev | rate_stdev | "
+            "tokens_stdev | cost_stdev | duration_stdev | tool_calls_stdev",
+        ]
+    )
+    lines.extend(
+        _delta_variability_row(comparison) for comparison in aggregate["comparisons"]
     )
     lines.extend(
         [
@@ -491,6 +519,21 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "## Aggregate variability by vessel",
+            "",
+            "| Comparison | Vessel | Rate stdev | Tokens stdev | Cost stdev | "
+            "Duration stdev | Tool calls stdev |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for comparison in aggregate["comparisons"]:
+        lines.extend(
+            f"| {_vessel_variability_row(comparison, vessel)} |"
+            for vessel in comparison["vessels"]
+        )
+    lines.extend(
+        [
+            "",
             "## Aggregate delta statistics",
             "",
             "| Comparison | Baseline | Challenger | Rate mean | Rate range | "
@@ -501,6 +544,20 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
     )
     lines.extend(
         f"| {_delta_statistics_row(comparison)} |"
+        for comparison in aggregate["comparisons"]
+    )
+    lines.extend(
+        [
+            "",
+            "## Aggregate delta variability",
+            "",
+            "| Comparison | Baseline | Challenger | Resolved stdev | Rate stdev | "
+            "Tokens stdev | Cost stdev | Duration stdev | Tool calls stdev |",
+            "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    lines.extend(
+        f"| {_delta_variability_row(comparison)} |"
         for comparison in aggregate["comparisons"]
     )
     lines.extend(
@@ -591,6 +648,34 @@ def _delta_statistics_row(comparison: dict[str, Any]) -> str:
     )
 
 
+def _vessel_variability_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
+    stats = vessel["statistics"]
+    return (
+        f"{comparison['name']} | "
+        f"{vessel['name']} | "
+        f"{_stats_rate_stdev(stats['resolution_rate'])} | "
+        f"{_stats_number_stdev(stats['tokens'])} | "
+        f"{_stats_cost_stdev(stats['cost'])} | "
+        f"{_stats_duration_stdev(stats['duration_seconds'])} | "
+        f"{_stats_number_stdev(stats['tool_calls'])}"
+    )
+
+
+def _delta_variability_row(comparison: dict[str, Any]) -> str:
+    stats = comparison["delta_statistics"]
+    return (
+        f"{comparison['name']} | "
+        f"{stats['baseline_vessel']} | "
+        f"{stats['challenger_vessel']} | "
+        f"{_stats_number_stdev(stats['resolved_instances_delta'])} | "
+        f"{_stats_rate_stdev(stats['resolution_rate_delta'])} | "
+        f"{_stats_number_stdev(stats['tokens_delta'])} | "
+        f"{_stats_cost_stdev(stats['cost_delta'])} | "
+        f"{_stats_duration_stdev(stats['duration_seconds_delta'])} | "
+        f"{_stats_number_stdev(stats['tool_calls_delta'])}"
+    )
+
+
 def _run_vessel_row(
     comparison: dict[str, Any],
     run: dict[str, Any],
@@ -644,12 +729,20 @@ def _stats_rate_mean(stats: dict[str, Any]) -> str:
     return _rate(stats["mean"])
 
 
+def _stats_rate_stdev(stats: dict[str, Any]) -> str:
+    return _rate(stats["stdev"])
+
+
 def _stats_rate_range(stats: dict[str, Any]) -> str:
     return f"{_rate(stats['min'])}..{_rate(stats['max'])}"
 
 
 def _stats_number_mean(stats: dict[str, Any]) -> str:
     return f"{float(stats['mean']):.1f}"
+
+
+def _stats_number_stdev(stats: dict[str, Any]) -> str:
+    return f"{float(stats['stdev']):.1f}"
 
 
 def _stats_number_range(stats: dict[str, Any]) -> str:
@@ -660,12 +753,20 @@ def _stats_cost_mean(stats: dict[str, Any]) -> str:
     return _cost(stats["mean"])
 
 
+def _stats_cost_stdev(stats: dict[str, Any]) -> str:
+    return _cost(stats["stdev"])
+
+
 def _stats_cost_range(stats: dict[str, Any]) -> str:
     return f"{_cost(stats['min'])}..{_cost(stats['max'])}"
 
 
 def _stats_duration_mean(stats: dict[str, Any]) -> str:
     return _duration(stats["mean"])
+
+
+def _stats_duration_stdev(stats: dict[str, Any]) -> str:
+    return _duration(stats["stdev"])
 
 
 def _stats_duration_range(stats: dict[str, Any]) -> str:

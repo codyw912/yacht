@@ -128,36 +128,42 @@ class BenchmarkAggregateTests(unittest.TestCase):
                     "resolved_instances_delta": {
                         "runs": 2,
                         "mean": 0.5,
+                        "stdev": 0.5,
                         "min": 0,
                         "max": 1,
                     },
                     "resolution_rate_delta": {
                         "runs": 2,
                         "mean": 0.5,
+                        "stdev": 0.5,
                         "min": 0.0,
                         "max": 1.0,
                     },
                     "tokens_delta": {
                         "runs": 2,
                         "mean": 1100.0,
+                        "stdev": 0.0,
                         "min": 1100,
                         "max": 1100,
                     },
                     "cost_delta": {
                         "runs": 2,
                         "mean": 0.0011,
+                        "stdev": 0.0,
                         "min": 0.0011,
                         "max": 0.0011,
                     },
                     "duration_seconds_delta": {
                         "runs": 2,
                         "mean": 1.1,
+                        "stdev": 0.0,
                         "min": 1.1,
                         "max": 1.1,
                     },
                     "tool_calls_delta": {
                         "runs": 2,
                         "mean": 1.0,
+                        "stdev": 0.0,
                         "min": 1,
                         "max": 1,
                     },
@@ -183,30 +189,35 @@ class BenchmarkAggregateTests(unittest.TestCase):
                             "resolution_rate": {
                                 "runs": 2,
                                 "mean": 0.5,
+                                "stdev": 0.5,
                                 "min": 0.0,
                                 "max": 1.0,
                             },
                             "tokens": {
                                 "runs": 2,
                                 "mean": 1000.0,
+                                "stdev": 0.0,
                                 "min": 1000,
                                 "max": 1000,
                             },
                             "cost": {
                                 "runs": 2,
                                 "mean": 0.001,
+                                "stdev": 0.0,
                                 "min": 0.001,
                                 "max": 0.001,
                             },
                             "duration_seconds": {
                                 "runs": 2,
                                 "mean": 10.0,
+                                "stdev": 0.0,
                                 "min": 10.0,
                                 "max": 10.0,
                             },
                             "tool_calls": {
                                 "runs": 2,
                                 "mean": 3.0,
+                                "stdev": 0.0,
                                 "min": 3,
                                 "max": 3,
                             },
@@ -229,30 +240,35 @@ class BenchmarkAggregateTests(unittest.TestCase):
                             "resolution_rate": {
                                 "runs": 2,
                                 "mean": 1.0,
+                                "stdev": 0.0,
                                 "min": 1.0,
                                 "max": 1.0,
                             },
                             "tokens": {
                                 "runs": 2,
                                 "mean": 2100.0,
+                                "stdev": 0.0,
                                 "min": 2100,
                                 "max": 2100,
                             },
                             "cost": {
                                 "runs": 2,
                                 "mean": 0.0021,
+                                "stdev": 0.0,
                                 "min": 0.0021,
                                 "max": 0.0021,
                             },
                             "duration_seconds": {
                                 "runs": 2,
                                 "mean": 11.1,
+                                "stdev": 0.0,
                                 "min": 11.1,
                                 "max": 11.1,
                             },
                             "tool_calls": {
                                 "runs": 2,
                                 "mean": 4.0,
+                                "stdev": 0.0,
                                 "min": 4,
                                 "max": 4,
                             },
@@ -305,12 +321,28 @@ class BenchmarkAggregateTests(unittest.TestCase):
                 "10.000s | 10.000s..10.000s | 3.0 | 3..3",
                 report,
             )
+            self.assertIn("Aggregate variability by vessel:", report)
+            self.assertIn(
+                (
+                    "pi-vs-pi-fff | pi-baseline | 0.500 | 0.0 | 0.000000 | "
+                    "0.000s | 0.0"
+                ),
+                report,
+            )
             self.assertIn("Aggregate delta statistics:", report)
             self.assertIn(
                 "pi-vs-pi-fff | pi-baseline | pi-plus-fff | +0.500 | "
                 "+0.000..+1.000 | +1100.0 | +1100..+1100 | +0.001100 | "
                 "+0.001100..+0.001100 | +1.100s | +1.100s..+1.100s | "
                 "+1.0 | +1..+1",
+                report,
+            )
+            self.assertIn("Aggregate delta variability:", report)
+            self.assertIn(
+                (
+                    "pi-vs-pi-fff | pi-baseline | pi-plus-fff | 0.5 | "
+                    "0.500 | 0.0 | 0.000000 | 0.000s | 0.0"
+                ),
                 report,
             )
             self.assertIn("Aggregate runs by vessel:", report)
@@ -449,6 +481,51 @@ class BenchmarkAggregateTests(unittest.TestCase):
             report = stdout.getvalue()
             self.assertIn("Aggregate statistics by vessel:", report)
             self.assertIn("Aggregate delta statistics:", report)
+
+    def test_benchmark_report_enriches_parent_aggregate_without_stdev(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _write_logbook(
+                root / "series/runs/run-001",
+                baseline_resolved=1,
+                fff_resolved=1,
+            )
+            second = _write_logbook(
+                root / "series/runs/run-002",
+                baseline_resolved=0,
+                fff_resolved=1,
+            )
+            parent = root / "series"
+            aggregate = build_benchmark_aggregate([first, second])
+            for comparison in aggregate["comparisons"]:
+                _remove_stdev(comparison["delta_statistics"])
+                for vessel in comparison["vessels"]:
+                    _remove_stdev(vessel["statistics"])
+            (parent / "benchmark-aggregate.json").write_text(
+                json.dumps(aggregate) + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "benchmark-report",
+                        "--logbook",
+                        str(parent),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            report = stdout.getvalue()
+            self.assertIn("Aggregate variability by vessel:", report)
+            self.assertIn("Aggregate delta variability:", report)
+            self.assertIn(
+                "pi-vs-pi-fff | pi-baseline | 0.500 | 0.0 | 0.000000 |",
+                report,
+            )
 
     def test_benchmark_aggregate_requires_compatible_regattas(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -616,6 +693,12 @@ def _task_attempt_summary(
         ),
         "total_comparisons": 1,
     }
+
+
+def _remove_stdev(statistics: dict[str, object]) -> None:
+    for value in statistics.values():
+        if isinstance(value, dict):
+            value.pop("stdev", None)
 
 
 if __name__ == "__main__":
