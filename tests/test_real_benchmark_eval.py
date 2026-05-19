@@ -86,10 +86,12 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                         )
                     ),
                     task_agent=adapter,
+                    agent_name="pi",
                     benchmark_command_runner=benchmark_runner,
                 )
 
             self.assertEqual(summary["status"], "complete")
+            self.assertEqual(summary["agent"], "pi")
             self.assertEqual(summary["course_handoff"]["status"], "planned")
             self.assertEqual(summary["preflight"]["status"], "passed")
             self.assertEqual(summary["preflight_evidence_report"]["status"], "ready")
@@ -247,6 +249,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                         )
                     ),
                     task_agent=adapter,
+                    agent_name="pi",
                     benchmark_command_runner=lambda _argv, _cwd: CommandResult(
                         exit_code=0,
                         stdout="no report\n",
@@ -255,6 +258,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 )
 
             self.assertEqual(summary["status"], "blocked")
+            self.assertEqual(summary["agent"], "pi")
             self.assertEqual(summary["course_handoff"]["status"], "planned")
             self.assertEqual(summary["preflight_evidence_report"]["status"], "ready")
             self.assertEqual(
@@ -308,9 +312,11 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                         )
                     ),
                     task_agent=adapter,
+                    agent_name="pi",
                 )
 
             self.assertEqual(summary["status"], "blocked")
+            self.assertEqual(summary["agent"], "pi")
             self.assertEqual(summary["failed_stage"], "predictions-from-attempts")
             self.assertIn(
                 "response must be a JSON object with non-empty model_patch",

@@ -27,6 +27,8 @@
 - Added typed rigging install steps so tool setup can describe agent extensions,
   MCP servers, packages, binaries, container images, preinstalled tools, or
   custom commands without treating npm as the generic install model.
+- Real benchmark commands now select the agent harness from configured runtime
+  surface metadata instead of assuming Pi at the orchestration boundary.
 
 ## 0.1.0 - First Usable Benchmark Smoke
 

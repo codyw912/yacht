@@ -35,6 +35,7 @@ def run_real_benchmark_repetitions(
     workspace_path: Path,
     secret_values: dict[str, str],
     repetitions: int,
+    agent_name: str | None = None,
     agent_prompt_runner_factory: AgentPromptRunnerFactory | None = None,
     task_agent: TaskAgent | None = None,
     benchmark_command_runner: CommandRunner | None = None,
@@ -52,6 +53,8 @@ def run_real_benchmark_repetitions(
         f"repetitions={repetitions}; logbook={logbook_dir}",
     )
     if eval_runner is None:
+        if agent_name is None:
+            raise ConfigError("real benchmark repetitions require an agent name")
         if agent_prompt_runner_factory is None or task_agent is None:
             raise ConfigError(
                 "real benchmark repetitions require an agent prompt runner and task agent"
@@ -60,6 +63,7 @@ def run_real_benchmark_repetitions(
             config_path=config_path,
             workspace_path=workspace_path,
             secret_values=secret_values,
+            agent_name=agent_name,
             agent_prompt_runner_factory=agent_prompt_runner_factory,
             task_agent=task_agent,
             benchmark_command_runner=benchmark_command_runner,
@@ -124,6 +128,7 @@ def run_real_benchmark_repetitions(
     summary = _summary(
         regatta=regatta.name,
         course=regatta.course.name,
+        agent_name=agent_name,
         logbook_dir=logbook_dir,
         repetitions=repetitions,
         runs=runs,
@@ -138,6 +143,7 @@ def _real_benchmark_eval_runner(
     config_path: Path,
     workspace_path: Path,
     secret_values: dict[str, str],
+    agent_name: str,
     agent_prompt_runner_factory: AgentPromptRunnerFactory,
     task_agent: TaskAgent,
     benchmark_command_runner: CommandRunner | None,
@@ -153,6 +159,7 @@ def _real_benchmark_eval_runner(
             secret_values=secret_values,
             agent_prompt_runner_factory=agent_prompt_runner_factory,
             task_agent=task_agent,
+            agent_name=agent_name,
             benchmark_command_runner=benchmark_command_runner,
             max_workers=max_workers,
             python_executable=python_executable,
@@ -166,6 +173,7 @@ def _summary(
     *,
     regatta: str,
     course: str,
+    agent_name: str | None,
     logbook_dir: Path,
     repetitions: int,
     runs: list[dict[str, Any]],
@@ -202,6 +210,8 @@ def _summary(
         },
         "next_steps": _next_steps(logbook_dir, runs),
     }
+    if agent_name is not None:
+        summary["agent"] = agent_name
     if aggregate is not None:
         summary["aggregate_summary"] = _aggregate_summary(aggregate)
     return summary

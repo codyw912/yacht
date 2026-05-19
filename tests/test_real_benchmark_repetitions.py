@@ -225,6 +225,9 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             stderr = StringIO()
 
             with patch(
+                "yacht.cli.configured_agent_name",
+                return_value="pi",
+            ), patch(
                 "yacht.cli.run_real_benchmark_repetitions",
                 side_effect=ConfigError("boom"),
             ), redirect_stdout(stdout), redirect_stderr(stderr):
