@@ -199,14 +199,22 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                         "--secret",
                         "anthropic=test-secret",
                     ]
-                )
+            )
 
             self.assertEqual(exit_code, 0)
-            payload = json.loads(stdout.getvalue())
-            self.assertEqual(payload["status"], "complete")
-            self.assertEqual(payload["course_handoff"]["status"], "planned")
-            self.assertEqual(payload["preflight_evidence_report"]["status"], "ready")
-            self.assertEqual(payload["scorecard"]["status"], "complete")
+            report = stdout.getvalue()
+            self.assertIn(
+                "Real benchmark eval: pi-fff-comparison / swe-bench-lite",
+                report,
+            )
+            self.assertIn("Status: complete", report)
+            self.assertIn(
+                "Stages: preflight=ready | attempts=completed | launch=complete | "
+                "grading=complete | scorecard=complete",
+                report,
+            )
+            self.assertIn("Benchmark outcomes:", report)
+            self.assertIn("Artifacts: logbook=", report)
             progress = stderr.getvalue()
             self.assertIn("yacht: real benchmark eval started:", progress)
             self.assertIn("yacht: preflight: running", progress)
@@ -222,6 +230,39 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 command[:5],
                 ["uv", "run", "--with", "swebench", "python"],
             )
+
+    def test_real_benchmark_eval_command_prints_json_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, workspace_path, logbook_dir = _write_fixture(root)
+            stdout = StringIO()
+
+            with patch(
+                "yacht.cli.run_real_benchmark_eval",
+                return_value={
+                    "status": "complete",
+                    "regatta": "pi-fff-comparison",
+                    "course": "swe-bench-lite",
+                    "artifacts": {"logbook": str(logbook_dir)},
+                },
+            ), redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "real-benchmark-eval",
+                        str(config_path),
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_path),
+                        "--format",
+                        "json",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["status"], "complete")
+            self.assertEqual(payload["artifacts"]["logbook"], str(logbook_dir))
 
     def test_blocks_with_preflight_guidance_for_unsupported_rigging_capability(
         self,

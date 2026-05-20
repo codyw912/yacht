@@ -42,6 +42,8 @@ from yacht.real_benchmark_eval import run_real_benchmark_eval
 from yacht.real_benchmark_repetitions import run_real_benchmark_repetitions
 from yacht.real_benchmark_runbook import render_real_benchmark_runbook
 from yacht.real_benchmark_runbook import write_real_benchmark_runbook
+from yacht.real_benchmark_summary import render_real_benchmark_eval_summary
+from yacht.real_benchmark_summary import render_real_benchmark_repetitions_summary
 from yacht.real_smoke_eval import run_real_smoke_eval
 from yacht.real_smoke_runbook import render_real_smoke_runbook
 from yacht.real_smoke_runbook import write_real_smoke_runbook
@@ -689,6 +691,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
         help="Python executable prefix to include in generated SWE-bench commands.",
     )
+    real_benchmark_eval_parser.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format for the completion summary.",
+    )
 
     real_benchmark_repetitions_parser = subcommands.add_parser(
         "real-benchmark-repetitions",
@@ -737,6 +745,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--python-executable",
         default=DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
         help="Python executable prefix to include in generated SWE-bench commands.",
+    )
+    real_benchmark_repetitions_parser.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format for the completion summary.",
     )
 
     real_smoke_runbook_parser = subcommands.add_parser(
@@ -1202,7 +1216,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
-        print(json.dumps(summary, indent=2))
+        if args.format == "json":
+            print(json.dumps(summary, indent=2))
+        else:
+            print(render_real_benchmark_eval_summary(summary), end="")
         return 0 if summary["status"] in {"complete", "partial"} else 1
 
     if args.command == "real-benchmark-repetitions":
@@ -1225,7 +1242,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
             return 1
-        print(json.dumps(summary, indent=2))
+        if args.format == "json":
+            print(json.dumps(summary, indent=2))
+        else:
+            print(render_real_benchmark_repetitions_summary(summary), end="")
         return 0 if summary["status"] in {"complete", "partial"} else 1
 
     if args.command == "real-smoke-runbook":
