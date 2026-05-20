@@ -21,6 +21,7 @@ from yacht.benchmark_report import render_benchmark_report
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.benchmark_status import render_benchmark_status
 from yacht.course_handoff import write_course_handoff
+from yacht.latest_logbook import render_latest_logbook
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
 from yacht.local_smoke_eval import run_local_smoke_eval
 from yacht.preflight_evidence_report import render_preflight_evidence_report
@@ -321,6 +322,36 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         help="Optional path to write the rendered status report.",
+    )
+
+    latest_logbook_parser = subcommands.add_parser(
+        "latest-logbook",
+        help="Find the latest YACHT benchmark logbook under a directory.",
+    )
+    latest_logbook_parser.add_argument(
+        "--root",
+        type=Path,
+        default=Path(tempfile.gettempdir()),
+        help="Directory to scan for benchmark logbooks.",
+    )
+    latest_logbook_parser.add_argument(
+        "--prefix",
+        default="yacht-",
+        help=(
+            "Only scan child directories with this prefix. Use an empty value to "
+            "scan all children."
+        ),
+    )
+    latest_logbook_parser.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format for the latest logbook report.",
+    )
+    latest_logbook_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write the rendered latest logbook report.",
     )
 
     benchmark_plan_parser = subcommands.add_parser(
@@ -984,6 +1015,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "benchmark-status":
         report = render_benchmark_status(args.logbook, args.format)
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(report, encoding="utf-8")
+            return 0
+        print(report, end="")
+        return 0
+
+    if args.command == "latest-logbook":
+        try:
+            report = render_latest_logbook(
+                args.root,
+                prefix=args.prefix,
+                output_format=args.format,
+            )
+        except ConfigError as error:
+            print(f"error: invalid regatta config: {error}", file=sys.stderr)
+            return 1
         if args.output is not None:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(report, encoding="utf-8")
