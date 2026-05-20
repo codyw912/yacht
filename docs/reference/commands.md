@@ -35,6 +35,7 @@ uv run yacht benchmark-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook --vessel pi-container-fff
 uv run yacht benchmark-report --logbook logbook --vessel pi-container-fff --task django__django-11099
 uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
+uv run yacht latest-logbook
 ```
 
 Use `examples/container-pi-fff-real-benchmark-small.toml` with the same command
@@ -136,6 +137,7 @@ uv run yacht real-benchmark-repetitions examples/container-pi-fff-real-benchmark
 uv run yacht benchmark-status --logbook logbook
 uv run yacht benchmark-report --logbook logbook
 uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
+uv run yacht latest-logbook
 ```
 
 `real-benchmark-runbook` writes a shareable plan of the exact commands and
@@ -157,3 +159,6 @@ parent logbook under the system temp directory. The parent logbook works with
 no single-run `benchmark-scorecard.json` is present.
 `benchmark-status` is the quick inspection command to run after the workflow; it
 prints artifact presence, artifact statuses, and the next recommended command.
+`latest-logbook` finds the newest YACHT benchmark logbook under the system temp
+directory by default, then prints `benchmark-status` and `benchmark-report`
+commands for it. Use `--root` to scan a different directory.
