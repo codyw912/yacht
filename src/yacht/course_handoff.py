@@ -52,13 +52,16 @@ def write_course_handoff(config_path: Path, logbook_dir: Path) -> dict[str, Any]
     return handoff
 
 
-def _adapter_to_json(adapter: CourseAdapter) -> dict[str, str]:
-    return {
+def _adapter_to_json(adapter: CourseAdapter) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "kind": adapter.kind,
         "dataset": adapter.dataset,
         "split": adapter.split,
         "harness": adapter.harness,
     }
+    if adapter.instance_ids:
+        payload["instance_ids"] = list(adapter.instance_ids)
+    return payload
 
 
 def _task_to_json(task: Task) -> dict[str, str | int]:

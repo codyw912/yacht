@@ -52,6 +52,9 @@ Regatta configs may include:
 - `runtimes` for agent runtime recipes such as `container` or `host-nix`.
 - `riggings` for named setup, environment, prompt, tool, or cache changes.
 - `course.adapter` for native benchmark harnesses such as SWE-bench.
+- `course.adapter.instance_ids` for explicit benchmark task selection when the
+  native adapter can resolve task metadata, with optional `course.tasks` entries
+  reserved for overriding titles, difficulty, or inline task context.
 - `preflight` for regatta-level failure policy.
 - `comparisons` for groups of vessels interpreted together.
 
