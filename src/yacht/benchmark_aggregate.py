@@ -389,10 +389,20 @@ def _render_text(aggregate: dict[str, Any]) -> str:
         f"Benchmark aggregate: {aggregate['regatta']} / {aggregate['course']}",
         f"Runs: {aggregate['run_count']}",
         "",
-        "Aggregate deltas:",
-        "comparison | baseline | challenger | resolved_delta | rate_delta | "
-        "tokens_delta | cost_delta | duration_delta | tool_calls_delta",
+        "Decision summary:",
+        "comparison | resolution | tokens | cost | duration",
     ]
+    lines.extend(
+        _decision_summary_row(comparison) for comparison in aggregate["comparisons"]
+    )
+    lines.extend(
+        [
+            "",
+            "Aggregate deltas:",
+            "comparison | baseline | challenger | resolved_delta | rate_delta | "
+            "tokens_delta | cost_delta | duration_delta | tool_calls_delta",
+        ]
+    )
     lines.extend(_delta_row(comparison) for comparison in aggregate["comparisons"])
     lines.extend(
         [
@@ -403,7 +413,9 @@ def _render_text(aggregate: dict[str, Any]) -> str:
         ]
     )
     for comparison in aggregate["comparisons"]:
-        lines.extend(_vessel_row(comparison, vessel) for vessel in comparison["vessels"])
+        lines.extend(
+            _vessel_row(comparison, vessel) for vessel in comparison["vessels"]
+        )
     lines.extend(
         [
             "",
@@ -478,12 +490,23 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
         f"- Course: {aggregate['course']}",
         f"- Runs: {aggregate['run_count']}",
         "",
-        "## Aggregate deltas",
+        "## Decision summary",
         "",
-        "| Comparison | Baseline | Challenger | Resolved delta | Rate delta | "
-        "Tokens delta | Cost delta | Duration delta | Tool calls delta |",
-        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
+    lines.extend(
+        f"- {_decision_summary_row(comparison)}"
+        for comparison in aggregate["comparisons"]
+    )
+    lines.extend(
+        [
+            "",
+            "## Aggregate deltas",
+            "",
+            "| Comparison | Baseline | Challenger | Resolved delta | Rate delta | "
+            "Tokens delta | Cost delta | Duration delta | Tool calls delta |",
+            "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
     lines.extend(f"| {_delta_row(comparison)} |" for comparison in aggregate["comparisons"])
     lines.extend(
         [
@@ -577,6 +600,55 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
                 for vessel in run["vessels"]
             )
     return "\n".join(lines) + "\n"
+
+
+def _decision_summary_row(comparison: dict[str, Any]) -> str:
+    delta = comparison["delta"]
+    return " | ".join(
+        [
+            str(comparison["name"]),
+            _resolution_decision(delta),
+            _resource_decision("tokens", int(delta["tokens_delta"])),
+            _resource_decision("cost", float(delta["cost_delta"])),
+            _resource_decision("duration", float(delta["duration_seconds_delta"])),
+        ]
+    )
+
+
+def _resolution_decision(delta: dict[str, Any]) -> str:
+    resolved_delta = int(delta["resolved_instances_delta"])
+    rate_delta = float(delta["resolution_rate_delta"])
+    if resolved_delta > 0:
+        label = "better"
+    elif resolved_delta < 0:
+        label = "worse"
+    elif rate_delta > 0:
+        label = "better"
+    elif rate_delta < 0:
+        label = "worse"
+    else:
+        label = "tied"
+    return (
+        f"resolution {label} "
+        f"({_signed_int(resolved_delta)} resolved, {_signed_rate(rate_delta)} rate)"
+    )
+
+
+def _resource_decision(label: str, value: int | float) -> str:
+    numeric_value = float(value)
+    if numeric_value < 0:
+        verdict = "better"
+    elif numeric_value > 0:
+        verdict = "worse"
+    else:
+        verdict = "tied"
+    if label == "cost":
+        rendered = _signed_cost(float(value))
+    elif label == "duration":
+        rendered = _signed_duration(float(value))
+    else:
+        rendered = _signed_int(int(value))
+    return f"{label} {verdict} ({rendered})"
 
 
 def _delta_row(comparison: dict[str, Any]) -> str:

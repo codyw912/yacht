@@ -112,7 +112,9 @@ YACHT owns the handoff, gates, launch records, normalized grading artifacts, and
 scorecards. `benchmark-launcher` and `real-benchmark-eval` use
 `uv run --with swebench python` by default for SWE-bench launches; pass
 `--python-executable` only when using a different managed harness environment.
-`benchmark-report` includes comparison outcomes, usage metrics, per-task
+`benchmark-report` starts with a decision summary that says whether the
+challenger improved, regressed, or tied on resolution, tokens, cost, and
+duration. It also includes comparison outcomes, usage metrics, per-task
 outcomes, and per-vessel artifact paths when task attempt data is available.
 When per-attempt artifacts are present, it also breaks tokens, cost, duration,
 and tool calls down by task. Use `--vessel` and `--task` to narrow the detailed

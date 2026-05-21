@@ -321,6 +321,11 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "Status: complete",
                         "Comparisons: 1 | Vessels: 2 | Measured: 2 | Missing: 0",
                         "Usage: unavailable (missing task-attempt-scorecard.json)",
+                        "",
+                        "Decision summary:",
+                        "comparison | resolution | tokens | cost | duration",
+                        "pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) | "
+                        "tokens unavailable | cost unavailable | duration unavailable",
                         f"Artifacts: logbook={logbook_dir} | "
                         f"scorecard={logbook_dir / 'benchmark-scorecard.json'} | "
                         f"attempts={logbook_dir / 'task-attempt-scorecard.json'} | "
@@ -405,6 +410,11 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "- Missing: 0",
                         "- Usage: unavailable (missing task-attempt-scorecard.json)",
                         "",
+                        "## Decision summary",
+                        "",
+                        "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) | "
+                        "tokens unavailable | cost unavailable | duration unavailable",
+                        "",
                         "## Notable deltas",
                         "",
                         "- pi-vs-pi-fff: pi-plus-fff vs pi-baseline | resolved +1 | "
@@ -464,6 +474,12 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 "pi-vs-pi-fff: pi-plus-fff vs pi-baseline | resolved +1 | "
                 "rate +1.000 | tokens -3141 | cost -0.001310 | "
                 "duration -2.000s | tool_calls +1",
+                stdout.getvalue(),
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) | "
+                "tokens better (-3141) | cost better (-0.001310) | "
+                "duration better (-2.000s)",
                 stdout.getvalue(),
             )
             self.assertIn("Agent usage by vessel:", stdout.getvalue())
@@ -795,6 +811,11 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "- Measured: 2",
                         "- Missing: 0",
                         "- Usage: unavailable (missing task-attempt-scorecard.json)",
+                        "",
+                        "## Decision summary",
+                        "",
+                        "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) | "
+                        "tokens unavailable | cost unavailable | duration unavailable",
                         "",
                         "## Notable deltas",
                         "",

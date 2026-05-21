@@ -302,6 +302,15 @@ class BenchmarkAggregateTests(unittest.TestCase):
                 report,
             )
             self.assertIn("Runs: 2", report)
+            self.assertIn("Decision summary:", report)
+            self.assertIn(
+                (
+                    "pi-vs-pi-fff | resolution better (+1 resolved, +0.500 rate) | "
+                    "tokens worse (+2200) | cost worse (+0.002200) | "
+                    "duration worse (+2.200s)"
+                ),
+                report,
+            )
             self.assertIn("Aggregate deltas:", report)
             self.assertIn(
                 "pi-vs-pi-fff | pi-baseline | pi-plus-fff | +1 | +0.500 | "

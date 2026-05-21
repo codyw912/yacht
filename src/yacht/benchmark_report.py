@@ -167,6 +167,7 @@ def _render_scorecard(
         f"Measured: {summary['measured_vessels']} | "
         f"Missing: {summary['missing_result_vessels']}",
         _usage_summary_line(task_attempt_scorecard),
+        *_decision_summary_lines(scorecard, task_attempt_scorecard),
         _artifact_line(logbook_dir),
     ]
     lines.extend(_filter_lines(vessel_name, task_id))
@@ -231,6 +232,10 @@ def _render_scorecard_markdown(
         f"- Measured: {summary['measured_vessels']}",
         f"- Missing: {summary['missing_result_vessels']}",
         *_usage_summary_markdown_lines(task_attempt_scorecard),
+        "",
+        "## Decision summary",
+        "",
+        *_decision_summary_markdown_lines(scorecard, task_attempt_scorecard),
         *_filter_markdown_lines(vessel_name, task_id),
         "",
         "## Notable deltas",
@@ -408,6 +413,100 @@ def _notable_delta_row(
             ]
         )
     return " | ".join(parts)
+
+
+def _decision_summary_lines(
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any] | None,
+) -> list[str]:
+    lines = [
+        "",
+        "Decision summary:",
+        "comparison | resolution | tokens | cost | duration",
+    ]
+    lines.extend(
+        _decision_summary_row(comparison, task_attempt_scorecard)
+        for comparison in scorecard["comparisons"]
+    )
+    return lines
+
+
+def _decision_summary_markdown_lines(
+    scorecard: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any] | None,
+) -> list[str]:
+    return [
+        f"- {_decision_summary_row(comparison, task_attempt_scorecard)}"
+        for comparison in scorecard["comparisons"]
+    ]
+
+
+def _decision_summary_row(
+    comparison: dict[str, Any],
+    task_attempt_scorecard: dict[str, Any] | None,
+) -> str:
+    delta = comparison["delta"]
+    baseline_name = str(delta["baseline_vessel"])
+    challenger_name = str(delta["challenger_vessel"])
+    usage_delta = _usage_delta(
+        task_attempt_scorecard,
+        comparison_name=str(comparison["name"]),
+        baseline_name=baseline_name,
+        challenger_name=challenger_name,
+    )
+    return " | ".join(
+        [
+            str(comparison["name"]),
+            _resolution_decision(delta),
+            _usage_decision(usage_delta, "tokens", "tokens"),
+            _usage_decision(usage_delta, "cost", "cost"),
+            _usage_decision(usage_delta, "duration", "duration"),
+        ]
+    )
+
+
+def _resolution_decision(delta: dict[str, Any]) -> str:
+    resolved_delta = int(delta["resolved_instances_delta"])
+    rate_delta = float(delta["resolution_rate_delta"])
+    if resolved_delta > 0:
+        label = "better"
+    elif resolved_delta < 0:
+        label = "worse"
+    elif rate_delta > 0:
+        label = "better"
+    elif rate_delta < 0:
+        label = "worse"
+    else:
+        label = "tied"
+    return (
+        f"resolution {label} "
+        f"({_signed_int(resolved_delta)} resolved, {_signed_float(rate_delta)} rate)"
+    )
+
+
+def _usage_decision(
+    usage_delta: dict[str, int | float] | None,
+    key: str,
+    label: str,
+) -> str:
+    if usage_delta is None:
+        return f"{label} unavailable"
+    value = usage_delta[key]
+    if float(value) < 0:
+        verdict = "better"
+    elif float(value) > 0:
+        verdict = "worse"
+    else:
+        verdict = "tied"
+    return f"{label} {verdict} ({_usage_delta_value(key, value)})"
+
+
+def _usage_delta_value(key: str, value: int | float) -> str:
+    if key == "cost":
+        return _signed_cost(float(value))
+    if key == "duration":
+        return _signed_duration(float(value))
+    return _signed_int(int(value))
 
 
 def _usage_delta(
