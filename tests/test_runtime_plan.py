@@ -182,6 +182,7 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(comparison["name"], "pi-vs-pi-fff")
             rigged = comparison["vessels"][1]
             self.assertEqual(rigged["name"], "pi-plus-fff")
+            self.assertEqual(rigged["harness"], "pi")
             self.assertEqual(rigged["agent"], "pi")
             self.assertEqual(
                 rigged["surfaces"],
@@ -206,6 +207,7 @@ class RuntimePlanTests(unittest.TestCase):
                 {
                     "status": "supported",
                     "runtime_backend": "host-nix",
+                    "runtime_harness": "pi",
                     "runtime_agent": "pi",
                     "supported_install_methods": ["agent-extension", "preinstalled"],
                     "install_checks": [
@@ -355,6 +357,7 @@ class RuntimePlanTests(unittest.TestCase):
                     "tools": ["fff"],
                 },
             )
+            self.assertEqual(rigged_vessel["runtime"]["harness"], "pi")
             self.assertEqual(rigged_vessel["runtime"]["agent"], "pi")
             self.assertEqual(
                 rigged_vessel["install"],
@@ -416,7 +419,7 @@ class RuntimePlanTests(unittest.TestCase):
             )
 
     def test_build_runtime_plan_infers_agent_surface_from_runtime_command(self) -> None:
-        config = PI_WITH_FFF_CONFIG.replace('agent = "pi"\n', "").replace(
+        config = PI_WITH_FFF_CONFIG.replace('harness = "pi"\n', "").replace(
             'tools = ["fff"]\n',
             "",
         )

@@ -39,7 +39,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi]
 backend = "host-nix"
-agent = "pi"
+harness = "pi"
 flake = "path:.#pi"
 command = ["pi"]
 required_secrets = ["anthropic"]
@@ -108,7 +108,7 @@ name = "ANTHROPIC_API_KEY"
 
 [runtimes.pi-container]
 backend = "container"
-agent = "pi"
+harness = "pi"
 image = "yacht/pi-agent-runtime:pi-0.74.0"
 command = ["pi"]
 container_home = "/home/yacht"
@@ -174,7 +174,8 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(regatta.vessels[0].rigging, ())
             self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))
             self.assertEqual(regatta.runtime_recipes["pi"].backend, "host-nix")
-            self.assertEqual(regatta.runtime_recipes["pi"].agent, "pi")
+            self.assertEqual(regatta.runtime_recipes["pi"].harness, "pi")
+            self.assertEqual(regatta.runtime_recipes["pi"].agent, None)
             self.assertEqual(regatta.runtime_recipes["pi"].command, ("pi",))
             self.assertEqual(regatta.rigging_recipes["pi-fff"].tools, ("fff",))
             install = regatta.rigging_recipes["pi-fff"].install[0]
@@ -230,6 +231,32 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(runtime.flake, None)
             self.assertEqual(runtime.container_home, "/home/yacht")
             self.assertEqual(runtime.container_workspace, "/workspace")
+
+    def test_runtime_agent_is_legacy_alias_for_harness(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace('harness = "pi"', 'agent = "pi"')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            runtime = load_regatta(config_path).runtime_recipes["pi"]
+
+            self.assertEqual(runtime.harness, "pi")
+            self.assertEqual(runtime.agent, "pi")
+
+    def test_runtime_agent_must_match_harness_when_both_are_set(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            'harness = "pi"',
+            'harness = "pi"\nagent = "codex"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "runtimes.pi.agent must match runtimes.pi.harness when both are set",
+            ):
+                load_regatta(config_path)
 
     def test_legacy_rigging_install_string_is_normalized(self) -> None:
         config = PI_WITH_FFF_CONFIG.replace(

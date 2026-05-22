@@ -128,6 +128,8 @@ class SchemaTests(unittest.TestCase):
                             "name": "pi-plus-fff",
                             "runtime": "pi",
                             "backend": "host-nix",
+                            "harness": "pi",
+                            "agent": "pi",
                             "trial_root": "/tmp/logbook/runtime/pi/pi-plus-fff",
                             "temp_home": "/tmp/logbook/runtime/pi/pi-plus-fff/home",
                             "workspace_path": "/tmp/workspace",
@@ -172,6 +174,8 @@ class SchemaTests(unittest.TestCase):
             },
             "runtime_context": {
                 "backend": "host-nix",
+                "harness": "pi",
+                "agent": "pi",
                 "temp_home": "/tmp/yacht/home",
                 "workspace_path": "/tmp/workspace",
                 "command_prefix": ["nix", "develop", "flake", "--command"],

@@ -20,7 +20,7 @@ from yacht.regatta import (
 from yacht.runtime_capabilities import rigging_capabilities_to_json
 from yacht.schemas import RUNTIME_INSTANCES_SCHEMA
 from yacht.schemas import validate_runtime_instances_document
-from yacht.surface_metadata import agent_for_runtime
+from yacht.surface_metadata import harness_for_runtime
 from yacht.surface_metadata import regatta_surfaces_to_json
 from yacht.surface_metadata import vessel_surfaces_to_json
 
@@ -124,7 +124,8 @@ def _vessel_to_json(
         "name": vessel.name,
         "runtime": resolution.runtime.name,
         "backend": resolution.runtime.backend,
-        "agent": agent_for_runtime(resolution.runtime),
+        "harness": harness_for_runtime(resolution.runtime),
+        "agent": harness_for_runtime(resolution.runtime),
         "surfaces": vessel_surfaces_to_json(resolution.runtime, riggings),
         "rigging_capabilities": rigging_capabilities_to_json(
             resolution.runtime,

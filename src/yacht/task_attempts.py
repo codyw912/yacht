@@ -112,12 +112,24 @@ def _task_to_json(task: Task) -> dict[str, str | int]:
 def _runtime_context_to_json(instance: RuntimeInstance) -> dict[str, Any]:
     return {
         "backend": instance.runtime.backend,
+        "harness": _runtime_harness(instance),
+        "agent": _runtime_harness(instance),
         "temp_home": str(instance.temp_home),
         "workspace_path": str(instance.workspace_path),
         "command_prefix": list(instance.command_prefix),
         "command": list(instance.runtime.command),
         "cleanup_paths": [str(path) for path in instance.cleanup_paths],
     }
+
+
+def _runtime_harness(instance: RuntimeInstance) -> str | None:
+    if instance.runtime.harness is not None:
+        return instance.runtime.harness
+    if instance.runtime.agent is not None:
+        return instance.runtime.agent
+    if instance.runtime.command:
+        return instance.runtime.command[0]
+    return None
 
 
 def _agent_to_json(result: AgentTaskResult) -> dict[str, Any]:

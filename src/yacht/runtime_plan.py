@@ -18,7 +18,7 @@ from yacht.regatta import (
     load_regatta,
 )
 from yacht.runtime_capabilities import rigging_capabilities_to_json
-from yacht.surface_metadata import agent_for_runtime
+from yacht.surface_metadata import harness_for_runtime
 from yacht.surface_metadata import regatta_surfaces_to_json
 from yacht.surface_metadata import vessel_surfaces_to_json
 
@@ -183,7 +183,8 @@ def _runtime_to_json(runtime: RuntimeRecipe) -> dict[str, Any]:
     payload = {
         "name": runtime.name,
         "backend": runtime.backend,
-        "agent": agent_for_runtime(runtime),
+        "harness": harness_for_runtime(runtime),
+        "agent": harness_for_runtime(runtime),
         "command_prefix": _command_prefix(runtime),
         "command": list(runtime.command),
         "mounts": list(runtime.mounts),

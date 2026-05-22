@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Sequence
 
-from yacht.agent_selection import configured_agent_name
+from yacht.agent_selection import configured_harness_name
 from yacht.benchmark_aggregate import render_benchmark_aggregate
 from yacht.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.benchmark_grading_collection import collect_benchmark_grading_reports
@@ -1248,7 +1248,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "real-benchmark-eval":
         try:
-            agent_name = configured_agent_name(args.config)
+            agent_name = configured_harness_name(args.config)
             summary = run_real_benchmark_eval(
                 config_path=args.config,
                 logbook_dir=args.logbook,
@@ -1272,7 +1272,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "real-benchmark-repetitions":
         try:
-            agent_name = configured_agent_name(args.config)
+            agent_name = configured_harness_name(args.config)
             summary = run_real_benchmark_repetitions(
                 config_path=args.config,
                 logbook_dir=args.logbook

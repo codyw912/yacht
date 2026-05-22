@@ -291,6 +291,14 @@
               "minLength": 1
             }
           },
+          "harness": {
+            "type": "string",
+            "minLength": 1
+          },
+          "agent": {
+            "type": "string",
+            "minLength": 1
+          },
           "env": {
             "type": "object",
             "additionalProperties": {

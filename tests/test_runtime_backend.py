@@ -301,7 +301,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 RuntimePreparationError,
-                "agent-extension install targets agent codex, but runtime agent is pi",
+                "agent-extension install targets agent codex, but runtime harness is pi",
             ):
                 HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
                     regatta=regatta,
@@ -334,10 +334,10 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
 
     def test_prepare_rejects_non_host_nix_runtime_recipe(self) -> None:
         config = PI_WITH_FFF_CONFIG.replace(
-            'backend = "host-nix"\nagent = "pi"\nflake = "path:.#pi"',
+            'backend = "host-nix"\nharness = "pi"\nflake = "path:.#pi"',
             (
                 'backend = "container"\n'
-                'agent = "pi"\n'
+                'harness = "pi"\n'
                 'image = "yacht/pi-agent-runtime:pi-0.74.0"'
             ),
         )

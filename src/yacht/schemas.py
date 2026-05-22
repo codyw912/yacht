@@ -1144,6 +1144,9 @@ def _validate_task_attempt_runtime_context(value: Any) -> None:
     )
     for key in ("backend", "temp_home", "workspace_path"):
         _require_non_empty_string(context.get(key), f"runtime_context.{key}")
+    for key in ("harness", "agent"):
+        if key in context:
+            _require_non_empty_string(context.get(key), f"runtime_context.{key}")
     _require_string_list(
         context.get("command_prefix"),
         "runtime_context.command_prefix",
@@ -1852,6 +1855,8 @@ def _validate_runtime_instances_vessel(value: Any, path: str) -> None:
             "name",
             "runtime",
             "backend",
+            "harness",
+            "agent",
             "trial_root",
             "temp_home",
             "workspace_path",
@@ -1867,6 +1872,8 @@ def _validate_runtime_instances_vessel(value: Any, path: str) -> None:
         "name",
         "runtime",
         "backend",
+        "harness",
+        "agent",
         "trial_root",
         "temp_home",
         "workspace_path",
@@ -2195,10 +2202,24 @@ def _validate_runtime_recipes(
         )
         _require_non_empty_string(runtime["backend"], f"runtimes.{runtime_name}.backend")
         _validate_runtime_backend_fields(runtime, f"runtimes.{runtime_name}")
+        if "harness" in runtime:
+            _require_non_empty_string(
+                runtime.get("harness"),
+                f"runtimes.{runtime_name}.harness",
+            )
         if "agent" in runtime:
             _require_non_empty_string(
                 runtime.get("agent"),
                 f"runtimes.{runtime_name}.agent",
+            )
+        if (
+            "harness" in runtime
+            and "agent" in runtime
+            and runtime["harness"] != runtime["agent"]
+        ):
+            raise SchemaValidationError(
+                f"runtimes.{runtime_name}.agent must match "
+                f"runtimes.{runtime_name}.harness when both are set"
             )
         command = _require_list(runtime["command"], f"runtimes.{runtime_name}.command")
         if not command or not all(isinstance(item, str) and item for item in command):

@@ -72,6 +72,8 @@
         "name",
         "runtime",
         "backend",
+        "harness",
+        "agent",
         "trial_root",
         "temp_home",
         "workspace_path",
@@ -91,6 +93,14 @@
           "minLength": 1
         },
         "backend": {
+          "type": "string",
+          "minLength": 1
+        },
+        "harness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agent": {
           "type": "string",
           "minLength": 1
         },
