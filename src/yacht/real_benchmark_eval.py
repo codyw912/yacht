@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from yacht.benchmark_adapters import benchmark_adapter
 from yacht.benchmark_grading_collection import (
     BENCHMARK_GRADING_COLLECTION_PATH,
     collect_benchmark_grading_reports,
@@ -35,9 +36,6 @@ from yacht.regatta import ConfigError, load_regatta
 from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.surface_metadata import regatta_surfaces_to_json
-from yacht.swebench_predictions_from_attempts import (
-    write_swe_bench_predictions_from_attempts,
-)
 from yacht.task_attempt_runner import TaskAgent, run_task_attempts
 from yacht.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 from yacht.task_attempt_scorecard import write_task_attempt_scorecard
@@ -163,11 +161,13 @@ def run_real_benchmark_eval(
 
     predictions = []
     try:
-        _progress(progress, "candidate patches: extracting from task attempts")
+        _progress(progress, "candidate outputs: extracting from task attempts")
+        assert regatta.course.adapter is not None
+        adapter = benchmark_adapter(regatta.course.adapter.kind)
         for comparison in regatta.comparisons:
             for vessel_name in comparison.vessels:
                 predictions.append(
-                    write_swe_bench_predictions_from_attempts(
+                    adapter.write_predictions_from_attempts(
                         config_path=config_path,
                         logbook_dir=logbook_dir,
                         vessel_name=vessel_name,

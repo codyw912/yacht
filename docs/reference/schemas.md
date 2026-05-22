@@ -32,6 +32,8 @@ artifacts should remain consumable by other tools and future runners.
 - `yacht.course-handoff.v1.schema.json` for native benchmark handoff plans.
 - `yacht.swe-bench-grading.v1.schema.json` for normalized SWE-bench grading
   reports.
+- `yacht.custom-eval-grading.v1.schema.json` for normalized custom eval
+  grading reports.
 - `yacht.benchmark-execution-plan.v1.schema.json` for benchmark readiness plans.
 - `yacht.benchmark-readiness-summary.v1.schema.json` for compact launch-gate
   summaries.

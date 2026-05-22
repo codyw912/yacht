@@ -61,6 +61,16 @@ class BenchmarkAdapter(Protocol):
     ) -> dict[str, Any]:
         ...
 
+    def write_predictions_from_attempts(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        ...
+
 
 @dataclass(frozen=True)
 class SweBenchAdapter:
@@ -173,8 +183,137 @@ class SweBenchAdapter:
             vessel_name=vessel_name,
         )
 
+    def write_predictions_from_attempts(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        from yacht.swebench_predictions_from_attempts import (
+            write_swe_bench_predictions_from_attempts,
+        )
+
+        return write_swe_bench_predictions_from_attempts(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+            comparison_name=comparison_name,
+        )
+
+
+@dataclass(frozen=True)
+class CustomEvalAdapter:
+    kind: str = "custom-eval"
+    display_name: str = "Custom eval"
+    supported_harnesses: tuple[str, ...] = ("local",)
+    grading_schema: str = "yacht.custom-eval-grading.v1"
+
+    def expected_outputs(self) -> dict[str, str]:
+        return {
+            "candidate_patches": "course-handoff/custom-eval/candidate-patches.jsonl",
+            "grading_report": "course-handoff/custom-eval/grading-report.json",
+        }
+
+    def grading(self, harness: str) -> dict[str, str]:
+        return {
+            "delegated_to": self.kind,
+            "execution": f"{harness}-harness",
+            "status": "planned",
+        }
+
+    def task_prompt_instructions(self, task: Any) -> str:
+        prompt = "\nCustom eval submission instructions:\n"
+        prompt += (
+            "When finished, respond with a JSON object containing completed as a "
+            "boolean. Do not wrap the JSON in markdown fences.\n"
+        )
+        if task.problem_statement is not None:
+            prompt += f"\nProblem statement:\n{task.problem_statement}\n"
+        return prompt
+
+    def task_with_context(self, *, task: Any, adapter: Any) -> Any:
+        return task
+
+    def workspace_for_attempt(
+        self,
+        *,
+        task: Any,
+        workspace_path: Path,
+        workspace_root: Path,
+        comparison_name: str,
+        vessel_name: str,
+    ) -> Path:
+        return workspace_path
+
+    def launcher_command(
+        self,
+        *,
+        course_adapter: dict[str, Any],
+        tasks: list[dict[str, Any]],
+        candidate_path: Path,
+        native_report_dir: Path,
+        run_id: str,
+        max_workers: int,
+        python_command: list[str],
+    ) -> list[str]:
+        return [
+            "uv",
+            "run",
+            "python",
+            "-m",
+            "yacht.custom_eval_harness",
+            "--candidate-records",
+            str(candidate_path),
+            "--report-dir",
+            str(native_report_dir),
+            "--run-id",
+            run_id,
+        ]
+
+    def native_report_filename(self, *, vessel_name: str, run_id: str) -> str:
+        return f"{vessel_name}.{run_id}.json"
+
+    def write_grading_report(
+        self,
+        *,
+        config_path: Path,
+        native_report_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+    ) -> dict[str, Any]:
+        from yacht.custom_eval_grading import write_custom_eval_grading_report
+
+        return write_custom_eval_grading_report(
+            config_path=config_path,
+            native_report_path=native_report_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+        )
+
+    def write_predictions_from_attempts(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        from yacht.custom_eval_predictions_from_attempts import (
+            write_custom_eval_predictions_from_attempts,
+        )
+
+        return write_custom_eval_predictions_from_attempts(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+            comparison_name=comparison_name,
+        )
+
 
 _BENCHMARK_ADAPTERS: dict[str, BenchmarkAdapter] = {
+    "custom-eval": CustomEvalAdapter(),
     "swe-bench": SweBenchAdapter(),
 }
 

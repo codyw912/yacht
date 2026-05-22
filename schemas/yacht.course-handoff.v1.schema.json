@@ -150,7 +150,7 @@
         },
         "execution": {
           "type": "string",
-          "enum": ["docker-harness"]
+          "enum": ["docker-harness", "local-harness"]
         },
         "status": {
           "const": "planned"

@@ -11,8 +11,11 @@ from yacht.regatta import ConfigError, Task, load_regatta
 
 class BenchmarkAdapterRegistryTests(unittest.TestCase):
     def test_exposes_supported_benchmark_adapter_metadata(self) -> None:
-        self.assertEqual(supported_benchmark_adapter_kinds(), ("swe-bench",))
-        self.assertEqual(supported_course_adapter_harnesses(), ("docker",))
+        self.assertEqual(
+            supported_benchmark_adapter_kinds(),
+            ("custom-eval", "swe-bench"),
+        )
+        self.assertEqual(supported_course_adapter_harnesses(), ("docker", "local"))
         self.assertEqual(supported_course_adapter_harnesses("swe-bench"), ("docker",))
 
         adapter = benchmark_adapter("swe-bench")
@@ -34,6 +37,64 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
                 "execution": "docker-harness",
                 "status": "planned",
             },
+        )
+
+    def test_exposes_custom_eval_adapter_metadata(self) -> None:
+        adapter = benchmark_adapter("custom-eval")
+
+        self.assertEqual(adapter.kind, "custom-eval")
+        self.assertEqual(adapter.display_name, "Custom eval")
+        self.assertEqual(adapter.supported_harnesses, ("local",))
+        self.assertEqual(adapter.grading_schema, "yacht.custom-eval-grading.v1")
+        self.assertEqual(
+            adapter.expected_outputs(),
+            {
+                "candidate_patches": "course-handoff/custom-eval/candidate-patches.jsonl",
+                "grading_report": "course-handoff/custom-eval/grading-report.json",
+            },
+        )
+        self.assertEqual(
+            adapter.grading("local"),
+            {
+                "delegated_to": "custom-eval",
+                "execution": "local-harness",
+                "status": "planned",
+            },
+        )
+
+    def test_builds_custom_eval_launcher_command(self) -> None:
+        adapter = benchmark_adapter("custom-eval")
+
+        command = adapter.launcher_command(
+            course_adapter={
+                "kind": "custom-eval",
+                "dataset": "local",
+                "split": "smoke",
+                "harness": "local",
+            },
+            tasks=[{"id": "local-smoke-1"}],
+            candidate_path=Path("/tmp/candidate-patches.jsonl"),
+            native_report_dir=Path("/tmp/native-report"),
+            run_id="run-1",
+            max_workers=1,
+            python_command=["ignored"],
+        )
+
+        self.assertEqual(
+            command,
+            [
+                "uv",
+                "run",
+                "python",
+                "-m",
+                "yacht.custom_eval_harness",
+                "--candidate-records",
+                "/tmp/candidate-patches.jsonl",
+                "--report-dir",
+                "/tmp/native-report",
+                "--run-id",
+                "run-1",
+            ],
         )
 
     def test_builds_swe_bench_launcher_command(self) -> None:
@@ -114,6 +175,20 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 ConfigError,
                 "course.adapter.harness must be one of: docker",
+            ):
+                load_regatta(config_path)
+
+        custom_config = PI_WITH_FFF_CONFIG.replace(
+            'kind = "swe-bench"',
+            'kind = "custom-eval"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(custom_config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "course.adapter.harness must be one of: local",
             ):
                 load_regatta(config_path)
 

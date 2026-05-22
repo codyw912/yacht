@@ -214,7 +214,7 @@
           "properties": {
             "kind": {
               "type": "string",
-              "enum": ["swe-bench"]
+              "enum": ["custom-eval", "swe-bench"]
             },
             "dataset": {
               "type": "string",
@@ -226,7 +226,7 @@
             },
             "harness": {
               "type": "string",
-              "enum": ["docker"]
+              "enum": ["docker", "local"]
             },
             "instance_ids": {
               "type": "array",
