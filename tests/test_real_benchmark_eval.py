@@ -162,7 +162,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 "yacht.preflight._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
             ), patch(
-                "yacht.cli.SubprocessPiPromptLauncher",
+                "yacht.harness_adapters.SubprocessPiPromptLauncher",
                 return_value=SubprocessPiPromptLauncher(
                     runner=lambda _request: CommandResult(
                         exit_code=0,
@@ -174,7 +174,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                     )
                 ),
             ), patch(
-                "yacht.cli.SubprocessPiTaskLauncher",
+                "yacht.harness_adapters.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(
                     runner=lambda _request: CommandResult(
                         exit_code=0,

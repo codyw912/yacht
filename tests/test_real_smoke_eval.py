@@ -63,10 +63,10 @@ class RealSmokeEvalTests(unittest.TestCase):
                 "yacht.preflight._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
             ), patch(
-                "yacht.cli.SubprocessPiPromptLauncher",
+                "yacht.harness_adapters.SubprocessPiPromptLauncher",
                 return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
             ), patch(
-                "yacht.cli.SubprocessPiTaskLauncher",
+                "yacht.harness_adapters.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=task_runner),
             ), redirect_stdout(stdout):
                 exit_code = main(
@@ -147,10 +147,10 @@ class RealSmokeEvalTests(unittest.TestCase):
                 "yacht.preflight._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
             ), patch(
-                "yacht.cli.SubprocessPiPromptLauncher",
+                "yacht.harness_adapters.SubprocessPiPromptLauncher",
                 return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
             ), patch(
-                "yacht.cli.SubprocessPiTaskLauncher",
+                "yacht.harness_adapters.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=task_runner),
             ), redirect_stdout(stdout):
                 exit_code = main(
@@ -207,12 +207,12 @@ class RealSmokeEvalTests(unittest.TestCase):
                     stderr="pi unavailable",
                 ),
             ), patch(
-                "yacht.cli.SubprocessPiPromptLauncher",
+                "yacht.harness_adapters.SubprocessPiPromptLauncher",
                 return_value=SubprocessPiPromptLauncher(
                     runner=_passing_prompt_runner
                 ),
             ), patch(
-                "yacht.cli.SubprocessPiTaskLauncher",
+                "yacht.harness_adapters.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=task_runner),
             ), redirect_stdout(stdout):
                 exit_code = main(
