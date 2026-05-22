@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from yacht.regatta import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
-from yacht.surface_metadata import agent_for_runtime
+from yacht.surface_metadata import harness_for_runtime
 
 
 SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
@@ -21,7 +21,8 @@ def rigging_capabilities_to_json(
     return {
         "status": "unsupported" if unsupported else "supported",
         "runtime_backend": runtime.backend,
-        "runtime_agent": agent_for_runtime(runtime),
+        "runtime_harness": harness_for_runtime(runtime),
+        "runtime_agent": harness_for_runtime(runtime),
         "supported_install_methods": list(_supported_methods(runtime)),
         "install_checks": checks,
     }
@@ -81,17 +82,17 @@ def _step_support(
             f"{step.method} yet",
         )
     if step.method == "agent-extension":
-        runtime_agent = agent_for_runtime(runtime)
-        if runtime_agent is None:
+        runtime_harness = harness_for_runtime(runtime)
+        if runtime_harness is None:
             return (
                 False,
-                "agent-extension install requires runtime agent metadata",
+                "agent-extension install requires runtime harness metadata",
             )
-        if step.agent is not None and step.agent != runtime_agent:
+        if step.agent is not None and step.agent != runtime_harness:
             return (
                 False,
                 "agent-extension install targets agent "
-                f"{step.agent}, but runtime agent is {runtime_agent}",
+                f"{step.agent}, but runtime harness is {runtime_harness}",
             )
     return True, None
 

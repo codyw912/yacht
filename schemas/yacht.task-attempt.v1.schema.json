@@ -120,6 +120,14 @@
           "type": "string",
           "minLength": 1
         },
+        "harness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agent": {
+          "type": "string",
+          "minLength": 1
+        },
         "temp_home": {
           "type": "string",
           "minLength": 1

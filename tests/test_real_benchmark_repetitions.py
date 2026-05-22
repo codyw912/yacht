@@ -244,7 +244,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             stderr = StringIO()
 
             with patch(
-                "yacht.cli.configured_agent_name",
+                "yacht.cli.configured_harness_name",
                 return_value="pi",
             ), patch(
                 "yacht.cli.run_real_benchmark_repetitions",

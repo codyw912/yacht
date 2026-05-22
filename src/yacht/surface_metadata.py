@@ -10,7 +10,11 @@ def regatta_surfaces_to_json(regatta: Regatta) -> dict[str, Any]:
     riggings = _configured_vessel_riggings(regatta)
     payload: dict[str, Any] = {
         "agent_harnesses": sorted(
-            {agent for runtime in runtimes if (agent := agent_for_runtime(runtime))}
+            {
+                harness
+                for runtime in runtimes
+                if (harness := harness_for_runtime(runtime))
+            }
         ),
         "tools": sorted({tool for rigging in riggings for tool in rigging.tools}),
     }
@@ -48,9 +52,9 @@ def vessel_surfaces_to_json(
     riggings: tuple[RiggingRecipe, ...],
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {}
-    agent = agent_for_runtime(runtime)
-    if agent is not None:
-        payload["agent_harness"] = agent
+    harness = harness_for_runtime(runtime)
+    if harness is not None:
+        payload["agent_harness"] = harness
     tools = sorted({tool for rigging in riggings for tool in rigging.tools})
     if tools:
         payload["tools"] = tools
@@ -67,9 +71,15 @@ def benchmark_surface_to_json(name: str, adapter: CourseAdapter) -> dict[str, st
     }
 
 
-def agent_for_runtime(runtime: RuntimeRecipe) -> str | None:
+def harness_for_runtime(runtime: RuntimeRecipe) -> str | None:
+    if runtime.harness is not None:
+        return runtime.harness
     if runtime.agent is not None:
         return runtime.agent
     if runtime.command:
         return runtime.command[0]
     return None
+
+
+def agent_for_runtime(runtime: RuntimeRecipe) -> str | None:
+    return harness_for_runtime(runtime)

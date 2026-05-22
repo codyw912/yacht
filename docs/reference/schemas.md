@@ -49,7 +49,8 @@ artifacts should remain consumable by other tools and future runners.
 Regatta configs may include:
 
 - `secrets` for explicit env/file secret references without values.
-- `runtimes` for agent runtime recipes such as `container` or `host-nix`.
+- `runtimes` for agent runtime recipes such as `container` or `host-nix`;
+  `harness` names the agent adapter, such as `pi`, `codex`, or `claude`.
 - `riggings` for named setup, environment, prompt, tool, or cache changes.
 - `course.adapter` for native benchmark harnesses such as SWE-bench.
 - `course.adapter.instance_ids` for explicit benchmark task selection when the

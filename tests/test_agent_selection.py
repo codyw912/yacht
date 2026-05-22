@@ -6,7 +6,7 @@ from io import StringIO
 from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
-from yacht.agent_selection import configured_agent_name
+from yacht.agent_selection import configured_harness_name
 from yacht.cli import main
 from yacht.regatta import ConfigError
 
@@ -17,7 +17,7 @@ class AgentSelectionTests(unittest.TestCase):
             config_path = Path(temp_dir) / "regatta.toml"
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
 
-            self.assertEqual(configured_agent_name(config_path), "pi")
+            self.assertEqual(configured_harness_name(config_path), "pi")
 
     def test_requires_at_least_one_configured_agent_harness(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -53,7 +53,7 @@ vessels = ["unconfigured", "also-unconfigured"]
                 ConfigError,
                 "require exactly one configured agent harness; found none",
             ):
-                configured_agent_name(config_path)
+                configured_harness_name(config_path)
 
     def test_rejects_multiple_configured_agent_harnesses(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -63,7 +63,7 @@ vessels = ["unconfigured", "also-unconfigured"]
                 + """
 [runtimes.codex]
 backend = "container"
-agent = "codex"
+harness = "codex"
 image = "yacht/codex-agent-runtime:test"
 command = ["codex"]
 
@@ -84,7 +84,7 @@ vessels = ["pi-baseline", "codex-baseline"]
                 ConfigError,
                 "require exactly one configured agent harness; found codex, pi",
             ):
-                configured_agent_name(config_path)
+                configured_harness_name(config_path)
 
     def test_real_benchmark_command_uses_configured_agent_harness(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -109,7 +109,7 @@ harness = "docker"
 
 [runtimes.codex]
 backend = "container"
-agent = "codex"
+harness = "codex"
 image = "yacht/codex-agent-runtime:test"
 command = ["codex"]
 

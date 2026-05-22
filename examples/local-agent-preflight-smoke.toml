@@ -12,7 +12,7 @@ tasks = [
 
 [runtimes.local-agent]
 backend = "host-nix"
-agent = "local-smoke"
+harness = "local-smoke"
 flake = "path:."
 command = ["local-agent"]
 

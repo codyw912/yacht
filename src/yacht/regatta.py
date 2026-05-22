@@ -88,6 +88,7 @@ class RuntimeRecipe:
     name: str
     backend: str
     command: tuple[str, ...]
+    harness: str | None = None
     flake: str | None = None
     image: str | None = None
     container_home: str = "/home/yacht"
@@ -444,6 +445,7 @@ def _parse_runtime_recipes(raw: dict[str, Any]) -> dict[str, RuntimeRecipe]:
             name=str(name),
             backend=str(runtime["backend"]),
             command=tuple(str(item) for item in runtime["command"]),
+            harness=_parse_runtime_harness(runtime),
             agent=str(runtime["agent"]) if "agent" in runtime else None,
             flake=str(runtime["flake"]) if "flake" in runtime else None,
             image=str(runtime["image"]) if "image" in runtime else None,
@@ -461,6 +463,14 @@ def _parse_runtime_recipes(raw: dict[str, Any]) -> dict[str, RuntimeRecipe]:
         )
         for name, runtime in raw.get("runtimes", {}).items()
     }
+
+
+def _parse_runtime_harness(runtime: dict[str, Any]) -> str | None:
+    if "harness" in runtime:
+        return str(runtime["harness"])
+    if "agent" in runtime:
+        return str(runtime["agent"])
+    return None
 
 
 def _parse_rigging_recipes(raw: dict[str, Any]) -> dict[str, RiggingRecipe]:
