@@ -164,10 +164,12 @@ class PiAdapterTests(unittest.TestCase):
                 )
 
             with patch(
-                "yacht.task_attempt_runner.task_with_swe_bench_context",
-                side_effect=lambda *, task, adapter: task,
+                "yacht.benchmark_adapters.SweBenchAdapter.task_with_context",
+                autospec=True,
+                side_effect=lambda self, *, task, adapter: task,
             ), patch(
-                "yacht.task_attempt_runner.materialize_swe_bench_workspace",
+                "yacht.benchmark_adapters.SweBenchAdapter.workspace_for_attempt",
+                autospec=True,
                 return_value=workspace_path,
             ):
                 summary = run_task_attempts(

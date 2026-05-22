@@ -4,12 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.benchmark_adapters import benchmark_adapter
 from yacht.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
 from yacht.next_steps import command_step
 from yacht.regatta import ConfigError
 from yacht.schemas import SchemaValidationError, validate_benchmark_launch_result_document
-from yacht.swebench_grading import write_swe_bench_grading_report
 
 
 BENCHMARK_GRADING_COLLECTION_PATH = Path("benchmark-grading-collection.json")
@@ -27,6 +27,7 @@ def collect_benchmark_grading_reports(
             config_path=config_path,
             logbook_dir=logbook_dir,
             comparison=comparison,
+            adapter_kind=str(launch_result["adapter"]["kind"]),
         )
         for comparison in launch_result["comparisons"]
     ]
@@ -77,12 +78,14 @@ def _comparison_to_json(
     config_path: Path,
     logbook_dir: Path,
     comparison: dict[str, Any],
+    adapter_kind: str,
 ) -> dict[str, Any]:
     vessels = [
         _vessel_to_json(
             config_path=config_path,
             logbook_dir=logbook_dir,
             vessel=vessel,
+            adapter_kind=adapter_kind,
         )
         for vessel in comparison["vessels"]
     ]
@@ -99,8 +102,10 @@ def _vessel_to_json(
     config_path: Path,
     logbook_dir: Path,
     vessel: dict[str, Any],
+    adapter_kind: str,
 ) -> dict[str, Any]:
     vessel_name = str(vessel["name"])
+    adapter = benchmark_adapter(adapter_kind)
     if vessel["status"] != "completed":
         return {
             "name": vessel_name,
@@ -123,7 +128,7 @@ def _vessel_to_json(
         }
 
     try:
-        grading_summary = write_swe_bench_grading_report(
+        grading_summary = adapter.write_grading_report(
             config_path=config_path,
             native_report_path=native_report_path,
             logbook_dir=logbook_dir,
@@ -214,7 +219,7 @@ def _next_steps(logbook_dir: Path, summary: dict[str, int]) -> list[dict[str, ob
             command_step(
                 label="Rerun benchmark launch",
                 reason=(
-                    "Some native SWE-bench reports are missing or invalid; inspect "
+                    "Some native benchmark reports are missing or invalid; inspect "
                     "the per-vessel errors in this artifact, then rerun launch or "
                     "collection."
                 ),

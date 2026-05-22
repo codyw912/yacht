@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.benchmark_adapters import benchmark_adapter
+from yacht.benchmark_adapters import course_adapter_to_json
 from yacht.regatta import (
     Comparison,
     ConfigError,
@@ -29,7 +31,7 @@ def build_course_handoff(config_path: Path) -> dict[str, Any]:
         "regatta": regatta.name,
         "course": regatta.course.name,
         "status": "planned",
-        "adapter": _adapter_to_json(regatta.course.adapter),
+        "adapter": course_adapter_to_json(regatta.course.adapter),
         "tasks": [_task_to_json(task) for task in regatta.course.tasks],
         "comparisons": [
             _comparison_to_json(comparison) for comparison in regatta.comparisons
@@ -50,18 +52,6 @@ def write_course_handoff(config_path: Path, logbook_dir: Path) -> dict[str, Any]
         encoding="utf-8",
     )
     return handoff
-
-
-def _adapter_to_json(adapter: CourseAdapter) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "kind": adapter.kind,
-        "dataset": adapter.dataset,
-        "split": adapter.split,
-        "harness": adapter.harness,
-    }
-    if adapter.instance_ids:
-        payload["instance_ids"] = list(adapter.instance_ids)
-    return payload
 
 
 def _task_to_json(task: Task) -> dict[str, str | int]:
@@ -89,15 +79,8 @@ def _comparison_to_json(comparison: Comparison) -> dict[str, Any]:
 
 
 def _expected_outputs(adapter: CourseAdapter) -> dict[str, str]:
-    return {
-        "candidate_patches": f"course-handoff/{adapter.kind}/candidate-patches.jsonl",
-        "grading_report": f"course-handoff/{adapter.kind}/grading-report.json",
-    }
+    return benchmark_adapter(adapter.kind).expected_outputs()
 
 
 def _grading_to_json(adapter: CourseAdapter) -> dict[str, str]:
-    return {
-        "delegated_to": adapter.kind,
-        "execution": f"{adapter.harness}-harness",
-        "status": "planned",
-    }
+    return benchmark_adapter(adapter.kind).grading(adapter.harness)

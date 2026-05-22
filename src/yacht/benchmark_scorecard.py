@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.benchmark_adapters import benchmark_adapter
 from yacht.course_handoff import COURSE_HANDOFF_PATH
 from yacht.next_steps import command_step
 from yacht.preflight_evidence_report import build_preflight_evidence_report
@@ -41,7 +42,8 @@ def _load_gradings(logbook_dir: Path, handoff: dict[str, Any]) -> list[dict[str,
     if not grading_paths:
         expected_path = logbook_dir / str(handoff["expected_outputs"]["grading_report"])
         raise ConfigError(f"validated grading report not found: {expected_path}")
-    return [_load_grading(path) for path in grading_paths]
+    adapter = benchmark_adapter(str(handoff["adapter"]["kind"]))
+    return [_load_grading(path, expected_schema=adapter.grading_schema) for path in grading_paths]
 
 
 def _grading_paths(logbook_dir: Path, handoff: dict[str, Any]) -> list[Path]:
@@ -61,9 +63,9 @@ def _grading_paths(logbook_dir: Path, handoff: dict[str, Any]) -> list[Path]:
     return paths
 
 
-def _load_grading(grading_path: Path) -> dict[str, Any]:
+def _load_grading(grading_path: Path, *, expected_schema: str) -> dict[str, Any]:
     grading = _load_json_object(grading_path, "validated grading report")
-    if grading.get("schema") != "yacht.swe-bench-grading.v1":
+    if grading.get("schema") != expected_schema:
         raise ConfigError("validated grading report has unsupported schema")
     return grading
 

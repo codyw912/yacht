@@ -4,6 +4,8 @@ from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
+from yacht.benchmark_adapters import benchmark_adapter
+from yacht.benchmark_adapters import course_adapter_summary
 from yacht.container_runtime import container_command_prefix_template
 from yacht.regatta import (
     Comparison,
@@ -104,17 +106,11 @@ def _course_adapter_to_json(
     adapter: CourseAdapter,
     task_ids: tuple[str, ...],
 ) -> dict[str, Any]:
+    summary = course_adapter_summary(adapter)
     return {
-        "kind": adapter.kind,
-        "dataset": adapter.dataset,
-        "split": adapter.split,
-        "harness": adapter.harness,
+        **summary,
         "task_ids": list(task_ids),
-        "grading": {
-            "delegated_to": adapter.kind,
-            "execution": f"{adapter.harness}-harness",
-            "status": "planned",
-        },
+        "grading": benchmark_adapter(adapter.kind).grading(adapter.harness),
     }
 
 

@@ -5,6 +5,8 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+from yacht.benchmark_adapters import benchmark_adapter
+from yacht.benchmark_adapters import command_preview
 from yacht.course_handoff import COURSE_HANDOFF_PATH
 from yacht.preflight_gate import PreflightGate, preflight_gate
 from yacht.regatta import ConfigError
@@ -63,7 +65,10 @@ def native_report_path_from_launcher_handoff(
     if isinstance(native_report_path, str) and native_report_path:
         path = Path(native_report_path)
         if not path.exists():
-            raise ConfigError(f"native SWE-bench report not found: {path}")
+            adapter = benchmark_adapter(str(launcher_handoff["adapter"]["kind"]))
+            raise ConfigError(
+                f"native {adapter.display_name} report not found: {path}"
+            )
         return path
 
     command = vessel.get("command")
@@ -73,11 +78,18 @@ def native_report_path_from_launcher_handoff(
             f"vessel {vessel_name}; pass --input explicitly"
         )
     run_id = _command_option_value(command, "--run_id", vessel_name)
+    adapter = benchmark_adapter(str(launcher_handoff["adapter"]["kind"]))
     native_report_path = (
-        Path(str(vessel["native_report_dir"])) / f"{vessel_name}.{run_id}.json"
+        Path(str(vessel["native_report_dir"]))
+        / adapter.native_report_filename(
+            vessel_name=vessel_name,
+            run_id=run_id,
+        )
     )
     if not native_report_path.exists():
-        raise ConfigError(f"native SWE-bench report not found: {native_report_path}")
+        raise ConfigError(
+            f"native {adapter.display_name} report not found: {native_report_path}"
+        )
     return native_report_path
 
 
@@ -236,6 +248,7 @@ def _vessel_to_json(
         comparison_name=comparison_name,
         vessel_name=vessel_name,
     )
+    adapter = benchmark_adapter(str(handoff["adapter"]["kind"]))
     vessel = {
         "name": vessel_name,
         "status": status,
@@ -251,55 +264,23 @@ def _vessel_to_json(
         "runtime_snapshot_status": snapshot_gate.status,
         "native_report_dir": str(native_report_dir),
         "expected_native_report_path": str(
-            native_report_dir / f"{vessel_name}.{run_id}.json"
+            native_report_dir
+            / adapter.native_report_filename(vessel_name=vessel_name, run_id=run_id)
         ),
     }
     if status == "ready-to-launch":
-        command = _swe_bench_command(
-            handoff=handoff,
+        command = adapter.launcher_command(
+            course_adapter=handoff["adapter"],
+            tasks=handoff["tasks"],
             candidate_path=candidate_path,
-            comparison_name=comparison_name,
-            vessel_name=vessel_name,
             native_report_dir=Path(str(vessel["native_report_dir"])),
             run_id=run_id,
             max_workers=max_workers,
             python_command=python_command,
         )
         vessel["command"] = command
-        vessel["command_preview"] = shlex.join(command)
+        vessel["command_preview"] = command_preview(command)
     return vessel
-
-
-def _swe_bench_command(
-    *,
-    handoff: dict[str, Any],
-    candidate_path: Path,
-    comparison_name: str,
-    vessel_name: str,
-    native_report_dir: Path,
-    run_id: str,
-    max_workers: int,
-    python_command: list[str],
-) -> list[str]:
-    return [
-        *python_command,
-        "-m",
-        "swebench.harness.run_evaluation",
-        "--dataset_name",
-        str(handoff["adapter"]["dataset"]),
-        "--split",
-        str(handoff["adapter"]["split"]),
-        "--predictions_path",
-        str(candidate_path),
-        "--max_workers",
-        str(max_workers),
-        "--run_id",
-        run_id,
-        "--report_dir",
-        str(native_report_dir),
-        "--instance_ids",
-        *[str(task["id"]) for task in handoff["tasks"]],
-    ]
 
 
 def _run_id(*, regatta: str, comparison_name: str, vessel_name: str) -> str:
