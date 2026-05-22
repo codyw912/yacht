@@ -1299,7 +1299,7 @@ def _validate_course_handoff_grading(value: Any) -> None:
     )
     _require_allowed_value(
         grading.get("execution"),
-        {"docker-harness"},
+        {"docker-harness", "local-harness"},
         "grading.execution",
     )
     _require_allowed_value(grading.get("status"), {"planned"}, "grading.status")

@@ -85,6 +85,7 @@ class SchemaTests(unittest.TestCase):
             PREFLIGHT_SUMMARY_SCHEMA,
             PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
             COURSE_HANDOFF_SCHEMA,
+            "yacht.custom-eval-grading.v1",
             "yacht.swe-bench-grading.v1",
             BENCHMARK_SCORECARD_SCHEMA,
             BENCHMARK_EXECUTION_PLAN_SCHEMA,

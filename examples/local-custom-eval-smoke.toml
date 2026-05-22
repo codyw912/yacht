@@ -1,0 +1,61 @@
+[regatta]
+name = "local-custom-eval-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "local-custom-eval"
+tasks = [
+  { id = "local-custom-1", title = "Complete a local custom eval task", difficulty = 1, problem_statement = "Respond with JSON where completed is true." },
+]
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "local"
+split = "smoke"
+harness = "local"
+
+[runtimes.local-agent]
+backend = "host-nix"
+harness = "local-smoke"
+flake = "path:."
+command = ["local-agent"]
+
+[runtimes.local-agent.preflight]
+required = true
+checks = [
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[riggings.local-tool]
+tools = ["local-smoke"]
+instructions = "Use the local smoke tool when asked to prove agent tool access."
+
+[riggings.local-tool.env]
+LOCAL_TOOL_MODE = "required"
+LOCAL_TOOL_STATE = "{trial_state}/local-tool-state.json"
+
+[riggings.local-tool.preflight]
+required = true
+checks = [
+  { name = "local-tool-mode", kind = "env", env = ["LOCAL_TOOL_MODE"] },
+  { name = "local-tool-state-isolated", kind = "path-isolation", env = ["LOCAL_TOOL_STATE"] },
+  { name = "local-agent-smoke", kind = "agent-prompt", prompt = "preflights/local-agent-smoke.md", expect_tool_calls = ["local-smoke"] },
+]
+
+[[vessels]]
+name = "local-baseline"
+model = "mock"
+runtime = "local-agent"
+
+[[vessels]]
+name = "local-agent-with-tool"
+model = "mock"
+runtime = "local-agent"
+rigging = ["local-tool"]
+
+[[comparisons]]
+name = "local-custom-baseline-vs-tool"
+course = "local-custom-eval"
+vessels = ["local-baseline", "local-agent-with-tool"]
