@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from yacht.regatta import CourseAdapter, Metrics, Task, load_regatta
+from yacht.regatta import ConfigError, CourseAdapter, Metrics, Task, load_regatta
 from yacht.swebench_task_context import (
     materialize_swe_bench_workspace,
     task_with_swe_bench_context,
@@ -15,6 +15,148 @@ from yacht.task_attempts import AgentTaskResult
 
 
 class SweBenchTaskContextTests(unittest.TestCase):
+    def test_swe_bench_adapter_instance_ids_define_course_tasks(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_ids = ["django__django-11099", "django__django-11179"]
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+
+        self.assertEqual(
+            [task.id for task in regatta.course.tasks],
+            ["django__django-11099", "django__django-11179"],
+        )
+        self.assertEqual(
+            regatta.course.tasks[0].title,
+            "SWE-bench instance django__django-11099",
+        )
+        self.assertEqual(regatta.course.tasks[0].difficulty, 1)
+        assert regatta.course.adapter is not None
+        self.assertEqual(
+            regatta.course.adapter.instance_ids,
+            ("django__django-11099", "django__django-11179"),
+        )
+
+    def test_swe_bench_adapter_instance_ids_can_use_inline_task_metadata(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+tasks = [
+  { id = "django__django-11179", title = "Second selected task", difficulty = 4 },
+  { id = "django__django-11099", title = "First selected task", difficulty = 3 },
+]
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_ids = ["django__django-11099", "django__django-11179"]
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+
+        self.assertEqual(
+            [(task.id, task.title, task.difficulty) for task in regatta.course.tasks],
+            [
+                ("django__django-11099", "First selected task", 3),
+                ("django__django-11179", "Second selected task", 4),
+            ],
+        )
+
+    def test_swe_bench_adapter_instance_ids_reject_unselected_task_metadata(
+        self,
+    ) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+tasks = [
+  { id = "django__django-11099", title = "Selected task", difficulty = 3 },
+  { id = "django__django-99999", title = "Unselected task", difficulty = 3 },
+]
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_ids = ["django__django-11099"]
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "course.tasks contains IDs not selected by "
+                "course.adapter.instance_ids",
+            ):
+                load_regatta(config_path)
+
+    def test_swe_bench_adapter_instance_ids_reject_duplicates(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_ids = ["django__django-11099", "django__django-11099"]
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                r"course.adapter.instance_ids\[1\] is duplicated",
+            ):
+                load_regatta(config_path)
+
     def test_loads_swe_bench_task_context_from_dataset(self) -> None:
         def load_dataset(dataset: str, *, split: str):
             self.assertEqual(dataset, "SWE-bench/SWE-bench_Lite")

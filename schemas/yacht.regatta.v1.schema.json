@@ -95,7 +95,25 @@
     "course": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "tasks"],
+      "required": ["name"],
+      "anyOf": [
+        {
+          "required": ["tasks"],
+          "properties": {
+            "tasks": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "required": ["adapter"],
+          "properties": {
+            "adapter": {
+              "required": ["instance_ids"]
+            }
+          }
+        }
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -103,7 +121,7 @@
         },
         "tasks": {
           "type": "array",
-          "minItems": 1,
+          "minItems": 0,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -121,6 +139,22 @@
                 "type": "integer",
                 "minimum": 1,
                 "default": 1
+              },
+              "repo": {
+                "type": "string",
+                "minLength": 1
+              },
+              "repo_url": {
+                "type": "string",
+                "minLength": 1
+              },
+              "base_commit": {
+                "type": "string",
+                "minLength": 1
+              },
+              "problem_statement": {
+                "type": "string",
+                "minLength": 1
               }
             }
           }
@@ -145,6 +179,15 @@
             "harness": {
               "type": "string",
               "enum": ["docker"]
+            },
+            "instance_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
             }
           }
         }

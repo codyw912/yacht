@@ -37,6 +37,7 @@ class CourseAdapter:
     dataset: str
     split: str
     harness: str
+    instance_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -330,27 +331,11 @@ def load_regatta(config_path: Path) -> Regatta:
     except SchemaValidationError as error:
         raise ConfigError(str(error)) from error
 
+    adapter = _parse_course_adapter(raw["course"])
     course = Course(
         name=str(raw["course"]["name"]),
-        tasks=tuple(
-            Task(
-                id=str(task["id"]),
-                title=str(task["title"]),
-                difficulty=int(task.get("difficulty", 1)),
-                repo=str(task["repo"]) if "repo" in task else None,
-                repo_url=str(task["repo_url"]) if "repo_url" in task else None,
-                base_commit=(
-                    str(task["base_commit"]) if "base_commit" in task else None
-                ),
-                problem_statement=(
-                    str(task["problem_statement"])
-                    if "problem_statement" in task
-                    else None
-                ),
-            )
-            for task in raw["course"]["tasks"]
-        ),
-        adapter=_parse_course_adapter(raw["course"]),
+        tasks=_parse_course_tasks(raw["course"], adapter),
+        adapter=adapter,
     )
     vessels = tuple(
         Vessel(
@@ -390,6 +375,44 @@ def _parse_course_adapter(raw_course: dict[str, Any]) -> CourseAdapter | None:
         dataset=str(adapter["dataset"]),
         split=str(adapter["split"]),
         harness=str(adapter["harness"]),
+        instance_ids=tuple(str(item) for item in adapter.get("instance_ids", ())),
+    )
+
+
+def _parse_course_tasks(
+    raw_course: dict[str, Any],
+    adapter: CourseAdapter | None,
+) -> tuple[Task, ...]:
+    tasks = tuple(_parse_course_task(task) for task in raw_course.get("tasks", ()))
+    if adapter is None or not adapter.instance_ids:
+        return tasks
+
+    tasks_by_id = {task.id: task for task in tasks}
+    return tuple(
+        tasks_by_id.get(instance_id) or _default_swe_bench_task(instance_id)
+        for instance_id in adapter.instance_ids
+    )
+
+
+def _parse_course_task(task: dict[str, Any]) -> Task:
+    return Task(
+        id=str(task["id"]),
+        title=str(task["title"]),
+        difficulty=int(task.get("difficulty", 1)),
+        repo=str(task["repo"]) if "repo" in task else None,
+        repo_url=str(task["repo_url"]) if "repo_url" in task else None,
+        base_commit=str(task["base_commit"]) if "base_commit" in task else None,
+        problem_statement=(
+            str(task["problem_statement"]) if "problem_statement" in task else None
+        ),
+    )
+
+
+def _default_swe_bench_task(instance_id: str) -> Task:
+    return Task(
+        id=instance_id,
+        title=f"SWE-bench instance {instance_id}",
+        difficulty=1,
     )
 
 

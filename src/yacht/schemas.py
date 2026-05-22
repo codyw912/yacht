@@ -126,12 +126,24 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
     course = _require_object(document["course"], "course")
     _require_non_empty_string(course.get("name"), "course.name")
     course_name = course["name"]
-    tasks = _require_list(course.get("tasks"), "course.tasks")
-    if not tasks:
+    _validate_course_adapter(course)
+    adapter = course.get("adapter")
+    adapter_instance_ids = _course_adapter_instance_ids(adapter)
+    if "tasks" not in course and not adapter_instance_ids:
+        raise SchemaValidationError(
+            "course.tasks must contain at least one task unless "
+            "course.adapter.instance_ids selects benchmark tasks"
+        )
+    tasks = _require_list(course.get("tasks", []), "course.tasks")
+    if not tasks and not adapter_instance_ids:
         raise SchemaValidationError("course.tasks must contain at least one task")
+    task_ids = set()
     for index, task_value in enumerate(tasks):
         task = _require_object(task_value, f"course.tasks[{index}]")
         _require_non_empty_string(task.get("id"), f"course.tasks[{index}].id")
+        if task["id"] in task_ids:
+            raise SchemaValidationError(f"course.tasks[{index}].id is duplicated")
+        task_ids.add(task["id"])
         _require_non_empty_string(task.get("title"), f"course.tasks[{index}].title")
         difficulty = task.get("difficulty", 1)
         if not isinstance(difficulty, int) or difficulty < 1:
@@ -144,7 +156,13 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
                     task.get(field),
                     f"course.tasks[{index}].{field}",
                 )
-    _validate_course_adapter(course)
+    if adapter_instance_ids:
+        extra_task_ids = task_ids - set(adapter_instance_ids)
+        if extra_task_ids:
+            raise SchemaValidationError(
+                "course.tasks contains IDs not selected by "
+                "course.adapter.instance_ids"
+            )
 
     vessels = _require_list(document["vessels"], "vessels")
     if not vessels:
@@ -2111,6 +2129,32 @@ def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
         COURSE_ADAPTER_HARNESSES,
         f"{path}.harness",
     )
+    instance_ids = adapter.get("instance_ids")
+    if instance_ids is not None:
+        _validate_adapter_instance_ids(instance_ids, f"{path}.instance_ids")
+
+
+def _course_adapter_instance_ids(adapter: object) -> list[str]:
+    if not isinstance(adapter, dict):
+        return []
+    value = adapter.get("instance_ids")
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _validate_adapter_instance_ids(value: Any, path: str) -> None:
+    instance_ids = _require_list(value, path)
+    if not instance_ids:
+        raise SchemaValidationError(f"{path} must contain at least one instance ID")
+    seen = set()
+    for index, instance_id in enumerate(instance_ids):
+        _require_non_empty_string(instance_id, f"{path}[{index}]")
+        if instance_id in seen:
+            raise SchemaValidationError(f"{path}[{index}] is duplicated")
+        seen.add(instance_id)
 
 
 def _validate_course_adapter_summary(adapter: dict[str, Any], path: str) -> None:

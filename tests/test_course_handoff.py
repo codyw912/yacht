@@ -93,6 +93,10 @@ class CourseHandoffTests(unittest.TestCase):
                 ["django__django-11099", "django__django-11179"],
             )
             self.assertEqual(
+                handoff["adapter"]["instance_ids"],
+                ["django__django-11099", "django__django-11179"],
+            )
+            self.assertEqual(
                 handoff["comparisons"][0]["name"],
                 "container-pi-vs-pi-fff-benchmark-small",
             )

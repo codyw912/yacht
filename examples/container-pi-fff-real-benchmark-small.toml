@@ -6,16 +6,13 @@ failure_policy = "abort-group"
 
 [course]
 name = "swe-bench-lite"
-tasks = [
-  { id = "django__django-11099", title = "Fix a SWE-bench Lite regression", difficulty = 3 },
-  { id = "django__django-11179", title = "Fix a SWE-bench Lite regression", difficulty = 3 },
-]
 
 [course.adapter]
 kind = "swe-bench"
 dataset = "princeton-nlp/SWE-bench_Lite"
 split = "test"
 harness = "docker"
+instance_ids = ["django__django-11099", "django__django-11179"]
 
 [secrets.anthropic]
 source = "env"
