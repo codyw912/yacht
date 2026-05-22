@@ -54,8 +54,8 @@ def write_course_handoff(config_path: Path, logbook_dir: Path) -> dict[str, Any]
     return handoff
 
 
-def _task_to_json(task: Task) -> dict[str, str | int]:
-    payload: dict[str, str | int] = {
+def _task_to_json(task: Task) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "id": task.id,
         "title": task.title,
         "difficulty": task.difficulty,
@@ -67,6 +67,8 @@ def _task_to_json(task: Task) -> dict[str, str | int]:
     ):
         if value is not None:
             payload[key] = value
+    if task.expect_response:
+        payload["expect_response"] = dict(task.expect_response)
     return payload
 
 

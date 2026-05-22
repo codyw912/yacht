@@ -16,6 +16,8 @@ from yacht.schemas import (
 )
 from yacht.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES, ToolCapability
 
+ExpectationValue = str | bool | int | float
+
 
 class ConfigError(ValueError):
     """Raised when a regatta configuration is invalid."""
@@ -30,6 +32,7 @@ class Task:
     repo_url: str | None = None
     base_commit: str | None = None
     problem_statement: str | None = None
+    expect_response: dict[str, ExpectationValue] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -409,7 +412,12 @@ def _parse_course_task(task: dict[str, Any]) -> Task:
         problem_statement=(
             str(task["problem_statement"]) if "problem_statement" in task else None
         ),
+        expect_response=_parse_expect_response(task.get("expect_response", {})),
     )
+
+
+def _parse_expect_response(raw: Any) -> dict[str, ExpectationValue]:
+    return {str(key): value for key, value in raw.items()}
 
 
 def _default_swe_bench_task(instance_id: str) -> Task:

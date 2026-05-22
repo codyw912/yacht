@@ -162,6 +162,24 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         self.assertIn("repo: django/django", instructions)
         self.assertIn("base_commit: abc123", instructions)
 
+    def test_custom_eval_prompt_instructions_include_expected_response_fields(
+        self,
+    ) -> None:
+        task = Task(
+            id="custom-1",
+            title="Complete custom task",
+            difficulty=1,
+            problem_statement="Return the expected fields.",
+            expect_response={"completed": True, "quality": "accepted"},
+        )
+
+        instructions = benchmark_adapter("custom-eval").task_prompt_instructions(task)
+
+        self.assertIn("Custom eval submission instructions", instructions)
+        self.assertIn("completed=True", instructions)
+        self.assertIn("quality='accepted'", instructions)
+        self.assertIn("Return the expected fields.", instructions)
+
     def test_rejects_unknown_benchmark_adapter(self) -> None:
         with self.assertRaisesRegex(ConfigError, "unsupported benchmark adapter custom"):
             benchmark_adapter("custom")

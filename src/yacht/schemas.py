@@ -170,6 +170,11 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
                     task.get(field),
                     f"course.tasks[{index}].{field}",
                 )
+        if "expect_response" in task:
+            _validate_expect_response(
+                task["expect_response"],
+                f"course.tasks[{index}].expect_response",
+            )
     if adapter_instance_ids:
         extra_task_ids = task_ids - set(adapter_instance_ids)
         if extra_task_ids:
@@ -1140,6 +1145,24 @@ def _validate_task_attempt_task(value: Any) -> None:
     difficulty = task.get("difficulty")
     if not isinstance(difficulty, int) or difficulty < 1:
         raise SchemaValidationError("task.difficulty must be an integer >= 1")
+    for field in ("repo", "repo_url", "base_commit", "problem_statement"):
+        if field in task:
+            _require_non_empty_string(task.get(field), f"task.{field}")
+    if "expect_response" in task:
+        _validate_expect_response(task["expect_response"], "task.expect_response")
+
+
+def _validate_expect_response(value: Any, path: str) -> None:
+    expectations = _require_object(value, path)
+    if not expectations:
+        raise SchemaValidationError(f"{path} must contain at least one field")
+    for key, expected in expectations.items():
+        if not isinstance(key, str) or not key:
+            raise SchemaValidationError(f"{path} keys must be non-empty strings")
+        if not isinstance(expected, str | bool | int | float):
+            raise SchemaValidationError(
+                f"{path}.{key} must be a string, boolean, integer, or number"
+            )
 
 
 def _validate_task_attempt_runtime_context(value: Any) -> None:
@@ -1253,6 +1276,14 @@ def _validate_course_handoff_tasks(value: Any) -> None:
         if not isinstance(difficulty, int) or difficulty < 1:
             raise SchemaValidationError(
                 f"tasks[{index}].difficulty must be an integer >= 1"
+            )
+        for field in ("repo", "repo_url", "base_commit", "problem_statement"):
+            if field in task:
+                _require_non_empty_string(task.get(field), f"tasks[{index}].{field}")
+        if "expect_response" in task:
+            _validate_expect_response(
+                task["expect_response"],
+                f"tasks[{index}].expect_response",
             )
 
 

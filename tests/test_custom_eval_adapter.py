@@ -30,7 +30,7 @@ failure_policy = "abort-group"
 [course]
 name = "local-custom-eval"
 tasks = [
-  { id = "custom-1", title = "Complete custom task", difficulty = 1 },
+  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" } },
 ]
 
 [course.adapter]
@@ -79,12 +79,12 @@ class CustomEvalAdapterTests(unittest.TestCase):
             _write_completed_attempt(
                 logbook_dir=logbook_dir,
                 vessel_name="local-baseline",
-                completed=True,
+                response={"completed": True, "quality": "accepted"},
             )
             _write_completed_attempt(
                 logbook_dir=logbook_dir,
                 vessel_name="local-tool",
-                completed=False,
+                response={"completed": True, "quality": "rejected"},
             )
             write_course_handoff(config_path, logbook_dir)
             write_runtime_instances_plan(config_path, logbook_dir, workspace_path)
@@ -108,6 +108,18 @@ class CustomEvalAdapterTests(unittest.TestCase):
 
             self.assertEqual(baseline_summary["adapter"], "custom-eval")
             self.assertEqual(tool_summary["adapter"], "custom-eval")
+            baseline_record = _read_jsonl(
+                logbook_dir
+                / "course-handoff"
+                / "custom-eval"
+                / "vessels"
+                / "local-baseline"
+                / "candidate-patches.jsonl"
+            )[0]
+            self.assertEqual(
+                baseline_record["expect_response"],
+                {"completed": True, "quality": "accepted"},
+            )
             self.assertEqual(launcher["status"], "ready-to-launch")
             command = launcher["comparisons"][0]["vessels"][0]["command"]
             self.assertEqual(command[:4], ["uv", "run", "python", "-m"])
@@ -166,7 +178,8 @@ class CustomEvalAdapterTests(unittest.TestCase):
                     {
                         "instance_id": "one",
                         "model_name_or_path": "a",
-                        "completed": True,
+                        "response": {"completed": True},
+                        "expect_response": {"completed": True},
                     }
                 )
                 + "\n"
@@ -174,7 +187,8 @@ class CustomEvalAdapterTests(unittest.TestCase):
                     {
                         "instance_id": "two",
                         "model_name_or_path": "b",
-                        "completed": True,
+                        "response": {"completed": True},
+                        "expect_response": {"completed": True},
                     }
                 )
                 + "\n",
@@ -207,7 +221,7 @@ class _CustomTaskAgent:
     ):
         return AgentTaskResult(
             exit_code=0,
-            response=json.dumps({"completed": True}),
+            response=json.dumps(dict(task.expect_response or {"completed": True})),
             tool_calls=(),
             transcript_path=transcript_path,
             metrics=Metrics(tokens=1, duration_seconds=0.1),
@@ -224,11 +238,11 @@ def _write_completed_attempt(
     *,
     logbook_dir: Path,
     vessel_name: str,
-    completed: bool,
+    response: dict[str, object],
 ) -> None:
     result = AgentTaskResult(
         exit_code=0,
-        response=json.dumps({"completed": completed}),
+        response=json.dumps(response),
         tool_calls=(),
         transcript_path=logbook_dir / "transcripts" / vessel_name / "custom-1.json",
         metrics=Metrics(tokens=1, duration_seconds=0.1),
@@ -265,6 +279,10 @@ def _write_task_attempt(*, logbook_dir: Path, vessel_name: str, result) -> None:
                     "id": "custom-1",
                     "title": "Complete custom task",
                     "difficulty": 1,
+                    "expect_response": {
+                        "completed": True,
+                        "quality": "accepted",
+                    },
                 },
                 "runtime_context": {
                     "backend": "host-nix",
@@ -295,6 +313,10 @@ def _write_task_attempt(*, logbook_dir: Path, vessel_name: str, result) -> None:
         + "\n",
         encoding="utf-8",
     )
+
+
+def _read_jsonl(path: Path) -> list[dict[str, object]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
 if __name__ == "__main__":

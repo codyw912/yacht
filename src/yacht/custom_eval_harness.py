@@ -38,7 +38,7 @@ def _load_candidate_records(path: Path) -> list[dict[str, Any]]:
             ) from error
         if not isinstance(record, dict):
             raise SystemExit(f"candidate records line {line_number} must be an object")
-        for field in ("instance_id", "model_name_or_path", "completed"):
+        for field in ("instance_id", "model_name_or_path", "expect_response"):
             if field not in record:
                 raise SystemExit(f"candidate records line {line_number}.{field} missing")
         if not isinstance(record["instance_id"], str) or not record["instance_id"]:
@@ -53,9 +53,28 @@ def _load_candidate_records(path: Path) -> list[dict[str, Any]]:
                 "candidate records line "
                 f"{line_number}.model_name_or_path must be non-empty"
             )
-        if not isinstance(record["completed"], bool):
+        if not isinstance(record["expect_response"], dict) or not record[
+            "expect_response"
+        ]:
             raise SystemExit(
-                f"candidate records line {line_number}.completed must be a boolean"
+                "candidate records line "
+                f"{line_number}.expect_response must be a non-empty object"
+            )
+        for key, expected in record["expect_response"].items():
+            if not isinstance(key, str) or not key:
+                raise SystemExit(
+                    "candidate records line "
+                    f"{line_number}.expect_response keys must be non-empty strings"
+                )
+            if not isinstance(expected, str | bool | int | float):
+                raise SystemExit(
+                    "candidate records line "
+                    f"{line_number}.expect_response.{key} must be a scalar"
+                )
+        response = record.get("response")
+        if response is not None and not isinstance(response, dict):
+            raise SystemExit(
+                f"candidate records line {line_number}.response must be an object or null"
             )
         records.append(record)
     if not records:
@@ -69,10 +88,10 @@ def _load_candidate_records(path: Path) -> list[dict[str, Any]]:
 def _native_report(records: list[dict[str, Any]]) -> dict[str, Any]:
     submitted_ids = [str(record["instance_id"]) for record in records]
     resolved_ids = [
-        str(record["instance_id"]) for record in records if record["completed"] is True
+        str(record["instance_id"]) for record in records if _record_resolved(record)
     ]
     unresolved_ids = [
-        str(record["instance_id"]) for record in records if record["completed"] is False
+        str(record["instance_id"]) for record in records if not _record_resolved(record)
     ]
     return {
         "schema_version": 1,
@@ -91,6 +110,15 @@ def _native_report(records: list[dict[str, Any]]) -> dict[str, Any]:
         "error_instances": 0,
         "error_ids": [],
     }
+
+
+def _record_resolved(record: dict[str, Any]) -> bool:
+    response = record.get("response")
+    if not isinstance(response, dict):
+        return False
+    expectations = record["expect_response"]
+    assert isinstance(expectations, dict)
+    return all(response.get(key) == expected for key, expected in expectations.items())
 
 
 if __name__ == "__main__":

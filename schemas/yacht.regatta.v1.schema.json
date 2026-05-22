@@ -126,6 +126,13 @@
           "default": []
         }
       }
+    },
+    "expectResponse": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": ["string", "boolean", "integer", "number"]
+      }
     }
   },
   "properties": {
@@ -203,6 +210,9 @@
               "problem_statement": {
                 "type": "string",
                 "minLength": 1
+              },
+              "expect_response": {
+                "$ref": "#/$defs/expectResponse"
               }
             }
           }

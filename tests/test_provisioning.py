@@ -237,6 +237,44 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(runtime.container_home, "/home/yacht")
             self.assertEqual(runtime.container_workspace, "/workspace")
 
+    def test_loads_task_expected_response_contract(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            '{ id = "django__django-11099", title = "Fix a regression", difficulty = 3 }',
+            (
+                '{ id = "django__django-11099", title = "Fix a regression", '
+                'difficulty = 3, expect_response = { completed = true, '
+                'quality = "accepted" } }'
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            task = load_regatta(config_path).course.tasks[0]
+
+            self.assertEqual(
+                task.expect_response,
+                {"completed": True, "quality": "accepted"},
+            )
+
+    def test_task_expected_response_contract_must_be_non_empty_object(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            '{ id = "django__django-11099", title = "Fix a regression", difficulty = 3 }',
+            (
+                '{ id = "django__django-11099", title = "Fix a regression", '
+                'difficulty = 3, expect_response = {} }'
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "course.tasks\\[0\\].expect_response must contain at least one field",
+            ):
+                load_regatta(config_path)
+
     def test_runtime_agent_is_legacy_alias_for_harness(self) -> None:
         config = PI_WITH_FFF_CONFIG.replace('harness = "pi"', 'agent = "pi"')
         with tempfile.TemporaryDirectory() as temp_dir:
