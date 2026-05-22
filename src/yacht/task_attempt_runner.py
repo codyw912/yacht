@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
+from yacht.harness_adapters import supported_task_attempt_names
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
 from yacht.regatta import (
     Comparison,
@@ -36,7 +37,7 @@ class TaskAgent(Protocol):
         ...
 
 
-TASK_ATTEMPT_AGENTS = {"local-smoke", "pi"}
+TASK_ATTEMPT_AGENTS = frozenset(supported_task_attempt_names())
 
 
 def run_task_attempts(

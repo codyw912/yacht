@@ -34,7 +34,7 @@ class CliPiTaskAttemptTests(unittest.TestCase):
 
             stdout = StringIO()
             with patch(
-                "yacht.cli.SubprocessPiTaskLauncher",
+                "yacht.harness_adapters.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=runner),
             ), redirect_stdout(stdout):
                 exit_code = main(
@@ -131,7 +131,7 @@ class CliPiTaskAttemptTests(unittest.TestCase):
 
             stdout = StringIO()
             with patch(
-                "yacht.cli.SubprocessPiTaskLauncher",
+                "yacht.harness_adapters.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=runner),
             ), redirect_stdout(stdout):
                 exit_code = main(

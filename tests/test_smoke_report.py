@@ -128,7 +128,7 @@ def _run_pi_smoke_eval(
         )
 
     with patch(
-        "yacht.cli.SubprocessPiTaskLauncher",
+        "yacht.harness_adapters.SubprocessPiTaskLauncher",
         return_value=SubprocessPiTaskLauncher(runner=runner),
     ), patch(
         "yacht.task_attempt_runner.task_with_swe_bench_context",

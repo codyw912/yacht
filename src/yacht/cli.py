@@ -21,19 +21,16 @@ from yacht.benchmark_report import render_benchmark_report
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.benchmark_status import render_benchmark_status
 from yacht.course_handoff import write_course_handoff
+from yacht.harness_adapters import agent_prompt_runner_factory
+from yacht.harness_adapters import supported_agent_preflight_names
+from yacht.harness_adapters import supported_task_attempt_names
+from yacht.harness_adapters import task_agent
 from yacht.latest_logbook import render_latest_logbook
-from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
 from yacht.local_smoke_eval import run_local_smoke_eval
 from yacht.preflight_evidence_report import render_preflight_evidence_report
 from yacht.preflight_evidence_report import write_preflight_evidence_report
-from yacht.pi_adapter import (
-    PiAdapter,
-    SubprocessPiPromptLauncher,
-    SubprocessPiTaskLauncher,
-)
 from yacht.pi_smoke_eval import run_pi_smoke_eval
 from yacht.preflight_runner import (
-    AgentPromptRunnerFactory,
     build_preflight_execution_plan,
     parse_secret_values,
     run_preflight,
@@ -59,7 +56,7 @@ from yacht.swebench_predictions_from_attempts import (
 )
 from yacht.smoke_report import render_smoke_report
 from yacht.smoke_readiness_report import write_smoke_readiness_report
-from yacht.task_attempt_runner import TaskAgent, run_task_attempts
+from yacht.task_attempt_runner import run_task_attempts
 from yacht.task_attempt_scorecard import write_task_attempt_scorecard
 
 
@@ -540,7 +537,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     preflight_parser.add_argument(
         "--agent-preflight",
-        choices=("none", "pi", "local-smoke"),
+        choices=supported_agent_preflight_names(),
         default="none",
         help="Opt into agent-prompt preflight checks with the selected adapter.",
     )
@@ -562,7 +559,7 @@ def build_parser() -> argparse.ArgumentParser:
     task_attempts_parser.add_argument(
         "--agent",
         required=True,
-        choices=("local-smoke", "pi"),
+        choices=supported_task_attempt_names(),
         help="Task attempt agent adapter to launch.",
     )
     task_attempts_parser.add_argument(
@@ -1166,7 +1163,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.logbook,
                 args.workspace,
                 parse_secret_values(args.secret),
-                agent_prompt_runner_factory=_agent_prompt_runner_factory(
+                agent_prompt_runner_factory=agent_prompt_runner_factory(
                     args.agent_preflight
                 ),
             )
@@ -1184,7 +1181,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
                 agent_name=args.agent,
-                task_agent=_task_attempt_agent(args.agent),
+                task_agent=task_agent(args.agent),
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
@@ -1222,7 +1219,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 logbook_dir=args.logbook,
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
-                task_agent=_task_attempt_agent("pi"),
+                task_agent=task_agent("pi"),
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
@@ -1237,8 +1234,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 logbook_dir=args.logbook,
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
-                agent_prompt_runner_factory=_agent_prompt_runner_factory("pi"),
-                task_agent=_task_attempt_agent("pi"),
+                agent_prompt_runner_factory=agent_prompt_runner_factory("pi"),
+                task_agent=task_agent("pi"),
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
@@ -1254,8 +1251,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 logbook_dir=args.logbook,
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
-                agent_prompt_runner_factory=_agent_prompt_runner_factory(agent_name),
-                task_agent=_task_attempt_agent(agent_name),
+                agent_prompt_runner_factory=agent_prompt_runner_factory(agent_name),
+                task_agent=task_agent(agent_name),
                 agent_name=agent_name,
                 max_workers=args.max_workers,
                 python_executable=args.python_executable,
@@ -1281,8 +1278,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 secret_values=parse_secret_values(args.secret),
                 repetitions=args.repetitions,
                 agent_name=agent_name,
-                agent_prompt_runner_factory=_agent_prompt_runner_factory(agent_name),
-                task_agent=_task_attempt_agent(agent_name),
+                agent_prompt_runner_factory=agent_prompt_runner_factory(agent_name),
+                task_agent=task_agent(agent_name),
                 max_workers=args.max_workers,
                 python_executable=args.python_executable,
                 progress=_stderr_progress,
@@ -1354,31 +1351,3 @@ def _default_repeated_benchmark_logbook(config_path: Path) -> Path:
 def _path_slug(value: str) -> str:
     slug = "".join(character if character.isalnum() else "-" for character in value)
     return "-".join(part for part in slug.lower().split("-") if part) or "benchmark"
-
-
-def _agent_prompt_runner_factory(
-    adapter_name: str,
-) -> AgentPromptRunnerFactory | None:
-    if adapter_name == "none":
-        return None
-    if adapter_name == "pi":
-        adapter = PiAdapter(launcher=SubprocessPiPromptLauncher())
-        return lambda instance, transcript_dir: adapter.agent_prompt_runner(
-            instance=instance,
-            transcript_dir=transcript_dir,
-        )
-    if adapter_name == "local-smoke":
-        adapter = LocalSmokeAgentAdapter()
-        return lambda instance, transcript_dir: adapter.agent_prompt_runner(
-            instance=instance,
-            transcript_dir=transcript_dir,
-        )
-    raise ConfigError(f"unsupported agent preflight adapter {adapter_name}")
-
-
-def _task_attempt_agent(agent_name: str) -> TaskAgent | None:
-    if agent_name == "local-smoke":
-        return None
-    if agent_name == "pi":
-        return PiAdapter(task_launcher=SubprocessPiTaskLauncher())
-    raise ConfigError(f"unsupported task attempt agent {agent_name}")

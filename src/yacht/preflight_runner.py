@@ -13,6 +13,7 @@ from yacht.preflight import (
     execute_machine_preflight,
     execute_preflight,
 )
+from yacht.harness_adapters import supported_agent_preflight_names
 from yacht.regatta import (
     Comparison,
     ConfigError,
@@ -33,7 +34,7 @@ from yacht.schemas import (
 )
 
 AgentPromptRunnerFactory = Callable[[RuntimeInstance, Path], AgentPromptRunner]
-AGENT_PREFLIGHT_ADAPTERS = {"none", "pi", "local-smoke"}
+AGENT_PREFLIGHT_ADAPTERS = frozenset(supported_agent_preflight_names())
 
 
 @dataclass(frozen=True)
