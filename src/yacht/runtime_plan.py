@@ -21,6 +21,7 @@ from yacht.runtime_capabilities import rigging_capabilities_to_json
 from yacht.surface_metadata import harness_for_runtime
 from yacht.surface_metadata import regatta_surfaces_to_json
 from yacht.surface_metadata import vessel_surfaces_to_json
+from yacht.tool_capabilities import tool_capabilities_to_json
 
 
 ISOLATED_ENV = {
@@ -37,6 +38,14 @@ def build_runtime_plan(config_path: Path) -> dict[str, Any]:
         "regatta": regatta.name,
         "course": regatta.course.name,
         "surfaces": regatta_surfaces_to_json(regatta),
+        "tool_capabilities": tool_capabilities_to_json(
+            tuple(
+                tool
+                for rigging in regatta.rigging_recipes.values()
+                for tool in rigging.tools
+            ),
+            regatta.tool_capabilities,
+        ),
     }
     if regatta.course.adapter is not None:
         plan["course_adapter"] = _course_adapter_to_json(
@@ -73,7 +82,11 @@ def _vessel_to_json(regatta: Regatta, vessel: Vessel) -> dict[str, Any]:
         "rigging": list(vessel.rigging),
         "surfaces": vessel_surfaces_to_json(runtime, riggings),
         "runtime": _runtime_to_json(runtime),
-        "rigging_capabilities": rigging_capabilities_to_json(runtime, riggings),
+        "rigging_capabilities": rigging_capabilities_to_json(
+            runtime,
+            riggings,
+            regatta.tool_capabilities,
+        ),
         "install": [
             step.to_json()
             for rigging in riggings

@@ -24,6 +24,7 @@
             "env",
             "mcp-server",
             "path-isolation",
+            "runtime-capability",
             "tool-call"
           ]
         },
@@ -78,6 +79,53 @@
         }
       },
       "default": {}
+    },
+    "riggingInstallStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "target"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "agent-extension",
+            "mcp-server",
+            "package",
+            "binary",
+            "container-image",
+            "preinstalled",
+            "custom-command"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime": {
+          "type": "string",
+          "minLength": 1
+        },
+        "package": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": []
+        }
+      }
     }
   },
   "properties": {
@@ -254,6 +302,56 @@
       },
       "default": {}
     },
+    "tools": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "interfaces": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "default": []
+          },
+          "install_methods": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "agent-extension",
+                "mcp-server",
+                "package",
+                "binary",
+                "container-image",
+                "preinstalled",
+                "custom-command"
+              ]
+            },
+            "default": []
+          },
+          "expected_tool_calls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "default": []
+          }
+        }
+      },
+      "default": {}
+    },
     "runtimes": {
       "type": "object",
       "additionalProperties": {
@@ -336,6 +434,21 @@
         "additionalProperties": false,
         "properties": {
           "install": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "$ref": "#/$defs/riggingInstallStep"
+                }
+              ]
+            },
+            "default": []
+          },
+          "tools": {
             "type": "array",
             "items": {
               "type": "string",

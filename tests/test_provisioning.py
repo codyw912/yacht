@@ -178,6 +178,11 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(regatta.runtime_recipes["pi"].agent, None)
             self.assertEqual(regatta.runtime_recipes["pi"].command, ("pi",))
             self.assertEqual(regatta.rigging_recipes["pi-fff"].tools, ("fff",))
+            self.assertEqual(regatta.tool_capabilities["fff"].kind, "code-navigation")
+            self.assertEqual(
+                regatta.tool_capabilities["fff"].expected_tool_calls,
+                ("fffind", "ffgrep"),
+            )
             install = regatta.rigging_recipes["pi-fff"].install[0]
             self.assertEqual(install.method, "agent-extension")
             self.assertEqual(install.target, "npm:@ff-labs/pi-fff")
@@ -273,6 +278,48 @@ class ProvisioningConfigTests(unittest.TestCase):
             self.assertEqual(install.method, "agent-extension")
             self.assertEqual(install.target, "npm:@ff-labs/pi-fff")
             self.assertTrue(install.legacy)
+
+    def test_loads_custom_tool_capability_metadata(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            '[riggings.pi-fff]\ntools = ["fff"]',
+            """[tools.repo-map]
+kind = "code-navigation"
+description = "Repository map sidecar."
+interfaces = ["mcp-server", "agent-tool"]
+install_methods = ["mcp-server"]
+expected_tool_calls = ["repo_map"]
+
+[riggings.pi-fff]
+tools = ["repo-map"]""",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+
+            capability = regatta.tool_capabilities["repo-map"]
+            self.assertEqual(capability.kind, "code-navigation")
+            self.assertEqual(capability.description, "Repository map sidecar.")
+            self.assertEqual(capability.interfaces, ("mcp-server", "agent-tool"))
+            self.assertEqual(capability.install_methods, ("mcp-server",))
+            self.assertEqual(capability.expected_tool_calls, ("repo_map",))
+            self.assertEqual(regatta.rigging_recipes["pi-fff"].tools, ("repo-map",))
+
+    def test_rigging_tools_must_reference_declared_capabilities(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace('tools = ["fff"]', 'tools = ["repo-map"]')
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                (
+                    "riggings.pi-fff.tools references undefined tool repo-map; "
+                    "define \\[tools.repo-map\\]"
+                ),
+            ):
+                load_regatta(config_path)
 
     def test_rigging_install_requires_supported_method(self) -> None:
         config = PI_WITH_FFF_CONFIG.replace(

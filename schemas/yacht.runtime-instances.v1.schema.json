@@ -30,6 +30,16 @@
       "type": "string",
       "minLength": 1
     },
+    "surfaces": {
+      "type": "object"
+    },
+    "tool_capabilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/toolCapability"
+      },
+      "default": []
+    },
     "comparisons": {
       "type": "array",
       "minItems": 1,
@@ -116,6 +126,19 @@
           "type": "string",
           "minLength": 1
         },
+        "surfaces": {
+          "type": "object"
+        },
+        "rigging_capabilities": {
+          "type": "object"
+        },
+        "install": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "default": []
+        },
         "trial_root": {
           "type": "string",
           "minLength": 1
@@ -148,6 +171,33 @@
           }
         },
         "cleanup_paths": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        }
+      }
+    },
+    "toolCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "interfaces": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        },
+        "install_methods": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        },
+        "expected_tool_calls": {
           "$ref": "#/$defs/nonEmptyStringArray"
         }
       }
