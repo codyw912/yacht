@@ -23,6 +23,7 @@ from yacht.schemas import validate_runtime_instances_document
 from yacht.surface_metadata import harness_for_runtime
 from yacht.surface_metadata import regatta_surfaces_to_json
 from yacht.surface_metadata import vessel_surfaces_to_json
+from yacht.tool_capabilities import tool_capabilities_to_json
 
 
 RUNTIME_INSTANCES_PLAN_PATH = Path("runtime-instances.json")
@@ -41,6 +42,14 @@ def build_runtime_instances_plan(
         "regatta": regatta.name,
         "course": regatta.course.name,
         "surfaces": regatta_surfaces_to_json(regatta),
+        "tool_capabilities": tool_capabilities_to_json(
+            tuple(
+                tool
+                for rigging in regatta.rigging_recipes.values()
+                for tool in rigging.tools
+            ),
+            regatta.tool_capabilities,
+        ),
         "mode": "dry-run",
         "workspace_path": str(workspace_path),
         "comparisons": [
@@ -130,6 +139,7 @@ def _vessel_to_json(
         "rigging_capabilities": rigging_capabilities_to_json(
             resolution.runtime,
             riggings,
+            regatta.tool_capabilities,
         ),
         "install": [
             step.to_json()

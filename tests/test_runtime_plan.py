@@ -165,6 +165,19 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(plan["course"], "swe-bench-lite")
             self.assertEqual(plan["mode"], "dry-run")
             self.assertEqual(
+                plan["tool_capabilities"],
+                [
+                    {
+                        "name": "fff",
+                        "kind": "code-navigation",
+                        "description": "Codebase memory and navigation tool.",
+                        "interfaces": ["agent-tool"],
+                        "install_methods": ["agent-extension"],
+                        "expected_tool_calls": ["fffind", "ffgrep"],
+                    }
+                ],
+            )
+            self.assertEqual(
                 plan["surfaces"],
                 {
                     "agent_harnesses": ["pi"],
@@ -217,6 +230,16 @@ class RuntimePlanTests(unittest.TestCase):
                             "method": "agent-extension",
                             "target": "npm:@ff-labs/pi-fff",
                             "supported": True,
+                        }
+                    ],
+                    "tools": [
+                        {
+                            "name": "fff",
+                            "kind": "code-navigation",
+                            "description": "Codebase memory and navigation tool.",
+                            "interfaces": ["agent-tool"],
+                            "install_methods": ["agent-extension"],
+                            "expected_tool_calls": ["fffind", "ffgrep"],
                         }
                     ],
                 },
@@ -320,6 +343,19 @@ class RuntimePlanTests(unittest.TestCase):
                         "execution_harness": "docker",
                     },
                 },
+            )
+            self.assertEqual(
+                plan["tool_capabilities"],
+                [
+                    {
+                        "name": "fff",
+                        "kind": "code-navigation",
+                        "description": "Codebase memory and navigation tool.",
+                        "interfaces": ["agent-tool"],
+                        "install_methods": ["agent-extension"],
+                        "expected_tool_calls": ["fffind", "ffgrep"],
+                    }
+                ],
             )
             self.assertEqual(
                 plan["course_adapter"],
@@ -433,6 +469,43 @@ class RuntimePlanTests(unittest.TestCase):
             self.assertEqual(plan["surfaces"]["tools"], [])
             self.assertEqual(plan["vessels"][1]["surfaces"]["agent_harness"], "pi")
             self.assertNotIn("tools", plan["vessels"][1]["surfaces"])
+
+    def test_build_runtime_plan_includes_custom_tool_capability_metadata(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            '[riggings.pi-fff]\ntools = ["fff"]',
+            """[tools.repo-map]
+kind = "code-navigation"
+description = "Repository map sidecar."
+interfaces = ["mcp-server", "agent-tool"]
+install_methods = ["mcp-server"]
+expected_tool_calls = ["repo_map"]
+
+[riggings.pi-fff]
+tools = ["repo-map"]""",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            plan = build_runtime_plan(config_path)
+
+            self.assertEqual(
+                plan["tool_capabilities"],
+                [
+                    {
+                        "name": "repo-map",
+                        "kind": "code-navigation",
+                        "description": "Repository map sidecar.",
+                        "interfaces": ["mcp-server", "agent-tool"],
+                        "install_methods": ["mcp-server"],
+                        "expected_tool_calls": ["repo_map"],
+                    }
+                ],
+            )
+            self.assertEqual(
+                plan["vessels"][1]["rigging_capabilities"]["tools"],
+                plan["tool_capabilities"],
+            )
 
     def test_build_runtime_plan_reports_unsupported_install_capability(self) -> None:
         config = PI_WITH_FFF_CONFIG.replace(

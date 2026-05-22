@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from yacht.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES
+
 
 REGATTA_SCHEMA = "yacht.regatta.v1"
 WAKE_SCHEMA = "yacht.wake.v1"
@@ -25,6 +27,15 @@ REAL_BENCHMARK_RUNBOOK_SCHEMA = "yacht.real-benchmark-runbook.v1"
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = {"swe-bench"}
 COURSE_ADAPTER_HARNESSES = {"docker"}
+RIGGING_INSTALL_METHODS = {
+    "agent-extension",
+    "mcp-server",
+    "package",
+    "binary",
+    "container-image",
+    "preinstalled",
+    "custom-command",
+}
 PREFLIGHT_CHECK_KINDS = {
     "agent-prompt",
     "artifact",
@@ -118,7 +129,8 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
     _validate_preflight_config(document)
     secrets = _validate_secret_references(document)
     runtime_names = _validate_runtime_recipes(document, secrets)
-    rigging_names = _validate_rigging_recipes(document, secrets)
+    tool_names = _validate_tool_capabilities(document)
+    rigging_names = _validate_rigging_recipes(document, secrets, tool_names)
 
     regatta = _require_object(document["regatta"], "regatta")
     _require_non_empty_string(regatta.get("name"), "regatta.name")
@@ -2274,6 +2286,33 @@ def _validate_runtime_backend_fields(runtime: dict[str, Any], path: str) -> None
         raise SchemaValidationError(f"{path}.backend must be host-nix or container")
 
 
+def _validate_tool_capabilities(document: dict[str, Any]) -> set[str]:
+    tools = _optional_named_table(document, "tools")
+    built_in_tools = set(BUILT_IN_TOOL_CAPABILITIES)
+    for tool_name, tool_value in tools.items():
+        tool = _require_object(tool_value, f"tools.{tool_name}")
+        _require_non_empty_string(tool.get("kind"), f"tools.{tool_name}.kind")
+        if "description" in tool:
+            _require_string(tool.get("description"), f"tools.{tool_name}.description")
+        _require_string_list(
+            tool.get("interfaces", []),
+            f"tools.{tool_name}.interfaces",
+        )
+        install_methods = tool.get("install_methods", [])
+        _require_string_list(install_methods, f"tools.{tool_name}.install_methods")
+        for method in install_methods:
+            _require_allowed_value(
+                method,
+                RIGGING_INSTALL_METHODS,
+                f"tools.{tool_name}.install_methods",
+            )
+        _require_string_list(
+            tool.get("expected_tool_calls", []),
+            f"tools.{tool_name}.expected_tool_calls",
+        )
+    return built_in_tools | set(tools)
+
+
 def _require_absolute_container_path(value: Any, path: str) -> None:
     _require_non_empty_string(value, path)
     if not str(value).startswith("/"):
@@ -2283,6 +2322,7 @@ def _require_absolute_container_path(value: Any, path: str) -> None:
 def _validate_rigging_recipes(
     document: dict[str, Any],
     secrets: set[str],
+    tools: set[str],
 ) -> set[str]:
     riggings = _optional_named_table(document, "riggings")
     for rigging_name, rigging_value in riggings.items():
@@ -2291,6 +2331,12 @@ def _validate_rigging_recipes(
             rigging.get("tools", []),
             f"riggings.{rigging_name}.tools",
         )
+        for tool_name in rigging.get("tools", []):
+            if tool_name not in tools:
+                raise SchemaValidationError(
+                    f"riggings.{rigging_name}.tools references undefined tool "
+                    f"{tool_name}; define [tools.{tool_name}]"
+                )
         _validate_rigging_install_steps(
             rigging.get("install", []),
             f"riggings.{rigging_name}.install",
@@ -2330,15 +2376,7 @@ def _validate_rigging_install_steps(value: Any, path: str) -> None:
         _require_keys(step, ("method", "target"), step_path)
         _require_allowed_value(
             step.get("method"),
-            {
-                "agent-extension",
-                "mcp-server",
-                "package",
-                "binary",
-                "container-image",
-                "preinstalled",
-                "custom-command",
-            },
+            RIGGING_INSTALL_METHODS,
             f"{step_path}.method",
         )
         _require_non_empty_string(step.get("target"), f"{step_path}.target")

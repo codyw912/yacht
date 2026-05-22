@@ -14,6 +14,7 @@ from yacht.schemas import (
     validate_scorecard_document,
     validate_wake_document,
 )
+from yacht.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES, ToolCapability
 
 
 class ConfigError(ValueError):
@@ -183,6 +184,7 @@ class Regatta:
     secrets: dict[str, SecretReference] = field(default_factory=dict)
     runtime_recipes: dict[str, RuntimeRecipe] = field(default_factory=dict)
     rigging_recipes: dict[str, RiggingRecipe] = field(default_factory=dict)
+    tool_capabilities: dict[str, ToolCapability] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -356,6 +358,7 @@ def load_regatta(config_path: Path) -> Regatta:
         secrets=_parse_secrets(raw),
         runtime_recipes=_parse_runtime_recipes(raw),
         rigging_recipes=_parse_rigging_recipes(raw),
+        tool_capabilities=_parse_tool_capabilities(raw),
     )
 
 
@@ -494,6 +497,28 @@ def _parse_rigging_recipes(raw: dict[str, Any]) -> dict[str, RiggingRecipe]:
         )
         for name, rigging in raw.get("riggings", {}).items()
     }
+
+
+def _parse_tool_capabilities(raw: dict[str, Any]) -> dict[str, ToolCapability]:
+    capabilities = dict(BUILT_IN_TOOL_CAPABILITIES)
+    capabilities.update(
+        {
+            str(name): ToolCapability(
+                name=str(name),
+                kind=str(tool["kind"]),
+                description=str(tool.get("description", "")),
+                interfaces=tuple(str(item) for item in tool.get("interfaces", ())),
+                install_methods=tuple(
+                    str(item) for item in tool.get("install_methods", ())
+                ),
+                expected_tool_calls=tuple(
+                    str(item) for item in tool.get("expected_tool_calls", ())
+                ),
+            )
+            for name, tool in raw.get("tools", {}).items()
+        }
+    )
+    return capabilities
 
 
 def _parse_rigging_install_step(raw: Any) -> RiggingInstallStep:

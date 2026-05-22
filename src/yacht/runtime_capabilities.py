@@ -4,6 +4,7 @@ from typing import Any
 
 from yacht.regatta import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
 from yacht.surface_metadata import harness_for_runtime
+from yacht.tool_capabilities import ToolCapability, tool_capabilities_to_json
 
 
 SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
@@ -15,10 +16,11 @@ SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
 def rigging_capabilities_to_json(
     runtime: RuntimeRecipe,
     riggings: tuple[RiggingRecipe, ...],
+    tool_capabilities: dict[str, ToolCapability] | None = None,
 ) -> dict[str, Any]:
     checks = _install_checks(runtime, riggings)
     unsupported = [check for check in checks if not bool(check["supported"])]
-    return {
+    payload = {
         "status": "unsupported" if unsupported else "supported",
         "runtime_backend": runtime.backend,
         "runtime_harness": harness_for_runtime(runtime),
@@ -26,6 +28,12 @@ def rigging_capabilities_to_json(
         "supported_install_methods": list(_supported_methods(runtime)),
         "install_checks": checks,
     }
+    if tool_capabilities is not None:
+        payload["tools"] = tool_capabilities_to_json(
+            tuple(tool for rigging in riggings for tool in rigging.tools),
+            tool_capabilities,
+        )
+    return payload
 
 
 def unsupported_rigging_capability_reasons(
