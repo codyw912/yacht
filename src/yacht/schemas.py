@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from yacht.benchmark_adapters import supported_benchmark_adapter_kinds
+from yacht.benchmark_adapters import supported_course_adapter_harnesses
 from yacht.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES
 
 
@@ -25,8 +27,8 @@ REAL_SMOKE_RUNBOOK_SCHEMA = "yacht.real-smoke-runbook.v1"
 REAL_BENCHMARK_RUNBOOK_SCHEMA = "yacht.real-benchmark-runbook.v1"
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
-COURSE_ADAPTER_KINDS = {"swe-bench"}
-COURSE_ADAPTER_HARNESSES = {"docker"}
+COURSE_ADAPTER_KINDS = set(supported_benchmark_adapter_kinds())
+COURSE_ADAPTER_HARNESSES = set(supported_course_adapter_harnesses())
 RIGGING_INSTALL_METHODS = {
     "agent-extension",
     "mcp-server",
@@ -2145,7 +2147,7 @@ def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
         _require_non_empty_string(adapter.get(key), f"{path}.{key}")
     _require_allowed_value(
         adapter.get("harness"),
-        COURSE_ADAPTER_HARNESSES,
+        set(supported_course_adapter_harnesses(str(adapter.get("kind")))),
         f"{path}.harness",
     )
     instance_ids = adapter.get("instance_ids")

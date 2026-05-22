@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
+from yacht.benchmark_adapters import benchmark_adapter
 from yacht.harness_adapters import supported_task_attempt_names
 from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
 from yacht.regatta import (
@@ -16,10 +17,6 @@ from yacht.regatta import (
     load_regatta,
 )
 from yacht.runtime_backend import RuntimePreparationError, runtime_backend_for_recipe
-from yacht.swebench_task_context import (
-    materialize_swe_bench_workspace,
-    task_with_swe_bench_context,
-)
 from yacht.task_attempts import AgentTaskResult, write_task_attempt
 
 
@@ -182,21 +179,10 @@ def _task_agent(agent_name: str) -> TaskAgent:
 
 def _task_prompt(regatta: Regatta, vessel: Vessel, task: Task) -> str:
     prompt = f"Task ID: {task.id}\nTitle: {task.title}\n"
-    if _is_swe_bench_course(regatta):
-        prompt += "\nSWE-bench submission instructions:\n"
-        prompt += (
-            "When finished, respond with a JSON object containing a non-empty "
-            "model_patch string. model_patch must be a unified diff candidate patch "
-            "for this task. Do not wrap the JSON in markdown fences.\n"
-        )
-        if task.problem_statement is not None:
-            prompt += f"\nProblem statement:\n{task.problem_statement}\n"
-        if task.repo is not None and task.base_commit is not None:
-            prompt += (
-                "\nRepository context:\n"
-                f"- repo: {task.repo}\n"
-                f"- base_commit: {task.base_commit}\n"
-            )
+    if regatta.course.adapter is not None:
+        prompt += benchmark_adapter(
+            regatta.course.adapter.kind
+        ).task_prompt_instructions(task)
     instructions = _rigging_instructions(regatta, vessel)
     if instructions:
         prompt += "\nRigging instructions:\n"
@@ -204,17 +190,13 @@ def _task_prompt(regatta: Regatta, vessel: Vessel, task: Task) -> str:
     return prompt
 
 
-def _is_swe_bench_course(regatta: Regatta) -> bool:
-    return (
-        regatta.course.adapter is not None
-        and regatta.course.adapter.kind == "swe-bench"
-    )
-
-
 def _task_for_attempt(regatta: Regatta, task: Task) -> Task:
-    if regatta.course.adapter is None or regatta.course.adapter.kind != "swe-bench":
+    if regatta.course.adapter is None:
         return task
-    return task_with_swe_bench_context(task=task, adapter=regatta.course.adapter)
+    return benchmark_adapter(regatta.course.adapter.kind).task_with_context(
+        task=task,
+        adapter=regatta.course.adapter,
+    )
 
 
 def _workspace_for_attempt(
@@ -226,11 +208,12 @@ def _workspace_for_attempt(
     logbook_dir: Path,
     workspace_path: Path,
 ) -> Path:
-    if regatta.course.adapter is None or regatta.course.adapter.kind != "swe-bench":
+    if regatta.course.adapter is None:
         return workspace_path
-    return materialize_swe_bench_workspace(
+    return benchmark_adapter(regatta.course.adapter.kind).workspace_for_attempt(
         task=task,
-        workspace_root=logbook_dir / "swe-bench-workspaces",
+        workspace_path=workspace_path,
+        workspace_root=logbook_dir / f"{regatta.course.adapter.kind}-workspaces",
         comparison_name=comparison.name,
         vessel_name=vessel.name,
     )
