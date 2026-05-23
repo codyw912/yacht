@@ -152,7 +152,17 @@
       "additionalProperties": false,
       "required": ["name"],
       "not": {
-        "required": ["tasks", "task_file"]
+        "anyOf": [
+          {
+            "required": ["tasks", "task_file"]
+          },
+          {
+            "required": ["tasks", "task_files"]
+          },
+          {
+            "required": ["task_file", "task_files"]
+          }
+        ]
       },
       "anyOf": [
         {
@@ -165,6 +175,9 @@
         },
         {
           "required": ["task_file"]
+        },
+        {
+          "required": ["task_files"]
         },
         {
           "required": ["adapter"],
@@ -183,6 +196,14 @@
         "task_file": {
           "type": "string",
           "minLength": 1
+        },
+        "task_files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "tasks": {
           "type": "array",

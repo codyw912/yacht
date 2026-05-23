@@ -6,7 +6,10 @@ failure_policy = "abort-group"
 
 [course]
 name = "local-custom-eval"
-task_file = "tasks/local-custom-eval-smoke.toml"
+task_files = [
+  "tasks/local-custom-eval-smoke.toml",
+  "tasks/local-custom-eval-response.toml",
+]
 
 [course.adapter]
 kind = "custom-eval"

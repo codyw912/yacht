@@ -376,12 +376,37 @@ def _expand_course_task_file(
     config_dir: Path,
 ) -> dict[str, Any]:
     course = raw.get("course")
-    if not isinstance(course, dict) or "task_file" not in course:
-        return raw
-    task_file = course.get("task_file")
-    if not isinstance(task_file, str):
+    if not isinstance(course, dict) or (
+        "task_file" not in course and "task_files" not in course
+    ):
         return raw
 
+    task_files: list[str] = []
+    task_file = course.get("task_file")
+    if isinstance(task_file, str):
+        task_files.append(task_file)
+    raw_task_files = course.get("task_files")
+    if isinstance(raw_task_files, list):
+        task_files.extend(
+            task_file for task_file in raw_task_files if isinstance(task_file, str)
+        )
+    if not task_files:
+        return raw
+
+    tasks: list[Any] = []
+    for task_file_path in task_files:
+        tasks.extend(_load_course_task_file(task_file_path, config_dir))
+
+    expanded = dict(raw)
+    expanded_course = dict(course)
+    expanded_course.pop("task_file", None)
+    expanded_course.pop("task_files", None)
+    expanded_course["tasks"] = tasks
+    expanded["course"] = expanded_course
+    return expanded
+
+
+def _load_course_task_file(task_file: str, config_dir: Path) -> list[Any]:
     task_path = Path(task_file)
     if not task_path.is_absolute():
         task_path = config_dir / task_path
@@ -396,13 +421,7 @@ def _expand_course_task_file(
     tasks = task_document.get("tasks")
     if not isinstance(tasks, list):
         raise ConfigError("course.task_file must contain tasks")
-
-    expanded = dict(raw)
-    expanded_course = dict(course)
-    expanded_course.pop("task_file", None)
-    expanded_course["tasks"] = tasks
-    expanded["course"] = expanded_course
-    return expanded
+    return tasks
 
 
 def _parse_preflight_config(raw: dict[str, Any]) -> PreflightConfig:

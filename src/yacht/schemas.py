@@ -145,15 +145,39 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
     adapter_instance_ids = _course_adapter_instance_ids(adapter)
     if "tasks" in course and "task_file" in course:
         raise SchemaValidationError("course must not define both tasks and task_file")
+    if "tasks" in course and "task_files" in course:
+        raise SchemaValidationError("course must not define both tasks and task_files")
+    if "task_file" in course and "task_files" in course:
+        raise SchemaValidationError(
+            "course must not define both task_file and task_files"
+        )
     if "task_file" in course:
         _require_non_empty_string(course.get("task_file"), "course.task_file")
-    if "tasks" not in course and "task_file" not in course and not adapter_instance_ids:
+    if "task_files" in course:
+        task_files = _require_list(course.get("task_files"), "course.task_files")
+        if not task_files:
+            raise SchemaValidationError(
+                "course.task_files must contain at least one file"
+            )
+        for index, task_file in enumerate(task_files):
+            _require_non_empty_string(task_file, f"course.task_files[{index}]")
+    if (
+        "tasks" not in course
+        and "task_file" not in course
+        and "task_files" not in course
+        and not adapter_instance_ids
+    ):
         raise SchemaValidationError(
-            "course.tasks or course.task_file must define at least one task unless "
-            "course.adapter.instance_ids selects benchmark tasks"
+            "course.tasks, course.task_file, or course.task_files must define at "
+            "least one task unless course.adapter.instance_ids selects benchmark tasks"
         )
     tasks = _require_list(course.get("tasks", []), "course.tasks")
-    if not tasks and "task_file" not in course and not adapter_instance_ids:
+    if (
+        not tasks
+        and "task_file" not in course
+        and "task_files" not in course
+        and not adapter_instance_ids
+    ):
         raise SchemaValidationError("course.tasks must contain at least one task")
     task_ids = set()
     for index, task_value in enumerate(tasks):
