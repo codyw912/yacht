@@ -962,20 +962,23 @@ def _task_outcome_lines(
     vessel_name: str | None,
     task_id: str | None,
 ) -> list[str]:
+    rows = _task_outcome_rows(
+        scorecard,
+        task_attempt_scorecard,
+        vessel_name,
+        task_id,
+    )
+    include_reason = _include_outcome_reason(rows)
     lines = [
         "",
         "Benchmark task outcomes by vessel:",
-        "comparison | vessel | task | result | attempt_artifact",
+        (
+            "comparison | vessel | task | result | reason | attempt_artifact"
+            if include_reason
+            else "comparison | vessel | task | result | attempt_artifact"
+        ),
     ]
-    lines.extend(
-        _task_outcome_row(row)
-        for row in _task_outcome_rows(
-            scorecard,
-            task_attempt_scorecard,
-            vessel_name,
-            task_id,
-        )
-    )
+    lines.extend(_task_outcome_row(row, include_reason=include_reason) for row in rows)
     return lines
 
 
@@ -985,21 +988,29 @@ def _task_outcome_markdown_lines(
     vessel_name: str | None,
     task_id: str | None,
 ) -> list[str]:
+    rows = _task_outcome_rows(
+        scorecard,
+        task_attempt_scorecard,
+        vessel_name,
+        task_id,
+    )
+    include_reason = _include_outcome_reason(rows)
     lines = [
         "",
         "## Benchmark task outcomes by vessel",
         "",
-        "| Comparison | Vessel | Task | Result | Attempt artifact |",
-        "| --- | --- | --- | --- | --- |",
+        (
+            "| Comparison | Vessel | Task | Result | Reason | Attempt artifact |"
+            if include_reason
+            else "| Comparison | Vessel | Task | Result | Attempt artifact |"
+        ),
+        "| --- | --- | --- | --- | --- | --- |"
+        if include_reason
+        else "| --- | --- | --- | --- | --- |",
     ]
     lines.extend(
-        f"| {_task_outcome_row(row)} |"
-        for row in _task_outcome_rows(
-            scorecard,
-            task_attempt_scorecard,
-            vessel_name,
-            task_id,
-        )
+        f"| {_task_outcome_row(row, include_reason=include_reason)} |"
+        for row in rows
     )
     return lines
 
@@ -1014,6 +1025,7 @@ def _task_outcome_rows(
     rows = []
     for comparison, vessel in _filtered_vessels(scorecard, vessel_name, filter_task_id):
         task_results = _task_results(vessel)
+        diagnostics = _task_diagnostics_by_task(vessel)
         if not task_results:
             rows.append(
                 {
@@ -1021,6 +1033,7 @@ def _task_outcome_rows(
                     "vessel": str(vessel["name"]),
                     "task": "-",
                     "result": str(vessel["status"]),
+                    "reason": "-",
                     "attempt_artifact": _attempt_artifact(
                         attempts_by_vessel,
                         str(comparison["name"]),
@@ -1033,12 +1046,14 @@ def _task_outcome_rows(
         for result_task_id, result in task_results:
             if filter_task_id is not None and result_task_id != filter_task_id:
                 continue
+            diagnostic = diagnostics.get(result_task_id, {})
             rows.append(
                 {
                     "comparison": str(comparison["name"]),
                     "vessel": str(vessel["name"]),
                     "task": result_task_id,
                     "result": result,
+                    "reason": str(diagnostic.get("reason", "-")),
                     "attempt_artifact": _attempt_artifact(
                         attempts_by_vessel,
                         str(comparison["name"]),
@@ -1060,12 +1075,29 @@ def _task_results(vessel: dict[str, Any]) -> list[tuple[str, str]]:
     return resolved + unresolved
 
 
-def _task_outcome_row(row: dict[str, str]) -> str:
+def _task_diagnostics_by_task(vessel: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    diagnostics = vessel.get("task_diagnostics", [])
+    if not isinstance(diagnostics, list):
+        return {}
+    return {
+        str(diagnostic["task"]): diagnostic
+        for diagnostic in diagnostics
+        if isinstance(diagnostic, dict) and isinstance(diagnostic.get("task"), str)
+    }
+
+
+def _include_outcome_reason(rows: list[dict[str, str]]) -> bool:
+    return any(row.get("reason") not in {None, "-"} for row in rows)
+
+
+def _task_outcome_row(row: dict[str, str], *, include_reason: bool = False) -> str:
+    reason = f"{row['reason']} | " if include_reason else ""
     return (
         f"{row['comparison']} | "
         f"{row['vessel']} | "
         f"{row['task']} | "
         f"{row['result']} | "
+        f"{reason}"
         f"{row['attempt_artifact']}"
     )
 

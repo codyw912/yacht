@@ -7,6 +7,7 @@ from tests.preflight_artifacts import write_preflight_artifact
 from yacht.benchmark_grading_collection import collect_benchmark_grading_reports
 from yacht.benchmark_launch import write_benchmark_launch_result
 from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
+from yacht.benchmark_report import render_benchmark_report
 from yacht.benchmark_scorecard import write_benchmark_scorecard
 from yacht.course_handoff import write_course_handoff
 from yacht.custom_eval_harness import main as custom_eval_harness_main
@@ -18,6 +19,7 @@ from yacht.real_benchmark_eval import run_real_benchmark_eval
 from yacht.regatta import Metrics
 from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.task_attempts import AgentTaskResult
+from yacht.task_attempt_scorecard import write_task_attempt_scorecard
 
 
 CONFIG = """
@@ -142,7 +144,37 @@ class CustomEvalAdapterTests(unittest.TestCase):
             vessels = scorecard["comparisons"][0]["vessels"]
             self.assertEqual(vessels[0]["resolved_instances"], 0)
             self.assertEqual(vessels[1]["resolved_instances"], 1)
-            self.assertEqual(scorecard["comparisons"][0]["delta"]["resolved_instances_delta"], 1)
+            self.assertEqual(
+                scorecard["comparisons"][0]["delta"]["resolved_instances_delta"],
+                1,
+            )
+            baseline_diagnostic = vessels[0]["task_diagnostics"][0]
+            self.assertEqual(baseline_diagnostic["task"], "custom-1")
+            self.assertEqual(baseline_diagnostic["result"], "unresolved")
+            self.assertEqual(baseline_diagnostic["response_matched"], True)
+            self.assertEqual(
+                baseline_diagnostic["missing_tool_calls"],
+                ["local-smoke"],
+            )
+            self.assertEqual(
+                baseline_diagnostic["reason"],
+                "missing_tool_calls: local-smoke",
+            )
+            write_task_attempt_scorecard(logbook_dir)
+            report = render_benchmark_report(
+                logbook_dir,
+                vessel_name="local-baseline",
+                task_id="custom-1",
+            )
+            self.assertIn(
+                "comparison | vessel | task | result | reason | attempt_artifact",
+                report,
+            )
+            self.assertIn(
+                "local-custom | local-baseline | custom-1 | unresolved | "
+                "missing_tool_calls: local-smoke | ",
+                report,
+            )
 
     def test_real_benchmark_eval_runs_custom_eval_end_to_end(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
