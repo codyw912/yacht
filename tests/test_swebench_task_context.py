@@ -55,6 +55,82 @@ model = "mock"
             ("django__django-11099", "django__django-11179"),
         )
 
+    def test_swe_bench_adapter_instance_files_define_course_tasks(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_files = ["task-sets/django-smoke.toml", "task-sets/django-extra.toml"]
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_sets = root / "task-sets"
+            task_sets.mkdir()
+            (task_sets / "django-smoke.toml").write_text(
+                'instance_ids = ["django__django-11099"]',
+                encoding="utf-8",
+            )
+            (task_sets / "django-extra.toml").write_text(
+                'instance_ids = ["django__django-11179"]',
+                encoding="utf-8",
+            )
+            config_path = root / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+
+        self.assertEqual(
+            [task.id for task in regatta.course.tasks],
+            ["django__django-11099", "django__django-11179"],
+        )
+        assert regatta.course.adapter is not None
+        self.assertEqual(
+            regatta.course.adapter.instance_ids,
+            ("django__django-11099", "django__django-11179"),
+        )
+
+    def test_swe_bench_adapter_rejects_mixing_instance_ids_and_file(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_ids = ["django__django-11099"]
+instance_file = "task-sets/django-smoke.toml"
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "course.adapter must not define both instance_ids and instance_file",
+            ):
+                load_regatta(config_path)
+
     def test_swe_bench_adapter_instance_ids_can_use_inline_task_metadata(self) -> None:
         config = """
 [regatta]

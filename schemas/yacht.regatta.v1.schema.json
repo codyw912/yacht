@@ -183,7 +183,17 @@
           "required": ["adapter"],
           "properties": {
             "adapter": {
-              "required": ["instance_ids"]
+              "anyOf": [
+                {
+                  "required": ["instance_ids"]
+                },
+                {
+                  "required": ["instance_file"]
+                },
+                {
+                  "required": ["instance_files"]
+                }
+              ]
             }
           }
         }
@@ -260,6 +270,19 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["kind", "dataset", "split", "harness"],
+          "not": {
+            "anyOf": [
+              {
+                "required": ["instance_ids", "instance_file"]
+              },
+              {
+                "required": ["instance_ids", "instance_files"]
+              },
+              {
+                "required": ["instance_file", "instance_files"]
+              }
+            ]
+          },
           "properties": {
             "kind": {
               "type": "string",
@@ -285,6 +308,18 @@
                 "minLength": 1
               },
               "uniqueItems": true
+            },
+            "instance_file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instance_files": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         }

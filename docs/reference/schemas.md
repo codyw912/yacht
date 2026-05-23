@@ -58,8 +58,10 @@ Regatta configs may include:
 - `riggings` for named setup, environment, prompt, tool, or cache changes.
 - `course.adapter` for registered benchmark adapters such as SWE-bench.
 - `course.adapter.instance_ids` for explicit benchmark task selection when the
-  native adapter can resolve task metadata, with optional `course.tasks` entries
-  reserved for overriding titles, difficulty, or inline task context.
+  native adapter can resolve task metadata. Use `course.adapter.instance_file`
+  or `course.adapter.instance_files` for reusable benchmark task-set fixtures.
+  Optional `course.tasks` entries can override titles, difficulty, or inline
+  task context for selected IDs.
 - `preflight` for regatta-level failure policy.
 - `comparisons` for groups of vessels interpreted together.
 
