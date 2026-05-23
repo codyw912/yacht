@@ -69,6 +69,8 @@ def _task_to_json(task: Task) -> dict[str, Any]:
             payload[key] = value
     if task.expect_response:
         payload["expect_response"] = dict(task.expect_response)
+    if task.expect_tool_calls:
+        payload["expect_tool_calls"] = list(task.expect_tool_calls)
     return payload
 
 

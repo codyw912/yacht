@@ -101,6 +101,8 @@ def _candidate_record(attempt: dict[str, Any], vessel_name: str) -> dict[str, An
         "model_name_or_path": vessel_name,
         "response": response,
         "expect_response": _expected_response(attempt),
+        "tool_calls": list(attempt["agent"]["tool_calls"]),
+        "expect_tool_calls": _expected_tool_calls(attempt),
         "attempt_status": str(attempt["status"]),
     }
 
@@ -123,6 +125,16 @@ def _expected_response(attempt: dict[str, Any]) -> dict[str, Any]:
     if isinstance(expect_response, dict) and expect_response:
         return expect_response
     return {"completed": True}
+
+
+def _expected_tool_calls(attempt: dict[str, Any]) -> list[str]:
+    task = attempt.get("task")
+    if not isinstance(task, dict):
+        return []
+    expect_tool_calls = task.get("expect_tool_calls")
+    if isinstance(expect_tool_calls, list):
+        return [str(tool_call) for tool_call in expect_tool_calls]
+    return []
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

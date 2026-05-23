@@ -175,6 +175,11 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
                 task["expect_response"],
                 f"course.tasks[{index}].expect_response",
             )
+        if "expect_tool_calls" in task:
+            _validate_expect_tool_calls(
+                task["expect_tool_calls"],
+                f"course.tasks[{index}].expect_tool_calls",
+            )
     if adapter_instance_ids:
         extra_task_ids = task_ids - set(adapter_instance_ids)
         if extra_task_ids:
@@ -1150,6 +1155,11 @@ def _validate_task_attempt_task(value: Any) -> None:
             _require_non_empty_string(task.get(field), f"task.{field}")
     if "expect_response" in task:
         _validate_expect_response(task["expect_response"], "task.expect_response")
+    if "expect_tool_calls" in task:
+        _validate_expect_tool_calls(
+            task["expect_tool_calls"],
+            "task.expect_tool_calls",
+        )
 
 
 def _validate_expect_response(value: Any, path: str) -> None:
@@ -1163,6 +1173,13 @@ def _validate_expect_response(value: Any, path: str) -> None:
             raise SchemaValidationError(
                 f"{path}.{key} must be a string, boolean, integer, or number"
             )
+
+
+def _validate_expect_tool_calls(value: Any, path: str) -> None:
+    tool_calls = _require_list(value, path)
+    for index, tool_call in enumerate(tool_calls):
+        if not isinstance(tool_call, str) or not tool_call:
+            raise SchemaValidationError(f"{path}[{index}] must be non-empty")
 
 
 def _validate_task_attempt_runtime_context(value: Any) -> None:
@@ -1284,6 +1301,11 @@ def _validate_course_handoff_tasks(value: Any) -> None:
             _validate_expect_response(
                 task["expect_response"],
                 f"tasks[{index}].expect_response",
+            )
+        if "expect_tool_calls" in task:
+            _validate_expect_tool_calls(
+                task["expect_tool_calls"],
+                f"tasks[{index}].expect_tool_calls",
             )
 
 

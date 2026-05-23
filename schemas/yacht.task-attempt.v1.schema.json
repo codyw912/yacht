@@ -120,6 +120,14 @@
         },
         "expect_response": {
           "$ref": "#/$defs/expectResponse"
+        },
+        "expect_tool_calls": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": []
         }
       }
     },

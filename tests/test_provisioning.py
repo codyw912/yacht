@@ -243,7 +243,7 @@ class ProvisioningConfigTests(unittest.TestCase):
             (
                 '{ id = "django__django-11099", title = "Fix a regression", '
                 'difficulty = 3, expect_response = { completed = true, '
-                'quality = "accepted" } }'
+                'quality = "accepted" }, expect_tool_calls = ["repo-map"] }'
             ),
         )
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -256,6 +256,7 @@ class ProvisioningConfigTests(unittest.TestCase):
                 task.expect_response,
                 {"completed": True, "quality": "accepted"},
             )
+            self.assertEqual(task.expect_tool_calls, ("repo-map",))
 
     def test_task_expected_response_contract_must_be_non_empty_object(self) -> None:
         config = PI_WITH_FFF_CONFIG.replace(
@@ -272,6 +273,24 @@ class ProvisioningConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 ConfigError,
                 "course.tasks\\[0\\].expect_response must contain at least one field",
+            ):
+                load_regatta(config_path)
+
+    def test_task_expected_tool_calls_must_be_non_empty_strings(self) -> None:
+        config = PI_WITH_FFF_CONFIG.replace(
+            '{ id = "django__django-11099", title = "Fix a regression", difficulty = 3 }',
+            (
+                '{ id = "django__django-11099", title = "Fix a regression", '
+                'difficulty = 3, expect_tool_calls = [""] }'
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "course.tasks\\[0\\].expect_tool_calls\\[0\\] must be non-empty",
             ):
                 load_regatta(config_path)
 

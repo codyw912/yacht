@@ -38,7 +38,13 @@ def _load_candidate_records(path: Path) -> list[dict[str, Any]]:
             ) from error
         if not isinstance(record, dict):
             raise SystemExit(f"candidate records line {line_number} must be an object")
-        for field in ("instance_id", "model_name_or_path", "expect_response"):
+        for field in (
+            "instance_id",
+            "model_name_or_path",
+            "expect_response",
+            "tool_calls",
+            "expect_tool_calls",
+        ):
             if field not in record:
                 raise SystemExit(f"candidate records line {line_number}.{field} missing")
         if not isinstance(record["instance_id"], str) or not record["instance_id"]:
@@ -76,6 +82,14 @@ def _load_candidate_records(path: Path) -> list[dict[str, Any]]:
             raise SystemExit(
                 f"candidate records line {line_number}.response must be an object or null"
             )
+        for field in ("tool_calls", "expect_tool_calls"):
+            if not isinstance(record[field], list) or not all(
+                isinstance(tool_call, str) and tool_call for tool_call in record[field]
+            ):
+                raise SystemExit(
+                    f"candidate records line {line_number}.{field} must be a list "
+                    "of non-empty strings"
+                )
         records.append(record)
     if not records:
         raise SystemExit("candidate records must contain at least one record")
@@ -118,7 +132,12 @@ def _record_resolved(record: dict[str, Any]) -> bool:
         return False
     expectations = record["expect_response"]
     assert isinstance(expectations, dict)
-    return all(response.get(key) == expected for key, expected in expectations.items())
+    expected_tools = set(record["expect_tool_calls"])
+    actual_tools = set(record["tool_calls"])
+    return (
+        all(response.get(key) == expected for key, expected in expectations.items())
+        and expected_tools <= actual_tools
+    )
 
 
 if __name__ == "__main__":
