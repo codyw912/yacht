@@ -225,9 +225,13 @@ class CustomEvalAdapter:
 
     def task_prompt_instructions(self, task: Any) -> str:
         prompt = "\nCustom eval submission instructions:\n"
+        expected = task.expect_response or {"completed": True}
+        fields = ", ".join(
+            f"{key}={value!r}" for key, value in sorted(expected.items())
+        )
         prompt += (
-            "When finished, respond with a JSON object containing completed as a "
-            "boolean. Do not wrap the JSON in markdown fences.\n"
+            "When finished, respond with a JSON object matching these expected "
+            f"top-level fields: {fields}. Do not wrap the JSON in markdown fences.\n"
         )
         if task.problem_statement is not None:
             prompt += f"\nProblem statement:\n{task.problem_statement}\n"

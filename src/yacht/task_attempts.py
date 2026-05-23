@@ -92,8 +92,8 @@ def _status_for_exit_code(exit_code: int) -> str:
     return "completed" if exit_code == 0 else "failed"
 
 
-def _task_to_json(task: Task) -> dict[str, str | int]:
-    payload: dict[str, str | int] = {
+def _task_to_json(task: Task) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "id": task.id,
         "title": task.title,
         "difficulty": task.difficulty,
@@ -106,6 +106,8 @@ def _task_to_json(task: Task) -> dict[str, str | int]:
     ):
         if value is not None:
             payload[key] = value
+    if task.expect_response:
+        payload["expect_response"] = dict(task.expect_response)
     return payload
 
 

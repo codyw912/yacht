@@ -7,7 +7,7 @@ failure_policy = "abort-group"
 [course]
 name = "local-custom-eval"
 tasks = [
-  { id = "local-custom-1", title = "Complete a local custom eval task", difficulty = 1, problem_statement = "Respond with JSON where completed is true." },
+  { id = "local-custom-1", title = "Complete a local custom eval task", difficulty = 1, problem_statement = "Respond with JSON where completed and tool_used are true.", expect_response = { completed = true, tool_used = true } },
 ]
 
 [course.adapter]

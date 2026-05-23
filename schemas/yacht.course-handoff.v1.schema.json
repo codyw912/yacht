@@ -37,7 +37,7 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["swe-bench"]
+          "enum": ["custom-eval", "swe-bench"]
         },
         "dataset": {
           "type": "string",
@@ -49,7 +49,7 @@
         },
         "harness": {
           "type": "string",
-          "enum": ["docker"]
+          "enum": ["docker", "local"]
         },
         "instance_ids": {
           "type": "array",
@@ -93,6 +93,9 @@
           "problem_statement": {
             "type": "string",
             "minLength": 1
+          },
+          "expect_response": {
+            "$ref": "#/$defs/expectResponse"
           }
         }
       }
@@ -155,6 +158,15 @@
         "status": {
           "const": "planned"
         }
+      }
+    }
+  },
+  "$defs": {
+    "expectResponse": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": ["string", "boolean", "integer", "number"]
       }
     }
   }

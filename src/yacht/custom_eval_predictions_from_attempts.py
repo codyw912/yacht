@@ -93,25 +93,36 @@ def _load_task_attempt(path: Path) -> dict[str, Any]:
 
 
 def _candidate_record(attempt: dict[str, Any], vessel_name: str) -> dict[str, Any]:
-    completed = False
+    response = None
     if attempt["status"] == "completed":
-        completed = _completed_from_response(str(attempt["agent"]["response"]))
+        response = _json_response(str(attempt["agent"]["response"]))
     return {
         "instance_id": str(attempt["task"]["id"]),
         "model_name_or_path": vessel_name,
-        "completed": completed,
+        "response": response,
+        "expect_response": _expected_response(attempt),
         "attempt_status": str(attempt["status"]),
     }
 
 
-def _completed_from_response(response: str) -> bool:
+def _json_response(response: str) -> dict[str, Any] | None:
     try:
         payload = json.loads(response)
     except json.JSONDecodeError:
-        return False
+        return None
     if not isinstance(payload, dict):
-        return False
-    return payload.get("completed") is True
+        return None
+    return payload
+
+
+def _expected_response(attempt: dict[str, Any]) -> dict[str, Any]:
+    task = attempt.get("task")
+    if not isinstance(task, dict):
+        return {"completed": True}
+    expect_response = task.get("expect_response")
+    if isinstance(expect_response, dict) and expect_response:
+        return expect_response
+    return {"completed": True}
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
