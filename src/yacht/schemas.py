@@ -142,7 +142,7 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
     course_name = course["name"]
     _validate_course_adapter(course)
     adapter = course.get("adapter")
-    adapter_instance_ids = _course_adapter_instance_ids(adapter)
+    adapter_selects_instances = _course_adapter_selects_instances(adapter)
     if "tasks" in course and "task_file" in course:
         raise SchemaValidationError("course must not define both tasks and task_file")
     if "tasks" in course and "task_files" in course:
@@ -165,20 +165,21 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
         "tasks" not in course
         and "task_file" not in course
         and "task_files" not in course
-        and not adapter_instance_ids
+        and not adapter_selects_instances
     ):
         raise SchemaValidationError(
             "course.tasks, course.task_file, or course.task_files must define at "
-            "least one task unless course.adapter.instance_ids selects benchmark tasks"
+            "least one task unless course.adapter selects benchmark tasks"
         )
     tasks = _require_list(course.get("tasks", []), "course.tasks")
     if (
         not tasks
         and "task_file" not in course
         and "task_files" not in course
-        and not adapter_instance_ids
+        and not adapter_selects_instances
     ):
         raise SchemaValidationError("course.tasks must contain at least one task")
+    adapter_instance_ids = _course_adapter_instance_ids(adapter)
     task_ids = set()
     for index, task_value in enumerate(tasks):
         task = _require_object(task_value, f"course.tasks[{index}]")
@@ -2280,6 +2281,38 @@ def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
     instance_ids = adapter.get("instance_ids")
     if instance_ids is not None:
         _validate_adapter_instance_ids(instance_ids, f"{path}.instance_ids")
+    instance_file = adapter.get("instance_file")
+    instance_files = adapter.get("instance_files")
+    if instance_ids is not None and instance_file is not None:
+        raise SchemaValidationError(
+            f"{path} must not define both instance_ids and instance_file"
+        )
+    if instance_ids is not None and instance_files is not None:
+        raise SchemaValidationError(
+            f"{path} must not define both instance_ids and instance_files"
+        )
+    if instance_file is not None and instance_files is not None:
+        raise SchemaValidationError(
+            f"{path} must not define both instance_file and instance_files"
+        )
+    if instance_file is not None:
+        _require_non_empty_string(instance_file, f"{path}.instance_file")
+    if instance_files is not None:
+        files = _require_list(instance_files, f"{path}.instance_files")
+        if not files:
+            raise SchemaValidationError(
+                f"{path}.instance_files must contain at least one file"
+            )
+        for index, file in enumerate(files):
+            _require_non_empty_string(file, f"{path}.instance_files[{index}]")
+
+
+def _course_adapter_selects_instances(adapter: object) -> bool:
+    if not isinstance(adapter, dict):
+        return False
+    return any(
+        key in adapter for key in ("instance_ids", "instance_file", "instance_files")
+    )
 
 
 def _course_adapter_instance_ids(adapter: object) -> list[str]:

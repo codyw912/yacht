@@ -338,6 +338,7 @@ def load_regatta(config_path: Path) -> Regatta:
     except SchemaValidationError as error:
         raise ConfigError(str(error)) from error
     raw = _expand_course_task_file(raw, config_path.parent)
+    raw = _expand_course_adapter_instance_files(raw, config_path.parent)
     try:
         validate_regatta_document(raw)
     except SchemaValidationError as error:
@@ -422,6 +423,73 @@ def _load_course_task_file(task_file: str, config_dir: Path) -> list[Any]:
     if not isinstance(tasks, list):
         raise ConfigError("course.task_file must contain tasks")
     return tasks
+
+
+def _expand_course_adapter_instance_files(
+    raw: dict[str, Any],
+    config_dir: Path,
+) -> dict[str, Any]:
+    course = raw.get("course")
+    if not isinstance(course, dict):
+        return raw
+    adapter = course.get("adapter")
+    if not isinstance(adapter, dict) or (
+        "instance_file" not in adapter and "instance_files" not in adapter
+    ):
+        return raw
+
+    instance_files: list[str] = []
+    instance_file = adapter.get("instance_file")
+    if isinstance(instance_file, str):
+        instance_files.append(instance_file)
+    raw_instance_files = adapter.get("instance_files")
+    if isinstance(raw_instance_files, list):
+        instance_files.extend(
+            file for file in raw_instance_files if isinstance(file, str)
+        )
+    if not instance_files:
+        return raw
+
+    instance_ids: list[str] = []
+    for instance_file_path in instance_files:
+        instance_ids.extend(
+            _load_course_adapter_instance_file(instance_file_path, config_dir)
+        )
+
+    expanded = dict(raw)
+    expanded_course = dict(course)
+    expanded_adapter = dict(adapter)
+    expanded_adapter.pop("instance_file", None)
+    expanded_adapter.pop("instance_files", None)
+    expanded_adapter["instance_ids"] = instance_ids
+    expanded_course["adapter"] = expanded_adapter
+    expanded["course"] = expanded_course
+    return expanded
+
+
+def _load_course_adapter_instance_file(
+    instance_file: str,
+    config_dir: Path,
+) -> list[Any]:
+    instance_path = Path(instance_file)
+    if not instance_path.is_absolute():
+        instance_path = config_dir / instance_path
+    try:
+        with instance_path.open("rb") as file:
+            instance_document = tomllib.load(file)
+    except FileNotFoundError as error:
+        raise ConfigError(
+            f"course.adapter.instance_file not found: {instance_path}"
+        ) from error
+    except tomllib.TOMLDecodeError as error:
+        raise ConfigError(
+            f"course.adapter.instance_file is not valid TOML: {error}"
+        ) from error
+
+    instance_ids = instance_document.get("instance_ids")
+    if not isinstance(instance_ids, list):
+        raise ConfigError("course.adapter.instance_file must contain instance_ids")
+    return instance_ids
 
 
 def _parse_preflight_config(raw: dict[str, Any]) -> PreflightConfig:
