@@ -99,6 +99,7 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
         "completed_attempts": completed_attempts,
         "failed_attempts": failed_attempts,
         "success_rate": completed_attempts / len(attempts),
+        "harnesses": _harnesses(attempts),
         "tool_call_count": sum(
             len(attempt["agent"]["tool_calls"]) for attempt in attempts
         ),
@@ -165,6 +166,15 @@ def _tool_call_counts(attempts: list[dict[str, Any]]) -> dict[str, int]:
         for tool_call in attempt["agent"]["tool_calls"]:
             counts[str(tool_call)] = counts.get(str(tool_call), 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _harnesses(attempts: list[dict[str, Any]]) -> list[str]:
+    harnesses = {
+        str(attempt["runtime_context"]["harness"])
+        for attempt in attempts
+        if attempt["runtime_context"].get("harness") is not None
+    }
+    return sorted(harnesses)
 
 
 def _summary_tool_call_counts(vessels: list[dict[str, Any]]) -> dict[str, int]:

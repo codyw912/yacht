@@ -484,7 +484,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             )
             self.assertIn("Agent usage by vessel:", stdout.getvalue())
             self.assertIn(
-                "pi-vs-pi-fff | pi-plus-fff | 1 | 0 | bash:1, edit:1, "
+                "pi-vs-pi-fff | pi-plus-fff | pi | 1 | 0 | bash:1, edit:1, "
                 "fffind:1, read:1 | 6251 | 0.004513 | 5.250s",
                 stdout.getvalue(),
             )
@@ -1192,6 +1192,7 @@ def _task_attempt_vessel(
     return {
         "name": name,
         "status": "measured",
+        "harnesses": ["pi"],
         "task_attempts": 1,
         "completed_attempts": 1,
         "failed_attempts": 0,

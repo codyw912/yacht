@@ -108,6 +108,9 @@
           "type": "number",
           "minimum": 0
         },
+        "harnesses": {
+          "$ref": "#/$defs/stringArray"
+        },
         "tool_call_count": {
           "type": "integer",
           "minimum": 0

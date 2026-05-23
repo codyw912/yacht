@@ -167,6 +167,7 @@ class TaskAttemptTests(unittest.TestCase):
             scorecard = write_task_attempt_scorecard(root / "logbook")
             vessel_score = scorecard["comparisons"][0]["vessels"][0]
             comparison_summary = scorecard["comparisons"][0]["summary"]
+            self.assertEqual(vessel_score["harnesses"], ["pi"])
             self.assertEqual(vessel_score["tool_call_counts"], {"fff": 1})
             self.assertEqual(comparison_summary["tool_call_counts"], {"fff": 1})
             self.assertEqual(scorecard["summary"]["tool_call_counts"], {"fff": 1})
