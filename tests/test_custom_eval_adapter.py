@@ -100,6 +100,43 @@ tasks = [
             self.assertEqual(task.expect_response, {"completed": True})
             self.assertEqual(task.expect_tool_calls, ("local-smoke",))
 
+    def test_loads_custom_eval_tasks_from_multiple_task_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / "tasks"
+            tasks_dir.mkdir()
+            (tasks_dir / "one.toml").write_text(
+                """
+tasks = [
+  { id = "custom-1", title = "Complete custom task one", difficulty = 1, expect_response = { completed = true } },
+]
+""",
+                encoding="utf-8",
+            )
+            (tasks_dir / "two.toml").write_text(
+                """
+tasks = [
+  { id = "custom-2", title = "Complete custom task two", difficulty = 2, expect_response = { completed = true }, expect_tool_calls = ["local-smoke"] },
+]
+""",
+                encoding="utf-8",
+            )
+            config_path = _write_config(
+                root,
+                CONFIG.replace(
+                    """tasks = [
+  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" }, expect_tool_calls = ["local-smoke"] },
+]""",
+                    'task_files = ["tasks/one.toml", "tasks/two.toml"]',
+                ),
+            )
+
+            tasks = load_regatta(config_path).course.tasks
+
+            self.assertEqual([task.id for task in tasks], ["custom-1", "custom-2"])
+            self.assertEqual(tasks[1].difficulty, 2)
+            self.assertEqual(tasks[1].expect_tool_calls, ("local-smoke",))
+
     def test_rejects_mixing_inline_tasks_and_task_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -114,6 +151,25 @@ tasks = [
             with self.assertRaisesRegex(
                 ConfigError,
                 "course must not define both tasks and task_file",
+            ):
+                load_regatta(config_path)
+
+    def test_rejects_mixing_task_file_and_task_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = _write_config(
+                root,
+                CONFIG.replace(
+                    """tasks = [
+  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" }, expect_tool_calls = ["local-smoke"] },
+]""",
+                    'task_file = "tasks.toml"\ntask_files = ["tasks/one.toml"]',
+                ),
+            )
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "course must not define both task_file and task_files",
             ):
                 load_regatta(config_path)
 

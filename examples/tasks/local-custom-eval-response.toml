@@ -1,0 +1,3 @@
+tasks = [
+  { id = "local-custom-2", title = "Complete a local response-only custom eval task", difficulty = 1, problem_statement = "Respond with JSON where completed is true.", expect_response = { completed = true } },
+]
