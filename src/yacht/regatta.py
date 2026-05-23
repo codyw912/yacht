@@ -33,6 +33,7 @@ class Task:
     base_commit: str | None = None
     problem_statement: str | None = None
     expect_response: dict[str, ExpectationValue] = field(default_factory=dict)
+    expect_tool_calls: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -413,6 +414,9 @@ def _parse_course_task(task: dict[str, Any]) -> Task:
             str(task["problem_statement"]) if "problem_statement" in task else None
         ),
         expect_response=_parse_expect_response(task.get("expect_response", {})),
+        expect_tool_calls=tuple(
+            str(tool_call) for tool_call in task.get("expect_tool_calls", [])
+        ),
     )
 
 

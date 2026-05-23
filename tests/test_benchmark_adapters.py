@@ -171,6 +171,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
             difficulty=1,
             problem_statement="Return the expected fields.",
             expect_response={"completed": True, "quality": "accepted"},
+            expect_tool_calls=("repo-map",),
         )
 
         instructions = benchmark_adapter("custom-eval").task_prompt_instructions(task)
@@ -178,6 +179,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         self.assertIn("Custom eval submission instructions", instructions)
         self.assertIn("completed=True", instructions)
         self.assertIn("quality='accepted'", instructions)
+        self.assertIn("repo-map", instructions)
         self.assertIn("Return the expected fields.", instructions)
 
     def test_rejects_unknown_benchmark_adapter(self) -> None:

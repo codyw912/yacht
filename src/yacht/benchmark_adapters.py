@@ -233,6 +233,9 @@ class CustomEvalAdapter:
             "When finished, respond with a JSON object matching these expected "
             f"top-level fields: {fields}. Do not wrap the JSON in markdown fences.\n"
         )
+        if task.expect_tool_calls:
+            tools = ", ".join(sorted(task.expect_tool_calls))
+            prompt += f"Expected tool-call evidence: {tools}.\n"
         if task.problem_statement is not None:
             prompt += f"\nProblem statement:\n{task.problem_statement}\n"
         return prompt

@@ -30,7 +30,7 @@ failure_policy = "abort-group"
 [course]
 name = "local-custom-eval"
 tasks = [
-  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" } },
+  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" }, expect_tool_calls = ["local-smoke"] },
 ]
 
 [course.adapter]
@@ -80,11 +80,13 @@ class CustomEvalAdapterTests(unittest.TestCase):
                 logbook_dir=logbook_dir,
                 vessel_name="local-baseline",
                 response={"completed": True, "quality": "accepted"},
+                tool_calls=(),
             )
             _write_completed_attempt(
                 logbook_dir=logbook_dir,
                 vessel_name="local-tool",
-                response={"completed": True, "quality": "rejected"},
+                response={"completed": True, "quality": "accepted"},
+                tool_calls=("local-smoke",),
             )
             write_course_handoff(config_path, logbook_dir)
             write_runtime_instances_plan(config_path, logbook_dir, workspace_path)
@@ -120,6 +122,8 @@ class CustomEvalAdapterTests(unittest.TestCase):
                 baseline_record["expect_response"],
                 {"completed": True, "quality": "accepted"},
             )
+            self.assertEqual(baseline_record["expect_tool_calls"], ["local-smoke"])
+            self.assertEqual(baseline_record["tool_calls"], [])
             self.assertEqual(launcher["status"], "ready-to-launch")
             command = launcher["comparisons"][0]["vessels"][0]["command"]
             self.assertEqual(command[:4], ["uv", "run", "python", "-m"])
@@ -136,9 +140,9 @@ class CustomEvalAdapterTests(unittest.TestCase):
             self.assertEqual(grading["status"], "complete")
             self.assertEqual(scorecard["status"], "complete")
             vessels = scorecard["comparisons"][0]["vessels"]
-            self.assertEqual(vessels[0]["resolved_instances"], 1)
-            self.assertEqual(vessels[1]["resolved_instances"], 0)
-            self.assertEqual(scorecard["comparisons"][0]["delta"]["resolved_instances_delta"], -1)
+            self.assertEqual(vessels[0]["resolved_instances"], 0)
+            self.assertEqual(vessels[1]["resolved_instances"], 1)
+            self.assertEqual(scorecard["comparisons"][0]["delta"]["resolved_instances_delta"], 1)
 
     def test_real_benchmark_eval_runs_custom_eval_end_to_end(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -180,6 +184,8 @@ class CustomEvalAdapterTests(unittest.TestCase):
                         "model_name_or_path": "a",
                         "response": {"completed": True},
                         "expect_response": {"completed": True},
+                        "tool_calls": [],
+                        "expect_tool_calls": [],
                     }
                 )
                 + "\n"
@@ -189,6 +195,8 @@ class CustomEvalAdapterTests(unittest.TestCase):
                         "model_name_or_path": "b",
                         "response": {"completed": True},
                         "expect_response": {"completed": True},
+                        "tool_calls": [],
+                        "expect_tool_calls": [],
                     }
                 )
                 + "\n",
@@ -239,11 +247,12 @@ def _write_completed_attempt(
     logbook_dir: Path,
     vessel_name: str,
     response: dict[str, object],
+    tool_calls: tuple[str, ...],
 ) -> None:
     result = AgentTaskResult(
         exit_code=0,
         response=json.dumps(response),
-        tool_calls=(),
+        tool_calls=tool_calls,
         transcript_path=logbook_dir / "transcripts" / vessel_name / "custom-1.json",
         metrics=Metrics(tokens=1, duration_seconds=0.1),
     )
@@ -283,6 +292,7 @@ def _write_task_attempt(*, logbook_dir: Path, vessel_name: str, result) -> None:
                         "completed": True,
                         "quality": "accepted",
                     },
+                    "expect_tool_calls": ["local-smoke"],
                 },
                 "runtime_context": {
                     "backend": "host-nix",
