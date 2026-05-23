@@ -343,6 +343,11 @@ def load_regatta(config_path: Path) -> Regatta:
         validate_regatta_document(raw)
     except SchemaValidationError as error:
         raise ConfigError(str(error)) from error
+    raw = _limit_course_adapter_instances(raw)
+    try:
+        validate_regatta_document(raw)
+    except SchemaValidationError as error:
+        raise ConfigError(str(error)) from error
 
     adapter = _parse_course_adapter(raw["course"])
     course = Course(
@@ -490,6 +495,40 @@ def _load_course_adapter_instance_file(
     if not isinstance(instance_ids, list):
         raise ConfigError("course.adapter.instance_file must contain instance_ids")
     return instance_ids
+
+
+def _limit_course_adapter_instances(raw: dict[str, Any]) -> dict[str, Any]:
+    course = raw.get("course")
+    if not isinstance(course, dict):
+        return raw
+    adapter = course.get("adapter")
+    if not isinstance(adapter, dict) or "max_instances" not in adapter:
+        return raw
+
+    max_instances = adapter.get("max_instances")
+    if not isinstance(max_instances, int) or max_instances < 1:
+        return raw
+
+    expanded = dict(raw)
+    expanded_course = dict(course)
+    expanded_adapter = dict(adapter)
+    raw_instance_ids = adapter.get("instance_ids")
+    if isinstance(raw_instance_ids, list):
+        instance_ids = raw_instance_ids[:max_instances]
+        expanded_adapter["instance_ids"] = instance_ids
+        if isinstance(course.get("tasks"), list):
+            selected_ids = set(instance_ids)
+            expanded_course["tasks"] = [
+                task
+                for task in course["tasks"]
+                if isinstance(task, dict) and task.get("id") in selected_ids
+            ]
+    elif isinstance(course.get("tasks"), list):
+        expanded_course["tasks"] = course["tasks"][:max_instances]
+
+    expanded_course["adapter"] = expanded_adapter
+    expanded["course"] = expanded_course
+    return expanded
 
 
 def _parse_preflight_config(raw: dict[str, Any]) -> PreflightConfig:

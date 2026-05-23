@@ -320,6 +320,10 @@
                 "type": "string",
                 "minLength": 1
               }
+            },
+            "max_instances": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         }

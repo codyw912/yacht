@@ -12,7 +12,8 @@ kind = "swe-bench"
 dataset = "princeton-nlp/SWE-bench_Lite"
 split = "test"
 harness = "docker"
-instance_file = "task-sets/swe-bench-lite-django-smoke.toml"
+instance_file = "task-sets/swe-bench-lite-django-small.toml"
+max_instances = 1
 
 [secrets.anthropic]
 source = "env"

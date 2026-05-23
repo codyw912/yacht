@@ -2305,6 +2305,12 @@ def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
             )
         for index, file in enumerate(files):
             _require_non_empty_string(file, f"{path}.instance_files[{index}]")
+    max_instances = adapter.get("max_instances")
+    if max_instances is not None:
+        if not isinstance(max_instances, int) or max_instances < 1:
+            raise SchemaValidationError(
+                f"{path}.max_instances must be an integer >= 1"
+            )
 
 
 def _course_adapter_selects_instances(adapter: object) -> bool:
