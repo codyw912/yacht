@@ -1423,6 +1423,11 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
             for key in ("resolved_ids", "unresolved_ids"):
                 if key in vessel:
                     _require_string_list(vessel[key], f"{vessel_path}.{key}")
+            if "task_diagnostics" in vessel:
+                _validate_benchmark_scorecard_task_diagnostics(
+                    vessel["task_diagnostics"],
+                    f"{vessel_path}.task_diagnostics",
+                )
             if not isinstance(vessel.get("eligible_for_benchmark"), bool):
                 raise SchemaValidationError(
                     f"{vessel_path}.eligible_for_benchmark must be a boolean"
@@ -1448,6 +1453,47 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
             vessels,
             comparison_path,
         )
+
+
+def _validate_benchmark_scorecard_task_diagnostics(value: Any, path: str) -> None:
+    diagnostics = _require_list(value, path)
+    for index, diagnostic_value in enumerate(diagnostics):
+        diagnostic_path = f"{path}[{index}]"
+        diagnostic = _require_object(diagnostic_value, diagnostic_path)
+        _require_keys(
+            diagnostic,
+            (
+                "task",
+                "result",
+                "reason",
+                "response_matched",
+                "missing_response_fields",
+                "mismatched_response_fields",
+                "expected_tool_calls",
+                "observed_tool_calls",
+                "missing_tool_calls",
+            ),
+            diagnostic_path,
+        )
+        _require_non_empty_string(diagnostic.get("task"), f"{diagnostic_path}.task")
+        _require_allowed_value(
+            diagnostic.get("result"),
+            {"resolved", "unresolved"},
+            f"{diagnostic_path}.result",
+        )
+        _require_non_empty_string(diagnostic.get("reason"), f"{diagnostic_path}.reason")
+        if not isinstance(diagnostic.get("response_matched"), bool):
+            raise SchemaValidationError(
+                f"{diagnostic_path}.response_matched must be a boolean"
+            )
+        for key in (
+            "missing_response_fields",
+            "mismatched_response_fields",
+            "expected_tool_calls",
+            "observed_tool_calls",
+            "missing_tool_calls",
+        ):
+            _require_string_list(diagnostic.get(key), f"{diagnostic_path}.{key}")
 
 
 def _validate_benchmark_scorecard_delta(value: Any, path: str) -> None:

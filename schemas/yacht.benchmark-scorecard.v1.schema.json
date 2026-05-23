@@ -230,11 +230,70 @@
                     "type": "string",
                     "minLength": 1
                   }
+                },
+                "task_diagnostics": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "task",
+                      "result",
+                      "reason",
+                      "response_matched",
+                      "missing_response_fields",
+                      "mismatched_response_fields",
+                      "expected_tool_calls",
+                      "observed_tool_calls",
+                      "missing_tool_calls"
+                    ],
+                    "properties": {
+                      "task": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "result": {
+                        "type": "string",
+                        "enum": ["resolved", "unresolved"]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "response_matched": {
+                        "type": "boolean"
+                      },
+                      "missing_response_fields": {
+                        "$ref": "#/$defs/stringList"
+                      },
+                      "mismatched_response_fields": {
+                        "$ref": "#/$defs/stringList"
+                      },
+                      "expected_tool_calls": {
+                        "$ref": "#/$defs/stringList"
+                      },
+                      "observed_tool_calls": {
+                        "$ref": "#/$defs/stringList"
+                      },
+                      "missing_tool_calls": {
+                        "$ref": "#/$defs/stringList"
+                      }
+                    }
+                  }
                 }
               }
             }
           }
         }
+      }
+    }
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
       }
     }
   }

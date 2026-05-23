@@ -135,6 +135,9 @@ def _measured_by_vessel(
                 if instance_id in submitted_ids
             ],
         }
+        task_diagnostics = _task_diagnostics(native_report, submitted_ids)
+        if task_diagnostics:
+            measured[vessel_name]["task_diagnostics"] = task_diagnostics
     return measured
 
 
@@ -162,6 +165,50 @@ def _vessel_name_from_grading(grading: dict[str, Any]) -> str:
         if record["instance_id"] == submitted_ids[0]:
             return str(record["model_name_or_path"])
     raise ConfigError("candidate patches do not contain submitted grading ids")
+
+
+def _task_diagnostics(
+    native_report: dict[str, Any],
+    submitted_ids: set[str],
+) -> list[dict[str, Any]]:
+    instance_results = native_report.get("instance_results")
+    if not isinstance(instance_results, list):
+        return []
+    diagnostics = []
+    for result in instance_results:
+        if not isinstance(result, dict):
+            continue
+        instance_id = result.get("instance_id")
+        if not isinstance(instance_id, str) or instance_id not in submitted_ids:
+            continue
+        diagnostics.append(
+            {
+                "task": instance_id,
+                "result": (
+                    "resolved" if result.get("resolved") is True else "unresolved"
+                ),
+                "reason": str(result.get("reason", "unresolved")),
+                "response_matched": result.get("response_matched") is True,
+                "missing_response_fields": _string_list(
+                    result.get("missing_response_fields")
+                ),
+                "mismatched_response_fields": _string_list(
+                    result.get("mismatched_response_fields")
+                ),
+                "expected_tool_calls": _string_list(result.get("expected_tool_calls")),
+                "observed_tool_calls": _string_list(
+                    result.get("observed_tool_calls")
+                ),
+                "missing_tool_calls": _string_list(result.get("missing_tool_calls")),
+            }
+        )
+    return diagnostics
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if isinstance(item, str)]
 
 
 def _comparison_to_json(

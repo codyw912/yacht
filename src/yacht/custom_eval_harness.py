@@ -100,12 +100,15 @@ def _load_candidate_records(path: Path) -> list[dict[str, Any]]:
 
 
 def _native_report(records: list[dict[str, Any]]) -> dict[str, Any]:
+    instance_results = [_instance_result(record) for record in records]
     submitted_ids = [str(record["instance_id"]) for record in records]
     resolved_ids = [
-        str(record["instance_id"]) for record in records if _record_resolved(record)
+        str(result["instance_id"]) for result in instance_results if result["resolved"]
     ]
     unresolved_ids = [
-        str(record["instance_id"]) for record in records if not _record_resolved(record)
+        str(result["instance_id"])
+        for result in instance_results
+        if not result["resolved"]
     ]
     return {
         "schema_version": 1,
@@ -123,21 +126,72 @@ def _native_report(records: list[dict[str, Any]]) -> dict[str, Any]:
         "empty_patch_ids": [],
         "error_instances": 0,
         "error_ids": [],
+        "instance_results": instance_results,
     }
 
 
-def _record_resolved(record: dict[str, Any]) -> bool:
+def _instance_result(record: dict[str, Any]) -> dict[str, Any]:
     response = record.get("response")
+    missing_response_fields: list[str] = []
+    mismatched_response_fields: list[str] = []
+    if isinstance(response, dict):
+        expectations = record["expect_response"]
+        assert isinstance(expectations, dict)
+        for key, expected in expectations.items():
+            if key not in response:
+                missing_response_fields.append(str(key))
+            elif response.get(key) != expected:
+                mismatched_response_fields.append(str(key))
+        response_matched = not missing_response_fields and not mismatched_response_fields
+    else:
+        response_matched = False
+
+    expected_tool_calls = list(record["expect_tool_calls"])
+    observed_tool_calls = list(record["tool_calls"])
+    missing_tool_calls = [
+        tool_call
+        for tool_call in expected_tool_calls
+        if tool_call not in observed_tool_calls
+    ]
+    resolved = response_matched and not missing_tool_calls
+    return {
+        "instance_id": str(record["instance_id"]),
+        "resolved": resolved,
+        "response_matched": response_matched,
+        "missing_response_fields": missing_response_fields,
+        "mismatched_response_fields": mismatched_response_fields,
+        "expected_tool_calls": expected_tool_calls,
+        "observed_tool_calls": observed_tool_calls,
+        "missing_tool_calls": missing_tool_calls,
+        "reason": _result_reason(
+            resolved=resolved,
+            response=response,
+            missing_response_fields=missing_response_fields,
+            mismatched_response_fields=mismatched_response_fields,
+            missing_tool_calls=missing_tool_calls,
+        ),
+    }
+
+
+def _result_reason(
+    *,
+    resolved: bool,
+    response: Any,
+    missing_response_fields: list[str],
+    mismatched_response_fields: list[str],
+    missing_tool_calls: list[str],
+) -> str:
+    if resolved:
+        return "resolved"
     if not isinstance(response, dict):
-        return False
-    expectations = record["expect_response"]
-    assert isinstance(expectations, dict)
-    expected_tools = set(record["expect_tool_calls"])
-    actual_tools = set(record["tool_calls"])
-    return (
-        all(response.get(key) == expected for key, expected in expectations.items())
-        and expected_tools <= actual_tools
-    )
+        return "response_not_json_object"
+    if missing_response_fields:
+        return f"missing_response_fields: {', '.join(missing_response_fields)}"
+    if mismatched_response_fields:
+        return f"mismatched_response_fields: {', '.join(mismatched_response_fields)}"
+    if missing_tool_calls:
+        return f"missing_tool_calls: {', '.join(missing_tool_calls)}"
+    return "unresolved"
 
 
 if __name__ == "__main__":
