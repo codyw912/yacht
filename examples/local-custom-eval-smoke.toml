@@ -6,9 +6,7 @@ failure_policy = "abort-group"
 
 [course]
 name = "local-custom-eval"
-tasks = [
-  { id = "local-custom-1", title = "Complete a local custom eval task", difficulty = 1, problem_statement = "Respond with JSON where completed is true and use the local smoke tool when it is available.", expect_response = { completed = true }, expect_tool_calls = ["local-smoke"] },
-]
+task_file = "tasks/local-custom-eval-smoke.toml"
 
 [course.adapter]
 kind = "custom-eval"

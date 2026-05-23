@@ -143,13 +143,17 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
     _validate_course_adapter(course)
     adapter = course.get("adapter")
     adapter_instance_ids = _course_adapter_instance_ids(adapter)
-    if "tasks" not in course and not adapter_instance_ids:
+    if "tasks" in course and "task_file" in course:
+        raise SchemaValidationError("course must not define both tasks and task_file")
+    if "task_file" in course:
+        _require_non_empty_string(course.get("task_file"), "course.task_file")
+    if "tasks" not in course and "task_file" not in course and not adapter_instance_ids:
         raise SchemaValidationError(
-            "course.tasks must contain at least one task unless "
+            "course.tasks or course.task_file must define at least one task unless "
             "course.adapter.instance_ids selects benchmark tasks"
         )
     tasks = _require_list(course.get("tasks", []), "course.tasks")
-    if not tasks and not adapter_instance_ids:
+    if not tasks and "task_file" not in course and not adapter_instance_ids:
         raise SchemaValidationError("course.tasks must contain at least one task")
     task_ids = set()
     for index, task_value in enumerate(tasks):

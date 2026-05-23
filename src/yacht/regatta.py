@@ -337,6 +337,11 @@ def load_regatta(config_path: Path) -> Regatta:
         validate_regatta_document(raw)
     except SchemaValidationError as error:
         raise ConfigError(str(error)) from error
+    raw = _expand_course_task_file(raw, config_path.parent)
+    try:
+        validate_regatta_document(raw)
+    except SchemaValidationError as error:
+        raise ConfigError(str(error)) from error
 
     adapter = _parse_course_adapter(raw["course"])
     course = Course(
@@ -364,6 +369,40 @@ def load_regatta(config_path: Path) -> Regatta:
         rigging_recipes=_parse_rigging_recipes(raw),
         tool_capabilities=_parse_tool_capabilities(raw),
     )
+
+
+def _expand_course_task_file(
+    raw: dict[str, Any],
+    config_dir: Path,
+) -> dict[str, Any]:
+    course = raw.get("course")
+    if not isinstance(course, dict) or "task_file" not in course:
+        return raw
+    task_file = course.get("task_file")
+    if not isinstance(task_file, str):
+        return raw
+
+    task_path = Path(task_file)
+    if not task_path.is_absolute():
+        task_path = config_dir / task_path
+    try:
+        with task_path.open("rb") as file:
+            task_document = tomllib.load(file)
+    except FileNotFoundError as error:
+        raise ConfigError(f"course.task_file not found: {task_path}") from error
+    except tomllib.TOMLDecodeError as error:
+        raise ConfigError(f"course.task_file is not valid TOML: {error}") from error
+
+    tasks = task_document.get("tasks")
+    if not isinstance(tasks, list):
+        raise ConfigError("course.task_file must contain tasks")
+
+    expanded = dict(raw)
+    expanded_course = dict(course)
+    expanded_course.pop("task_file", None)
+    expanded_course["tasks"] = tasks
+    expanded["course"] = expanded_course
+    return expanded
 
 
 def _parse_preflight_config(raw: dict[str, Any]) -> PreflightConfig:

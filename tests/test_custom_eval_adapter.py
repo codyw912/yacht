@@ -16,7 +16,7 @@ from yacht.custom_eval_predictions_from_attempts import (
 )
 from yacht.preflight_evidence_report import write_preflight_evidence_report
 from yacht.real_benchmark_eval import run_real_benchmark_eval
-from yacht.regatta import Metrics
+from yacht.regatta import ConfigError, Metrics, load_regatta
 from yacht.runtime_instances import write_runtime_instances_plan
 from yacht.task_attempts import AgentTaskResult
 from yacht.task_attempt_scorecard import write_task_attempt_scorecard
@@ -71,6 +71,52 @@ vessels = ["local-baseline", "local-tool"]
 
 
 class CustomEvalAdapterTests(unittest.TestCase):
+    def test_loads_custom_eval_tasks_from_task_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / "tasks"
+            tasks_dir.mkdir()
+            (tasks_dir / "local-smoke.toml").write_text(
+                """
+tasks = [
+  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true }, expect_tool_calls = ["local-smoke"] },
+]
+""",
+                encoding="utf-8",
+            )
+            config_path = _write_config(
+                root,
+                CONFIG.replace(
+                    """tasks = [
+  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" }, expect_tool_calls = ["local-smoke"] },
+]""",
+                    'task_file = "tasks/local-smoke.toml"',
+                ),
+            )
+
+            task = load_regatta(config_path).course.tasks[0]
+
+            self.assertEqual(task.id, "custom-1")
+            self.assertEqual(task.expect_response, {"completed": True})
+            self.assertEqual(task.expect_tool_calls, ("local-smoke",))
+
+    def test_rejects_mixing_inline_tasks_and_task_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = _write_config(
+                root,
+                CONFIG.replace(
+                    "[course]\nname = \"local-custom-eval\"",
+                    "[course]\nname = \"local-custom-eval\"\ntask_file = \"tasks.toml\"",
+                ),
+            )
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "course must not define both tasks and task_file",
+            ):
+                load_regatta(config_path)
+
     def test_custom_eval_predictions_harness_grading_and_scorecard(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -268,9 +314,9 @@ class _CustomTaskAgent:
         )
 
 
-def _write_config(root: Path) -> Path:
+def _write_config(root: Path, config: str = CONFIG) -> Path:
     config_path = root / "regatta.toml"
-    config_path.write_text(CONFIG, encoding="utf-8")
+    config_path.write_text(config, encoding="utf-8")
     return config_path
 
 
