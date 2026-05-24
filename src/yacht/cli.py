@@ -8,56 +8,57 @@ import tempfile
 from pathlib import Path
 from typing import Sequence
 
-from yacht.agent_selection import configured_harness_name
-from yacht.benchmark_aggregate import render_benchmark_aggregate
-from yacht.benchmark_execution_plan import write_benchmark_execution_plan
-from yacht.benchmark_grading_collection import collect_benchmark_grading_reports
+from yacht.config.agent_selection import configured_harness_name
+from yacht.reports.benchmark_aggregate import render_benchmark_aggregate
+from yacht.workflows.benchmark_execution_plan import write_benchmark_execution_plan
+from yacht.workflows.benchmark_grading_collection import collect_benchmark_grading_reports
 from yacht.benchmark_launch import write_benchmark_launch_result
-from yacht.benchmark_launcher_handoff import DEFAULT_SWEBENCH_PYTHON_EXECUTABLE
-from yacht.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
-from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
-from yacht.benchmark_readiness_report import render_benchmark_readiness_report
-from yacht.benchmark_report import render_benchmark_report
-from yacht.benchmark_scorecard import write_benchmark_scorecard
-from yacht.benchmark_status import render_benchmark_status
-from yacht.course_handoff import write_course_handoff
-from yacht.harness_adapters import agent_prompt_runner_factory
-from yacht.harness_adapters import supported_agent_preflight_names
-from yacht.harness_adapters import supported_task_attempt_names
-from yacht.harness_adapters import task_agent
-from yacht.latest_logbook import render_latest_logbook
-from yacht.local_smoke_eval import run_local_smoke_eval
-from yacht.preflight_evidence_report import render_preflight_evidence_report
-from yacht.preflight_evidence_report import write_preflight_evidence_report
-from yacht.pi_smoke_eval import run_pi_smoke_eval
-from yacht.preflight_runner import (
+from yacht.workflows.benchmark_launcher_handoff import DEFAULT_SWEBENCH_PYTHON_EXECUTABLE
+from yacht.workflows.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
+from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
+from yacht.reports.benchmark_readiness import render_benchmark_readiness_report
+from yacht.reports.benchmark_report import render_benchmark_report
+from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
+from yacht.reports.benchmark_status import render_benchmark_status
+from yacht.courses.handoff import write_course_handoff
+from yacht.harnesses.registry import agent_prompt_runner_factory
+from yacht.harnesses.registry import supported_agent_preflight_names
+from yacht.harnesses.registry import supported_task_attempt_names
+from yacht.harnesses.registry import task_agent
+from yacht.reports.latest_logbook import render_latest_logbook
+from yacht.workflows.local_smoke_eval import run_local_smoke_eval
+from yacht.reports.preflight_evidence import render_preflight_evidence_report
+from yacht.reports.preflight_evidence import write_preflight_evidence_report
+from yacht.workflows.pi_smoke_eval import run_pi_smoke_eval
+from yacht.preflight.runner import (
     build_preflight_execution_plan,
     parse_secret_values,
     run_preflight,
 )
-from yacht.readiness_gate import evaluate_readiness_gate
-from yacht.real_benchmark_eval import run_real_benchmark_eval
-from yacht.real_benchmark_repetitions import run_real_benchmark_repetitions
-from yacht.real_benchmark_runbook import render_real_benchmark_runbook
-from yacht.real_benchmark_runbook import write_real_benchmark_runbook
-from yacht.real_benchmark_summary import render_real_benchmark_eval_summary
-from yacht.real_benchmark_summary import render_real_benchmark_repetitions_summary
-from yacht.real_smoke_eval import run_real_smoke_eval
-from yacht.real_smoke_runbook import render_real_smoke_runbook
-from yacht.real_smoke_runbook import write_real_smoke_runbook
-from yacht.regatta import ConfigError, load_regatta, run_regatta
-from yacht.runtime_instances import build_runtime_instances_plan
-from yacht.runtime_instances import write_runtime_instances_plan
-from yacht.runtime_plan import build_runtime_plan
-from yacht.swebench_grading import write_swe_bench_grading_report
-from yacht.swebench_predictions import write_swe_bench_predictions
-from yacht.swebench_predictions_from_attempts import (
+from yacht.workflows.readiness_gate import evaluate_readiness_gate
+from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
+from yacht.workflows.real_benchmark_repetitions import run_real_benchmark_repetitions
+from yacht.workflows.real_benchmark_runbook import render_real_benchmark_runbook
+from yacht.workflows.real_benchmark_runbook import write_real_benchmark_runbook
+from yacht.workflows.real_benchmark_summary import render_real_benchmark_eval_summary
+from yacht.workflows.real_benchmark_summary import render_real_benchmark_repetitions_summary
+from yacht.workflows.real_smoke_eval import run_real_smoke_eval
+from yacht.workflows.real_smoke_runbook import render_real_smoke_runbook
+from yacht.workflows.real_smoke_runbook import write_real_smoke_runbook
+from yacht.config.loader import load_regatta
+from yacht.domain.model import ConfigError, run_regatta
+from yacht.runtimes.instances import build_runtime_instances_plan
+from yacht.runtimes.instances import write_runtime_instances_plan
+from yacht.runtimes.plan import build_runtime_plan
+from yacht.courses.swe_bench.grading import write_swe_bench_grading_report
+from yacht.courses.swe_bench.predictions import write_swe_bench_predictions
+from yacht.courses.swe_bench.predictions_from_attempts import (
     write_swe_bench_predictions_from_attempts,
 )
-from yacht.smoke_report import render_smoke_report
-from yacht.smoke_readiness_report import write_smoke_readiness_report
-from yacht.task_attempt_runner import run_task_attempts
-from yacht.task_attempt_scorecard import write_task_attempt_scorecard
+from yacht.reports.smoke_report import render_smoke_report
+from yacht.reports.smoke_readiness import write_smoke_readiness_report
+from yacht.workflows.task_attempt_runner import run_task_attempts
+from yacht.reports.task_attempt_scorecard import write_task_attempt_scorecard
 
 
 def build_parser() -> argparse.ArgumentParser:

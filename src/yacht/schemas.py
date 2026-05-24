@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from yacht.benchmark_adapters import supported_benchmark_adapter_kinds
-from yacht.benchmark_adapters import supported_course_adapter_harnesses
+from yacht.courses.registry import supported_benchmark_adapter_kinds
+from yacht.courses.registry import supported_course_adapter_harnesses
 from yacht.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES
 
 

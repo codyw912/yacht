@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from yacht.regatta import CourseAdapter, Regatta, RiggingRecipe, RuntimeRecipe
+from yacht.domain.model import CourseAdapter, Regatta, RiggingRecipe, RuntimeRecipe
 
 
 def regatta_surfaces_to_json(regatta: Regatta) -> dict[str, Any]:

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from yacht.regatta import (
+from yacht.domain.model import (
     Comparison,
     PreflightCheck,
     Regatta,
@@ -16,7 +16,8 @@ from yacht.regatta import (
     SecretReference,
     Vessel,
 )
-from yacht.runtime_process import subprocess_env
+from yacht.logbook.io import write_json
+from yacht.runtimes.process import subprocess_env
 from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
@@ -147,11 +148,7 @@ def _execute_preflight(
         artifact["comparison"] = comparison.name
 
     validate_preflight_document(artifact)
-    artifact_path.parent.mkdir(parents=True, exist_ok=True)
-    artifact_path.write_text(
-        json.dumps(artifact, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    write_json(artifact_path, artifact)
     return artifact
 
 
