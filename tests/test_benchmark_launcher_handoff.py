@@ -15,14 +15,14 @@ from tests.benchmark_fixtures import write_vessel_candidate
 from tests.benchmark_fixtures import write_vessel_preflight
 from tests.benchmark_fixtures import write_vessel_ready_inputs
 from tests.preflight_artifacts import write_preflight_artifact
-from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
+from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
-from yacht.course_handoff import write_course_handoff
-from yacht.regatta import ConfigError
-from yacht.swebench_artifacts import candidate_patches_path
-from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
-from yacht.swebench_grading import write_swe_bench_grading_report
-from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.courses.handoff import write_course_handoff
+from yacht.domain.model import ConfigError
+from yacht.courses.swe_bench.artifacts import candidate_patches_path
+from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
+from yacht.courses.swe_bench.grading import write_swe_bench_grading_report
+from yacht.courses.swe_bench.predictions import write_swe_bench_predictions
 
 
 class BenchmarkLauncherHandoffTests(unittest.TestCase):

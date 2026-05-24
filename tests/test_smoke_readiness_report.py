@@ -9,7 +9,7 @@ from unittest.mock import patch
 from tests.preflight_artifacts import write_preflight_artifact
 from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
 from yacht.cli import main
-from yacht.pi_adapter import PiTaskRequest, SubprocessPiTaskLauncher
+from yacht.harnesses.pi import PiTaskRequest, SubprocessPiTaskLauncher
 from yacht.preflight import CommandResult
 
 
@@ -190,14 +190,14 @@ class SmokeReadinessReportTests(unittest.TestCase):
             )
 
         with patch(
-            "yacht.harness_adapters.SubprocessPiTaskLauncher",
+            "yacht.harnesses.registry.SubprocessPiTaskLauncher",
             return_value=SubprocessPiTaskLauncher(runner=runner),
         ), patch(
-            "yacht.benchmark_adapters.SweBenchAdapter.task_with_context",
+            "yacht.courses.registry.SweBenchAdapter.task_with_context",
             autospec=True,
             side_effect=lambda self, *, task, adapter: task,
         ), patch(
-            "yacht.benchmark_adapters.SweBenchAdapter.workspace_for_attempt",
+            "yacht.courses.registry.SweBenchAdapter.workspace_for_attempt",
             autospec=True,
             return_value=workspace_path,
         ), redirect_stdout(StringIO()):

@@ -7,9 +7,9 @@ from pathlib import Path
 
 from yacht.cli import main
 from yacht.preflight import AgentPromptResult
-from yacht.preflight_runner import run_preflight
-from yacht.regatta import load_regatta
-from yacht.schemas import PREFLIGHT_SUMMARY_SCHEMA
+from yacht.preflight.runner import run_preflight
+from yacht.domain.model import load_regatta
+from yacht.contracts.schemas import PREFLIGHT_SUMMARY_SCHEMA
 
 
 class LocalAgentPreflightSmokeTests(unittest.TestCase):

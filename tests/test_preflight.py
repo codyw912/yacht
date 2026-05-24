@@ -11,9 +11,9 @@ from yacht.preflight import (
     execute_preflight,
     execute_machine_preflight,
 )
-from yacht.regatta import load_regatta
-from yacht.runtime_backend import HostNixRuntimeBackend, SetupProcessResult
-from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
+from yacht.domain.model import load_regatta
+from yacht.runtimes.backend import HostNixRuntimeBackend, SetupProcessResult
+from yacht.contracts.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
 class MachinePreflightTests(unittest.TestCase):

@@ -6,8 +6,8 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from yacht.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
-from yacht.benchmark_readiness_report import render_benchmark_readiness_report
+from yacht.workflows.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
+from yacht.reports.benchmark_readiness import render_benchmark_readiness_report
 from yacht.cli import main
 
 

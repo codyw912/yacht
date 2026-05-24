@@ -158,6 +158,7 @@ provider credentials.
 
 - [Project vision](docs/project/vision.md)
 - [Roadmap](docs/project/roadmap.md)
+- [Codebase structure](docs/project/codebase-structure.md)
 - [Command reference](docs/reference/commands.md)
 - [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)

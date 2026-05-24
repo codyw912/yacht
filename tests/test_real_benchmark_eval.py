@@ -7,9 +7,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
-from yacht.benchmark_status import build_benchmark_status
+from yacht.reports.benchmark_status import build_benchmark_status
 from yacht.cli import main
-from yacht.pi_adapter import (
+from yacht.harnesses.pi import (
     PiAdapter,
     PiPromptRequest,
     PiTaskRequest,
@@ -17,7 +17,7 @@ from yacht.pi_adapter import (
     SubprocessPiTaskLauncher,
 )
 from yacht.preflight import CommandResult
-from yacht.real_benchmark_eval import run_real_benchmark_eval
+from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
 
 
 MODEL_PATCH = (
@@ -162,7 +162,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 "yacht.preflight._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
             ), patch(
-                "yacht.harness_adapters.SubprocessPiPromptLauncher",
+                "yacht.harnesses.registry.SubprocessPiPromptLauncher",
                 return_value=SubprocessPiPromptLauncher(
                     runner=lambda _request: CommandResult(
                         exit_code=0,
@@ -174,7 +174,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                     )
                 ),
             ), patch(
-                "yacht.harness_adapters.SubprocessPiTaskLauncher",
+                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(
                     runner=lambda _request: CommandResult(
                         exit_code=0,
@@ -183,7 +183,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                     )
                 ),
             ), patch(
-                "yacht.benchmark_launch._run_command",
+                "yacht.workflows.benchmark_launch._run_command",
                 side_effect=_benchmark_command_result,
             ), _without_task_workspace_materialization(workspace_path), redirect_stdout(
                 stdout
@@ -516,11 +516,11 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
 @contextmanager
 def _without_task_workspace_materialization(workspace_path: Path):
     with patch(
-        "yacht.benchmark_adapters.SweBenchAdapter.task_with_context",
+        "yacht.courses.registry.SweBenchAdapter.task_with_context",
         autospec=True,
         side_effect=lambda self, *, task, adapter: task,
     ), patch(
-        "yacht.benchmark_adapters.SweBenchAdapter.workspace_for_attempt",
+        "yacht.courses.registry.SweBenchAdapter.workspace_for_attempt",
         autospec=True,
         return_value=workspace_path,
     ):

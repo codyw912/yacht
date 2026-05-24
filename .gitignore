@@ -1,5 +1,5 @@
 .venv/
-logbook/
+/logbook/
 __pycache__/
 *.py[cod]
 

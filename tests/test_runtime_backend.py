@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 
 from tests.test_provisioning import CONTAINER_PI_CONFIG, PI_WITH_FFF_CONFIG
-from yacht.host_nix_runtime import resolve_host_nix_runtime
-from yacht.regatta import load_regatta
-from yacht.runtime_backend import (
+from yacht.runtimes.host_nix import resolve_host_nix_runtime
+from yacht.domain.model import load_regatta
+from yacht.runtimes.backend import (
     ContainerRuntimeBackend,
     HostNixRuntimeBackend,
     RuntimePreparationError,

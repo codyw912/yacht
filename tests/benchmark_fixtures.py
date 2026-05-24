@@ -2,8 +2,8 @@ from pathlib import Path
 
 from tests.preflight_artifacts import write_preflight_artifact
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
-from yacht.runtime_instances import write_runtime_instances_plan
-from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.runtimes.instances import write_runtime_instances_plan
+from yacht.courses.swe_bench.predictions import write_swe_bench_predictions
 
 
 PI_FFF_CONFIG_PATH = Path("examples/pi-fff-provisioning.toml")

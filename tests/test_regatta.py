@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from tests.fixtures import REGATTA_CONFIG
-from yacht.regatta import Metrics, Task, Vessel, Wake, run_regatta
+from yacht.domain.model import Metrics, Task, Vessel, Wake, run_regatta
 
 
 class FixedTaskRunner:

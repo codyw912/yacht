@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from yacht.regatta import load_regatta
+from yacht.domain.model import load_regatta
 
 
 PI_AGENT_IMAGE = "yacht/pi-agent-runtime:pi-0.74.0"

@@ -6,7 +6,7 @@ from io import StringIO
 from pathlib import Path
 
 from tests.benchmark_fixtures import PI_FFF_CONFIG_PATH
-from yacht.regatta import (
+from yacht.domain.model import (
     Comparison,
     ConfigError,
     Metrics,
@@ -18,11 +18,11 @@ from yacht.regatta import (
     load_regatta,
 )
 from yacht.cli import main
-from yacht.swebench_predictions_from_attempts import (
+from yacht.courses.swe_bench.predictions_from_attempts import (
     write_swe_bench_predictions_from_attempts,
 )
-from yacht.task_attempt_runner import _task_prompt
-from yacht.task_attempts import AgentTaskResult, write_task_attempt
+from yacht.workflows.task_attempt_runner import _task_prompt
+from yacht.workflows.task_attempts import AgentTaskResult, write_task_attempt
 
 
 MODEL_PATCH = (

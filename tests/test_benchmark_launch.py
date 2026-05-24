@@ -11,12 +11,12 @@ from tests.benchmark_fixtures import PI_FFF_PREDICTIONS_PATH
 from tests.benchmark_fixtures import write_runtime_snapshot
 from tests.benchmark_fixtures import write_vessel_candidate
 from tests.benchmark_fixtures import write_vessel_preflight
-from yacht.benchmark_launch import write_benchmark_launch_result
-from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
+from yacht.workflows.benchmark_launch import write_benchmark_launch_result
+from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
-from yacht.course_handoff import write_course_handoff
+from yacht.courses.handoff import write_course_handoff
 from yacht.preflight import CommandResult
-from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.courses.swe_bench.predictions import write_swe_bench_predictions
 
 
 class BenchmarkLaunchTests(unittest.TestCase):
@@ -94,7 +94,7 @@ class BenchmarkLaunchTests(unittest.TestCase):
 
             stdout = StringIO()
             with patch(
-                "yacht.benchmark_launch._run_command",
+                "yacht.workflows.benchmark_launch._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
             ), redirect_stdout(stdout):
                 exit_code = main(["benchmark-launch", "--logbook", str(logbook_dir)])

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
 from yacht.cli import main
-from yacht.pi_adapter import (
+from yacht.harnesses.pi import (
     PiPromptRequest,
     PiTaskRequest,
     SubprocessPiPromptLauncher,
@@ -63,10 +63,10 @@ class RealSmokeEvalTests(unittest.TestCase):
                 "yacht.preflight._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
             ), patch(
-                "yacht.harness_adapters.SubprocessPiPromptLauncher",
+                "yacht.harnesses.registry.SubprocessPiPromptLauncher",
                 return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
             ), patch(
-                "yacht.harness_adapters.SubprocessPiTaskLauncher",
+                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=task_runner),
             ), redirect_stdout(stdout):
                 exit_code = main(
@@ -147,10 +147,10 @@ class RealSmokeEvalTests(unittest.TestCase):
                 "yacht.preflight._run_command",
                 return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
             ), patch(
-                "yacht.harness_adapters.SubprocessPiPromptLauncher",
+                "yacht.harnesses.registry.SubprocessPiPromptLauncher",
                 return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
             ), patch(
-                "yacht.harness_adapters.SubprocessPiTaskLauncher",
+                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=task_runner),
             ), redirect_stdout(stdout):
                 exit_code = main(
@@ -207,12 +207,12 @@ class RealSmokeEvalTests(unittest.TestCase):
                     stderr="pi unavailable",
                 ),
             ), patch(
-                "yacht.harness_adapters.SubprocessPiPromptLauncher",
+                "yacht.harnesses.registry.SubprocessPiPromptLauncher",
                 return_value=SubprocessPiPromptLauncher(
                     runner=_passing_prompt_runner
                 ),
             ), patch(
-                "yacht.harness_adapters.SubprocessPiTaskLauncher",
+                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=task_runner),
             ), redirect_stdout(stdout):
                 exit_code = main(

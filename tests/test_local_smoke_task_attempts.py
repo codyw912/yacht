@@ -6,7 +6,7 @@ from io import StringIO
 from pathlib import Path
 
 from yacht.cli import main
-from yacht.schemas import TASK_ATTEMPT_SCHEMA
+from yacht.contracts.schemas import TASK_ATTEMPT_SCHEMA
 
 
 class LocalSmokeTaskAttemptTests(unittest.TestCase):

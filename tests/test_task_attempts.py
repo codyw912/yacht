@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from yacht.regatta import (
+from yacht.domain.model import (
     Comparison,
     Course,
     Metrics,
@@ -15,8 +15,8 @@ from yacht.regatta import (
     Task,
     Vessel,
 )
-from yacht.task_attempt_scorecard import write_task_attempt_scorecard
-from yacht.task_attempts import AgentTaskResult, write_task_attempt
+from yacht.reports.task_attempt_scorecard import write_task_attempt_scorecard
+from yacht.workflows.task_attempts import AgentTaskResult, write_task_attempt
 
 
 class TaskAttemptTests(unittest.TestCase):

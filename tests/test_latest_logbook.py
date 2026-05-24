@@ -8,7 +8,7 @@ from io import StringIO
 from pathlib import Path
 
 from yacht.cli import main
-from yacht.latest_logbook import build_latest_logbook
+from yacht.reports.latest_logbook import build_latest_logbook
 
 
 class LatestLogbookTests(unittest.TestCase):

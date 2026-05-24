@@ -8,11 +8,11 @@ from pathlib import Path
 
 from tests.benchmark_fixtures import write_vessel_ready_inputs
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
-from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
+from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
-from yacht.regatta import ConfigError
-from yacht.swebench_grading import write_swe_bench_grading_report
-from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.domain.model import ConfigError
+from yacht.courses.swe_bench.grading import write_swe_bench_grading_report
+from yacht.courses.swe_bench.predictions import write_swe_bench_predictions
 
 
 VALID_NATIVE_REPORT = {

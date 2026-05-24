@@ -6,9 +6,9 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from yacht.benchmark_aggregate import build_benchmark_aggregate
+from yacht.reports.benchmark_aggregate import build_benchmark_aggregate
 from yacht.cli import main
-from yacht.regatta import ConfigError
+from yacht.domain.model import ConfigError
 
 
 class BenchmarkAggregateTests(unittest.TestCase):

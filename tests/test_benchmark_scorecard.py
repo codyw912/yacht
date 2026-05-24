@@ -7,11 +7,11 @@ from io import StringIO
 from pathlib import Path
 
 from tests.preflight_artifacts import write_preflight_artifact
-from yacht.benchmark_scorecard import write_benchmark_scorecard
+from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
 from yacht.cli import main
-from yacht.regatta import ConfigError
-from yacht.swebench_grading import write_swe_bench_grading_report
-from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.domain.model import ConfigError
+from yacht.courses.swe_bench.grading import write_swe_bench_grading_report
+from yacht.courses.swe_bench.predictions import write_swe_bench_predictions
 
 
 BASELINE_PREDICTIONS = [

@@ -8,10 +8,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from yacht.preflight import AgentPromptResult, CommandResult
-from yacht.preflight_runner import parse_secret_values, run_preflight
-from yacht.regatta import ConfigError
+from yacht.preflight.runner import parse_secret_values, run_preflight
+from yacht.domain.model import ConfigError
 from yacht.cli import main
-from yacht.schemas import PREFLIGHT_SUMMARY_SCHEMA
+from yacht.contracts.schemas import PREFLIGHT_SUMMARY_SCHEMA
 
 
 PASSING_PREFLIGHT_CONFIG = """

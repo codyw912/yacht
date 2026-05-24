@@ -3,10 +3,10 @@ import unittest
 from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
-from yacht.benchmark_adapters import benchmark_adapter
-from yacht.benchmark_adapters import supported_benchmark_adapter_kinds
-from yacht.benchmark_adapters import supported_course_adapter_harnesses
-from yacht.regatta import ConfigError, Task, load_regatta
+from yacht.courses.registry import benchmark_adapter
+from yacht.courses.registry import supported_benchmark_adapter_kinds
+from yacht.courses.registry import supported_course_adapter_harnesses
+from yacht.domain.model import ConfigError, Task, load_regatta
 
 
 class BenchmarkAdapterRegistryTests(unittest.TestCase):
@@ -87,7 +87,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
                 "run",
                 "python",
                 "-m",
-                "yacht.custom_eval_harness",
+                "yacht.courses.custom_eval.harness",
                 "--candidate-records",
                 "/tmp/candidate-patches.jsonl",
                 "--report-dir",
