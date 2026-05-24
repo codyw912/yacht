@@ -255,25 +255,38 @@ class PiAdapterTests(unittest.TestCase):
                 ["docker", "run", "--rm", "--workdir", "/workspace"],
             )
 
-    def test_task_attempt_runner_requires_injected_pi_adapter(self) -> None:
+    def test_task_attempt_runner_uses_registered_pi_adapter(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             config_path = root / "regatta.toml"
             workspace_path = root / "workspace"
-            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            config_path.write_text(_config_without_install(), encoding="utf-8")
             workspace_path.mkdir()
+            requests = []
 
-            with self.assertRaisesRegex(
-                ConfigError,
-                "Pi task attempt agent requires an injected task agent",
+            def runner(request: PiTaskRequest) -> CommandResult:
+                requests.append(request)
+                return CommandResult(
+                    exit_code=0,
+                    stdout='{"completed": true, "tool_calls": ["fff"]}\n',
+                    stderr="",
+                )
+
+            with patch(
+                "yacht.harness_adapters.SubprocessPiTaskLauncher",
+                return_value=SubprocessPiTaskLauncher(runner=runner),
             ):
-                run_task_attempts(
+                summary = run_task_attempts(
                     config_path=config_path,
                     logbook_dir=root / "logbook",
                     workspace_path=workspace_path,
                     secret_values={"anthropic": "test-secret"},
                     agent_name="pi",
                 )
+
+            self.assertEqual(summary["status"], "completed")
+            self.assertEqual(summary["attempt_count"], 2)
+            self.assertEqual(len(requests), 2)
 
     def test_adapter_runner_can_satisfy_agent_prompt_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -1,37 +1,23 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from yacht.benchmark_adapters import benchmark_adapter
+from yacht.harness_adapters import TaskAgent
 from yacht.harness_adapters import supported_task_attempt_names
-from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
+from yacht.harness_adapters import task_agent as harness_task_agent
 from yacht.regatta import (
     Comparison,
     ConfigError,
     Regatta,
-    RuntimeInstance,
     RuntimeRecipe,
     Task,
     Vessel,
     load_regatta,
 )
 from yacht.runtime_backend import RuntimePreparationError, runtime_backend_for_recipe
-from yacht.task_attempts import AgentTaskResult, write_task_attempt
-
-
-class TaskAgent(Protocol):
-    def run_task(
-        self,
-        *,
-        instance: RuntimeInstance,
-        task: Task,
-        prompt: str,
-        env: dict[str, str],
-        cwd: Path,
-        transcript_path: Path,
-    ) -> AgentTaskResult:
-        ...
+from yacht.task_attempts import write_task_attempt
 
 
 TASK_ATTEMPT_AGENTS = frozenset(supported_task_attempt_names())
@@ -53,7 +39,7 @@ def run_task_attempts(
     if not regatta.comparisons:
         raise ConfigError("task attempts require at least one comparison")
 
-    agent = task_agent or _task_agent(agent_name)
+    agent = task_agent or harness_task_agent(agent_name)
     attempts = [
         attempt
         for comparison in regatta.comparisons
@@ -167,14 +153,6 @@ def _run_vessel_task_attempt(
         "artifact_path": str(artifact_path),
         "transcript_path": str(transcript_path),
     }
-
-
-def _task_agent(agent_name: str) -> TaskAgent:
-    if agent_name == "local-smoke":
-        return LocalSmokeAgentAdapter()
-    if agent_name == "pi":
-        raise ConfigError("Pi task attempt agent requires an injected task agent")
-    raise ConfigError(f"unsupported task attempt agent {agent_name}")
 
 
 def _task_prompt(regatta: Regatta, vessel: Vessel, task: Task) -> str:
