@@ -8,6 +8,9 @@ against controlled baselines across public benchmarks and custom evals. Work
 that expands harnesses, rigging, runtime trust, course selection, and evaluator
 adapters should take priority over polishing a single Pi+fff smoke path.
 
+For the current audit-backed implementation backlog, see
+[Next phase opportunities](next-phase-opportunities.md).
+
 ## 1. Generalized Benchmark Surface
 
 Goal: YACHT can run more than one hardcoded SWE-bench Lite smoke task and can

@@ -1,0 +1,155 @@
+# Next Phase Opportunities
+
+This note tracks the audit findings after the codebase architecture cleanup.
+The shared direction is to broaden what YACHT can credibly evaluate, rather
+than keep polishing the first Pi+fff/SWE-bench proof path.
+
+The opportunities below are all worth doing. The recommended order is based on
+which work most directly reduces hardcoded assumptions about Pi, fff,
+SWE-bench Lite, and the current command graph.
+
+## Recommended Order
+
+1. Make smoke workflows harness-configured.
+2. Deepen rigging execution behind runtime capabilities.
+3. Split course adapters from evaluator adapters.
+4. Make the logbook the run-state interface.
+5. Consolidate schema validation around the public schema files.
+
+## 1. Harness-Configured Smoke Workflows
+
+Current state:
+
+- Real benchmark eval selects the configured harness from runtime surface
+  metadata.
+- Real smoke eval and real smoke runbook select the configured harness from the
+  regatta.
+- The explicit `pi-smoke-eval` command remains Pi-specific.
+
+Opportunity:
+
+Move smoke workflows onto the same configured-harness path as real benchmark
+eval. Pi should remain one adapter, not the implicit workflow architecture.
+
+Likely first slice:
+
+- Done: update `real-smoke-eval` and related runbook code to resolve the
+  configured harness from the regatta.
+- Done: add coverage proving the local-smoke example works without Pi through
+  the generic real smoke path.
+- Next: decide whether to keep `pi-smoke-eval` as a compatibility command,
+  rename it as a focused adapter command, or remove it after downstream docs no
+  longer need it.
+
+Why it matters:
+
+This directly supports adding another real harness adapter and keeps task
+attempt artifacts comparable across harnesses.
+
+## 2. Rigging Execution and Runtime Capabilities
+
+Current state:
+
+- Rigging config can describe typed install steps.
+- Runtime execution only supports `preinstalled` and `agent-extension`.
+- Unsupported capabilities are correctly blocked before task tokens are spent.
+
+Opportunity:
+
+Create a deeper rigging setup module that turns typed install steps into
+runtime-specific executable or preflight-only plans.
+
+Likely first slice:
+
+- Move rigging install planning out of runtime backend preparation.
+- Model each supported method explicitly: agent extension, CLI command,
+  MCP server, skill, prompt pack, config file, env var, setup command,
+  preinstalled tool.
+- Keep unsupported methods visible in dry-run and preflight evidence.
+
+Why it matters:
+
+YACHT's config already promises richer rigging than it can execute. This makes
+tools, prompts, skills, MCP servers, and setup commands first-class surfaces
+for comparison.
+
+## 3. Course and Evaluator Adapter Split
+
+Current state:
+
+- `BenchmarkAdapter` mixes task context, workspace materialization, launcher
+  commands, candidate extraction, native grading, and normalized report output.
+- SWE-bench and custom eval both fit through this shape, but custom eval is not
+  truly a native benchmark harness in the same sense as SWE-bench.
+
+Opportunity:
+
+Split adapter responsibilities so courses, candidate extraction, native
+launching, grading, and evaluator normalization can evolve independently.
+
+Likely first slice:
+
+- Define the smallest course interface needed by task attempts: prompt
+  instructions, task context, and workspace materialization.
+- Define a separate evaluator interface for converting produced attempts into
+  normalized grading observations.
+- Keep SWE-bench native launch/grading as one evaluator implementation.
+
+Why it matters:
+
+This makes tiny repo-local evals, advisory evaluators, human-review evaluators,
+and other benchmark families easier to add without forcing everything into a
+SWE-bench-shaped module.
+
+## 4. Logbook Run-State Interface
+
+Current state:
+
+- Reports and workflows infer run state from scattered artifact paths.
+- The roadmap calls for a run index that lists status, config, comparisons,
+  vessels, artifact paths, timestamps, and final report paths.
+
+Opportunity:
+
+Make `yacht.logbook` own a run index artifact and the interface for reading
+run state.
+
+Likely first slice:
+
+- Add a run index artifact written by real benchmark and smoke workflows.
+- Teach `benchmark-status` to prefer the index when present while preserving
+  existing artifact detection.
+- Include config path, logbook path, comparisons, vessels, stages, generated
+  reports, and relevant artifact paths.
+
+Why it matters:
+
+This improves locality for status/report behavior and makes logbooks easier for
+external tools to index, compare, publish, or sign later.
+
+## 5. Schema Validation Consolidation
+
+Current state:
+
+- Public schema files live under `schemas/`.
+- A large handwritten Python validator in `yacht.contracts` mirrors much of
+  that contract.
+
+Opportunity:
+
+Make the public schema files the primary structural contract and keep Python
+validation focused on semantic checks that JSON Schema cannot express cleanly.
+
+Likely first slice:
+
+- Inventory which artifact schemas are already represented in `schemas/` but
+  still validated only or mostly by handwritten Python.
+- Introduce schema-file loading for one low-risk artifact family.
+- Preserve current `ConfigError` and `SchemaValidationError` ergonomics for
+  callers.
+
+Why it matters:
+
+YACHT's durable contract is language-neutral. Reducing drift between schema
+files and Python validators improves ecosystem readiness and lowers the cost of
+adding new artifacts.

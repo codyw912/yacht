@@ -1230,13 +1230,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "real-smoke-eval":
         try:
+            agent_name = configured_harness_name(
+                args.config,
+                command_label="real smoke eval commands",
+            )
             summary = run_real_smoke_eval(
                 config_path=args.config,
                 logbook_dir=args.logbook,
                 workspace_path=args.workspace,
                 secret_values=parse_secret_values(args.secret),
-                agent_prompt_runner_factory=agent_prompt_runner_factory("pi"),
-                task_agent=task_agent("pi"),
+                agent_prompt_runner_factory=agent_prompt_runner_factory(agent_name),
+                task_agent=task_agent(agent_name),
+                agent_name=agent_name,
             )
         except ConfigError as error:
             print(f"error: invalid regatta config: {error}", file=sys.stderr)
