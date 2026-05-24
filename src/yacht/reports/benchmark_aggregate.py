@@ -7,7 +7,7 @@ from typing import Any
 
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.domain.model import ConfigError
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     SchemaValidationError,
     validate_benchmark_scorecard_document,
     validate_task_attempt_scorecard_document,

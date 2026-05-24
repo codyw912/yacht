@@ -11,7 +11,7 @@ from yacht.courses.handoff import COURSE_HANDOFF_PATH
 from yacht.preflight.gate import PreflightGate, preflight_gate
 from yacht.domain.model import ConfigError
 from yacht.runtimes.snapshot_gate import RuntimeSnapshotGate, runtime_snapshot_gate
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
     SchemaValidationError,
     validate_benchmark_launcher_handoff_document,

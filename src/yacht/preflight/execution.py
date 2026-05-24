@@ -18,7 +18,7 @@ from yacht.domain.model import (
 )
 from yacht.logbook.io import write_json
 from yacht.runtimes.process import subprocess_env
-from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
+from yacht.contracts.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
 MACHINE_CHECK_KINDS = {"command", "env", "path-isolation", "runtime-capability"}

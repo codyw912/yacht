@@ -6,9 +6,9 @@ from typing import Any
 
 from yacht.workflows.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
 from yacht.domain.model import ConfigError
-from yacht.schemas import SchemaValidationError
-from yacht.schemas import validate_benchmark_execution_plan_document
-from yacht.schemas import validate_benchmark_readiness_summary_document
+from yacht.contracts.schemas import SchemaValidationError
+from yacht.contracts.schemas import validate_benchmark_execution_plan_document
+from yacht.contracts.schemas import validate_benchmark_readiness_summary_document
 
 
 def render_benchmark_readiness_report(

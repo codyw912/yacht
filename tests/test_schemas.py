@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from yacht.regatta import ConfigError, run_regatta
-from yacht.schemas import (
+from yacht.domain.model import ConfigError, run_regatta
+from yacht.contracts.schemas import (
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
     BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
     BENCHMARK_LAUNCH_RESULT_SCHEMA,

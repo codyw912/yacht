@@ -27,7 +27,7 @@ from yacht.workflows.benchmark_launcher_handoff import (
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
 from yacht.courses.handoff import write_course_handoff
-from yacht.next_steps import command_step
+from yacht.reports.next_steps import command_step
 from yacht.reports.preflight_evidence import PREFLIGHT_EVIDENCE_REPORT_PATH
 from yacht.reports.preflight_evidence import write_preflight_evidence_report
 from yacht.preflight.runner import AgentPromptRunnerFactory, run_preflight
@@ -35,7 +35,7 @@ from yacht.workflows.readiness_gate import evaluate_readiness_gate
 from yacht.domain.model import ConfigError, load_regatta
 from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.runtimes.instances import write_runtime_instances_plan
-from yacht.surface_metadata import regatta_surfaces_to_json
+from yacht.reports.surface_metadata import regatta_surfaces_to_json
 from yacht.workflows.task_attempt_runner import TaskAgent, run_task_attempts
 from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 from yacht.reports.task_attempt_scorecard import write_task_attempt_scorecard

@@ -7,7 +7,7 @@ from typing import Any
 
 from yacht.domain.model import ConfigError
 from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
-from yacht.schemas import SchemaValidationError, validate_runtime_instances_document
+from yacht.contracts.schemas import SchemaValidationError, validate_runtime_instances_document
 
 
 @dataclass(frozen=True)

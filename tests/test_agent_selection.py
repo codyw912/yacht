@@ -6,9 +6,9 @@ from io import StringIO
 from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
-from yacht.agent_selection import configured_harness_name
+from yacht.config.agent_selection import configured_harness_name
 from yacht.cli import main
-from yacht.regatta import ConfigError
+from yacht.domain.model import ConfigError
 
 
 class AgentSelectionTests(unittest.TestCase):

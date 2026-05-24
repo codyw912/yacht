@@ -5,9 +5,9 @@ from pathlib import Path
 
 from tests.test_benchmark_readiness_report import _mark_baseline_ready
 from tests.test_benchmark_readiness_report import _write_execution_plan
-from yacht.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
-from yacht.readiness_gate import evaluate_readiness_gate
-from yacht.regatta import ConfigError
+from yacht.workflows.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
+from yacht.workflows.readiness_gate import evaluate_readiness_gate
+from yacht.domain.model import ConfigError
 
 
 class ReadinessGateTests(unittest.TestCase):

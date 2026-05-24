@@ -5,13 +5,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     SCORECARD_SCHEMA,
     WAKE_SCHEMA,
     validate_scorecard_document,
     validate_wake_document,
 )
-from yacht.tool_capabilities import ToolCapability
+from yacht.runtimes.tool_capabilities import ToolCapability
 
 ExpectationValue = str | bool | int | float
 

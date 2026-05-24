@@ -8,9 +8,9 @@ from pathlib import Path
 
 from tests.preflight_artifacts import write_preflight_artifact
 from yacht.cli import main
-from yacht.course_handoff import write_course_handoff
-from yacht.preflight_evidence_report import render_preflight_evidence_report
-from yacht.preflight_evidence_report import write_preflight_evidence_report
+from yacht.courses.handoff import write_course_handoff
+from yacht.reports.preflight_evidence import render_preflight_evidence_report
+from yacht.reports.preflight_evidence import write_preflight_evidence_report
 
 
 class PreflightEvidenceReportTests(unittest.TestCase):

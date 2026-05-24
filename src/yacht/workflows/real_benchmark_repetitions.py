@@ -11,13 +11,13 @@ from yacht.reports.benchmark_aggregate import render_benchmark_aggregate_documen
 from yacht.workflows.benchmark_launch import CommandRunner
 from yacht.workflows.benchmark_launcher_handoff import DEFAULT_SWEBENCH_PYTHON_EXECUTABLE
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
-from yacht.next_steps import command_step
+from yacht.reports.next_steps import command_step
 from yacht.preflight.runner import AgentPromptRunnerFactory
 from yacht.workflows.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
 from yacht.workflows.real_benchmark_eval import ProgressReporter
 from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
 from yacht.domain.model import ConfigError, load_regatta
-from yacht.surface_metadata import regatta_surfaces_to_json
+from yacht.reports.surface_metadata import regatta_surfaces_to_json
 from yacht.workflows.task_attempt_runner import TaskAgent
 
 

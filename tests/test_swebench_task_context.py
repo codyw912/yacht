@@ -5,13 +5,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from yacht.regatta import ConfigError, CourseAdapter, Metrics, Task, load_regatta
-from yacht.swebench_task_context import (
+from yacht.domain.model import ConfigError, CourseAdapter, Metrics, Task, load_regatta
+from yacht.courses.swe_bench.task_context import (
     materialize_swe_bench_workspace,
     task_with_swe_bench_context,
 )
-from yacht.task_attempt_runner import run_task_attempts
-from yacht.task_attempts import AgentTaskResult
+from yacht.workflows.task_attempt_runner import run_task_attempts
+from yacht.workflows.task_attempts import AgentTaskResult
 
 
 class SweBenchTaskContextTests(unittest.TestCase):

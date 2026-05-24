@@ -12,7 +12,7 @@ from yacht.workflows.benchmark_grading_collection import BENCHMARK_GRADING_COLLE
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.domain.model import ConfigError
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     SchemaValidationError,
     validate_benchmark_scorecard_document,
     validate_task_attempt_document,

@@ -2,8 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from yacht.regatta import ConfigError, load_regatta
-from yacht.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
+from yacht.domain.model import ConfigError, load_regatta
+from yacht.contracts.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
 PI_FFF_TYPED_INSTALL = """[[riggings.pi-fff.install]]

@@ -13,7 +13,7 @@ from yacht.domain.model import (
     CourseAdapter,
     Task,
 )
-from yacht.schemas import COURSE_HANDOFF_SCHEMA, validate_course_handoff_document
+from yacht.contracts.schemas import COURSE_HANDOFF_SCHEMA, validate_course_handoff_document
 
 
 COURSE_HANDOFF_PATH = Path("course-handoff.json")

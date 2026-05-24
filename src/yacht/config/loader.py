@@ -21,8 +21,8 @@ from yacht.domain.model import (
     Task,
     Vessel,
 )
-from yacht.schemas import SchemaValidationError, validate_regatta_document
-from yacht.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES, ToolCapability
+from yacht.contracts.schemas import SchemaValidationError, validate_regatta_document
+from yacht.runtimes.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES, ToolCapability
 
 
 def load_regatta(config_path: Path) -> Regatta:

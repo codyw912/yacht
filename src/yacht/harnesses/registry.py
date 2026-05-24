@@ -5,7 +5,11 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 from yacht.harnesses.local_smoke import LocalSmokeAgentAdapter
-from yacht.harnesses.pi import PiAdapter
+from yacht.harnesses.pi import (
+    PiAdapter,
+    SubprocessPiPromptLauncher,
+    SubprocessPiTaskLauncher,
+)
 from yacht.preflight import AgentPromptRunner
 from yacht.domain.model import ConfigError
 from yacht.domain.model import RuntimeInstance
@@ -91,8 +95,6 @@ def task_agent(name: str) -> TaskAgent:
 
 
 def _pi_prompt_runner_factory() -> AgentPromptRunnerFactory:
-    from yacht.harness_adapters import SubprocessPiPromptLauncher
-
     adapter = PiAdapter(launcher=SubprocessPiPromptLauncher())
     return lambda instance, transcript_dir: adapter.agent_prompt_runner(
         instance=instance,
@@ -101,8 +103,6 @@ def _pi_prompt_runner_factory() -> AgentPromptRunnerFactory:
 
 
 def _pi_task_agent() -> TaskAgent:
-    from yacht.harness_adapters import SubprocessPiTaskLauncher
-
     return PiAdapter(task_launcher=SubprocessPiTaskLauncher())
 
 

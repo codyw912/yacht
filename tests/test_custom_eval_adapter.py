@@ -4,22 +4,22 @@ import unittest
 from pathlib import Path
 
 from tests.preflight_artifacts import write_preflight_artifact
-from yacht.benchmark_grading_collection import collect_benchmark_grading_reports
-from yacht.benchmark_launch import write_benchmark_launch_result
-from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
-from yacht.benchmark_report import render_benchmark_report
-from yacht.benchmark_scorecard import write_benchmark_scorecard
-from yacht.course_handoff import write_course_handoff
-from yacht.custom_eval_harness import main as custom_eval_harness_main
-from yacht.custom_eval_predictions_from_attempts import (
+from yacht.workflows.benchmark_grading_collection import collect_benchmark_grading_reports
+from yacht.workflows.benchmark_launch import write_benchmark_launch_result
+from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
+from yacht.reports.benchmark_report import render_benchmark_report
+from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
+from yacht.courses.handoff import write_course_handoff
+from yacht.courses.custom_eval.harness import main as custom_eval_harness_main
+from yacht.courses.custom_eval.predictions_from_attempts import (
     write_custom_eval_predictions_from_attempts,
 )
-from yacht.preflight_evidence_report import write_preflight_evidence_report
-from yacht.real_benchmark_eval import run_real_benchmark_eval
-from yacht.regatta import ConfigError, Metrics, load_regatta
-from yacht.runtime_instances import write_runtime_instances_plan
-from yacht.task_attempts import AgentTaskResult
-from yacht.task_attempt_scorecard import write_task_attempt_scorecard
+from yacht.reports.preflight_evidence import write_preflight_evidence_report
+from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
+from yacht.domain.model import ConfigError, Metrics, load_regatta
+from yacht.runtimes.instances import write_runtime_instances_plan
+from yacht.workflows.task_attempts import AgentTaskResult
+from yacht.reports.task_attempt_scorecard import write_task_attempt_scorecard
 
 
 CONFIG = """
@@ -231,7 +231,7 @@ tasks = [
             self.assertEqual(launcher["status"], "ready-to-launch")
             command = launcher["comparisons"][0]["vessels"][0]["command"]
             self.assertEqual(command[:4], ["uv", "run", "python", "-m"])
-            self.assertEqual(command[4], "yacht.custom_eval_harness")
+            self.assertEqual(command[4], "yacht.courses.custom_eval.harness")
 
             launch = write_benchmark_launch_result(logbook_dir=logbook_dir)
             grading = collect_benchmark_grading_reports(

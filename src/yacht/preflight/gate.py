@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.domain.model import ConfigError
-from yacht.schemas import SchemaValidationError, validate_preflight_document
+from yacht.contracts.schemas import SchemaValidationError, validate_preflight_document
 
 
 @dataclass(frozen=True)

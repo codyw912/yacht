@@ -13,7 +13,7 @@ from yacht.domain.model import (
     Vessel,
     load_regatta,
 )
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     REAL_SMOKE_RUNBOOK_SCHEMA,
     validate_real_smoke_runbook_document,
 )

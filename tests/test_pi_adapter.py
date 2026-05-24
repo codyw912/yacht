@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
-from yacht.pi_adapter import (
+from yacht.harnesses.pi import (
     PiAdapter,
     PiAdapterNotConfigured,
     PiPromptRequest,
@@ -17,10 +17,10 @@ from yacht.pi_adapter import (
     _run_pi_task_subprocess,
 )
 from yacht.preflight import AgentPromptResult, CommandResult, execute_preflight
-from yacht.regatta import ConfigError, Metrics, load_regatta
-from yacht.runtime_backend import HostNixRuntimeBackend, SetupProcessResult
-from yacht.task_attempt_runner import run_task_attempts
-from yacht.task_attempts import AgentTaskResult
+from yacht.domain.model import ConfigError, Metrics, load_regatta
+from yacht.runtimes.backend import HostNixRuntimeBackend, SetupProcessResult
+from yacht.workflows.task_attempt_runner import run_task_attempts
+from yacht.workflows.task_attempts import AgentTaskResult
 
 
 class PiAdapterTests(unittest.TestCase):
@@ -164,11 +164,11 @@ class PiAdapterTests(unittest.TestCase):
                 )
 
             with patch(
-                "yacht.benchmark_adapters.SweBenchAdapter.task_with_context",
+                "yacht.courses.registry.SweBenchAdapter.task_with_context",
                 autospec=True,
                 side_effect=lambda self, *, task, adapter: task,
             ), patch(
-                "yacht.benchmark_adapters.SweBenchAdapter.workspace_for_attempt",
+                "yacht.courses.registry.SweBenchAdapter.workspace_for_attempt",
                 autospec=True,
                 return_value=workspace_path,
             ):
@@ -273,7 +273,7 @@ class PiAdapterTests(unittest.TestCase):
                 )
 
             with patch(
-                "yacht.harness_adapters.SubprocessPiTaskLauncher",
+                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=runner),
             ):
                 summary = run_task_attempts(
@@ -483,7 +483,7 @@ class PiAdapterTests(unittest.TestCase):
             )
 
             with patch(
-                "yacht.pi_adapter.time.perf_counter",
+                "yacht.harnesses.pi.time.perf_counter",
                 side_effect=(100.0, 102.3456),
             ):
                 result = SubprocessPiTaskLauncher(runner=runner)(request)
@@ -652,7 +652,7 @@ class PiAdapterTests(unittest.TestCase):
                 transcript_path=root / "transcripts" / "pi-task.json",
             )
 
-            with patch("yacht.pi_adapter.subprocess.run", side_effect=run):
+            with patch("yacht.harnesses.pi.subprocess.run", side_effect=run):
                 result = _run_pi_task_subprocess(request)
 
             self.assertEqual(result.exit_code, 0)
@@ -692,7 +692,7 @@ class PiAdapterTests(unittest.TestCase):
                 transcript_path=root / "transcripts" / "pi-task.json",
             )
 
-            with patch("yacht.pi_adapter.subprocess.run", side_effect=run):
+            with patch("yacht.harnesses.pi.subprocess.run", side_effect=run):
                 result = _run_pi_task_subprocess(request)
 
             self.assertEqual(result.exit_code, 0)

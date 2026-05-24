@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 from yacht.workflows.benchmark_launcher_handoff import BENCHMARK_LAUNCHER_HANDOFF_PATH
-from yacht.next_steps import command_step
+from yacht.reports.next_steps import command_step
 from yacht.preflight import CommandResult
 from yacht.domain.model import ConfigError
-from yacht.schemas import BENCHMARK_LAUNCH_RESULT_SCHEMA
-from yacht.schemas import validate_benchmark_launch_result_document
+from yacht.contracts.schemas import BENCHMARK_LAUNCH_RESULT_SCHEMA
+from yacht.contracts.schemas import validate_benchmark_launch_result_document
 
 
 BENCHMARK_LAUNCH_RESULT_PATH = Path("benchmark-launch-result.json")

@@ -18,12 +18,12 @@ from yacht.domain.model import (
     load_regatta,
 )
 from yacht.runtimes.capabilities import rigging_capabilities_to_json
-from yacht.schemas import RUNTIME_INSTANCES_SCHEMA
-from yacht.schemas import validate_runtime_instances_document
-from yacht.surface_metadata import harness_for_runtime
-from yacht.surface_metadata import regatta_surfaces_to_json
-from yacht.surface_metadata import vessel_surfaces_to_json
-from yacht.tool_capabilities import tool_capabilities_to_json
+from yacht.contracts.schemas import RUNTIME_INSTANCES_SCHEMA
+from yacht.contracts.schemas import validate_runtime_instances_document
+from yacht.reports.surface_metadata import harness_for_runtime
+from yacht.reports.surface_metadata import regatta_surfaces_to_json
+from yacht.reports.surface_metadata import vessel_surfaces_to_json
+from yacht.runtimes.tool_capabilities import tool_capabilities_to_json
 
 
 RUNTIME_INSTANCES_PLAN_PATH = Path("runtime-instances.json")

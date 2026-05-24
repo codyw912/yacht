@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from yacht.domain.model import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
-from yacht.surface_metadata import harness_for_runtime
-from yacht.tool_capabilities import ToolCapability, tool_capabilities_to_json
+from yacht.reports.surface_metadata import harness_for_runtime
+from yacht.runtimes.tool_capabilities import ToolCapability, tool_capabilities_to_json
 
 
 SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {

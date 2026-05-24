@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.domain.model import ConfigError
-from yacht.schemas import SchemaValidationError, validate_task_attempt_document
+from yacht.contracts.schemas import SchemaValidationError, validate_task_attempt_document
 from yacht.courses.swe_bench.predictions import write_swe_bench_prediction_records
 
 

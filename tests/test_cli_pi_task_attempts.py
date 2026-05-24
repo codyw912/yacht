@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
 from yacht.cli import main
-from yacht.pi_adapter import PiTaskRequest, SubprocessPiTaskLauncher
+from yacht.harnesses.pi import PiTaskRequest, SubprocessPiTaskLauncher
 from yacht.preflight import CommandResult
 
 
@@ -34,7 +34,7 @@ class CliPiTaskAttemptTests(unittest.TestCase):
 
             stdout = StringIO()
             with patch(
-                "yacht.harness_adapters.SubprocessPiTaskLauncher",
+                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=runner),
             ), redirect_stdout(stdout):
                 exit_code = main(
@@ -131,7 +131,7 @@ class CliPiTaskAttemptTests(unittest.TestCase):
 
             stdout = StringIO()
             with patch(
-                "yacht.harness_adapters.SubprocessPiTaskLauncher",
+                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
                 return_value=SubprocessPiTaskLauncher(runner=runner),
             ), redirect_stdout(stdout):
                 exit_code = main(

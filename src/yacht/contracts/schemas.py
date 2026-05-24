@@ -4,7 +4,7 @@ from typing import Any
 
 from yacht.courses.registry import supported_benchmark_adapter_kinds
 from yacht.courses.registry import supported_course_adapter_harnesses
-from yacht.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES
+from yacht.runtimes.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES
 
 
 REGATTA_SCHEMA = "yacht.regatta.v1"

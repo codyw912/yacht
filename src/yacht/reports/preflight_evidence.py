@@ -6,7 +6,7 @@ from typing import Any
 
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
 from yacht.domain.model import ConfigError
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
     SchemaValidationError,
     validate_preflight_document,

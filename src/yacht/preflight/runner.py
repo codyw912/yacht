@@ -30,7 +30,7 @@ from yacht.domain.model import (
 )
 from yacht.runtimes.capabilities import rigging_capabilities_to_json
 from yacht.runtimes.backend import RuntimePreparationError, runtime_backend_for_recipe
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     PREFLIGHT_SUMMARY_SCHEMA,
     validate_preflight_document,
     validate_preflight_summary_document,

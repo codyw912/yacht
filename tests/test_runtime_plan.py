@@ -9,11 +9,11 @@ from pathlib import Path
 from tests.fixtures import REGATTA_CONFIG
 from tests.test_provisioning import CONTAINER_PI_CONFIG, PI_WITH_FFF_CONFIG
 from yacht.cli import main
-from yacht.preflight_runner import build_preflight_execution_plan
-from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
-from yacht.runtime_instances import build_runtime_instances_plan
-from yacht.runtime_instances import write_runtime_instances_plan
-from yacht.runtime_plan import build_runtime_plan
+from yacht.preflight.runner import build_preflight_execution_plan
+from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
+from yacht.runtimes.instances import build_runtime_instances_plan
+from yacht.runtimes.instances import write_runtime_instances_plan
+from yacht.runtimes.plan import build_runtime_plan
 
 
 class RuntimePlanTests(unittest.TestCase):

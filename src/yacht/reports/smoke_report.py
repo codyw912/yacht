@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.domain.model import ConfigError
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     SchemaValidationError,
     validate_smoke_readiness_report_document,
     validate_task_attempt_scorecard_document,

@@ -7,7 +7,7 @@ from typing import Any
 
 from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
-from yacht.next_steps import command_step
+from yacht.reports.next_steps import command_step
 from yacht.workflows.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
 from yacht.workflows.real_benchmark_repetitions import REAL_BENCHMARK_REPETITIONS_PATH
 from yacht.domain.model import ConfigError

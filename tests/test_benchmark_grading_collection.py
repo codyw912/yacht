@@ -9,9 +9,9 @@ from tests.benchmark_fixtures import PI_FFF_CONFIG_PATH
 from tests.benchmark_fixtures import write_runtime_snapshot
 from tests.benchmark_fixtures import write_vessel_candidate
 from tests.benchmark_fixtures import write_vessel_preflight
-from yacht.benchmark_grading_collection import collect_benchmark_grading_reports
-from yacht.benchmark_launch import write_benchmark_launch_result
-from yacht.benchmark_launcher_handoff import write_benchmark_launcher_handoff
+from yacht.workflows.benchmark_grading_collection import collect_benchmark_grading_reports
+from yacht.workflows.benchmark_launch import write_benchmark_launch_result
+from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
 from yacht.preflight import CommandResult
 

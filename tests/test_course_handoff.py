@@ -9,9 +9,9 @@ from pathlib import Path
 from tests.fixtures import REGATTA_CONFIG
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.cli import main
-from yacht.course_handoff import write_course_handoff
-from yacht.regatta import ConfigError
-from yacht.schemas import COURSE_HANDOFF_SCHEMA
+from yacht.courses.handoff import write_course_handoff
+from yacht.domain.model import ConfigError
+from yacht.contracts.schemas import COURSE_HANDOFF_SCHEMA
 
 
 class CourseHandoffTests(unittest.TestCase):

@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from yacht.runtime_process import subprocess_env
+from yacht.runtimes.process import subprocess_env
 
 
 class RuntimeProcessTests(unittest.TestCase):

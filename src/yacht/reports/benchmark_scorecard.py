@@ -6,10 +6,10 @@ from typing import Any
 
 from yacht.courses.registry import benchmark_adapter
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
-from yacht.next_steps import command_step
+from yacht.reports.next_steps import command_step
 from yacht.reports.preflight_evidence import build_preflight_evidence_report
 from yacht.domain.model import ConfigError
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     BENCHMARK_SCORECARD_SCHEMA,
     validate_benchmark_scorecard_document,
 )

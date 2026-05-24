@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 from tests.test_benchmark_aggregate import _write_logbook
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
-from yacht.benchmark_status import render_benchmark_status
+from yacht.reports.benchmark_status import render_benchmark_status
 from yacht.cli import main
-from yacht.real_benchmark_repetitions import run_real_benchmark_repetitions
-from yacht.regatta import ConfigError
+from yacht.workflows.real_benchmark_repetitions import run_real_benchmark_repetitions
+from yacht.domain.model import ConfigError
 
 
 class RealBenchmarkRepetitionsTests(unittest.TestCase):

@@ -14,7 +14,7 @@ from yacht.domain.model import (
     Task,
     Vessel,
 )
-from yacht.schemas import TASK_ATTEMPT_SCHEMA, validate_task_attempt_document
+from yacht.contracts.schemas import TASK_ATTEMPT_SCHEMA, validate_task_attempt_document
 
 
 @dataclass(frozen=True)

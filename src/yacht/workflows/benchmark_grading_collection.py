@@ -7,9 +7,9 @@ from typing import Any
 from yacht.courses.registry import benchmark_adapter
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.workflows.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
-from yacht.next_steps import command_step
+from yacht.reports.next_steps import command_step
 from yacht.domain.model import ConfigError
-from yacht.schemas import SchemaValidationError, validate_benchmark_launch_result_document
+from yacht.contracts.schemas import SchemaValidationError, validate_benchmark_launch_result_document
 
 
 BENCHMARK_GRADING_COLLECTION_PATH = Path("benchmark-grading-collection.json")

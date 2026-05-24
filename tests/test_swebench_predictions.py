@@ -8,8 +8,8 @@ from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.cli import main
-from yacht.regatta import ConfigError
-from yacht.swebench_predictions import write_swe_bench_predictions
+from yacht.domain.model import ConfigError
+from yacht.courses.swe_bench.predictions import write_swe_bench_predictions
 
 
 VALID_PREDICTIONS = [

@@ -26,11 +26,11 @@ from yacht.domain.model import (
 )
 from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.runtimes.capabilities import rigging_capabilities_to_json
-from yacht.schemas import (
+from yacht.contracts.schemas import (
     REAL_BENCHMARK_RUNBOOK_SCHEMA,
     validate_real_benchmark_runbook_document,
 )
-from yacht.surface_metadata import regatta_surfaces_to_json
+from yacht.reports.surface_metadata import regatta_surfaces_to_json
 from yacht.courses.swe_bench.artifacts import candidate_patches_path
 from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 

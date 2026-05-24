@@ -5,10 +5,10 @@ from pathlib import Path
 
 from tests.benchmark_fixtures import write_pi_fff_config
 from tests.benchmark_fixtures import write_runtime_snapshot
-from yacht.regatta import ConfigError
-from yacht.runtime_instances import RUNTIME_INSTANCES_PLAN_PATH
-from yacht.runtime_snapshot_gate import RuntimeSnapshotGate
-from yacht.runtime_snapshot_gate import runtime_snapshot_gate
+from yacht.domain.model import ConfigError
+from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
+from yacht.runtimes.snapshot_gate import RuntimeSnapshotGate
+from yacht.runtimes.snapshot_gate import runtime_snapshot_gate
 
 
 class RuntimeSnapshotGateTests(unittest.TestCase):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from yacht.domain.model import ConfigError, load_regatta
-from yacht.surface_metadata import regatta_surfaces_to_json
+from yacht.reports.surface_metadata import regatta_surfaces_to_json
 
 
 def configured_harness_name(config_path: Path) -> str:

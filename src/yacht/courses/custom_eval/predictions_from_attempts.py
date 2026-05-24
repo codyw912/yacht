@@ -6,7 +6,7 @@ from typing import Any
 
 from yacht.courses.handoff import COURSE_HANDOFF_PATH, build_course_handoff
 from yacht.domain.model import ConfigError
-from yacht.schemas import SchemaValidationError, validate_task_attempt_document
+from yacht.contracts.schemas import SchemaValidationError, validate_task_attempt_document
 from yacht.courses.swe_bench.artifacts import candidate_patches_path, validate_handoff_vessel
 
 

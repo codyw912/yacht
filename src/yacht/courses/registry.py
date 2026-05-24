@@ -270,7 +270,7 @@ class CustomEvalAdapter:
             "run",
             "python",
             "-m",
-            "yacht.custom_eval_harness",
+            "yacht.courses.custom_eval.harness",
             "--candidate-records",
             str(candidate_path),
             "--report-dir",

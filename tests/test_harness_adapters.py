@@ -1,14 +1,14 @@
 import unittest
 
-from yacht.harness_adapters import agent_prompt_runner_factory
-from yacht.harness_adapters import harness_adapter
-from yacht.harness_adapters import supported_agent_preflight_names
-from yacht.harness_adapters import supported_harness_names
-from yacht.harness_adapters import supported_task_attempt_names
-from yacht.harness_adapters import task_agent
-from yacht.local_smoke_adapter import LocalSmokeAgentAdapter
-from yacht.pi_adapter import PiAdapter
-from yacht.regatta import ConfigError
+from yacht.harnesses.registry import agent_prompt_runner_factory
+from yacht.harnesses.registry import harness_adapter
+from yacht.harnesses.registry import supported_agent_preflight_names
+from yacht.harnesses.registry import supported_harness_names
+from yacht.harnesses.registry import supported_task_attempt_names
+from yacht.harnesses.registry import task_agent
+from yacht.harnesses.local_smoke import LocalSmokeAgentAdapter
+from yacht.harnesses.pi import PiAdapter
+from yacht.domain.model import ConfigError
 
 
 class HarnessAdapterRegistryTests(unittest.TestCase):

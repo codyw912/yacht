@@ -5,6 +5,8 @@ YACHT is organized around its extension seams:
 - `yacht.domain` contains the core concepts: regattas, courses, vessels,
   runtimes, rigging, preflight checks, task attempts, wakes, and scorecards.
 - `yacht.config` loads and expands regatta configuration into domain objects.
+- `yacht.contracts` contains language-neutral schema constants and validators
+  for persisted configuration and logbook artifacts.
 - `yacht.runtimes` resolves and prepares runtime adapters such as `host-nix`
   and `container`.
 - `yacht.harnesses` contains agent harness adapters such as Pi and local smoke.
@@ -17,6 +19,5 @@ YACHT is organized around its extension seams:
   aggregate reports.
 - `yacht.logbook` owns shared logbook artifact I/O and common artifact paths.
 
-Top-level modules such as `yacht.regatta`, `yacht.pi_adapter`, and
-`yacht.benchmark_scorecard` are compatibility shims. New code should import
-from the package that owns the behavior.
+The package root is intentionally small: `yacht.cli` is the console entrypoint,
+and implementation code should live under the package that owns the behavior.

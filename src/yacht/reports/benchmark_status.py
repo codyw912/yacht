@@ -11,7 +11,7 @@ from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.workflows.benchmark_launcher_handoff import BENCHMARK_LAUNCHER_HANDOFF_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
-from yacht.next_steps import command_step
+from yacht.reports.next_steps import command_step
 from yacht.reports.preflight_evidence import PREFLIGHT_EVIDENCE_REPORT_PATH
 from yacht.workflows.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
 from yacht.workflows.real_benchmark_repetitions import REAL_BENCHMARK_REPETITIONS_PATH
