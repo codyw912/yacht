@@ -694,7 +694,8 @@ def _usage_lines(
     lines = [
         "",
         "Agent usage by vessel:",
-        "comparison | vessel | attempts | failed | tools | tokens | cost | duration",
+        "comparison | vessel | harnesses | attempts | failed | tools | tokens | "
+        "cost | duration",
     ]
     lines.extend(
         _usage_row(comparison, vessel)
@@ -736,9 +737,9 @@ def _usage_markdown_lines(
         "",
         "## Agent usage by vessel",
         "",
-        "| Comparison | Vessel | Attempts | Failed | Tools | Tokens | Cost | "
-        "Duration |",
-        "| --- | --- | ---: | ---: | --- | ---: | ---: | ---: |",
+        "| Comparison | Vessel | Harnesses | Attempts | Failed | Tools | Tokens | "
+        "Cost | Duration |",
+        "| --- | --- | --- | ---: | ---: | --- | ---: | ---: | ---: |",
     ]
     lines.extend(
         f"| {_usage_row(comparison, vessel)} |"
@@ -835,6 +836,7 @@ def _usage_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
     return (
         f"{comparison['name']} | "
         f"{vessel['name']} | "
+        f"{_harnesses(vessel)} | "
         f"{vessel['task_attempts']} | "
         f"{vessel['failed_attempts']} | "
         f"{_tool_counts(vessel['tool_call_counts'])} | "
@@ -1323,6 +1325,13 @@ def _tool_counts(value: dict[str, int]) -> str:
     if not value:
         return "-"
     return ", ".join(f"{tool}:{count}" for tool, count in value.items())
+
+
+def _harnesses(vessel: dict[str, Any]) -> str:
+    harnesses = vessel.get("harnesses")
+    if not isinstance(harnesses, list) or not harnesses:
+        return "-"
+    return ", ".join(str(harness) for harness in harnesses)
 
 
 def _cost(value: float) -> str:

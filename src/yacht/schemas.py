@@ -1124,6 +1124,8 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
         vessel.get("total_duration_seconds"),
         f"{path}.total_duration_seconds",
     )
+    if "harnesses" in vessel:
+        _require_string_list(vessel.get("harnesses"), f"{path}.harnesses")
     if "total_cost" in vessel:
         _require_non_negative_number(vessel.get("total_cost"), f"{path}.total_cost")
     if "tool_call_counts" in vessel:

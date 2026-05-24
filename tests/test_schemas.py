@@ -263,6 +263,7 @@ class SchemaTests(unittest.TestCase):
                             "completed_attempts": 1,
                             "failed_attempts": 0,
                             "success_rate": 1.0,
+                            "harnesses": ["local-smoke"],
                             "tool_call_count": 1,
                             "tool_call_counts": {"local-smoke": 1},
                             "total_tokens": 8,
