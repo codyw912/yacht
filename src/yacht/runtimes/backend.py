@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import subprocess
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Protocol
 
 from yacht.runtimes.container import ContainerRuntimeResolution
 from yacht.runtimes.container import ContainerRuntimeResolutionError
@@ -14,31 +12,23 @@ from yacht.runtimes.host_nix import resolve_host_nix_runtime
 from yacht.domain.model import (
     ConfigError,
     Regatta,
-    RiggingInstallStep,
     RuntimeInstance,
     RuntimeRecipe,
     RuntimeSetupResult,
     Vessel,
 )
-from yacht.runtimes.capabilities import unsupported_rigging_capability_reasons
-from yacht.runtimes.process import subprocess_env
+from yacht.runtimes.rigging_setup import (
+    RiggingSetupError,
+    SetupCommandRunner,
+    SetupProcessResult,
+    apply_rigging_setup,
+    plan_rigging_setup,
+    run_setup_command,
+)
 
 
 class RuntimePreparationError(ValueError):
     """Raised when a runtime instance cannot be prepared safely."""
-
-
-@dataclass(frozen=True)
-class SetupProcessResult:
-    exit_code: int
-    stdout: str
-    stderr: str
-
-
-SetupCommandRunner = Callable[
-    [tuple[str, ...], dict[str, str], Path],
-    SetupProcessResult,
-]
 
 
 class RuntimeBackend(Protocol):
@@ -64,7 +54,7 @@ def runtime_backend_for_recipe(runtime: RuntimeRecipe) -> RuntimeBackend:
 
 class HostNixRuntimeBackend:
     def __init__(self, setup_runner: SetupCommandRunner | None = None) -> None:
-        self._setup_runner = setup_runner or _run_setup_command
+        self._setup_runner = setup_runner or run_setup_command
 
     def prepare(
         self,
@@ -103,13 +93,13 @@ class HostNixRuntimeBackend:
             env=env,
             command_prefix=resolution.command_prefix,
             cleanup_paths=resolution.cleanup_paths,
-            setup_results=tuple(setup_results),
+            setup_results=setup_results,
         )
 
 
 class ContainerRuntimeBackend:
     def __init__(self, setup_runner: SetupCommandRunner | None = None) -> None:
-        self._setup_runner = setup_runner or _run_setup_command
+        self._setup_runner = setup_runner or run_setup_command
 
     def prepare(
         self,
@@ -148,7 +138,7 @@ class ContainerRuntimeBackend:
             env=env,
             command_prefix=resolution.command_prefix,
             cleanup_paths=resolution.cleanup_paths,
-            setup_results=tuple(setup_results),
+            setup_results=setup_results,
         )
 
 
@@ -170,74 +160,18 @@ def _apply_rigging_installs(
     resolution: HostNixRuntimeResolution | ContainerRuntimeResolution,
     env: dict[str, str],
     setup_runner: SetupCommandRunner,
-) -> list[RuntimeSetupResult]:
-    unsupported = unsupported_rigging_capability_reasons(
-        resolution.runtime,
-        resolution.riggings,
-    )
-    if unsupported:
-        raise RuntimePreparationError("; ".join(unsupported))
-    results = []
-    for rigging in resolution.riggings:
-        for step in rigging.install:
-            setup_command = _setup_command(
-                resolution.command,
-                step,
-            )
-            if setup_command is None:
-                continue
-            argv = resolution.command_prefix + setup_command
-            setup_result = setup_runner(argv, env, resolution.workspace_path)
-            result = RuntimeSetupResult(
-                origin="rigging",
-                origin_name=rigging.name,
-                action="install",
-                target=step.target,
-                argv=argv,
-                exit_code=setup_result.exit_code,
-                stdout=setup_result.stdout,
-                stderr=setup_result.stderr,
-            )
-            results.append(result)
-            if result.exit_code != 0:
-                raise RuntimePreparationError(
-                    "failed to install rigging "
-                    f"{rigging.name} target {step.target}: {result.stderr.strip()}"
-                )
-    return results
-
-
-def _setup_command(
-    command: tuple[str, ...],
-    step: RiggingInstallStep,
-) -> tuple[str, ...] | None:
-    method = step.method
-    if method == "preinstalled":
-        return None
-    if method != "agent-extension":
-        raise RuntimePreparationError(
-            f"rigging install method {method} is not executable yet"
+) -> tuple[RuntimeSetupResult, ...]:
+    try:
+        plan = plan_rigging_setup(
+            runtime=resolution.runtime,
+            riggings=resolution.riggings,
+            command_prefix=resolution.command_prefix,
         )
-    if not command:
-        raise RuntimePreparationError("runtime command must not be empty")
-    return (command[0], "install", step.target)
-
-
-def _run_setup_command(
-    argv: tuple[str, ...],
-    env: dict[str, str],
-    cwd: Path,
-) -> SetupProcessResult:
-    completed = subprocess.run(
-        argv,
-        cwd=cwd,
-        env=subprocess_env(argv, env),
-        capture_output=True,
-        check=False,
-        text=True,
-    )
-    return SetupProcessResult(
-        exit_code=completed.returncode,
-        stdout=completed.stdout,
-        stderr=completed.stderr,
-    )
+        return apply_rigging_setup(
+            plan=plan,
+            env=env,
+            workspace_path=resolution.workspace_path,
+            setup_runner=setup_runner,
+        )
+    except RiggingSetupError as error:
+        raise RuntimePreparationError(str(error)) from error

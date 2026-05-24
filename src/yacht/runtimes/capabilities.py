@@ -8,8 +8,8 @@ from yacht.runtimes.tool_capabilities import ToolCapability, tool_capabilities_t
 
 
 SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
-    "container": ("agent-extension", "preinstalled"),
-    "host-nix": ("agent-extension", "preinstalled"),
+    "container": ("agent-extension", "preinstalled", "custom-command"),
+    "host-nix": ("agent-extension", "preinstalled", "custom-command"),
 }
 
 
