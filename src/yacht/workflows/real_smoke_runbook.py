@@ -5,6 +5,7 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+from yacht.config.agent_selection import configured_harness_name_for_regatta
 from yacht.domain.model import (
     Comparison,
     ConfigError,
@@ -94,12 +95,17 @@ def build_real_smoke_runbook(
     workspace_path: Path,
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
+    agent_name = configured_harness_name_for_regatta(
+        regatta,
+        command_label="real smoke runbook commands",
+    )
     artifacts = _artifacts(regatta, logbook_dir)
     secret_placeholders = _secret_placeholders(regatta)
     steps = _steps(
         config_path=config_path,
         logbook_dir=logbook_dir,
         workspace_path=workspace_path,
+        agent_name=agent_name,
         secret_placeholders=secret_placeholders,
         artifacts=artifacts,
     )
@@ -107,7 +113,7 @@ def build_real_smoke_runbook(
         "schema": REAL_SMOKE_RUNBOOK_SCHEMA,
         "regatta": regatta.name,
         "course": regatta.course.name,
-        "agent": "pi",
+        "agent": agent_name,
         "secret_placeholders": secret_placeholders,
         "steps": steps,
         "artifacts": artifacts,
@@ -121,12 +127,13 @@ def _steps(
     config_path: Path,
     logbook_dir: Path,
     workspace_path: Path,
+    agent_name: str,
     secret_placeholders: list[dict[str, str]],
     artifacts: dict[str, Any],
 ) -> list[dict[str, Any]]:
     secrets = " ".join(placeholder["argument"] for placeholder in secret_placeholders)
     secret_suffix = f" {secrets}" if secrets else ""
-    return [
+    steps = [
         {
             "name": "real-smoke-eval",
             "command": (
@@ -146,7 +153,7 @@ def _steps(
             "name": "preflight",
             "command": (
                 "uv run yacht preflight "
-                f"{_quote(config_path)} --agent-preflight pi "
+                f"{_quote(config_path)} --agent-preflight {agent_name} "
                 f"--logbook {_quote(logbook_dir)} "
                 f"--workspace {_quote(workspace_path)}{secret_suffix}"
             ),
@@ -156,36 +163,48 @@ def _steps(
             "name": "task-attempts",
             "command": (
                 "uv run yacht task-attempts "
-                f"{_quote(config_path)} --agent pi --logbook {_quote(logbook_dir)} "
+                f"{_quote(config_path)} --agent {agent_name} "
+                f"--logbook {_quote(logbook_dir)} "
                 f"--workspace {_quote(workspace_path)}{secret_suffix}"
             ),
             "artifacts": artifacts["task_attempts"],
         },
-        {
-            "name": "pi-smoke-eval",
-            "command": (
-                "uv run yacht pi-smoke-eval "
-                f"{_quote(config_path)} --logbook {_quote(logbook_dir)} "
-                f"--workspace {_quote(workspace_path)}{secret_suffix}"
-            ),
-            "artifacts": [
-                *artifacts["task_attempts"],
-                artifacts["task_attempt_scorecard"],
-            ],
-        },
-        {
-            "name": "smoke-readiness-report",
-            "command": (
-                f"uv run yacht smoke-readiness-report --logbook {_quote(logbook_dir)}"
-            ),
-            "artifacts": [artifacts["smoke_readiness_report"]],
-        },
-        {
-            "name": "smoke-report",
-            "command": f"uv run yacht smoke-report --logbook {_quote(logbook_dir)}",
-            "artifacts": [artifacts["smoke_report"]],
-        },
     ]
+    if agent_name == "pi":
+        steps.append(
+            {
+                "name": "pi-smoke-eval",
+                "command": (
+                    "uv run yacht pi-smoke-eval "
+                    f"{_quote(config_path)} --logbook {_quote(logbook_dir)} "
+                    f"--workspace {_quote(workspace_path)}{secret_suffix}"
+                ),
+                "artifacts": [
+                    *artifacts["task_attempts"],
+                    artifacts["task_attempt_scorecard"],
+                ],
+            }
+        )
+    steps.extend(
+        [
+            {
+                "name": "smoke-readiness-report",
+                "command": (
+                    "uv run yacht smoke-readiness-report "
+                    f"--logbook {_quote(logbook_dir)}"
+                ),
+                "artifacts": [artifacts["smoke_readiness_report"]],
+            },
+            {
+                "name": "smoke-report",
+                "command": (
+                    f"uv run yacht smoke-report --logbook {_quote(logbook_dir)}"
+                ),
+                "artifacts": [artifacts["smoke_report"]],
+            },
+        ]
+    )
+    return steps
 
 
 def _secret_placeholders(regatta: Regatta) -> list[dict[str, str]]:

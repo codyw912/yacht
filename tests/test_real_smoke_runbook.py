@@ -10,6 +10,34 @@ from yacht.cli import main
 
 
 class RealSmokeRunbookTests(unittest.TestCase):
+    def test_real_smoke_runbook_uses_configured_local_smoke_harness(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workspace_path = root / "workspace"
+            logbook_dir = root / "logbook"
+            workspace_path.mkdir()
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "real-smoke-runbook",
+                        "examples/local-agent-preflight-smoke.toml",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            runbook = json.loads(stdout.getvalue())
+            self.assertEqual(runbook["agent"], "local-smoke")
+            commands = {step["name"]: step["command"] for step in runbook["steps"]}
+            self.assertIn("--agent-preflight local-smoke", commands["preflight"])
+            self.assertIn("--agent local-smoke", commands["task-attempts"])
+            self.assertNotIn("pi-smoke-eval", commands)
+
     def test_real_smoke_runbook_prints_commands_and_artifact_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

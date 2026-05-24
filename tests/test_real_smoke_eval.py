@@ -19,6 +19,38 @@ from yacht.preflight import CommandResult
 
 
 class RealSmokeEvalTests(unittest.TestCase):
+    def test_real_smoke_eval_uses_configured_local_smoke_harness(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook_dir = root / "logbook"
+            workspace_dir = root / "workspace"
+            workspace_dir.mkdir()
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "real-smoke-eval",
+                        "examples/local-agent-preflight-smoke.toml",
+                        "--logbook",
+                        str(logbook_dir),
+                        "--workspace",
+                        str(workspace_dir),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            summary = json.loads(stdout.getvalue())
+            self.assertEqual(summary["status"], "ready")
+            self.assertEqual(summary["agent"], "local-smoke")
+            self.assertEqual(summary["preflight"]["status"], "passed")
+            self.assertEqual(summary["smoke_eval"]["status"], "complete")
+            self.assertEqual(summary["smoke_eval"]["agent"], "local-smoke")
+            self.assertEqual(summary["smoke_eval"]["attempts"]["attempt_count"], 2)
+            self.assertEqual(summary["readiness"]["status"], "ready")
+            self.assertTrue((logbook_dir / "smoke-readiness-report.json").is_file())
+            self.assertTrue((logbook_dir / "smoke-report.txt").is_file())
+
     def test_real_smoke_eval_runs_container_pi_fff_example_to_readiness(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -234,7 +266,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertEqual(summary["preflight"]["status"], "invalid")
             self.assertEqual(
                 summary["skipped"],
-                ["pi-smoke-eval", "smoke-readiness-report", "smoke-report"],
+                ["task-attempts", "smoke-readiness-report", "smoke-report"],
             )
             self.assertEqual(
                 summary["artifacts"],

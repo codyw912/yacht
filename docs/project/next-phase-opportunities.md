@@ -22,7 +22,9 @@ Current state:
 
 - Real benchmark eval selects the configured harness from runtime surface
   metadata.
-- Smoke workflows still carry Pi-specific command paths.
+- Real smoke eval and real smoke runbook select the configured harness from the
+  regatta.
+- The explicit `pi-smoke-eval` command remains Pi-specific.
 
 Opportunity:
 
@@ -31,12 +33,13 @@ eval. Pi should remain one adapter, not the implicit workflow architecture.
 
 Likely first slice:
 
-- Update `real-smoke-eval` and related runbook code to resolve the configured
-  harness from the regatta.
-- Keep `pi-smoke-eval` as a compatibility or focused adapter command if still
-  useful, but stop using it as the generic smoke path.
-- Add or update a local-smoke/custom-eval example that proves the path works
-  without Pi.
+- Done: update `real-smoke-eval` and related runbook code to resolve the
+  configured harness from the regatta.
+- Done: add coverage proving the local-smoke example works without Pi through
+  the generic real smoke path.
+- Next: decide whether to keep `pi-smoke-eval` as a compatibility command,
+  rename it as a focused adapter command, or remove it after downstream docs no
+  longer need it.
 
 Why it matters:
 
