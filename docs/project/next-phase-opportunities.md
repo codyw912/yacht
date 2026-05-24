@@ -51,7 +51,10 @@ attempt artifacts comparable across harnesses.
 Current state:
 
 - Rigging config can describe typed install steps.
-- Runtime execution only supports `preinstalled` and `agent-extension`.
+- Runtime rigging setup planning and execution live in `yacht.runtimes`
+  instead of being embedded directly in backend preparation.
+- Runtime execution supports `preinstalled`, `agent-extension`, and
+  `custom-command`.
 - Unsupported capabilities are correctly blocked before task tokens are spent.
 
 Opportunity:
@@ -61,10 +64,12 @@ runtime-specific executable or preflight-only plans.
 
 Likely first slice:
 
-- Move rigging install planning out of runtime backend preparation.
-- Model each supported method explicitly: agent extension, CLI command,
-  MCP server, skill, prompt pack, config file, env var, setup command,
-  preinstalled tool.
+- Done: move rigging install planning out of runtime backend preparation.
+- Done: execute `custom-command` install steps through the runtime command
+  prefix.
+- Next: model remaining methods explicitly: CLI command, MCP server, skill,
+  prompt pack, config file, env var, setup command, package, binary, and
+  container image.
 - Keep unsupported methods visible in dry-run and preflight evidence.
 
 Why it matters:

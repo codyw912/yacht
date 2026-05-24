@@ -61,7 +61,11 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
                     "runtime_backend": "host-nix",
                     "runtime_harness": "pi",
                     "runtime_agent": "pi",
-                    "supported_install_methods": ["agent-extension", "preinstalled"],
+                    "supported_install_methods": [
+                        "agent-extension",
+                        "preinstalled",
+                        "custom-command",
+                    ],
                     "install_checks": [
                         {
                             "origin": "rigging",

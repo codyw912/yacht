@@ -222,7 +222,11 @@ class RuntimePlanTests(unittest.TestCase):
                     "runtime_backend": "host-nix",
                     "runtime_harness": "pi",
                     "runtime_agent": "pi",
-                    "supported_install_methods": ["agent-extension", "preinstalled"],
+                    "supported_install_methods": [
+                        "agent-extension",
+                        "preinstalled",
+                        "custom-command",
+                    ],
                     "install_checks": [
                         {
                             "origin": "rigging",
@@ -412,7 +416,7 @@ class RuntimePlanTests(unittest.TestCase):
             )
             self.assertEqual(
                 rigged_vessel["rigging_capabilities"]["supported_install_methods"],
-                ["agent-extension", "preinstalled"],
+                ["agent-extension", "preinstalled", "custom-command"],
             )
             self.assertEqual(rigged_vessel["runtime"]["backend"], "host-nix")
             self.assertEqual(
