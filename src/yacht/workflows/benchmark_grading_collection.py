@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from yacht.courses.registry import benchmark_adapter
+from yacht.courses.registry import evaluator_adapter
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.workflows.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
 from yacht.reports.next_steps import command_step
@@ -105,7 +105,7 @@ def _vessel_to_json(
     adapter_kind: str,
 ) -> dict[str, Any]:
     vessel_name = str(vessel["name"])
-    adapter = benchmark_adapter(adapter_kind)
+    adapter = evaluator_adapter(adapter_kind)
     if vessel["status"] != "completed":
         return {
             "name": vessel_name,

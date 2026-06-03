@@ -5,8 +5,8 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from yacht.courses.registry import benchmark_adapter
 from yacht.courses.registry import command_preview
+from yacht.courses.registry import evaluator_adapter
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
 from yacht.preflight.gate import PreflightGate, preflight_gate
 from yacht.domain.model import ConfigError
@@ -65,7 +65,7 @@ def native_report_path_from_launcher_handoff(
     if isinstance(native_report_path, str) and native_report_path:
         path = Path(native_report_path)
         if not path.exists():
-            adapter = benchmark_adapter(str(launcher_handoff["adapter"]["kind"]))
+            adapter = evaluator_adapter(str(launcher_handoff["adapter"]["kind"]))
             raise ConfigError(
                 f"native {adapter.display_name} report not found: {path}"
             )
@@ -78,7 +78,7 @@ def native_report_path_from_launcher_handoff(
             f"vessel {vessel_name}; pass --input explicitly"
         )
     run_id = _command_option_value(command, "--run_id", vessel_name)
-    adapter = benchmark_adapter(str(launcher_handoff["adapter"]["kind"]))
+    adapter = evaluator_adapter(str(launcher_handoff["adapter"]["kind"]))
     native_report_path = (
         Path(str(vessel["native_report_dir"]))
         / adapter.native_report_filename(
@@ -248,7 +248,7 @@ def _vessel_to_json(
         comparison_name=comparison_name,
         vessel_name=vessel_name,
     )
-    adapter = benchmark_adapter(str(handoff["adapter"]["kind"]))
+    adapter = evaluator_adapter(str(handoff["adapter"]["kind"]))
     vessel = {
         "name": vessel_name,
         "status": status,

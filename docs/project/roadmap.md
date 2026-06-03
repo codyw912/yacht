@@ -65,9 +65,13 @@ Near-term slices:
 
 - Harden SWE-bench Lite into a documented supported adapter.
 - Add multi-task SWE-bench smoke support with clearer sampling controls.
+- Add Terminal-Bench as the first post-SWE-bench adapter target.
+- Add LiveCodeBench Lite as a recognizable model/code benchmark target.
 - Add a tiny repo-local benchmark adapter for fast CI and docs examples.
 - Define an evaluator adapter interface separate from native benchmark
   launchers.
+- Defer Aider Polyglot unless it can be used as a harness-agnostic
+  course/evaluator rather than an Aider harness integration.
 - Defer LLM/code-quality evaluators until the benchmark path is stable, but
   keep report and artifact shapes open to advisory evaluators.
 

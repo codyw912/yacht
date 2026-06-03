@@ -4,8 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from yacht.config.loader import load_regatta
-from yacht.courses.registry import benchmark_adapter
+from yacht.courses.registry import course_adapter
 from yacht.courses.registry import course_adapter_to_json
+from yacht.courses.registry import evaluator_adapter
 from yacht.logbook.io import write_json
 from yacht.domain.model import (
     Comparison,
@@ -78,8 +79,8 @@ def _comparison_to_json(comparison: Comparison) -> dict[str, Any]:
 
 
 def _expected_outputs(adapter: CourseAdapter) -> dict[str, str]:
-    return benchmark_adapter(adapter.kind).expected_outputs()
+    return course_adapter(adapter.kind).expected_outputs()
 
 
 def _grading_to_json(adapter: CourseAdapter) -> dict[str, str]:
-    return benchmark_adapter(adapter.kind).grading(adapter.harness)
+    return evaluator_adapter(adapter.kind).grading(adapter.harness)

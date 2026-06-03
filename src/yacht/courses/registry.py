@@ -6,16 +6,12 @@ from pathlib import Path
 from typing import Any, Protocol
 
 
-class BenchmarkAdapter(Protocol):
+class CourseAdapterInterface(Protocol):
     kind: str
     display_name: str
     supported_harnesses: tuple[str, ...]
-    grading_schema: str
 
     def expected_outputs(self) -> dict[str, str]:
-        ...
-
-    def grading(self, harness: str) -> dict[str, str]:
         ...
 
     def task_prompt_instructions(self, task: Any) -> str:
@@ -33,6 +29,25 @@ class BenchmarkAdapter(Protocol):
         comparison_name: str,
         vessel_name: str,
     ) -> Path:
+        ...
+
+    def write_predictions_from_attempts(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        ...
+
+
+class EvaluatorAdapterInterface(Protocol):
+    kind: str
+    display_name: str
+    grading_schema: str
+
+    def grading(self, harness: str) -> dict[str, str]:
         ...
 
     def launcher_command(
@@ -61,6 +76,108 @@ class BenchmarkAdapter(Protocol):
     ) -> dict[str, Any]:
         ...
 
+
+class BenchmarkAdapter(
+    CourseAdapterInterface,
+    EvaluatorAdapterInterface,
+    Protocol,
+):
+    course: CourseAdapterInterface
+    evaluator: EvaluatorAdapterInterface
+
+
+@dataclass(frozen=True)
+class BenchmarkAdapterFacade:
+    course: CourseAdapterInterface
+    evaluator: EvaluatorAdapterInterface
+
+    @property
+    def kind(self) -> str:
+        return self.course.kind
+
+    @property
+    def display_name(self) -> str:
+        return self.course.display_name
+
+    @property
+    def supported_harnesses(self) -> tuple[str, ...]:
+        return self.course.supported_harnesses
+
+    @property
+    def grading_schema(self) -> str:
+        return self.evaluator.grading_schema
+
+    def expected_outputs(self) -> dict[str, str]:
+        return self.course.expected_outputs()
+
+    def grading(self, harness: str) -> dict[str, str]:
+        return self.evaluator.grading(harness)
+
+    def task_prompt_instructions(self, task: Any) -> str:
+        return self.course.task_prompt_instructions(task)
+
+    def task_with_context(self, *, task: Any, adapter: Any) -> Any:
+        return self.course.task_with_context(task=task, adapter=adapter)
+
+    def workspace_for_attempt(
+        self,
+        *,
+        task: Any,
+        workspace_path: Path,
+        workspace_root: Path,
+        comparison_name: str,
+        vessel_name: str,
+    ) -> Path:
+        return self.course.workspace_for_attempt(
+            task=task,
+            workspace_path=workspace_path,
+            workspace_root=workspace_root,
+            comparison_name=comparison_name,
+            vessel_name=vessel_name,
+        )
+
+    def launcher_command(
+        self,
+        *,
+        course_adapter: dict[str, Any],
+        tasks: list[dict[str, Any]],
+        candidate_path: Path,
+        native_report_dir: Path,
+        run_id: str,
+        max_workers: int,
+        python_command: list[str],
+    ) -> list[str]:
+        return self.evaluator.launcher_command(
+            course_adapter=course_adapter,
+            tasks=tasks,
+            candidate_path=candidate_path,
+            native_report_dir=native_report_dir,
+            run_id=run_id,
+            max_workers=max_workers,
+            python_command=python_command,
+        )
+
+    def native_report_filename(self, *, vessel_name: str, run_id: str) -> str:
+        return self.evaluator.native_report_filename(
+            vessel_name=vessel_name,
+            run_id=run_id,
+        )
+
+    def write_grading_report(
+        self,
+        *,
+        config_path: Path,
+        native_report_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+    ) -> dict[str, Any]:
+        return self.evaluator.write_grading_report(
+            config_path=config_path,
+            native_report_path=native_report_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+        )
+
     def write_predictions_from_attempts(
         self,
         *,
@@ -69,27 +186,24 @@ class BenchmarkAdapter(Protocol):
         vessel_name: str,
         comparison_name: str | None = None,
     ) -> dict[str, Any]:
-        ...
+        return self.course.write_predictions_from_attempts(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+            comparison_name=comparison_name,
+        )
 
 
 @dataclass(frozen=True)
-class SweBenchAdapter:
+class SweBenchCourseAdapter:
     kind: str = "swe-bench"
     display_name: str = "SWE-bench"
     supported_harnesses: tuple[str, ...] = ("docker",)
-    grading_schema: str = "yacht.swe-bench-grading.v1"
 
     def expected_outputs(self) -> dict[str, str]:
         return {
             "candidate_patches": "course-handoff/swe-bench/candidate-patches.jsonl",
             "grading_report": "course-handoff/swe-bench/grading-report.json",
-        }
-
-    def grading(self, harness: str) -> dict[str, str]:
-        return {
-            "delegated_to": self.kind,
-            "execution": f"{harness}-harness",
-            "status": "planned",
         }
 
     def task_prompt_instructions(self, task: Any) -> str:
@@ -131,6 +245,39 @@ class SweBenchAdapter:
             comparison_name=comparison_name,
             vessel_name=vessel_name,
         )
+
+    def write_predictions_from_attempts(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        from yacht.courses.swe_bench.predictions_from_attempts import (
+            write_swe_bench_predictions_from_attempts,
+        )
+
+        return write_swe_bench_predictions_from_attempts(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+            comparison_name=comparison_name,
+        )
+
+
+@dataclass(frozen=True)
+class SweBenchEvaluatorAdapter:
+    kind: str = "swe-bench"
+    display_name: str = "SWE-bench"
+    grading_schema: str = "yacht.swe-bench-grading.v1"
+
+    def grading(self, harness: str) -> dict[str, str]:
+        return {
+            "delegated_to": self.kind,
+            "execution": f"{harness}-harness",
+            "status": "planned",
+        }
 
     def launcher_command(
         self,
@@ -183,44 +330,17 @@ class SweBenchAdapter:
             vessel_name=vessel_name,
         )
 
-    def write_predictions_from_attempts(
-        self,
-        *,
-        config_path: Path,
-        logbook_dir: Path,
-        vessel_name: str,
-        comparison_name: str | None = None,
-    ) -> dict[str, Any]:
-        from yacht.courses.swe_bench.predictions_from_attempts import (
-            write_swe_bench_predictions_from_attempts,
-        )
-
-        return write_swe_bench_predictions_from_attempts(
-            config_path=config_path,
-            logbook_dir=logbook_dir,
-            vessel_name=vessel_name,
-            comparison_name=comparison_name,
-        )
-
 
 @dataclass(frozen=True)
-class CustomEvalAdapter:
+class CustomEvalCourseAdapter:
     kind: str = "custom-eval"
     display_name: str = "Custom eval"
     supported_harnesses: tuple[str, ...] = ("local",)
-    grading_schema: str = "yacht.custom-eval-grading.v1"
 
     def expected_outputs(self) -> dict[str, str]:
         return {
             "candidate_patches": "course-handoff/custom-eval/candidate-patches.jsonl",
             "grading_report": "course-handoff/custom-eval/grading-report.json",
-        }
-
-    def grading(self, harness: str) -> dict[str, str]:
-        return {
-            "delegated_to": self.kind,
-            "execution": f"{harness}-harness",
-            "status": "planned",
         }
 
     def task_prompt_instructions(self, task: Any) -> str:
@@ -253,6 +373,39 @@ class CustomEvalAdapter:
         vessel_name: str,
     ) -> Path:
         return workspace_path
+
+    def write_predictions_from_attempts(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        from yacht.courses.custom_eval.predictions_from_attempts import (
+            write_custom_eval_predictions_from_attempts,
+        )
+
+        return write_custom_eval_predictions_from_attempts(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+            comparison_name=comparison_name,
+        )
+
+
+@dataclass(frozen=True)
+class CustomEvalEvaluatorAdapter:
+    kind: str = "custom-eval"
+    display_name: str = "Custom eval"
+    grading_schema: str = "yacht.custom-eval-grading.v1"
+
+    def grading(self, harness: str) -> dict[str, str]:
+        return {
+            "delegated_to": self.kind,
+            "execution": f"{harness}-harness",
+            "status": "planned",
+        }
 
     def launcher_command(
         self,
@@ -299,29 +452,27 @@ class CustomEvalAdapter:
             vessel_name=vessel_name,
         )
 
-    def write_predictions_from_attempts(
-        self,
-        *,
-        config_path: Path,
-        logbook_dir: Path,
-        vessel_name: str,
-        comparison_name: str | None = None,
-    ) -> dict[str, Any]:
-        from yacht.courses.custom_eval.predictions_from_attempts import (
-            write_custom_eval_predictions_from_attempts,
-        )
 
-        return write_custom_eval_predictions_from_attempts(
-            config_path=config_path,
-            logbook_dir=logbook_dir,
-            vessel_name=vessel_name,
-            comparison_name=comparison_name,
-        )
+SweBenchAdapter = SweBenchCourseAdapter
+CustomEvalAdapter = CustomEvalCourseAdapter
 
 
-_BENCHMARK_ADAPTERS: dict[str, BenchmarkAdapter] = {
-    "custom-eval": CustomEvalAdapter(),
-    "swe-bench": SweBenchAdapter(),
+_COURSE_ADAPTERS: dict[str, CourseAdapterInterface] = {
+    "custom-eval": CustomEvalCourseAdapter(),
+    "swe-bench": SweBenchCourseAdapter(),
+}
+
+_EVALUATOR_ADAPTERS: dict[str, EvaluatorAdapterInterface] = {
+    "custom-eval": CustomEvalEvaluatorAdapter(),
+    "swe-bench": SweBenchEvaluatorAdapter(),
+}
+
+_BENCHMARK_ADAPTERS: dict[str, BenchmarkAdapterFacade] = {
+    kind: BenchmarkAdapterFacade(
+        course=course,
+        evaluator=_EVALUATOR_ADAPTERS[kind],
+    )
+    for kind, course in _COURSE_ADAPTERS.items()
 }
 
 
@@ -334,18 +485,36 @@ def benchmark_adapter(kind: str) -> BenchmarkAdapter:
         raise ConfigError(f"unsupported benchmark adapter {kind}") from error
 
 
+def course_adapter(kind: str) -> CourseAdapterInterface:
+    try:
+        return _COURSE_ADAPTERS[kind]
+    except KeyError as error:
+        from yacht.domain.model import ConfigError
+
+        raise ConfigError(f"unsupported course adapter {kind}") from error
+
+
+def evaluator_adapter(kind: str) -> EvaluatorAdapterInterface:
+    try:
+        return _EVALUATOR_ADAPTERS[kind]
+    except KeyError as error:
+        from yacht.domain.model import ConfigError
+
+        raise ConfigError(f"unsupported evaluator adapter {kind}") from error
+
+
 def supported_benchmark_adapter_kinds() -> tuple[str, ...]:
     return tuple(sorted(_BENCHMARK_ADAPTERS))
 
 
 def supported_course_adapter_harnesses(kind: str | None = None) -> tuple[str, ...]:
     if kind is not None:
-        return benchmark_adapter(kind).supported_harnesses
+        return course_adapter(kind).supported_harnesses
     return tuple(
         sorted(
             {
                 harness
-                for adapter in _BENCHMARK_ADAPTERS.values()
+                for adapter in _COURSE_ADAPTERS.values()
                 for harness in adapter.supported_harnesses
             }
         )

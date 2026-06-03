@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from yacht.courses.registry import benchmark_adapter
+from yacht.courses.registry import evaluator_adapter
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
 from yacht.reports.next_steps import command_step
 from yacht.reports.preflight_evidence import build_preflight_evidence_report
@@ -42,7 +42,7 @@ def _load_gradings(logbook_dir: Path, handoff: dict[str, Any]) -> list[dict[str,
     if not grading_paths:
         expected_path = logbook_dir / str(handoff["expected_outputs"]["grading_report"])
         raise ConfigError(f"validated grading report not found: {expected_path}")
-    adapter = benchmark_adapter(str(handoff["adapter"]["kind"]))
+    adapter = evaluator_adapter(str(handoff["adapter"]["kind"]))
     return [_load_grading(path, expected_schema=adapter.grading_schema) for path in grading_paths]
 
 

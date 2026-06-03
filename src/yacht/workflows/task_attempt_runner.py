@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from yacht.courses.registry import benchmark_adapter
+from yacht.courses.registry import course_adapter
 from yacht.config.loader import load_regatta
 from yacht.harnesses.registry import TaskAgent
 from yacht.harnesses.registry import supported_task_attempt_names
@@ -161,9 +161,9 @@ def _run_vessel_task_attempt(
 def _task_prompt(regatta: Regatta, vessel: Vessel, task: Task) -> str:
     prompt = f"Task ID: {task.id}\nTitle: {task.title}\n"
     if regatta.course.adapter is not None:
-        prompt += benchmark_adapter(
-            regatta.course.adapter.kind
-        ).task_prompt_instructions(task)
+        prompt += course_adapter(regatta.course.adapter.kind).task_prompt_instructions(
+            task
+        )
     instructions = _rigging_instructions(regatta, vessel)
     if instructions:
         prompt += "\nRigging instructions:\n"
@@ -174,7 +174,7 @@ def _task_prompt(regatta: Regatta, vessel: Vessel, task: Task) -> str:
 def _task_for_attempt(regatta: Regatta, task: Task) -> Task:
     if regatta.course.adapter is None:
         return task
-    return benchmark_adapter(regatta.course.adapter.kind).task_with_context(
+    return course_adapter(regatta.course.adapter.kind).task_with_context(
         task=task,
         adapter=regatta.course.adapter,
     )
@@ -191,7 +191,7 @@ def _workspace_for_attempt(
 ) -> Path:
     if regatta.course.adapter is None:
         return workspace_path
-    return benchmark_adapter(regatta.course.adapter.kind).workspace_for_attempt(
+    return course_adapter(regatta.course.adapter.kind).workspace_for_attempt(
         task=task,
         workspace_path=workspace_path,
         workspace_root=logbook_dir / f"{regatta.course.adapter.kind}-workspaces",

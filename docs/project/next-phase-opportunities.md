@@ -82,10 +82,14 @@ for comparison.
 
 Current state:
 
-- `BenchmarkAdapter` mixes task context, workspace materialization, launcher
-  commands, candidate extraction, native grading, and normalized report output.
+- Course and evaluator adapter interfaces are split in `yacht.courses.registry`.
+- The legacy `benchmark_adapter()` facade remains for compatibility while
+  workflows move onto the narrower course/evaluator interfaces.
 - SWE-bench and custom eval both fit through this shape, but custom eval is not
   truly a native benchmark harness in the same sense as SWE-bench.
+- Terminal-Bench is the preferred next adapter target, followed by
+  LiveCodeBench Lite. Aider Polyglot is deferred unless it can be used as a
+  harness-agnostic course/evaluator.
 
 Opportunity:
 
@@ -94,17 +98,18 @@ launching, grading, and evaluator normalization can evolve independently.
 
 Likely first slice:
 
-- Define the smallest course interface needed by task attempts: prompt
+- Done: define the smallest course interface needed by task attempts: prompt
   instructions, task context, and workspace materialization.
-- Define a separate evaluator interface for converting produced attempts into
-  normalized grading observations.
-- Keep SWE-bench native launch/grading as one evaluator implementation.
+- Done: define a separate evaluator interface for converting produced attempts
+  into normalized grading observations.
+- Done: keep SWE-bench native launch/grading as one evaluator implementation.
+- Next: add a Terminal-Bench adapter spike using the split interfaces.
 
 Why it matters:
 
-This makes tiny repo-local evals, advisory evaluators, human-review evaluators,
-and other benchmark families easier to add without forcing everything into a
-SWE-bench-shaped module.
+This makes Terminal-Bench, LiveCodeBench Lite, tiny repo-local evals, advisory
+evaluators, human-review evaluators, and other benchmark families easier to add
+without forcing everything into a SWE-bench-shaped module.
 
 ## 4. Logbook Run-State Interface
 
