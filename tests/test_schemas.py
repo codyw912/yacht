@@ -80,6 +80,7 @@ class SchemaTests(unittest.TestCase):
         for schema_name in (
             REGATTA_SCHEMA,
             WAKE_SCHEMA,
+            "yacht.run-index.v1",
             SCORECARD_SCHEMA,
             PREFLIGHT_SCHEMA,
             PREFLIGHT_SUMMARY_SCHEMA,

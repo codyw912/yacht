@@ -5,12 +5,73 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
+from yacht.cli import main
+from yacht.logbook.index import RUN_INDEX_PATH
 from yacht.reports.benchmark_status import build_benchmark_status
 from yacht.reports.benchmark_status import render_benchmark_status
-from yacht.cli import main
 
 
 class BenchmarkStatusTests(unittest.TestCase):
+    def test_prefers_run_index_artifact_list_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir()
+            (logbook_dir / "preflight-evidence-report.json").write_text(
+                json.dumps({"status": "ready"}),
+                encoding="utf-8",
+            )
+            (logbook_dir / RUN_INDEX_PATH).write_text(
+                json.dumps(
+                    {
+                        "schema": "yacht.run-index.v1",
+                        "run_kind": "real-benchmark",
+                        "status": "partial",
+                        "updated_at": "2026-06-03T12:00:00Z",
+                        "config_path": "/tmp/regatta.toml",
+                        "logbook": str(logbook_dir),
+                        "regatta": "demo",
+                        "course": "course",
+                        "comparisons": [
+                            {
+                                "name": "comparison",
+                                "course": "course",
+                                "vessels": ["baseline", "challenger"],
+                            }
+                        ],
+                        "artifacts": {
+                            "preflight_evidence_report": {
+                                "path": str(
+                                    logbook_dir / "preflight-evidence-report.json"
+                                ),
+                                "present": True,
+                            },
+                            "benchmark_scorecard": {
+                                "path": str(logbook_dir / "benchmark-scorecard.json"),
+                                "present": False,
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            status = build_benchmark_status(logbook_dir)
+
+            self.assertEqual(status["status"], "partial")
+            self.assertEqual(status["run_kind"], "real-benchmark")
+            self.assertEqual(status["regatta"], "demo")
+            self.assertEqual(status["course"], "course")
+            self.assertEqual(
+                status["comparisons"][0]["vessels"],
+                ["baseline", "challenger"],
+            )
+            self.assertEqual(
+                [artifact["label"] for artifact in status["artifacts"]],
+                ["preflight evidence report", "benchmark scorecard"],
+            )
+            self.assertEqual(status["artifacts"][0]["state"], "ready")
+            self.assertEqual(status["artifacts"][1]["state"], "missing")
+
     def test_reports_missing_artifacts_and_start_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"

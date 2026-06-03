@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yacht.dev/schemas/yacht.run-index.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_kind",
+    "status",
+    "updated_at",
+    "config_path",
+    "logbook",
+    "regatta",
+    "course",
+    "comparisons",
+    "artifacts"
+  ],
+  "properties": {
+    "schema": {
+      "const": "yacht.run-index.v1"
+    },
+    "run_kind": {
+      "enum": [
+        "real-benchmark",
+        "real-smoke"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "config_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "logbook": {
+      "type": "string",
+      "minLength": 1
+    },
+    "regatta": {
+      "type": "string",
+      "minLength": 1
+    },
+    "course": {
+      "type": "string",
+      "minLength": 1
+    },
+    "comparisons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/comparison"
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/artifact"
+      }
+    }
+  },
+  "$defs": {
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "course",
+        "vessels"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "course": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vessels": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "present"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "present": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
