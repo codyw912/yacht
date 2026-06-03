@@ -15,6 +15,7 @@ from yacht.harnesses.pi import (
     SubprocessPiPromptLauncher,
     SubprocessPiTaskLauncher,
 )
+from yacht.logbook.index import RUN_INDEX_PATH
 from yacht.preflight import CommandResult
 
 
@@ -48,6 +49,22 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertEqual(summary["smoke_eval"]["agent"], "local-smoke")
             self.assertEqual(summary["smoke_eval"]["attempts"]["attempt_count"], 2)
             self.assertEqual(summary["readiness"]["status"], "ready")
+            run_index = json.loads(
+                (logbook_dir / RUN_INDEX_PATH).read_text(encoding="utf-8")
+            )
+            self.assertEqual(run_index["schema"], "yacht.run-index.v1")
+            self.assertEqual(run_index["run_kind"], "real-smoke")
+            self.assertEqual(run_index["status"], "ready")
+            self.assertEqual(
+                run_index["config_path"],
+                "examples/local-agent-preflight-smoke.toml",
+            )
+            self.assertEqual(run_index["logbook"], str(logbook_dir))
+            self.assertEqual(run_index["regatta"], "local-agent-preflight-smoke")
+            self.assertEqual(run_index["course"], "local-smoke")
+            self.assertTrue(
+                run_index["artifacts"]["smoke_readiness_report"]["present"]
+            )
             self.assertTrue((logbook_dir / "smoke-readiness-report.json").is_file())
             self.assertTrue((logbook_dir / "smoke-report.txt").is_file())
 

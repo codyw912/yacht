@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from yacht.courses.registry import benchmark_adapter
+from yacht.domain.model import ConfigError, load_regatta
+from yacht.logbook.index import write_run_index
 from yacht.workflows.benchmark_grading_collection import (
     BENCHMARK_GRADING_COLLECTION_PATH,
     collect_benchmark_grading_reports,
@@ -32,7 +34,6 @@ from yacht.reports.preflight_evidence import PREFLIGHT_EVIDENCE_REPORT_PATH
 from yacht.reports.preflight_evidence import write_preflight_evidence_report
 from yacht.preflight.runner import AgentPromptRunnerFactory, run_preflight
 from yacht.workflows.readiness_gate import evaluate_readiness_gate
-from yacht.domain.model import ConfigError, load_regatta
 from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.runtimes.instances import write_runtime_instances_plan
 from yacht.reports.surface_metadata import regatta_surfaces_to_json
@@ -119,6 +120,8 @@ def run_real_benchmark_eval(
                     blocked_preflight,
                 ),
             ),
+            config_path=config_path,
+            comparisons=regatta.comparisons,
         )
 
     _progress(progress, "task attempts: running")
@@ -157,6 +160,8 @@ def run_real_benchmark_eval(
                 ],
                 logbook_dir=logbook_dir,
             ),
+            config_path=config_path,
+            comparisons=regatta.comparisons,
         )
 
     predictions = []
@@ -205,6 +210,8 @@ def run_real_benchmark_eval(
                 logbook_dir=logbook_dir,
                 next_steps=_prediction_failure_next_steps(logbook_dir),
             ),
+            config_path=config_path,
+            comparisons=regatta.comparisons,
         )
     _progress(progress, "runtime instances: resolving")
     runtime_instances = write_runtime_instances_plan(
@@ -242,6 +249,8 @@ def run_real_benchmark_eval(
                 ],
                 logbook_dir=logbook_dir,
             ),
+            config_path=config_path,
+            comparisons=regatta.comparisons,
         )
 
     _progress(progress, "benchmark launcher handoff: writing")
@@ -289,6 +298,8 @@ def run_real_benchmark_eval(
                 skipped=["benchmark-scorecard"],
                 logbook_dir=logbook_dir,
             ),
+            config_path=config_path,
+            comparisons=regatta.comparisons,
         )
     _progress(progress, "benchmark scorecard: writing")
     scorecard = write_benchmark_scorecard(logbook_dir)
@@ -317,6 +328,8 @@ def run_real_benchmark_eval(
             "next_steps": scorecard["next_steps"],
             "artifacts": _artifacts(logbook_dir),
         },
+        config_path=config_path,
+        comparisons=regatta.comparisons,
     )
 
 
@@ -561,14 +574,44 @@ def _artifacts(logbook_dir: Path) -> dict[str, str]:
     }
 
 
-def _write_summary(logbook_dir: Path, summary: dict[str, Any]) -> dict[str, Any]:
+def _write_summary(
+    logbook_dir: Path,
+    summary: dict[str, Any],
+    *,
+    config_path: Path,
+    comparisons: tuple[Any, ...],
+) -> dict[str, Any]:
     path = logbook_dir / REAL_BENCHMARK_EVAL_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    write_run_index(
+        logbook_dir=logbook_dir,
+        config_path=config_path,
+        run_kind="real-benchmark",
+        status=str(summary["status"]),
+        regatta=str(summary["regatta"]),
+        course=str(summary["course"]),
+        comparisons=comparisons,
+        artifacts=_run_index_artifacts(),
+    )
     return summary
+
+
+def _run_index_artifacts() -> dict[str, Path]:
+    return {
+        "real_benchmark_eval": REAL_BENCHMARK_EVAL_PATH,
+        "preflight_evidence_report": PREFLIGHT_EVIDENCE_REPORT_PATH,
+        "runtime_instances": RUNTIME_INSTANCES_PLAN_PATH,
+        "task_attempt_scorecard": TASK_ATTEMPT_SCORECARD_PATH,
+        "benchmark_execution_plan": BENCHMARK_EXECUTION_PLAN_PATH,
+        "benchmark_launcher_handoff": BENCHMARK_LAUNCHER_HANDOFF_PATH,
+        "benchmark_launch_result": BENCHMARK_LAUNCH_RESULT_PATH,
+        "benchmark_grading_collection": BENCHMARK_GRADING_COLLECTION_PATH,
+        "benchmark_scorecard": BENCHMARK_SCORECARD_PATH,
+    }
 
 
 def _progress(progress: ProgressReporter | None, message: str) -> None:

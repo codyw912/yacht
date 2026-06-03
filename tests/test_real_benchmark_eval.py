@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
+from yacht.logbook.index import RUN_INDEX_PATH
 from yacht.reports.benchmark_status import build_benchmark_status
 from yacht.cli import main
 from yacht.harnesses.pi import (
@@ -125,6 +126,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 str(logbook_dir / "preflight-evidence-report.json"),
             )
             self.assertTrue((logbook_dir / "real-benchmark-eval.json").is_file())
+            self.assertTrue((logbook_dir / RUN_INDEX_PATH).is_file())
             self.assertEqual(
                 json.loads(
                     (logbook_dir / "real-benchmark-eval.json").read_text(
@@ -132,6 +134,27 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                     )
                 ),
                 summary,
+            )
+            run_index = json.loads(
+                (logbook_dir / RUN_INDEX_PATH).read_text(encoding="utf-8")
+            )
+            self.assertEqual(run_index["schema"], "yacht.run-index.v1")
+            self.assertEqual(run_index["run_kind"], "real-benchmark")
+            self.assertEqual(run_index["status"], "complete")
+            self.assertEqual(run_index["config_path"], str(config_path))
+            self.assertEqual(run_index["logbook"], str(logbook_dir))
+            self.assertEqual(run_index["regatta"], "pi-fff-comparison")
+            self.assertEqual(run_index["course"], "swe-bench-lite")
+            self.assertEqual(
+                run_index["comparisons"][0],
+                {
+                    "name": "pi-vs-pi-fff",
+                    "course": "swe-bench-lite",
+                    "vessels": ["pi-baseline", "pi-plus-fff"],
+                },
+            )
+            self.assertTrue(
+                run_index["artifacts"]["benchmark_scorecard"]["present"]
             )
             self.assertTrue((logbook_dir / "benchmark-scorecard.json").is_file())
             self.assertTrue(
@@ -147,8 +170,11 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 ).is_file()
             )
             status = build_benchmark_status(logbook_dir)
-            preflight_status = status["artifacts"][2]
-            self.assertEqual(preflight_status["label"], "preflight evidence")
+            preflight_status = next(
+                artifact
+                for artifact in status["artifacts"]
+                if artifact["label"] == "preflight evidence report"
+            )
             self.assertEqual(preflight_status["state"], "ready")
 
     def test_real_benchmark_eval_command_runs_full_sequence(self) -> None:
@@ -353,14 +379,19 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             )
             self.assertFalse((logbook_dir / "task-attempts").exists())
             status = build_benchmark_status(logbook_dir)
-            self.assertEqual(status["status"], "partial")
+            self.assertEqual(status["status"], "blocked")
             self.assertEqual(
                 status["next_steps"][0]["label"],
                 "Inspect preflight evidence",
             )
+            eval_status = next(
+                artifact
+                for artifact in status["artifacts"]
+                if artifact["label"] == "real benchmark eval"
+            )
             self.assertIn(
                 "blocked_preflight_vessels=1",
-                status["artifacts"][0]["detail"],
+                eval_status["detail"],
             )
 
     def test_blocks_when_native_launch_writes_no_grading_reports(self) -> None:
@@ -494,7 +525,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             self.assertTrue((logbook_dir / "real-benchmark-eval.json").is_file())
             self.assertFalse((logbook_dir / "runtime-instances.json").exists())
             status = build_benchmark_status(logbook_dir)
-            self.assertEqual(status["status"], "partial")
+            self.assertEqual(status["status"], "blocked")
             self.assertEqual(status["next_steps"][0]["label"], "Inspect task attempts")
 
 

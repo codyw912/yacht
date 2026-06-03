@@ -110,7 +110,10 @@ SWE-bench-shaped module.
 
 Current state:
 
-- Reports and workflows infer run state from scattered artifact paths.
+- Real benchmark and real smoke workflows write a `run-index.json` artifact
+  owned by `yacht.logbook`.
+- `benchmark-status` prefers `run-index.json` when it is present and preserves
+  artifact probing for older logbooks.
 - The roadmap calls for a run index that lists status, config, comparisons,
   vessels, artifact paths, timestamps, and final report paths.
 
@@ -121,11 +124,11 @@ run state.
 
 Likely first slice:
 
-- Add a run index artifact written by real benchmark and smoke workflows.
-- Teach `benchmark-status` to prefer the index when present while preserving
-  existing artifact detection.
-- Include config path, logbook path, comparisons, vessels, stages, generated
-  reports, and relevant artifact paths.
+- Done: add a run index artifact written by real benchmark and smoke workflows.
+- Done: teach `benchmark-status` to prefer the index when present while
+  preserving existing artifact detection.
+- Next: expand the index into the default interface for status/report
+  workflows, including final report paths and smoke-vs-benchmark detection.
 
 Why it matters:
 

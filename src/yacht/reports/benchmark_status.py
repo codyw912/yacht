@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.logbook.index import RUN_INDEX_PATH
+from yacht.logbook.io import load_json_object
 from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.workflows.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
 from yacht.workflows.benchmark_grading_collection import BENCHMARK_GRADING_COLLECTION_PATH
@@ -31,6 +33,9 @@ def render_benchmark_status(logbook_dir: Path, output_format: str = "text") -> s
 def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
     if _is_repetition_logbook(logbook_dir):
         return _build_repetition_benchmark_status(logbook_dir)
+    index_path = logbook_dir / RUN_INDEX_PATH
+    if index_path.exists():
+        return _build_indexed_benchmark_status(logbook_dir, index_path)
     artifacts = [_artifact_status(logbook_dir, label, path) for label, path in _STAGES]
     return {
         "schema": "yacht.benchmark-status.v1",
@@ -40,6 +45,37 @@ def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
         "artifacts": artifacts,
         "next_steps": _next_steps(logbook_dir, artifacts),
     }
+
+
+def _build_indexed_benchmark_status(
+    logbook_dir: Path,
+    index_path: Path,
+) -> dict[str, Any]:
+    run_index = load_json_object(index_path, "run index artifact")
+    artifacts = _indexed_artifacts(run_index)
+    return {
+        "schema": "yacht.benchmark-status.v1",
+        "logbook": str(logbook_dir),
+        "status": str(run_index["status"]),
+        "run_kind": str(run_index["run_kind"]),
+        "regatta": str(run_index["regatta"]),
+        "course": str(run_index["course"]),
+        "comparisons": run_index["comparisons"],
+        "surfaces": load_logbook_surfaces(logbook_dir),
+        "artifacts": artifacts,
+        "next_steps": _next_steps(logbook_dir, artifacts),
+    }
+
+
+def _indexed_artifacts(run_index: dict[str, Any]) -> list[dict[str, Any]]:
+    artifacts = run_index.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return []
+    return [
+        _artifact_status_from_path(_artifact_label(name), Path(str(value["path"])))
+        for name, value in artifacts.items()
+        if isinstance(value, dict) and isinstance(value.get("path"), str)
+    ]
 
 
 _STAGES = (
@@ -85,7 +121,13 @@ def _artifact_status(
     label: str,
     relative_path: Path,
 ) -> dict[str, Any]:
-    path = logbook_dir / relative_path
+    return _artifact_status_from_path(label, logbook_dir / relative_path)
+
+
+def _artifact_status_from_path(
+    label: str,
+    path: Path,
+) -> dict[str, Any]:
     artifact: dict[str, Any] = {
         "label": label,
         "path": str(path),
@@ -111,6 +153,10 @@ def _artifact_status(
     if "next_steps" in payload:
         artifact["next_steps"] = payload["next_steps"]
     return artifact
+
+
+def _artifact_label(name: str) -> str:
+    return name.replace("_", " ")
 
 
 def _artifact_detail(payload: dict[str, Any], state: str) -> str:
@@ -260,7 +306,13 @@ def _artifact_by_label(
     for artifact in artifacts:
         if artifact["label"] == label:
             return artifact
-    raise KeyError(label)
+    return {
+        "label": label,
+        "path": "",
+        "present": False,
+        "state": "missing",
+        "detail": "missing",
+    }
 
 
 def _render_text(status: dict[str, Any]) -> str:
