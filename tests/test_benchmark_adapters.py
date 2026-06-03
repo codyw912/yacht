@@ -4,12 +4,30 @@ from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.courses.registry import benchmark_adapter
+from yacht.courses.registry import course_adapter
+from yacht.courses.registry import evaluator_adapter
 from yacht.courses.registry import supported_benchmark_adapter_kinds
 from yacht.courses.registry import supported_course_adapter_harnesses
 from yacht.domain.model import ConfigError, Task, load_regatta
 
 
 class BenchmarkAdapterRegistryTests(unittest.TestCase):
+    def test_exposes_separate_course_and_evaluator_adapters(self) -> None:
+        course = course_adapter("swe-bench")
+        evaluator = evaluator_adapter("swe-bench")
+        benchmark = benchmark_adapter("swe-bench")
+
+        self.assertEqual(course.kind, "swe-bench")
+        self.assertEqual(course.display_name, "SWE-bench")
+        self.assertEqual(course.supported_harnesses, ("docker",))
+        self.assertIn("candidate_patches", course.expected_outputs())
+        self.assertEqual(evaluator.kind, "swe-bench")
+        self.assertEqual(evaluator.display_name, "SWE-bench")
+        self.assertEqual(evaluator.grading_schema, "yacht.swe-bench-grading.v1")
+        self.assertEqual(benchmark.kind, "swe-bench")
+        self.assertEqual(benchmark.course, course)
+        self.assertEqual(benchmark.evaluator, evaluator)
+
     def test_exposes_supported_benchmark_adapter_metadata(self) -> None:
         self.assertEqual(
             supported_benchmark_adapter_kinds(),

@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from yacht.courses.registry import benchmark_adapter
+from yacht.courses.registry import course_adapter
 from yacht.domain.model import ConfigError, load_regatta
 from yacht.logbook.index import write_run_index
 from yacht.workflows.benchmark_grading_collection import (
@@ -168,7 +168,7 @@ def run_real_benchmark_eval(
     try:
         _progress(progress, "candidate outputs: extracting from task attempts")
         assert regatta.course.adapter is not None
-        adapter = benchmark_adapter(regatta.course.adapter.kind)
+        adapter = course_adapter(regatta.course.adapter.kind)
         for comparison in regatta.comparisons:
             for vessel_name in comparison.vessels:
                 predictions.append(
