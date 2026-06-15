@@ -158,12 +158,17 @@ provider credentials.
 
 - [Project vision](docs/project/vision.md)
 - [Roadmap](docs/project/roadmap.md)
+- [Audit-backed plan](docs/project/audit-backed-plan.md)
 - [Codebase structure](docs/project/codebase-structure.md)
 - [Command reference](docs/reference/commands.md)
 - [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)
 - [Architecture decisions](docs/adr/)
 - [Changelog](CHANGELOG.md)
+
+## License
+
+YACHT is licensed under the [Apache License 2.0](LICENSE).
 
 ## Design Principles
 

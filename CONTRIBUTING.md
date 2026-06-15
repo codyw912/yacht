@@ -1,5 +1,11 @@
 # Contributing
 
+## License
+
+By contributing to YACHT, you agree that your contribution is licensed under the
+Apache License 2.0, the same license as the project, unless you explicitly mark
+the contribution as "Not a Contribution."
+
 ## Local Checks
 
 Run the same checks that CI runs:
