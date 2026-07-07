@@ -6,5 +6,6 @@ __pycache__/
 # Local operator notes and generated benchmark spillover.
 /AGENTS.md
 /AGENTS.override.md
+/notes/
 /logs/
 /pi-container-*.json
