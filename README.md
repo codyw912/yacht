@@ -61,10 +61,17 @@ plain JSON so other tools can consume them.
 
 Prerequisites:
 
+- Python 3.12 or newer available to `uv`
 - `uv`
-- Docker
-- the repo-local Pi runtime image
+- Git on `PATH`
+- Docker installed, running, and usable by the current user
+- network access for the first `uv` dependency sync, SWE-bench metadata, and
+  Docker image build
+- the native SWE-bench harness available through
+  `uv run --with swebench python` (YACHT uses this by default for native
+  benchmark launches)
 - an Anthropic API key exported as `ANTHROPIC_API_KEY`
+- the repo-local Pi runtime image built with the command below
 
 Build the Pi runtime image:
 

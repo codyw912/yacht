@@ -29,7 +29,7 @@ or evaluator adapter.
 These are small, reviewable changes that reduce obvious user or maintainer
 friction.
 
-- Document first-run prerequisites: Python 3.12, `uv`, Git, Docker, the
+- Document first-run prerequisites: Python 3.12 or newer, `uv`, Git, Docker, the
   repo-local runtime image, provider secrets, and the native SWE-bench harness.
 - Validate artifact-path names from config, including task IDs, vessel names,
   and comparison names, before they are interpolated into logbook paths.
