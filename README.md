@@ -61,10 +61,17 @@ plain JSON so other tools can consume them.
 
 Prerequisites:
 
+- Python 3.12 or newer available to `uv`
 - `uv`
-- Docker
-- the repo-local Pi runtime image
+- Git on `PATH`
+- Docker installed, running, and usable by the current user
+- network access for the first `uv` dependency sync, SWE-bench metadata, and
+  Docker image build
+- the native SWE-bench harness available through
+  `uv run --with swebench python` (YACHT uses this by default for native
+  benchmark launches)
 - an Anthropic API key exported as `ANTHROPIC_API_KEY`
+- the repo-local Pi runtime image built with the command below
 
 Build the Pi runtime image:
 
@@ -158,12 +165,17 @@ provider credentials.
 
 - [Project vision](docs/project/vision.md)
 - [Roadmap](docs/project/roadmap.md)
+- [Audit-backed plan](docs/project/audit-backed-plan.md)
 - [Codebase structure](docs/project/codebase-structure.md)
 - [Command reference](docs/reference/commands.md)
 - [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)
 - [Architecture decisions](docs/adr/)
 - [Changelog](CHANGELOG.md)
+
+## License
+
+YACHT is licensed under the [Apache License 2.0](LICENSE).
 
 ## Design Principles
 
