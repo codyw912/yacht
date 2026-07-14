@@ -10,6 +10,7 @@ from yacht.domain.model import (
     SecretReference,
     Vessel,
 )
+from yacht.runtimes import secrets as runtime_secrets
 
 
 class ContainerRuntimeResolutionError(ValueError):
@@ -88,7 +89,7 @@ def resolve_container_runtime(
         container_home=container_home,
         container_workspace=container_workspace,
     )
-    required_secret_names = _required_secret_names(runtime, riggings)
+    required_secret_names = runtime_secrets.required_secret_names(runtime, riggings)
     return ContainerRuntimeResolution(
         runtime=runtime,
         riggings=riggings,
@@ -252,16 +253,6 @@ def _secret_env_names(
         secret = regatta.secrets[secret_name]
         if secret.source == "env" and secret.name is not None:
             names.append(secret.name)
-    return tuple(dict.fromkeys(names))
-
-
-def _required_secret_names(
-    runtime: RuntimeRecipe,
-    riggings: tuple[RiggingRecipe, ...],
-) -> tuple[str, ...]:
-    names = list(runtime.required_secrets)
-    for rigging in riggings:
-        names.extend(rigging.required_secrets)
     return tuple(dict.fromkeys(names))
 
 
