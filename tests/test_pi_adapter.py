@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.fixtures import create_fixture_repo, hermetic_swe_bench_config
 from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
 from yacht.harnesses.pi import (
     PiAdapter,
@@ -260,7 +261,11 @@ class PiAdapterTests(unittest.TestCase):
             root = Path(temp_dir)
             config_path = root / "regatta.toml"
             workspace_path = root / "workspace"
-            config_path.write_text(_config_without_install(), encoding="utf-8")
+            repo = create_fixture_repo(root / "repo")
+            config_path.write_text(
+                hermetic_swe_bench_config(_config_without_install(), repo),
+                encoding="utf-8",
+            )
             workspace_path.mkdir()
             requests = []
 

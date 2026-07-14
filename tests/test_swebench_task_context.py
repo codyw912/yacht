@@ -1,12 +1,13 @@
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from tests.fixtures import create_fixture_repo, fixture_repo_base_commit, git_output
 from yacht.domain.model import ConfigError, CourseAdapter, Metrics, Task, load_regatta
 from yacht.courses.swe_bench.task_context import (
+    clear_swe_bench_record_cache,
     materialize_swe_bench_workspace,
     task_with_swe_bench_context,
 )
@@ -343,6 +344,9 @@ model = "mock"
                 load_regatta(config_path)
 
     def test_loads_swe_bench_task_context_from_dataset(self) -> None:
+        self.addCleanup(clear_swe_bench_record_cache)
+        clear_swe_bench_record_cache()
+
         def load_dataset(dataset: str, *, split: str):
             self.assertEqual(dataset, "SWE-bench/SWE-bench_Lite")
             self.assertEqual(split, "test")
@@ -375,6 +379,73 @@ model = "mock"
         self.assertEqual(task.repo_url, "https://github.com/django/django.git")
         self.assertEqual(task.base_commit, "abc123")
         self.assertEqual(task.problem_statement, "Fix the Django regression.")
+
+    def test_caches_swe_bench_records_per_process(self) -> None:
+        self.addCleanup(clear_swe_bench_record_cache)
+        clear_swe_bench_record_cache()
+        load_calls = []
+
+        def load_dataset(dataset: str, *, split: str):
+            load_calls.append((dataset, split))
+            return [
+                {
+                    "instance_id": "django__django-11099",
+                    "repo": "django/django",
+                    "base_commit": "abc123",
+                    "problem_statement": "Fix the first regression.",
+                },
+                {
+                    "instance_id": "django__django-11179",
+                    "repo": "django/django",
+                    "base_commit": "def456",
+                    "problem_statement": "Fix the second regression.",
+                },
+            ]
+
+        adapter = CourseAdapter(
+            kind="swe-bench",
+            dataset="princeton-nlp/SWE-bench_Lite",
+            split="test",
+            harness="docker",
+        )
+        fake_datasets = SimpleNamespace(load_dataset=load_dataset)
+        with patch.dict("sys.modules", {"datasets": fake_datasets}):
+            first = task_with_swe_bench_context(
+                task=Task(id="django__django-11099", title="First", difficulty=1),
+                adapter=adapter,
+            )
+            second = task_with_swe_bench_context(
+                task=Task(id="django__django-11179", title="Second", difficulty=1),
+                adapter=adapter,
+            )
+
+        self.assertEqual(load_calls, [("SWE-bench/SWE-bench_Lite", "test")])
+        self.assertEqual(first.base_commit, "abc123")
+        self.assertEqual(second.base_commit, "def456")
+
+    def test_missing_instance_reports_dataset_and_split(self) -> None:
+        self.addCleanup(clear_swe_bench_record_cache)
+        clear_swe_bench_record_cache()
+
+        def load_dataset(dataset: str, *, split: str):
+            return []
+
+        fake_datasets = SimpleNamespace(load_dataset=load_dataset)
+        with patch.dict("sys.modules", {"datasets": fake_datasets}):
+            with self.assertRaisesRegex(
+                ConfigError,
+                "SWE-bench instance django__django-11099 not found in "
+                "SWE-bench/SWE-bench_Lite split test",
+            ):
+                task_with_swe_bench_context(
+                    task=Task(id="django__django-11099", title="First", difficulty=1),
+                    adapter=CourseAdapter(
+                        kind="swe-bench",
+                        dataset="princeton-nlp/SWE-bench_Lite",
+                        split="test",
+                        harness="docker",
+                    ),
+                )
 
     def test_loads_inline_swe_bench_task_context_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -454,36 +525,15 @@ model = "mock"
 
 
 def _create_repo(path: Path) -> Path:
-    path.mkdir()
-    _git(path, "init")
-    _git(path, "config", "user.email", "test@example.com")
-    _git(path, "config", "user.name", "Test User")
-    _git(path, "config", "commit.gpgsign", "false")
-    (path / "example.txt").write_text("base\n", encoding="utf-8")
-    _git(path, "add", "example.txt")
-    _git(path, "commit", "-m", "base")
-    (path / "example.txt").write_text("later\n", encoding="utf-8")
-    _git(path, "commit", "-am", "later")
-    return path
+    return create_fixture_repo(path)
 
 
 def _head(path: Path) -> str:
-    return _git(path, "rev-parse", "HEAD")
+    return git_output(path, "rev-parse", "HEAD")
 
 
 def _base_commit(path: Path) -> str:
-    return _git(path, "rev-list", "--max-parents=0", "HEAD")
-
-
-def _git(path: Path, *args: str) -> str:
-    result = subprocess.run(
-        ("git", *args),
-        cwd=path,
-        capture_output=True,
-        check=True,
-        text=True,
-    )
-    return result.stdout.strip()
+    return fixture_repo_base_commit(path)
 
 
 def _config(repo: Path, *, with_runtime: bool = False) -> str:

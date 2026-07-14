@@ -66,10 +66,45 @@ def _has_context(task: Task) -> bool:
     )
 
 
+_RECORD_INDEX_CACHE: dict[tuple[str, str], dict[str, dict[str, object]]] = {}
+
+
+def clear_swe_bench_record_cache() -> None:
+    _RECORD_INDEX_CACHE.clear()
+
+
 def _load_swe_bench_record(
     adapter: CourseAdapter,
     instance_id: str,
 ) -> dict[str, object]:
+    dataset = _context_dataset_name(adapter.dataset)
+    index = _swe_bench_record_index(dataset, adapter.split)
+    record = index.get(instance_id)
+    if record is None:
+        raise ConfigError(
+            f"SWE-bench instance {instance_id} not found in {dataset} split "
+            f"{adapter.split}"
+        )
+    return dict(record)
+
+
+def _swe_bench_record_index(
+    dataset: str,
+    split: str,
+) -> dict[str, dict[str, object]]:
+    key = (dataset, split)
+    index = _RECORD_INDEX_CACHE.get(key)
+    if index is None:
+        index = {}
+        for record in _load_dataset_records(dataset, split):
+            record_id = record.get("instance_id")
+            if record_id is not None:
+                index[str(record_id)] = dict(record)
+        _RECORD_INDEX_CACHE[key] = index
+    return index
+
+
+def _load_dataset_records(dataset: str, split: str):
     try:
         from datasets import load_dataset
     except ImportError as error:
@@ -78,15 +113,7 @@ def _load_swe_bench_record(
             "inline task repo/base_commit/problem_statement metadata"
         ) from error
 
-    dataset = _context_dataset_name(adapter.dataset)
-    records = load_dataset(dataset, split=adapter.split)
-    for record in records:
-        if record.get("instance_id") == instance_id:
-            return dict(record)
-    raise ConfigError(
-        f"SWE-bench instance {instance_id} not found in {dataset} split "
-        f"{adapter.split}"
-    )
+    return load_dataset(dataset, split=split)
 
 
 def _context_dataset_name(dataset: str) -> str:
