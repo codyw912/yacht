@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -59,17 +60,44 @@ def load_regatta(config_path: Path) -> Regatta:
         )
         for vessel in raw["vessels"]
     )
+    comparisons = _parse_comparisons(raw, course.name)
+    _validate_artifact_path_names(course, vessels, comparisons)
     return Regatta(
         name=str(raw["regatta"]["name"]),
         course=course,
         vessels=vessels,
         preflight=_parse_preflight_config(raw),
-        comparisons=_parse_comparisons(raw, course.name),
+        comparisons=comparisons,
         secrets=_parse_secrets(raw),
         runtime_recipes=_parse_runtime_recipes(raw),
         rigging_recipes=_parse_rigging_recipes(raw),
         tool_capabilities=_parse_tool_capabilities(raw),
     )
+
+
+_ARTIFACT_PATH_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def _validate_artifact_path_names(
+    course: Course,
+    vessels: tuple[Vessel, ...],
+    comparisons: tuple[Comparison, ...],
+) -> None:
+    for task in course.tasks:
+        _validate_artifact_path_name("course task id", task.id)
+    for vessel in vessels:
+        _validate_artifact_path_name("vessel name", vessel.name)
+    for comparison in comparisons:
+        _validate_artifact_path_name("comparison name", comparison.name)
+
+
+def _validate_artifact_path_name(field: str, value: str) -> None:
+    if not _ARTIFACT_PATH_NAME.match(value):
+        raise ConfigError(
+            f"{field} {value!r} is used in logbook paths and must start with "
+            "a letter or digit and contain only letters, digits, dots, "
+            "underscores, or hyphens"
+        )
 
 
 def _expand_course_task_file(
