@@ -35,6 +35,12 @@ DISPATCH_CASES = (
     DispatchCase(
         argv=("run", CONFIG),
         patches={"commands.regatta.run_regatta": {}},
+        extra_patches={
+            "commands.regatta.load_regatta": SimpleNamespace(
+                course=SimpleNamespace(adapter=None, name="tiny-course"),
+                runtime_recipes={},
+            )
+        },
     ),
     DispatchCase(
         argv=("validate", CONFIG),
