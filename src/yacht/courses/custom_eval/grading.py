@@ -225,5 +225,6 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 def _task_ids(handoff: dict[str, Any]) -> set[str]:
     tasks = handoff["tasks"]
-    assert isinstance(tasks, list)
+    if not isinstance(tasks, list):
+        raise ConfigError("course handoff tasks must be a list")
     return {str(task["id"]) for task in tasks}

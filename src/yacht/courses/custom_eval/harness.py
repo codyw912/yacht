@@ -136,7 +136,11 @@ def _instance_result(record: dict[str, Any]) -> dict[str, Any]:
     mismatched_response_fields: list[str] = []
     if isinstance(response, dict):
         expectations = record["expect_response"]
-        assert isinstance(expectations, dict)
+        if not isinstance(expectations, dict):
+            raise SystemExit(
+                f"candidate record {record.get('instance_id')} expect_response "
+                "must be an object"
+            )
         for key, expected in expectations.items():
             if key not in response:
                 missing_response_fields.append(str(key))

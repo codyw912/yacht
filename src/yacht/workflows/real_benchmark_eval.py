@@ -167,7 +167,8 @@ def run_real_benchmark_eval(
     predictions = []
     try:
         _progress(progress, "candidate outputs: extracting from task attempts")
-        assert regatta.course.adapter is not None
+        if regatta.course.adapter is None:
+            raise ConfigError("real benchmark eval requires a course adapter")
         adapter = course_adapter(regatta.course.adapter.kind)
         for comparison in regatta.comparisons:
             for vessel_name in comparison.vessels:
