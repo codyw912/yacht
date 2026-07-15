@@ -22,6 +22,17 @@ CONFIG = "regatta.toml"
 
 DISPATCH_CASES = (
     DispatchCase(
+        argv=("doctor",),
+        patches={
+            "commands.doctor.run_doctor": {
+                "status": "passed",
+                "failed": [],
+                "warnings": [],
+                "checks": [],
+            }
+        },
+    ),
+    DispatchCase(
         argv=("run", CONFIG),
         patches={"commands.regatta.run_regatta": {}},
     ),
