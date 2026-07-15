@@ -1,9 +1,11 @@
 # Command Reference
 
-This page is a compact map of YACHT's current CLI surface. Prefer the README
-for the first real benchmark path.
+This page is a compact map of YACHT's CLI surface. Prefer the README for the
+first real benchmark path. The user-facing surface is six commands: `doctor`,
+`validate`, `run`, `status`, `report`, and the `internals` group of pipeline
+stage commands.
 
-## Host Prerequisites
+## doctor
 
 ```sh
 uv run yacht doctor
@@ -21,164 +23,177 @@ The SWE-bench harness needs no manual installation: uv resolves it on demand
 and caches it. The doctor check performs that resolution, so the one-time
 download happens here rather than mid-eval when grading starts.
 
-## Local Development Smoke
+## validate
 
 ```sh
 uv run yacht validate examples/local-agent-preflight-smoke.toml
-uv run yacht local-smoke-eval examples/local-agent-preflight-smoke.toml --logbook logbook
-uv run yacht smoke-readiness-report --logbook logbook
-uv run yacht smoke-report --logbook logbook
-uv run yacht smoke-report --logbook logbook --format markdown --output logbook/smoke-report.md
+uv run yacht validate examples/container-pi-fff-real-benchmark-smoke.toml --format json
 ```
 
-## Container Pi Benchmark Smoke
+Validates a regatta config without running it.
+
+## run
 
 ```sh
-docker build -t yacht/pi-agent-runtime:pi-0.74.0 containers/pi-agent-runtime
+# Local development smoke (no tokens, no Docker grading)
+uv run yacht run examples/local-agent-preflight-smoke.toml --logbook logbook
 
-uv run yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
-uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml \
-  --logbook logbook \
-  --workspace .
-uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
+# Real benchmark smoke
+uv run yacht run examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook logbook \
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY
-uv run yacht real-benchmark-repetitions examples/container-pi-fff-real-benchmark-smoke.toml \
+
+# Repeated benchmark runs aggregated under one parent logbook
+uv run yacht run examples/container-pi-fff-real-benchmark-smoke.toml \
+  --logbook logbook \
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY \
   --repetitions 3
-uv run yacht benchmark-status --logbook logbook
-uv run yacht benchmark-report --logbook logbook
-uv run yacht benchmark-report --logbook logbook --vessel pi-container-fff
-uv run yacht benchmark-report --logbook logbook --vessel pi-container-fff --task django__django-11099
-uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
-uv run yacht latest-logbook
 ```
 
-Use `examples/container-pi-fff-real-benchmark-small.toml` with the same command
-sequence when you want a two-instance SWE-bench Lite smoke instead of the
-cheaper one-instance default.
+`yacht run` executes the full pipeline and detects the run type from the
+config: courses without an adapter run as smoke evals (preflight, task
+attempts, smoke readiness), and courses with an adapter run as real benchmarks
+(preflight, task attempts, candidate patch extraction, native launch, grading
+collection, scorecard). It writes the matching runbook artifact first, prints
+progress to stderr, and keeps stdout reserved for the completion summary. Pass
+`--format json` for the machine-readable payload. With `--repetitions N`,
+benchmark runs execute sequentially into `runs/run-001`, `runs/run-002`, and
+so on, then aggregate into `benchmark-aggregate.json` and
+`benchmark-report.md`.
+
+Use `examples/container-pi-fff-real-benchmark-small.toml` for a two-instance
+SWE-bench Lite smoke instead of the cheaper one-instance default.
 
 Fish shell:
 
 ```fish
 set -x LOGBOOK /private/tmp/yacht-real-benchmark-(date +%Y%m%d-%H%M%S)
 
-uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml \
-  --logbook "$LOGBOOK" \
-  --workspace .
-
-uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
+uv run yacht run examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY
 
-uv run yacht benchmark-status --logbook "$LOGBOOK"
-uv run yacht benchmark-report --logbook "$LOGBOOK"
+uv run yacht status --logbook "$LOGBOOK"
+uv run yacht report --logbook "$LOGBOOK"
 ```
 
-## Runtime and Preflight
+## status
 
 ```sh
-uv run yacht plan examples/pi-fff-provisioning.toml
-uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace .
-uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace . --write-logbook
-uv run yacht preflight examples/pi-fff-provisioning.toml --dry-run --logbook logbook
-uv run yacht preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic=@env:ANTHROPIC_API_KEY
-uv run yacht preflight examples/pi-fff-provisioning.toml --agent-preflight pi --logbook logbook --secret anthropic=@env:ANTHROPIC_API_KEY
-uv run yacht preflight-report --logbook logbook
+uv run yacht status
+uv run yacht status --logbook logbook
+uv run yacht status --logbook logbook --format markdown --output logbook/status.md
 ```
 
-`preflight` proves that the runtime and rigging are available, configured, and
-isolated before task tokens are spent. Agent-prompt checks require
-`--agent-preflight`.
+`yacht status` is the quick inspection command to run after a workflow. It
+detects whether the logbook holds a smoke or benchmark run, prints artifact
+presence and statuses, and recommends the next command. Without `--logbook`,
+it uses `./logbook` if present, then the most recent yacht logbook in the
+system temp directory.
 
-## Task Attempts and Candidate Patches
+## report
 
 ```sh
-uv run yacht task-attempts examples/pi-fff-provisioning.toml --agent pi --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
-uv run yacht task-attempt-scorecard --logbook logbook
-uv run yacht predictions-from-attempts examples/pi-fff-provisioning.toml --logbook logbook --vessel pi-baseline
-uv run yacht predictions-from-attempts examples/pi-fff-provisioning.toml --logbook logbook --vessel pi-plus-fff
+uv run yacht report --logbook logbook
+uv run yacht report --logbook logbook --vessel pi-container-fff
+uv run yacht report --logbook logbook --vessel pi-container-fff --task django__django-11099
+uv run yacht report --logbook logbook --format markdown --output logbook/benchmark-report.md
 ```
 
-For SWE-bench courses, task attempts run in checked-out task repositories and
-`predictions-from-attempts` extracts unified diff candidate patches.
+`yacht report` renders the report for a smoke or benchmark logbook. Benchmark
+reports start with a decision summary that says whether the challenger
+improved, regressed, or tied on resolution, tokens, cost, and duration, then
+include comparison outcomes, usage metrics, per-task outcomes, and per-vessel
+artifact paths when task attempt data is available. Use `--vessel` and
+`--task` to narrow the detailed sections while keeping the full summary for
+context. On a repetition parent logbook, the report renders the aggregate.
 
-## Native Benchmark Handoff and Grading
+## Internals
+
+`yacht internals <stage>` exposes the pipeline stage commands for debugging
+and incremental re-runs. Each stage reads and writes the same logbook
+artifacts that `yacht run` produces end to end.
+
+Runtime and preflight:
 
 ```sh
-uv run yacht handoff examples/pi-fff-provisioning.toml --logbook logbook
-uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-baseline-predictions.json --logbook logbook --vessel pi-baseline
-uv run yacht predictions examples/pi-fff-provisioning.toml --input examples/pi-fff-predictions.json --logbook logbook --vessel pi-plus-fff
-uv run yacht runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace . --write-logbook
-uv run yacht benchmark-plan --logbook logbook
-uv run yacht benchmark-readiness-report --logbook logbook
-uv run yacht readiness-gate --logbook logbook --output logbook/benchmark-readiness-summary.json
-uv run yacht benchmark-launcher --logbook logbook --max-workers 1
-uv run yacht benchmark-launch --logbook logbook
-uv run yacht benchmark-collect-grading examples/pi-fff-provisioning.toml --logbook logbook
-uv run yacht benchmark-scorecard --logbook logbook
-uv run yacht benchmark-status --logbook logbook
-uv run yacht benchmark-report --logbook logbook
-uv run yacht benchmark-aggregate --logbook logbook-1 --logbook logbook-2
+uv run yacht internals plan examples/pi-fff-provisioning.toml
+uv run yacht internals runtime-instances examples/pi-fff-provisioning.toml --logbook logbook --workspace . --write-logbook
+uv run yacht internals preflight examples/pi-fff-provisioning.toml --logbook logbook --secret anthropic=@env:ANTHROPIC_API_KEY
+uv run yacht internals preflight-report --logbook logbook
 ```
 
-The native benchmark harness owns task containers, test execution, and grading.
-YACHT owns the handoff, gates, launch records, normalized grading artifacts, and
-scorecards. `benchmark-launcher` and `real-benchmark-eval` use
+- `plan` prints a redacted runtime/preflight plan without launching agents.
+- `runtime-instances` prints dry-run host runtime instance resolution.
+- `preflight` runs machine preflight checks; add `--agent-preflight <agent>`
+  for agent-prompt checks or `--dry-run` for the execution plan.
+- `preflight-report` writes the preflight evidence eligibility report.
+
+Task attempts and candidate patches:
+
+```sh
+uv run yacht internals task-attempts examples/pi-fff-provisioning.toml --agent pi --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
+uv run yacht internals task-attempt-scorecard --logbook logbook
+uv run yacht internals predictions-from-attempts examples/pi-fff-provisioning.toml --logbook logbook --vessel pi-plus-fff
+uv run yacht internals predictions examples/pi-fff-provisioning.toml --input examples/pi-fff-predictions.json --logbook logbook --vessel pi-plus-fff
+```
+
+- `task-attempts` runs task attempts and writes per-task agent evidence.
+- `task-attempt-scorecard` summarizes task attempt artifacts.
+- `predictions-from-attempts` extracts SWE-bench candidate patches from task
+  attempt artifacts.
+- `predictions` validates and writes externally produced prediction records.
+
+Native benchmark handoff, launch, and grading:
+
+```sh
+uv run yacht internals handoff examples/pi-fff-provisioning.toml --logbook logbook
+uv run yacht internals benchmark-plan --logbook logbook
+uv run yacht internals benchmark-readiness-report --logbook logbook
+uv run yacht internals readiness-gate --logbook logbook --output logbook/benchmark-readiness-summary.json
+uv run yacht internals benchmark-launcher --logbook logbook --max-workers 1
+uv run yacht internals benchmark-launch --logbook logbook
+uv run yacht internals benchmark-collect-grading examples/pi-fff-provisioning.toml --logbook logbook
+uv run yacht internals grading-report examples/pi-fff-provisioning.toml --from-launcher --vessel pi-plus-fff --logbook logbook
+```
+
+- `handoff` writes the planned course adapter handoff artifact.
+- `benchmark-plan` writes the dry-run benchmark execution readiness plan.
+- `benchmark-readiness-report` renders that plan as a readiness report.
+- `readiness-gate` exits nonzero when readiness has blocked vessels.
+- `benchmark-launcher` writes native launcher commands without executing them.
+- `benchmark-launch` executes the ready native launcher commands.
+- `benchmark-collect-grading` collects native reports into validated grading
+  artifacts.
+- `grading-report` validates and writes a single SWE-bench grading report.
+
+The native benchmark harness owns task containers, test execution, and
+grading. YACHT owns the handoff, gates, launch records, normalized grading
+artifacts, and scorecards. `benchmark-launcher` and `yacht run` use
 `uv run --with swebench python` by default for SWE-bench launches; pass
 `--python-executable` only when using a different managed harness environment.
-`benchmark-report` starts with a decision summary that says whether the
-challenger improved, regressed, or tied on resolution, tokens, cost, and
-duration. It also includes comparison outcomes, usage metrics, per-task
-outcomes, and per-vessel artifact paths when task attempt data is available.
-When per-attempt artifacts are present, it also breaks tokens, cost, duration,
-and tool calls down by task. Use `--vessel` and `--task` to narrow the detailed
-sections while keeping the full benchmark summary for context. Completed
-scorecards and `benchmark-status` include a filtered inspection command for the
-first challenger/task outcome.
-Use `benchmark-aggregate` with multiple completed benchmark logbooks to inspect
-aggregate resolution and usage across repeated runs. Aggregate reports include
-per-run vessel rows with child logbook paths so outliers can be inspected.
 
-## One-Command Workflows
+Scorecards and aggregates:
 
 ```sh
-uv run yacht pi-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
-uv run yacht real-smoke-eval examples/pi-fff-provisioning.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
-uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace .
-uv run yacht real-smoke-runbook examples/pi-fff-provisioning.toml --logbook logbook --workspace . --format markdown
-uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace .
-uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --format markdown
-uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml --logbook logbook --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY
-uv run yacht real-benchmark-repetitions examples/container-pi-fff-real-benchmark-smoke.toml --workspace . --secret anthropic=@env:ANTHROPIC_API_KEY --repetitions 3
-uv run yacht benchmark-status --logbook logbook
-uv run yacht benchmark-report --logbook logbook
-uv run yacht benchmark-report --logbook logbook --format markdown --output logbook/benchmark-report.md
-uv run yacht latest-logbook
+uv run yacht internals benchmark-scorecard --logbook logbook
+uv run yacht internals benchmark-aggregate --logbook logbook-1 --logbook logbook-2
 ```
 
-`real-benchmark-runbook` writes a shareable plan of the exact commands and
-expected artifacts before spending benchmark tokens.
-`real-benchmark-eval` is the current end-to-end benchmark path: preflight,
-task attempts, candidate patch extraction, runtime snapshots, readiness,
-native launch, grading collection, scorecard, and top-level summary.
-Long-running real benchmark commands print progress updates to stderr and keep
-stdout reserved for the final completion summary. The default summary is
-human-readable text; pass `--format json` to print the full machine-readable
-payload.
-`real-benchmark-repetitions` runs that same path sequentially into
-`runs/run-001`, `runs/run-002`, and so on under a parent logbook, then writes
-`real-benchmark-repetitions.json` and `benchmark-aggregate.json` for completed
-child runs. When at least one child run completes, it also writes
-`benchmark-report.md`. If `--logbook` is omitted, YACHT creates a timestamped
-parent logbook under the system temp directory. The parent logbook works with
-`benchmark-status` and `benchmark-report`; the report renders the aggregate when
-no single-run `benchmark-scorecard.json` is present.
-`benchmark-status` is the quick inspection command to run after the workflow; it
-prints artifact presence, artifact statuses, and the next recommended command.
-`latest-logbook` finds the newest YACHT benchmark logbook under the system temp
-directory by default, then prints `benchmark-status` and `benchmark-report`
-commands for it. Use `--root` to scan a different directory.
+- `benchmark-scorecard` writes the scorecard summary from validated grading
+  artifacts.
+- `benchmark-aggregate` aggregates completed benchmark scorecards across
+  logbooks, including per-run vessel rows with child logbook paths so
+  outliers can be inspected.
+
+Smoke readiness:
+
+```sh
+uv run yacht internals smoke-readiness-report --logbook logbook
+```
+
+- `smoke-readiness-report` checks whether a smoke logbook has usable
+  preflight and task evidence.

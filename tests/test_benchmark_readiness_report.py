@@ -72,6 +72,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-readiness-report",
                         "--logbook",
                         str(logbook_dir),
@@ -115,6 +116,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-readiness-report",
                         "--logbook",
                         str(logbook_dir),
@@ -143,6 +145,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-readiness-report",
                         "--logbook",
                         str(logbook_dir),
@@ -193,6 +196,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-readiness-report",
                         "--logbook",
                         str(logbook_dir),
@@ -227,6 +231,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "readiness-gate",
                         "--logbook",
                         str(logbook_dir),
@@ -252,6 +257,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "readiness-gate",
                         "--logbook",
                         str(logbook_dir),
@@ -279,6 +285,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "readiness-gate",
                         "--logbook",
                         str(logbook_dir),
@@ -301,6 +308,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "readiness-gate",
                         "--logbook",
                         str(Path(temp_dir) / "logbook"),
@@ -330,6 +338,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "readiness-gate",
                         "--logbook",
                         str(logbook_dir),
@@ -359,6 +368,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "readiness-gate",
                         "--logbook",
                         str(logbook_dir),
@@ -381,6 +391,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-readiness-report",
                         "--logbook",
                         str(Path(temp_dir) / "logbook"),
@@ -410,6 +421,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-readiness-report",
                         "--logbook",
                         str(logbook_dir),
@@ -441,6 +453,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-readiness-report",
                         "--logbook",
                         str(logbook_dir),

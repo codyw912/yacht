@@ -126,7 +126,9 @@ class PreflightEvidenceReportTests(unittest.TestCase):
 
             stdout = StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["preflight-report", "--logbook", str(logbook_dir)])
+                exit_code = main(
+                    ["internals", "preflight-report", "--logbook", str(logbook_dir)]
+                )
 
             self.assertEqual(exit_code, 0)
             payload = json.loads(stdout.getvalue())
@@ -185,6 +187,7 @@ class PreflightEvidenceReportTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "preflight-report",
                         "--logbook",
                         str(logbook_dir),
@@ -209,6 +212,7 @@ class PreflightEvidenceReportTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "preflight-report",
                         "--logbook",
                         str(Path(temp_dir) / "logbook"),

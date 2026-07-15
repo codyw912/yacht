@@ -67,9 +67,9 @@ Prerequisites:
 - Docker installed, running, and usable by the current user
 - network access for the first `uv` dependency sync, SWE-bench metadata, and
   Docker image build
-- the native SWE-bench harness available through
-  `uv run --with swebench python` (YACHT uses this by default for native
-  benchmark launches)
+- no manual SWE-bench install: uv resolves the `swebench` harness on demand
+  for native benchmark launches, and `yacht doctor` performs and verifies the
+  first resolution
 - an Anthropic API key exported as `ANTHROPIC_API_KEY`
 - the repo-local Pi runtime image built with the command below
 
@@ -84,18 +84,16 @@ Run the benchmark smoke:
 ```sh
 LOGBOOK=/private/tmp/yacht-real-benchmark-$(date +%Y%m%d-%H%M%S)
 
-uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml \
-  --logbook "$LOGBOOK" \
-  --workspace .
+uv run yacht doctor examples/container-pi-fff-real-benchmark-smoke.toml
 
-uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
+uv run yacht run examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY
 
-uv run yacht benchmark-status --logbook "$LOGBOOK"
-uv run yacht benchmark-report --logbook "$LOGBOOK"
-uv run yacht benchmark-report --logbook "$LOGBOOK" --vessel pi-container-fff
+uv run yacht status --logbook "$LOGBOOK"
+uv run yacht report --logbook "$LOGBOOK"
+uv run yacht report --logbook "$LOGBOOK" --vessel pi-container-fff
 ```
 
 The default smoke config runs one SWE-bench Lite instance to keep iteration
@@ -107,17 +105,15 @@ Fish shell:
 ```fish
 set -x LOGBOOK /private/tmp/yacht-real-benchmark-(date +%Y%m%d-%H%M%S)
 
-uv run yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml \
-  --logbook "$LOGBOOK" \
-  --workspace .
+uv run yacht doctor examples/container-pi-fff-real-benchmark-smoke.toml
 
-uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
+uv run yacht run examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY
 
-uv run yacht benchmark-status --logbook "$LOGBOOK"
-uv run yacht benchmark-report --logbook "$LOGBOOK"
+uv run yacht status --logbook "$LOGBOOK"
+uv run yacht report --logbook "$LOGBOOK"
 ```
 
 The status report is the first thing to inspect after a run. It shows which
@@ -125,7 +121,7 @@ benchmark artifacts exist, what is missing, and the next recommended command.
 The benchmark report then summarizes benchmark outcome, agent usage metrics,
 notable deltas, per-task outcomes, per-task usage, and the relevant per-vessel
 artifact paths. Use `--vessel` and `--task` to narrow the detailed sections
-when inspecting a specific run. After a scorecard exists, `benchmark-status`
+when inspecting a specific run. After a scorecard exists, `yacht status`
 recommends a filtered inspection command for the first challenger/task outcome.
 For example:
 
@@ -153,9 +149,9 @@ For a no-token local harness check:
 
 ```sh
 uv run yacht validate examples/local-agent-preflight-smoke.toml
-uv run yacht local-smoke-eval examples/local-agent-preflight-smoke.toml --logbook logbook
-uv run yacht smoke-readiness-report --logbook logbook
-uv run yacht smoke-report --logbook logbook
+uv run yacht run examples/local-agent-preflight-smoke.toml --logbook logbook
+uv run yacht status --logbook logbook
+uv run yacht report --logbook logbook
 ```
 
 This validates the control-plane path without Pi, SWE-bench, Docker grading, or

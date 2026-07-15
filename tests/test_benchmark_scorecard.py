@@ -59,7 +59,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                     "uv",
                     "run",
                     "yacht",
-                    "benchmark-report",
+                    "report",
                     "--logbook",
                     str(logbook_dir),
                 ],
@@ -275,6 +275,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-scorecard",
                         "--logbook",
                         str(logbook_dir),
@@ -287,12 +288,12 @@ class BenchmarkScorecardTests(unittest.TestCase):
             self.assertEqual(payload["status"], "partial")
             self.assertEqual(
                 payload["next_steps"][0]["command_preview"],
-                f"uv run yacht benchmark-report --logbook {logbook_dir}",
+                f"uv run yacht report --logbook {logbook_dir}",
             )
             self.assertEqual(
                 payload["next_steps"][1]["command_preview"],
                 (
-                    f"uv run yacht benchmark-report --logbook {logbook_dir} "
+                    f"uv run yacht report --logbook {logbook_dir} "
                     "--vessel pi-plus-fff --task django__django-11099"
                 ),
             )
@@ -306,7 +307,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                     ]
@@ -364,7 +365,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                     ]
@@ -386,7 +387,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                         "--format",
@@ -458,7 +459,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                     ]
@@ -539,7 +540,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                     ]
@@ -573,7 +574,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                     ]
@@ -608,7 +609,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                         "--format",
@@ -640,7 +641,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                         "--format",
@@ -671,7 +672,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                         "--vessel",
@@ -732,7 +733,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                         "--vessel",
@@ -758,7 +759,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                         "--task",
@@ -785,7 +786,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                         "--format",
@@ -853,13 +854,14 @@ class BenchmarkScorecardTests(unittest.TestCase):
     def test_benchmark_report_command_reports_missing_scorecard(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir()
 
             stdout = StringIO()
             stderr = StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                     ]
@@ -868,8 +870,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertEqual(stdout.getvalue(), "")
             self.assertIn(
-                "error: invalid regatta config: benchmark scorecard artifact "
-                "not found:",
+                "error: benchmark scorecard artifact not found:",
                 stderr.getvalue(),
             )
             self.assertNotIn("Traceback", stderr.getvalue())
@@ -888,7 +889,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                     ]
@@ -897,8 +898,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertEqual(stdout.getvalue(), "")
             self.assertIn(
-                "error: invalid regatta config: benchmark scorecard artifact "
-                "is not valid JSON:",
+                "error: benchmark scorecard artifact is not valid JSON:",
                 stderr.getvalue(),
             )
             self.assertNotIn("Traceback", stderr.getvalue())
@@ -917,7 +917,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                     ]
@@ -926,8 +926,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertEqual(stdout.getvalue(), "")
             self.assertIn(
-                "error: invalid regatta config: benchmark scorecard artifact "
-                "is invalid:",
+                "error: benchmark scorecard artifact is invalid:",
                 stderr.getvalue(),
             )
             self.assertNotIn("Traceback", stderr.getvalue())
@@ -946,6 +945,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-scorecard",
                         "--logbook",
                         str(logbook_dir),

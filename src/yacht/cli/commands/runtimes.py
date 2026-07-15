@@ -8,9 +8,21 @@ from pathlib import Path
 from yacht.domain.model import ConfigError
 from yacht.runtimes.instances import build_runtime_instances_plan
 from yacht.runtimes.instances import write_runtime_instances_plan
+from yacht.runtimes.plan import build_runtime_plan
 
 
 def register(subcommands: argparse._SubParsersAction) -> None:
+    plan_parser = subcommands.add_parser(
+        "plan",
+        help="Print a redacted runtime/preflight plan without launching agents.",
+    )
+    plan_parser.add_argument(
+        "config",
+        type=Path,
+        help="Path to a regatta TOML file.",
+    )
+    plan_parser.set_defaults(handler=_plan)
+
     runtime_instances_parser = subcommands.add_parser(
         "runtime-instances",
         help="Print dry-run host runtime instance resolution without launching agents.",
@@ -38,6 +50,16 @@ def register(subcommands: argparse._SubParsersAction) -> None:
         help="Write the resolved plan to logbook/runtime-instances.json.",
     )
     runtime_instances_parser.set_defaults(handler=_runtime_instances)
+
+
+def _plan(args: argparse.Namespace) -> int:
+    try:
+        plan = build_runtime_plan(args.config)
+    except ConfigError as error:
+        print(f"error: invalid regatta config: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(plan, indent=2))
+    return 0
 
 
 def _runtime_instances(args: argparse.Namespace) -> int:

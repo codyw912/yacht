@@ -225,7 +225,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             ):
                 exit_code = main(
                     [
-                        "real-benchmark-eval",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(logbook_dir),
@@ -274,7 +274,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
 
             with (
                 patch(
-                    "yacht.cli.commands.real_benchmark.run_real_benchmark_eval",
+                    "yacht.cli.commands.regatta.run_real_benchmark_eval",
                     return_value={
                         "status": "complete",
                         "regatta": "pi-fff-comparison",
@@ -286,7 +286,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             ):
                 exit_code = main(
                     [
-                        "real-benchmark-eval",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(logbook_dir),

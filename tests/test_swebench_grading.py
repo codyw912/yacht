@@ -159,6 +159,7 @@ class SweBenchGradingTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "grading-report",
                         str(config_path),
                         "--input",
@@ -198,6 +199,7 @@ class SweBenchGradingTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "grading-report",
                         str(config_path),
                         "--input",
@@ -259,6 +261,7 @@ class SweBenchGradingTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "grading-report",
                         str(config_path),
                         "--from-launcher",
@@ -301,6 +304,7 @@ class SweBenchGradingTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "grading-report",
                         str(config_path),
                         "--from-launcher",
@@ -331,6 +335,7 @@ class SweBenchGradingTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "grading-report",
                         str(config_path),
                         "--from-launcher",
@@ -366,6 +371,7 @@ class SweBenchGradingTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "grading-report",
                         str(config_path),
                         "--input",

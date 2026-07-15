@@ -62,6 +62,7 @@ class BenchmarkGradingCollectionTests(unittest.TestCase):
                     "uv",
                     "run",
                     "yacht",
+                    "internals",
                     "benchmark-scorecard",
                     "--logbook",
                     str(logbook_dir),
@@ -122,6 +123,7 @@ class BenchmarkGradingCollectionTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-collect-grading",
                         str(PI_FFF_CONFIG_PATH),
                         "--logbook",

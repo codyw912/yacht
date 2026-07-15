@@ -21,6 +21,7 @@ class LocalSmokeTaskAttemptTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "task-attempts",
                         "examples/local-agent-preflight-smoke.toml",
                         "--agent",
@@ -80,6 +81,7 @@ class LocalSmokeTaskAttemptTests(unittest.TestCase):
                 self.assertEqual(
                     main(
                         [
+                            "internals",
                             "task-attempts",
                             "examples/local-agent-preflight-smoke.toml",
                             "--agent",
@@ -97,6 +99,7 @@ class LocalSmokeTaskAttemptTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "task-attempt-scorecard",
                         "--logbook",
                         str(logbook_dir),
@@ -127,47 +130,6 @@ class LocalSmokeTaskAttemptTests(unittest.TestCase):
             )
             self.assertEqual(rigged["success_rate"], 1.0)
             self.assertTrue((logbook_dir / "task-attempt-scorecard.json").is_file())
-
-    def test_cli_runs_local_smoke_eval_with_attempts_and_scorecard(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            logbook_dir = root / "logbook"
-            workspace_dir = root / "workspace"
-            workspace_dir.mkdir()
-
-            stdout = StringIO()
-            with redirect_stdout(stdout):
-                exit_code = main(
-                    [
-                        "local-smoke-eval",
-                        "examples/local-agent-preflight-smoke.toml",
-                        "--logbook",
-                        str(logbook_dir),
-                        "--workspace",
-                        str(workspace_dir),
-                    ]
-                )
-
-            self.assertEqual(exit_code, 0)
-            summary = json.loads(stdout.getvalue())
-            self.assertEqual(summary["status"], "complete")
-            self.assertEqual(summary["agent"], "local-smoke")
-            self.assertEqual(summary["attempts"]["attempt_count"], 2)
-            self.assertEqual(summary["scorecard"]["summary"]["total_attempts"], 2)
-            self.assertEqual(
-                summary["scorecard_path"],
-                str(logbook_dir / "task-attempt-scorecard.json"),
-            )
-            self.assertTrue((logbook_dir / "task-attempt-scorecard.json").is_file())
-            self.assertTrue(
-                (
-                    logbook_dir
-                    / "task-attempts"
-                    / "local-agent-preflight"
-                    / "local-agent-with-tool"
-                    / "local-smoke-1.json"
-                ).is_file()
-            )
 
 
 if __name__ == "__main__":

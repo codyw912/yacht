@@ -228,7 +228,9 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             stdout = StringIO()
             stderr = StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                exit_code = main(["benchmark-launcher", "--logbook", str(logbook_dir)])
+                exit_code = main(
+                    ["internals", "benchmark-launcher", "--logbook", str(logbook_dir)]
+                )
 
             self.assertEqual(exit_code, 1)
             self.assertEqual(stdout.getvalue(), "")
@@ -269,6 +271,7 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-launcher",
                         "--logbook",
                         str(logbook_dir),
@@ -295,6 +298,7 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-launcher",
                         "--logbook",
                         str(Path(temp_dir) / "logbook"),

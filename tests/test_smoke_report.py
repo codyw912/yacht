@@ -61,7 +61,7 @@ class SmokeReportTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "smoke-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                         "--format",
@@ -146,8 +146,11 @@ def _run_pi_smoke_eval(
     ):
         exit_code = main(
             [
-                "pi-smoke-eval",
+                "internals",
+                "task-attempts",
                 str(config_path),
+                "--agent",
+                "pi",
                 "--logbook",
                 str(logbook_dir),
                 "--workspace",
@@ -156,13 +159,24 @@ def _run_pi_smoke_eval(
                 "anthropic=test-secret",
             ]
         )
+        if exit_code == 0:
+            exit_code = main(
+                [
+                    "internals",
+                    "task-attempt-scorecard",
+                    "--logbook",
+                    str(logbook_dir),
+                ]
+            )
     if exit_code != 0:
-        raise AssertionError(f"pi-smoke-eval exited {exit_code}")
+        raise AssertionError(f"pi smoke setup exited {exit_code}")
 
 
 def _run_smoke_readiness_report(logbook_dir: Path) -> None:
     with redirect_stdout(StringIO()):
-        exit_code = main(["smoke-readiness-report", "--logbook", str(logbook_dir)])
+        exit_code = main(
+            ["internals", "smoke-readiness-report", "--logbook", str(logbook_dir)]
+        )
     if exit_code != 0:
         raise AssertionError(f"smoke-readiness-report exited {exit_code}")
 

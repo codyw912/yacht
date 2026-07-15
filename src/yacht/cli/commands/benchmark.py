@@ -3,17 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import tempfile
 from pathlib import Path
 
 from yacht.cli import output
 from yacht.domain.model import ConfigError
 from yacht.reports.benchmark_aggregate import render_benchmark_aggregate
 from yacht.reports.benchmark_readiness import render_benchmark_readiness_report
-from yacht.reports.benchmark_report import render_benchmark_report
 from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
-from yacht.reports.benchmark_status import render_benchmark_status
-from yacht.reports.latest_logbook import render_latest_logbook
 from yacht.workflows.benchmark_execution_plan import write_benchmark_execution_plan
 from yacht.workflows.benchmark_grading_collection import (
     collect_benchmark_grading_reports,
@@ -39,37 +35,6 @@ def register(subcommands: argparse._SubParsersAction) -> None:
     )
     benchmark_scorecard_parser.set_defaults(handler=_benchmark_scorecard)
 
-    benchmark_report_parser = subcommands.add_parser(
-        "benchmark-report",
-        help="Print a human-readable benchmark scorecard report.",
-    )
-    benchmark_report_parser.add_argument(
-        "--logbook",
-        type=Path,
-        default=Path("logbook"),
-        help="Directory containing benchmark-scorecard.json.",
-    )
-    benchmark_report_parser.add_argument(
-        "--format",
-        choices=("text", "markdown"),
-        default="text",
-        help="Output format for the rendered benchmark report.",
-    )
-    benchmark_report_parser.add_argument(
-        "--vessel",
-        help="Only show per-vessel details for this vessel name.",
-    )
-    benchmark_report_parser.add_argument(
-        "--task",
-        help="Only show per-vessel details for this benchmark task id.",
-    )
-    benchmark_report_parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional path to write the rendered benchmark report.",
-    )
-    benchmark_report_parser.set_defaults(handler=_benchmark_report)
-
     benchmark_aggregate_parser = subcommands.add_parser(
         "benchmark-aggregate",
         help="Aggregate completed benchmark scorecards across logbooks.",
@@ -93,60 +58,6 @@ def register(subcommands: argparse._SubParsersAction) -> None:
         help="Optional path to write the aggregate report.",
     )
     benchmark_aggregate_parser.set_defaults(handler=_benchmark_aggregate)
-
-    benchmark_status_parser = subcommands.add_parser(
-        "benchmark-status",
-        help="Print a checklist-style benchmark artifact status report.",
-    )
-    benchmark_status_parser.add_argument(
-        "--logbook",
-        type=Path,
-        default=Path("logbook"),
-        help="Directory containing benchmark artifacts.",
-    )
-    benchmark_status_parser.add_argument(
-        "--format",
-        choices=("text", "markdown"),
-        default="text",
-        help="Output format for the rendered status report.",
-    )
-    benchmark_status_parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional path to write the rendered status report.",
-    )
-    benchmark_status_parser.set_defaults(handler=_benchmark_status)
-
-    latest_logbook_parser = subcommands.add_parser(
-        "latest-logbook",
-        help="Find the latest YACHT benchmark logbook under a directory.",
-    )
-    latest_logbook_parser.add_argument(
-        "--root",
-        type=Path,
-        default=Path(tempfile.gettempdir()),
-        help="Directory to scan for benchmark logbooks.",
-    )
-    latest_logbook_parser.add_argument(
-        "--prefix",
-        default="yacht-",
-        help=(
-            "Only scan child directories with this prefix. Use an empty value to "
-            "scan all children."
-        ),
-    )
-    latest_logbook_parser.add_argument(
-        "--format",
-        choices=("text", "json"),
-        default="text",
-        help="Output format for the latest logbook report.",
-    )
-    latest_logbook_parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional path to write the rendered latest logbook report.",
-    )
-    latest_logbook_parser.set_defaults(handler=_latest_logbook)
 
     benchmark_plan_parser = subcommands.add_parser(
         "benchmark-plan",
@@ -263,41 +174,9 @@ def _benchmark_scorecard(args: argparse.Namespace) -> int:
     return 0
 
 
-def _benchmark_report(args: argparse.Namespace) -> int:
-    try:
-        report = render_benchmark_report(
-            args.logbook,
-            args.format,
-            vessel_name=args.vessel,
-            task_id=args.task,
-        )
-    except ConfigError as error:
-        print(f"error: invalid regatta config: {error}", file=sys.stderr)
-        return 1
-    return output.emit_report(report, args.output)
-
-
 def _benchmark_aggregate(args: argparse.Namespace) -> int:
     try:
         report = render_benchmark_aggregate(args.logbook, args.format)
-    except ConfigError as error:
-        print(f"error: invalid regatta config: {error}", file=sys.stderr)
-        return 1
-    return output.emit_report(report, args.output)
-
-
-def _benchmark_status(args: argparse.Namespace) -> int:
-    report = render_benchmark_status(args.logbook, args.format)
-    return output.emit_report(report, args.output)
-
-
-def _latest_logbook(args: argparse.Namespace) -> int:
-    try:
-        report = render_latest_logbook(
-            args.root,
-            prefix=args.prefix,
-            output_format=args.format,
-        )
     except ConfigError as error:
         print(f"error: invalid regatta config: {error}", file=sys.stderr)
         return 1

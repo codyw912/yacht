@@ -12,7 +12,6 @@ from yacht.domain.model import ConfigError, run_regatta
 from yacht.harnesses.registry import agent_prompt_runner_factory
 from yacht.harnesses.registry import task_agent
 from yacht.preflight.runner import parse_secret_values
-from yacht.runtimes.plan import build_runtime_plan
 from yacht.workflows.benchmark_launcher_handoff import (
     DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
 )
@@ -96,17 +95,6 @@ def register(subcommands: argparse._SubParsersAction) -> None:
         help="Output format for validation results.",
     )
     validate_parser.set_defaults(handler=_validate)
-
-    plan_parser = subcommands.add_parser(
-        "plan",
-        help="Print a redacted runtime/preflight plan without launching agents.",
-    )
-    plan_parser.add_argument(
-        "config",
-        type=Path,
-        help="Path to a regatta TOML file.",
-    )
-    plan_parser.set_defaults(handler=_plan)
 
 
 def _run(args: argparse.Namespace) -> int:
@@ -237,14 +225,4 @@ def _validate(args: argparse.Namespace) -> int:
         output.print_json({"valid": True, "regatta": regatta.name})
         return 0
     print(f"valid regatta config: {regatta.name}")
-    return 0
-
-
-def _plan(args: argparse.Namespace) -> int:
-    try:
-        plan = build_runtime_plan(args.config)
-    except ConfigError as error:
-        print(f"error: invalid regatta config: {error}", file=sys.stderr)
-        return 1
-    print(json.dumps(plan, indent=2))
     return 0

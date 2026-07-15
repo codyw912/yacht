@@ -1,12 +1,13 @@
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
-from io import StringIO
 from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
-from yacht.cli import main
+from yacht.workflows.real_smoke_runbook import (
+    render_real_smoke_runbook,
+    write_real_smoke_runbook,
+)
 
 
 class RealSmokeRunbookTests(unittest.TestCase):
@@ -17,21 +18,11 @@ class RealSmokeRunbookTests(unittest.TestCase):
             logbook_dir = root / "logbook"
             workspace_path.mkdir()
 
-            stdout = StringIO()
-            with redirect_stdout(stdout):
-                exit_code = main(
-                    [
-                        "real-smoke-runbook",
-                        "examples/local-agent-preflight-smoke.toml",
-                        "--logbook",
-                        str(logbook_dir),
-                        "--workspace",
-                        str(workspace_path),
-                    ]
-                )
-
-            self.assertEqual(exit_code, 0)
-            runbook = json.loads(stdout.getvalue())
+            runbook = write_real_smoke_runbook(
+                config_path=Path("examples/local-agent-preflight-smoke.toml"),
+                logbook_dir=logbook_dir,
+                workspace_path=workspace_path,
+            )
             self.assertEqual(runbook["agent"], "local-smoke")
             commands = {step["name"]: step["command"] for step in runbook["steps"]}
             self.assertIn("--agent-preflight local-smoke", commands["preflight"])
@@ -47,21 +38,12 @@ class RealSmokeRunbookTests(unittest.TestCase):
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
             workspace_path.mkdir()
 
-            stdout = StringIO()
-            with redirect_stdout(stdout):
-                exit_code = main(
-                    [
-                        "real-smoke-runbook",
-                        str(config_path),
-                        "--logbook",
-                        str(logbook_dir),
-                        "--workspace",
-                        str(workspace_path),
-                    ]
-                )
+            runbook = write_real_smoke_runbook(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                workspace_path=workspace_path,
+            )
 
-            self.assertEqual(exit_code, 0)
-            runbook = json.loads(stdout.getvalue())
             self.assertEqual(runbook["schema"], "yacht.real-smoke-runbook.v1")
             self.assertEqual(runbook["regatta"], "pi-fff-comparison")
             self.assertEqual(runbook["course"], "swe-bench-lite")
@@ -80,22 +62,30 @@ class RealSmokeRunbookTests(unittest.TestCase):
 
             commands = {step["name"]: step["command"] for step in runbook["steps"]}
             self.assertEqual(
-                commands["real-smoke-eval"],
+                commands["run"],
                 (
-                    f"uv run yacht real-smoke-eval {config_path} "
+                    f"uv run yacht run {config_path} "
                     f"--logbook {logbook_dir} --workspace {workspace_path} "
                     '--secret anthropic="$ANTHROPIC_API_KEY"'
                 ),
             )
             self.assertIn("--agent-preflight pi", commands["preflight"])
+            self.assertIn("uv run yacht internals preflight", commands["preflight"])
             self.assertIn("--agent pi", commands["task-attempts"])
-            self.assertEqual(
-                commands["smoke-readiness-report"],
-                f"uv run yacht smoke-readiness-report --logbook {logbook_dir}",
+            self.assertIn(
+                "uv run yacht internals task-attempts",
+                commands["task-attempts"],
             )
             self.assertEqual(
-                commands["smoke-report"],
-                f"uv run yacht smoke-report --logbook {logbook_dir}",
+                commands["smoke-readiness-report"],
+                (
+                    "uv run yacht internals smoke-readiness-report "
+                    f"--logbook {logbook_dir}"
+                ),
+            )
+            self.assertEqual(
+                commands["report"],
+                f"uv run yacht report --logbook {logbook_dir}",
             )
 
             artifacts = runbook["artifacts"]
@@ -147,27 +137,17 @@ class RealSmokeRunbookTests(unittest.TestCase):
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
             workspace_path.mkdir()
 
-            stdout = StringIO()
-            with redirect_stdout(stdout):
-                exit_code = main(
-                    [
-                        "real-smoke-runbook",
-                        str(config_path),
-                        "--logbook",
-                        str(logbook_dir),
-                        "--workspace",
-                        str(workspace_path),
-                        "--format",
-                        "markdown",
-                    ]
+            markdown = render_real_smoke_runbook(
+                write_real_smoke_runbook(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    workspace_path=workspace_path,
                 )
-
-            self.assertEqual(exit_code, 0)
-            markdown = stdout.getvalue()
+            )
             self.assertIn("## Real Smoke Runbook", markdown)
             self.assertIn("Regatta: `pi-fff-comparison`", markdown)
             self.assertIn("### Commands", markdown)
-            self.assertIn("```sh\nuv run yacht real-smoke-eval", markdown)
+            self.assertIn("```sh\nuv run yacht run", markdown)
             self.assertIn('--secret anthropic="$ANTHROPIC_API_KEY"', markdown)
             self.assertIn("### Expected Artifacts", markdown)
             self.assertIn("logbook/smoke-readiness-report.json", markdown)

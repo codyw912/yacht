@@ -58,6 +58,7 @@ class BenchmarkLaunchTests(unittest.TestCase):
                     "uv",
                     "run",
                     "yacht",
+                    "internals",
                     "benchmark-collect-grading",
                     "<regatta.toml>",
                     "--logbook",
@@ -100,7 +101,9 @@ class BenchmarkLaunchTests(unittest.TestCase):
                 ),
                 redirect_stdout(stdout),
             ):
-                exit_code = main(["benchmark-launch", "--logbook", str(logbook_dir)])
+                exit_code = main(
+                    ["internals", "benchmark-launch", "--logbook", str(logbook_dir)]
+                )
 
             self.assertEqual(exit_code, 0)
             payload = json.loads(stdout.getvalue())
@@ -134,6 +137,7 @@ class BenchmarkLaunchTests(unittest.TestCase):
                     "uv",
                     "run",
                     "yacht",
+                    "internals",
                     "benchmark-plan",
                     "--logbook",
                     str(logbook_dir),

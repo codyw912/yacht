@@ -148,9 +148,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertIn("complete | real benchmark repetitions", report)
             self.assertIn("present | benchmark aggregate", report)
             self.assertIn("1. Render benchmark report", report)
-            self.assertIn(
-                f"uv run yacht benchmark-report --logbook {logbook_dir}", report
-            )
+            self.assertIn(f"uv run yacht report --logbook {logbook_dir}", report)
 
     def test_benchmark_report_renders_repetition_parent_aggregate(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -160,7 +158,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                     ]
@@ -185,7 +183,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(logbook_dir),
                         "--vessel",
@@ -245,17 +243,17 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             config_path = root / "regatta.toml"
-            config_path.write_text('name = "empty"\n', encoding="utf-8")
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
             stdout = StringIO()
             stderr = StringIO()
 
             with (
                 patch(
-                    "yacht.cli.commands.real_benchmark.configured_harness_name",
+                    "yacht.cli.commands.regatta.configured_harness_name",
                     return_value="pi",
                 ),
                 patch(
-                    "yacht.cli.commands.real_benchmark.run_real_benchmark_repetitions",
+                    "yacht.cli.commands.regatta.run_real_benchmark_repetitions",
                     side_effect=ConfigError("boom"),
                 ),
                 redirect_stdout(stdout),
@@ -263,7 +261,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             ):
                 exit_code = main(
                     [
-                        "real-benchmark-repetitions",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(root / "series"),
@@ -304,7 +302,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
 
             with (
                 patch(
-                    "yacht.cli.commands.real_benchmark.run_real_benchmark_repetitions",
+                    "yacht.cli.commands.regatta.run_real_benchmark_repetitions",
                     side_effect=fake_runner,
                 ),
                 redirect_stdout(stdout),
@@ -312,7 +310,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             ):
                 exit_code = main(
                     [
-                        "real-benchmark-repetitions",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(root / "series"),
@@ -333,53 +331,6 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertIn("Runs: 2 | completed=2 | failed=0 | aggregated=2", report)
             self.assertEqual(stderr.getvalue(), "yacht: mock progress\n")
 
-    def test_command_generates_logbook_when_omitted(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config_path = root / "regatta.toml"
-            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
-            stdout = StringIO()
-
-            def fake_runner(**kwargs):
-                return {
-                    "schema": "yacht.real-benchmark-repetitions.v1",
-                    "status": "complete",
-                    "regatta": "pi-fff-comparison",
-                    "course": "swe-bench-lite",
-                    "artifacts": {"logbook": str(kwargs["logbook_dir"])},
-                }
-
-            with (
-                patch(
-                    "yacht.cli.commands.real_benchmark._default_repeated_benchmark_logbook",
-                    return_value=root / "generated-series",
-                ),
-                patch(
-                    "yacht.cli.commands.real_benchmark.run_real_benchmark_repetitions",
-                    side_effect=fake_runner,
-                ),
-                redirect_stdout(stdout),
-            ):
-                exit_code = main(
-                    [
-                        "real-benchmark-repetitions",
-                        str(config_path),
-                        "--workspace",
-                        str(root),
-                        "--repetitions",
-                        "2",
-                        "--format",
-                        "json",
-                    ]
-                )
-
-            self.assertEqual(exit_code, 0)
-            payload = json.loads(stdout.getvalue())
-            self.assertEqual(
-                payload["artifacts"]["logbook"],
-                str(root / "generated-series"),
-            )
-
     def test_command_prints_json_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -389,7 +340,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
 
             with (
                 patch(
-                    "yacht.cli.commands.real_benchmark.run_real_benchmark_repetitions",
+                    "yacht.cli.commands.regatta.run_real_benchmark_repetitions",
                     return_value={
                         "schema": "yacht.real-benchmark-repetitions.v1",
                         "status": "complete",
@@ -407,7 +358,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             ):
                 exit_code = main(
                     [
-                        "real-benchmark-repetitions",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(root / "series"),

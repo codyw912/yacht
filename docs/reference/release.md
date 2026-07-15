@@ -17,7 +17,7 @@ uv run --locked -m unittest discover -s tests
 uv run --locked -m compileall src tests
 uv run --locked yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
 uv run --locked yacht validate examples/container-pi-fff-real-benchmark-small.toml
-uv run --locked yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook /tmp/yacht-release-runbook --workspace . --format markdown
+uv run --locked yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-release-smoke
 ```
 
 ## Package Build
@@ -25,7 +25,7 @@ uv run --locked yacht real-benchmark-runbook examples/container-pi-fff-real-benc
 ```sh
 uv build
 uv run --with ./dist/yacht-0.1.0-py3-none-any.whl yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
-uv run --with ./dist/yacht-0.1.0-py3-none-any.whl yacht real-benchmark-runbook examples/container-pi-fff-real-benchmark-smoke.toml --logbook /tmp/yacht-wheel-runbook --workspace . --format markdown
+uv run --with ./dist/yacht-0.1.0-py3-none-any.whl yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-wheel-smoke
 ```
 
 Update the wheel filename when the release version changes.
@@ -38,11 +38,11 @@ image built locally.
 ```sh
 LOGBOOK=/private/tmp/yacht-real-benchmark-$(date +%Y%m%d-%H%M%S)
 
-uv run yacht real-benchmark-eval examples/container-pi-fff-real-benchmark-smoke.toml \
+uv run yacht run examples/container-pi-fff-real-benchmark-smoke.toml \
   --logbook "$LOGBOOK" \
   --workspace . \
   --secret anthropic=@env:ANTHROPIC_API_KEY
 
-uv run yacht benchmark-status --logbook "$LOGBOOK"
-uv run yacht benchmark-report --logbook "$LOGBOOK"
+uv run yacht status --logbook "$LOGBOOK"
+uv run yacht report --logbook "$LOGBOOK"
 ```

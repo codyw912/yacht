@@ -87,6 +87,7 @@ class SweBenchPredictionsFromAttemptsTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "predictions-from-attempts",
                         str(PI_FFF_CONFIG_PATH),
                         "--logbook",

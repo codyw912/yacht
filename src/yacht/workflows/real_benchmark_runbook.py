@@ -225,7 +225,7 @@ def _steps(
     if python_executable != DEFAULT_SWEBENCH_PYTHON_EXECUTABLE:
         python_suffix = f" --python-executable {_quote_text(python_executable)}"
     benchmark_eval_command = (
-        "uv run yacht real-benchmark-eval "
+        "uv run yacht run "
         f"{_quote(config_path)} --logbook {_quote(logbook_dir)} "
         f"--workspace {_quote(workspace_path)}{secret_suffix} "
         f"--max-workers {max_workers}"
@@ -233,7 +233,7 @@ def _steps(
     )
     return [
         {
-            "name": "real-benchmark-eval",
+            "name": "run",
             "command": benchmark_eval_command,
             "artifacts": [
                 artifacts["real_benchmark_eval"],
@@ -252,20 +252,20 @@ def _steps(
             ],
         },
         {
-            "name": "benchmark-status",
-            "command": f"uv run yacht benchmark-status --logbook {_quote(logbook_dir)}",
+            "name": "status",
+            "command": f"uv run yacht status --logbook {_quote(logbook_dir)}",
             "artifacts": [
                 artifacts["real_benchmark_eval"],
                 artifacts["benchmark_scorecard"],
             ],
         },
         {
-            "name": "benchmark-report",
-            "command": f"uv run yacht benchmark-report --logbook {_quote(logbook_dir)}",
+            "name": "report",
+            "command": f"uv run yacht report --logbook {_quote(logbook_dir)}",
             "artifacts": [artifacts["benchmark_scorecard"]],
         },
         {
-            "name": "benchmark-report-filtered",
+            "name": "report-filtered",
             "command": _filtered_report_command(
                 logbook_dir=logbook_dir,
                 target=inspection_target,
@@ -273,9 +273,9 @@ def _steps(
             "artifacts": [artifacts["benchmark_scorecard"]],
         },
         {
-            "name": "benchmark-report-markdown",
+            "name": "report-markdown",
             "command": (
-                f"uv run yacht benchmark-report --logbook {_quote(logbook_dir)} "
+                f"uv run yacht report --logbook {_quote(logbook_dir)} "
                 f"--format markdown --output {_quote(logbook_dir / BENCHMARK_REPORT_PATH)}"
             ),
             "artifacts": [artifacts["benchmark_report"]],
@@ -394,7 +394,7 @@ def _filtered_report_command(
     target: dict[str, str],
 ) -> str:
     return (
-        f"uv run yacht benchmark-report --logbook {_quote(logbook_dir)} "
+        f"uv run yacht report --logbook {_quote(logbook_dir)} "
         f"--vessel {_quote_text(target['vessel'])} "
         f"--task {_quote_text(target['task'])}"
     )

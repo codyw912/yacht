@@ -32,7 +32,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "real-smoke-eval",
+                        "run",
                         "examples/local-agent-preflight-smoke.toml",
                         "--logbook",
                         str(logbook_dir),
@@ -124,7 +124,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             ):
                 exit_code = main(
                     [
-                        "real-smoke-eval",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(logbook_dir),
@@ -213,7 +213,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             ):
                 exit_code = main(
                     [
-                        "real-smoke-eval",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(logbook_dir),
@@ -280,7 +280,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             ):
                 exit_code = main(
                     [
-                        "real-smoke-eval",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(logbook_dir),
@@ -326,7 +326,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
-                        "real-smoke-eval",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(logbook_dir),
@@ -360,11 +360,25 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
     return config_path, workspace_path, logbook_dir
 
 
+_SWE_BENCH_ADAPTER_BLOCK = """[course.adapter]
+kind = "swe-bench"
+dataset = "princeton-nlp/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+"""
+
+
 def _config_without_install() -> str:
-    return PI_WITH_FFF_CONFIG.replace(
+    config = PI_WITH_FFF_CONFIG.replace(
         PI_FFF_TYPED_INSTALL,
         "install = []\n",
     )
+    if _SWE_BENCH_ADAPTER_BLOCK not in config:
+        raise AssertionError(
+            "fixture config no longer contains the expected adapter block; "
+            "update _config_without_install so run keeps dispatching to smoke"
+        )
+    return config.replace(_SWE_BENCH_ADAPTER_BLOCK, "")
 
 
 def _container_pi_fff_real_smoke_config_without_install() -> str:

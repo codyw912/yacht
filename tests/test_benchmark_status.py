@@ -85,7 +85,7 @@ class BenchmarkStatusTests(unittest.TestCase):
             )
             self.assertEqual(
                 status["next_steps"][0]["command"][:4],
-                ["uv", "run", "yacht", "real-benchmark-eval"],
+                ["uv", "run", "yacht", "run"],
             )
 
     def test_uses_real_benchmark_eval_next_steps_when_available(self) -> None:
@@ -104,12 +104,13 @@ class BenchmarkStatusTests(unittest.TestCase):
                                     "uv",
                                     "run",
                                     "yacht",
+                                    "internals",
                                     "benchmark-launch",
                                     "--logbook",
                                     str(logbook_dir),
                                 ],
                                 "command_preview": (
-                                    f"uv run yacht benchmark-launch --logbook "
+                                    f"uv run yacht internals benchmark-launch --logbook "
                                     f"{logbook_dir}"
                                 ),
                             }
@@ -125,7 +126,7 @@ class BenchmarkStatusTests(unittest.TestCase):
             self.assertIn("blocked | real benchmark eval", report)
             self.assertIn("1. Rerun benchmark launch", report)
             self.assertIn(
-                f"command: uv run yacht benchmark-launch --logbook {logbook_dir}",
+                f"command: uv run yacht internals benchmark-launch --logbook {logbook_dir}",
                 report,
             )
 
@@ -194,13 +195,12 @@ class BenchmarkStatusTests(unittest.TestCase):
                                     "uv",
                                     "run",
                                     "yacht",
-                                    "benchmark-report",
+                                    "report",
                                     "--logbook",
                                     str(logbook_dir),
                                 ],
                                 "command_preview": (
-                                    "uv run yacht benchmark-report --logbook "
-                                    f"{logbook_dir}"
+                                    f"uv run yacht report --logbook {logbook_dir}"
                                 ),
                             }
                         ],
@@ -220,7 +220,7 @@ class BenchmarkStatusTests(unittest.TestCase):
                                     "uv",
                                     "run",
                                     "yacht",
-                                    "benchmark-report",
+                                    "report",
                                     "--logbook",
                                     str(logbook_dir),
                                     "--vessel",
@@ -229,7 +229,7 @@ class BenchmarkStatusTests(unittest.TestCase):
                                     "django__django-11099",
                                 ],
                                 "command_preview": (
-                                    "uv run yacht benchmark-report --logbook "
+                                    "uv run yacht report --logbook "
                                     f"{logbook_dir} --vessel pi-plus-fff --task "
                                     "django__django-11099"
                                 ),
@@ -249,13 +249,14 @@ class BenchmarkStatusTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             logbook_dir = root / "logbook"
+            logbook_dir.mkdir()
             output_path = root / "reports" / "benchmark-status.md"
 
             stdout = StringIO()
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-status",
+                        "status",
                         "--logbook",
                         str(logbook_dir),
                         "--format",

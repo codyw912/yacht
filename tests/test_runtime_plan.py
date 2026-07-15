@@ -552,7 +552,7 @@ tools = ["repo-map"]""",
 
             stdout = StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["plan", str(config_path)])
+                exit_code = main(["internals", "plan", str(config_path)])
 
             self.assertEqual(exit_code, 0)
             self.assertFalse(logbook_dir.exists())
@@ -572,6 +572,7 @@ tools = ["repo-map"]""",
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "runtime-instances",
                         str(config_path),
                         "--logbook",
@@ -604,6 +605,7 @@ tools = ["repo-map"]""",
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "runtime-instances",
                         str(config_path),
                         "--logbook",
@@ -629,7 +631,7 @@ tools = ["repo-map"]""",
             stdout = StringIO()
             stderr = StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                exit_code = main(["plan", str(config_path)])
+                exit_code = main(["internals", "plan", str(config_path)])
 
             self.assertEqual(exit_code, 1)
             self.assertEqual(stdout.getvalue(), "")

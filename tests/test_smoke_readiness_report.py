@@ -40,7 +40,12 @@ class SmokeReadinessReportTests(unittest.TestCase):
             stdout = StringIO()
             with redirect_stdout(stdout):
                 exit_code = main(
-                    ["smoke-readiness-report", "--logbook", str(logbook_dir)]
+                    [
+                        "internals",
+                        "smoke-readiness-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
                 )
 
             self.assertEqual(exit_code, 0)
@@ -80,7 +85,12 @@ class SmokeReadinessReportTests(unittest.TestCase):
             stdout = StringIO()
             with redirect_stdout(stdout):
                 exit_code = main(
-                    ["smoke-readiness-report", "--logbook", str(logbook_dir)]
+                    [
+                        "internals",
+                        "smoke-readiness-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
                 )
 
             self.assertEqual(exit_code, 1)
@@ -112,7 +122,12 @@ class SmokeReadinessReportTests(unittest.TestCase):
             stdout = StringIO()
             with redirect_stdout(stdout):
                 exit_code = main(
-                    ["smoke-readiness-report", "--logbook", str(logbook_dir)]
+                    [
+                        "internals",
+                        "smoke-readiness-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
                 )
 
             self.assertEqual(exit_code, 1)
@@ -152,7 +167,12 @@ class SmokeReadinessReportTests(unittest.TestCase):
             stdout = StringIO()
             with redirect_stdout(stdout):
                 exit_code = main(
-                    ["smoke-readiness-report", "--logbook", str(logbook_dir)]
+                    [
+                        "internals",
+                        "smoke-readiness-report",
+                        "--logbook",
+                        str(logbook_dir),
+                    ]
                 )
 
             self.assertEqual(exit_code, 1)
@@ -209,14 +229,28 @@ class SmokeReadinessReportTests(unittest.TestCase):
             self.assertEqual(
                 main(
                     [
-                        "pi-smoke-eval",
+                        "internals",
+                        "task-attempts",
                         str(config_path),
+                        "--agent",
+                        "pi",
                         "--logbook",
                         str(logbook_dir),
                         "--workspace",
                         str(workspace_path),
                         "--secret",
                         "anthropic=test-secret",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "internals",
+                        "task-attempt-scorecard",
+                        "--logbook",
+                        str(logbook_dir),
                     ]
                 ),
                 0,

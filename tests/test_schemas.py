@@ -429,7 +429,7 @@ class SchemaTests(unittest.TestCase):
             "steps": [
                 {
                     "name": "real-smoke-eval",
-                    "command": "uv run yacht real-smoke-eval regatta.toml",
+                    "command": "uv run yacht run regatta.toml",
                     "artifacts": ["logbook/smoke-readiness-report.json"],
                 }
             ],
@@ -464,7 +464,7 @@ class SchemaTests(unittest.TestCase):
             "steps": [
                 {
                     "name": "real-benchmark-eval",
-                    "command": "uv run yacht real-benchmark-eval regatta.toml",
+                    "command": "uv run yacht run regatta.toml",
                     "artifacts": ["logbook/benchmark-scorecard.json"],
                 }
             ],
