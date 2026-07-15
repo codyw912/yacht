@@ -23,68 +23,68 @@ CONFIG = "regatta.toml"
 DISPATCH_CASES = (
     DispatchCase(
         argv=("run", CONFIG),
-        patches={"run_regatta": {}},
+        patches={"commands.regatta.run_regatta": {}},
     ),
     DispatchCase(
         argv=("validate", CONFIG),
-        patches={"load_regatta": SimpleNamespace(name="demo")},
+        patches={"commands.regatta.load_regatta": SimpleNamespace(name="demo")},
     ),
     DispatchCase(
         argv=("plan", CONFIG),
-        patches={"build_runtime_plan": {}},
+        patches={"commands.regatta.build_runtime_plan": {}},
     ),
     DispatchCase(
         argv=("runtime-instances", CONFIG),
-        patches={"build_runtime_instances_plan": {}},
+        patches={"commands.runtimes.build_runtime_instances_plan": {}},
     ),
     DispatchCase(
         argv=("handoff", CONFIG),
-        patches={"write_course_handoff": {}},
+        patches={"commands.artifacts.write_course_handoff": {}},
     ),
     DispatchCase(
         argv=("predictions", CONFIG, "--input", "predictions.json"),
-        patches={"write_swe_bench_predictions": {}},
+        patches={"commands.artifacts.write_swe_bench_predictions": {}},
     ),
     DispatchCase(
         argv=("predictions-from-attempts", CONFIG, "--vessel", "baseline"),
-        patches={"write_swe_bench_predictions_from_attempts": {}},
+        patches={"commands.artifacts.write_swe_bench_predictions_from_attempts": {}},
     ),
     DispatchCase(
         argv=("grading-report", CONFIG, "--input", "report.json"),
-        patches={"write_swe_bench_grading_report": {}},
+        patches={"commands.artifacts.write_swe_bench_grading_report": {}},
     ),
     DispatchCase(
         argv=("benchmark-scorecard",),
-        patches={"write_benchmark_scorecard": {}},
+        patches={"commands.benchmark.write_benchmark_scorecard": {}},
     ),
     DispatchCase(
         argv=("benchmark-report",),
-        patches={"render_benchmark_report": "report\n"},
+        patches={"commands.benchmark.render_benchmark_report": "report\n"},
     ),
     DispatchCase(
         argv=("benchmark-aggregate", "--logbook", "logbook"),
-        patches={"render_benchmark_aggregate": "aggregate\n"},
+        patches={"commands.benchmark.render_benchmark_aggregate": "aggregate\n"},
     ),
     DispatchCase(
         argv=("benchmark-status",),
-        patches={"render_benchmark_status": "status\n"},
+        patches={"commands.benchmark.render_benchmark_status": "status\n"},
     ),
     DispatchCase(
         argv=("latest-logbook",),
-        patches={"render_latest_logbook": "latest\n"},
+        patches={"commands.benchmark.render_latest_logbook": "latest\n"},
     ),
     DispatchCase(
         argv=("benchmark-plan",),
-        patches={"write_benchmark_execution_plan": {}},
+        patches={"commands.benchmark.write_benchmark_execution_plan": {}},
     ),
     DispatchCase(
         argv=("benchmark-readiness-report",),
-        patches={"render_benchmark_readiness_report": "readiness\n"},
+        patches={"commands.benchmark.render_benchmark_readiness_report": "readiness\n"},
     ),
     DispatchCase(
         argv=("readiness-gate",),
         patches={
-            "evaluate_readiness_gate": SimpleNamespace(
+            "commands.benchmark.evaluate_readiness_gate": SimpleNamespace(
                 summary_json="{}\n",
                 blocked_vessel_count=0,
                 exit_code=0,
@@ -93,71 +93,83 @@ DISPATCH_CASES = (
     ),
     DispatchCase(
         argv=("benchmark-launcher",),
-        patches={"write_benchmark_launcher_handoff": {}},
+        patches={"commands.benchmark.write_benchmark_launcher_handoff": {}},
     ),
     DispatchCase(
         argv=("benchmark-launch",),
-        patches={"write_benchmark_launch_result": {"status": "complete"}},
+        patches={
+            "commands.benchmark.write_benchmark_launch_result": {"status": "complete"}
+        },
     ),
     DispatchCase(
         argv=("benchmark-collect-grading", CONFIG),
-        patches={"collect_benchmark_grading_reports": {"status": "complete"}},
+        patches={
+            "commands.benchmark.collect_benchmark_grading_reports": {
+                "status": "complete"
+            }
+        },
     ),
     DispatchCase(
         argv=("preflight-report",),
-        patches={"write_preflight_evidence_report": {}},
-        extra_patches={"render_preflight_evidence_report": "report\n"},
+        patches={"commands.preflight.write_preflight_evidence_report": {}},
+        extra_patches={
+            "commands.preflight.render_preflight_evidence_report": "report\n"
+        },
     ),
     DispatchCase(
         argv=("smoke-readiness-report",),
-        patches={"write_smoke_readiness_report": {"status": "ready"}},
+        patches={"commands.smoke.write_smoke_readiness_report": {"status": "ready"}},
     ),
     DispatchCase(
         argv=("smoke-report",),
-        patches={"render_smoke_report": "smoke\n"},
+        patches={"commands.smoke.render_smoke_report": "smoke\n"},
     ),
     DispatchCase(
         argv=("preflight", CONFIG),
-        patches={"run_preflight": {"status": "passed"}},
+        patches={"commands.preflight.run_preflight": {"status": "passed"}},
     ),
     DispatchCase(
         argv=("preflight", CONFIG, "--dry-run"),
-        patches={"build_preflight_execution_plan": {}},
+        patches={"commands.preflight.build_preflight_execution_plan": {}},
     ),
     DispatchCase(
         argv=("task-attempts", CONFIG, "--agent", "pi"),
-        patches={"run_task_attempts": {"status": "completed"}},
-        extra_patches={"task_agent": None},
+        patches={"commands.attempts.run_task_attempts": {"status": "completed"}},
+        extra_patches={"commands.attempts.task_agent": None},
     ),
     DispatchCase(
         argv=("task-attempt-scorecard",),
-        patches={"write_task_attempt_scorecard": {"status": "complete"}},
+        patches={
+            "commands.attempts.write_task_attempt_scorecard": {"status": "complete"}
+        },
     ),
     DispatchCase(
         argv=("local-smoke-eval", CONFIG),
-        patches={"run_local_smoke_eval": {"status": "complete"}},
+        patches={"commands.smoke.run_local_smoke_eval": {"status": "complete"}},
     ),
     DispatchCase(
         argv=("pi-smoke-eval", CONFIG),
-        patches={"run_pi_smoke_eval": {"status": "complete"}},
-        extra_patches={"task_agent": None},
+        patches={"commands.smoke.run_pi_smoke_eval": {"status": "complete"}},
+        extra_patches={"commands.smoke.task_agent": None},
     ),
     DispatchCase(
         argv=("real-smoke-eval", CONFIG),
-        patches={"run_real_smoke_eval": {"status": "ready"}},
+        patches={"commands.smoke.run_real_smoke_eval": {"status": "ready"}},
         extra_patches={
-            "configured_harness_name": "pi",
-            "agent_prompt_runner_factory": None,
-            "task_agent": None,
+            "commands.smoke.configured_harness_name": "pi",
+            "commands.smoke.agent_prompt_runner_factory": None,
+            "commands.smoke.task_agent": None,
         },
     ),
     DispatchCase(
         argv=("real-benchmark-eval", CONFIG, "--format", "json"),
-        patches={"run_real_benchmark_eval": {"status": "complete"}},
+        patches={
+            "commands.real_benchmark.run_real_benchmark_eval": {"status": "complete"}
+        },
         extra_patches={
-            "configured_harness_name": "pi",
-            "agent_prompt_runner_factory": None,
-            "task_agent": None,
+            "commands.real_benchmark.configured_harness_name": "pi",
+            "commands.real_benchmark.agent_prompt_runner_factory": None,
+            "commands.real_benchmark.task_agent": None,
         },
     ),
     DispatchCase(
@@ -171,20 +183,24 @@ DISPATCH_CASES = (
             "--format",
             "json",
         ),
-        patches={"run_real_benchmark_repetitions": {"status": "complete"}},
+        patches={
+            "commands.real_benchmark.run_real_benchmark_repetitions": {
+                "status": "complete"
+            }
+        },
         extra_patches={
-            "configured_harness_name": "pi",
-            "agent_prompt_runner_factory": None,
-            "task_agent": None,
+            "commands.real_benchmark.configured_harness_name": "pi",
+            "commands.real_benchmark.agent_prompt_runner_factory": None,
+            "commands.real_benchmark.task_agent": None,
         },
     ),
     DispatchCase(
         argv=("real-smoke-runbook", CONFIG),
-        patches={"write_real_smoke_runbook": {}},
+        patches={"commands.smoke.write_real_smoke_runbook": {}},
     ),
     DispatchCase(
         argv=("real-benchmark-runbook", CONFIG),
-        patches={"write_real_benchmark_runbook": {}},
+        patches={"commands.real_benchmark.write_real_benchmark_runbook": {}},
     ),
 )
 
