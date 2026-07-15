@@ -19,6 +19,7 @@ from yacht.domain.model import (
     Task,
     Vessel,
 )
+from yacht.runtimes import secrets as runtime_secrets
 from yacht.runtimes.backend import RuntimePreparationError, runtime_backend_for_recipe
 from yacht.workflows.task_attempts import write_task_attempt
 
@@ -41,6 +42,7 @@ def run_task_attempts(
     regatta = load_regatta(config_path)
     if not regatta.comparisons:
         raise ConfigError("task attempts require at least one comparison")
+    _validate_required_secrets(regatta, secret_values)
 
     agent = task_agent or harness_task_agent(agent_name)
     attempts = [
@@ -206,6 +208,28 @@ def _rigging_instructions(regatta: Regatta, vessel: Vessel) -> tuple[str, ...]:
         for rigging_name in vessel.rigging
         if (instruction := regatta.rigging_recipes[rigging_name].instructions)
     )
+
+
+def _validate_required_secrets(
+    regatta: Regatta,
+    secret_values: dict[str, str],
+) -> None:
+    for comparison in regatta.comparisons:
+        for vessel_name in comparison.vessels:
+            vessel = _vessel_by_name(regatta, vessel_name)
+            if vessel.runtime is None:
+                continue
+            runtime = regatta.runtime_recipes[vessel.runtime]
+            riggings = tuple(
+                regatta.rigging_recipes[name] for name in vessel.rigging
+            )
+            for secret_name in runtime_secrets.required_secret_names(
+                runtime, riggings
+            ):
+                if secret_name not in secret_values:
+                    raise ConfigError(
+                        f"missing value for required secret {secret_name}"
+                    )
 
 
 def _vessel_by_name(regatta: Regatta, name: str) -> Vessel:

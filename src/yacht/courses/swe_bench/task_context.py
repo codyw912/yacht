@@ -32,13 +32,11 @@ def materialize_swe_bench_workspace(
     comparison_name: str,
     vessel_name: str,
 ) -> Path:
-    if not _has_context(task):
+    if not _has_context(task) or task.repo_url is None or task.base_commit is None:
         raise ConfigError(
             f"SWE-bench task {task.id} is missing repo, base_commit, or "
             "problem_statement"
         )
-    assert task.repo_url is not None
-    assert task.base_commit is not None
 
     workspace_path = workspace_root / comparison_name / vessel_name / task.id
     if (workspace_path / ".git").is_dir():
