@@ -47,6 +47,16 @@ DISPATCH_CASES = (
         patches={"commands.regatta.load_regatta": SimpleNamespace(name="demo")},
     ),
     DispatchCase(
+        argv=("status", "--logbook", "logbook"),
+        patches={"commands.inspect.render_benchmark_status": "status\n"},
+        extra_patches={"commands.inspect._run_kind": "benchmark"},
+    ),
+    DispatchCase(
+        argv=("report", "--logbook", "logbook"),
+        patches={"commands.inspect.render_benchmark_report": "report\n"},
+        extra_patches={"commands.inspect._run_kind": "benchmark"},
+    ),
+    DispatchCase(
         argv=("plan", CONFIG),
         patches={"commands.regatta.build_runtime_plan": {}},
     ),

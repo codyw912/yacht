@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.logbook.index import RUN_INDEX_PATH, read_run_kind
 from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.next_steps import command_step
@@ -21,6 +22,7 @@ _BENCHMARK_ARTIFACTS = {
     "real_benchmark_repetitions": REAL_BENCHMARK_REPETITIONS_PATH,
     "benchmark_scorecard": BENCHMARK_SCORECARD_PATH,
     "benchmark_aggregate": BENCHMARK_AGGREGATE_PATH,
+    "run_index": RUN_INDEX_PATH,
 }
 
 
@@ -114,6 +116,10 @@ def _candidate_logbook(logbook: Path) -> dict[str, Any] | None:
 def _logbook_kind(present: dict[str, Path]) -> str:
     if "real_benchmark_repetitions" in present or "benchmark_aggregate" in present:
         return "benchmark-repetitions"
+    if set(present) == {"run_index"}:
+        run_kind = read_run_kind(present["run_index"].parent)
+        if run_kind is not None:
+            return run_kind
     return "benchmark"
 
 
