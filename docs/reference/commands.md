@@ -3,6 +3,24 @@
 This page is a compact map of YACHT's current CLI surface. Prefer the README
 for the first real benchmark path.
 
+## Host Prerequisites
+
+```sh
+uv run yacht doctor
+uv run yacht doctor examples/container-pi-fff-real-benchmark-smoke.toml
+uv run yacht doctor --skip-swebench --format json
+```
+
+`yacht doctor` checks Python, uv, Git, the Docker CLI and daemon, logbook
+writability, and the native SWE-bench harness. Given a config, it also
+validates the config and checks its container runtime images and env secrets.
+It exits nonzero when a required check fails; unset secrets are warnings
+because they can still be injected with `--secret` at eval time.
+
+The SWE-bench harness needs no manual installation: uv resolves it on demand
+and caches it. The doctor check performs that resolution, so the one-time
+download happens here rather than mid-eval when grading starts.
+
 ## Local Development Smoke
 
 ```sh
