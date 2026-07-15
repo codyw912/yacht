@@ -251,11 +251,11 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
 
             with (
                 patch(
-                    "yacht.cli.configured_harness_name",
+                    "yacht.cli.commands.real_benchmark.configured_harness_name",
                     return_value="pi",
                 ),
                 patch(
-                    "yacht.cli.run_real_benchmark_repetitions",
+                    "yacht.cli.commands.real_benchmark.run_real_benchmark_repetitions",
                     side_effect=ConfigError("boom"),
                 ),
                 redirect_stdout(stdout),
@@ -304,7 +304,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
 
             with (
                 patch(
-                    "yacht.cli.run_real_benchmark_repetitions",
+                    "yacht.cli.commands.real_benchmark.run_real_benchmark_repetitions",
                     side_effect=fake_runner,
                 ),
                 redirect_stdout(stdout),
@@ -351,11 +351,11 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
 
             with (
                 patch(
-                    "yacht.cli._default_repeated_benchmark_logbook",
+                    "yacht.cli.commands.real_benchmark._default_repeated_benchmark_logbook",
                     return_value=root / "generated-series",
                 ),
                 patch(
-                    "yacht.cli.run_real_benchmark_repetitions",
+                    "yacht.cli.commands.real_benchmark.run_real_benchmark_repetitions",
                     side_effect=fake_runner,
                 ),
                 redirect_stdout(stdout),
@@ -389,7 +389,7 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
 
             with (
                 patch(
-                    "yacht.cli.run_real_benchmark_repetitions",
+                    "yacht.cli.commands.real_benchmark.run_real_benchmark_repetitions",
                     return_value={
                         "schema": "yacht.real-benchmark-repetitions.v1",
                         "status": "complete",

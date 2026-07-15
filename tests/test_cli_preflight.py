@@ -471,7 +471,9 @@ class CliPreflightTests(unittest.TestCase):
             config_path.write_text(PASSING_PREFLIGHT_CONFIG, encoding="utf-8")
             workspace_dir.mkdir()
 
-            with patch("yacht.cli.run_preflight") as run_preflight_mock:
+            with patch(
+                "yacht.cli.commands.preflight.run_preflight"
+            ) as run_preflight_mock:
                 run_preflight_mock.return_value = {
                     "regatta": "cli-preflight",
                     "course": "tiny-course",

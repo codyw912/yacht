@@ -274,7 +274,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
 
             with (
                 patch(
-                    "yacht.cli.run_real_benchmark_eval",
+                    "yacht.cli.commands.real_benchmark.run_real_benchmark_eval",
                     return_value={
                         "status": "complete",
                         "regatta": "pi-fff-comparison",
