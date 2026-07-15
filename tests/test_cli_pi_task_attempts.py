@@ -119,6 +119,7 @@ class CliPiTaskAttemptTests(unittest.TestCase):
                 stderr.getvalue(),
             )
             self.assertFalse((logbook_dir / "task-attempts").exists())
+            self.assertFalse((logbook_dir / "swe-bench-workspaces").exists())
 
     def test_pi_smoke_eval_runs_attempts_and_scorecard(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -208,6 +209,7 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             )
             self.assertFalse((logbook_dir / "task-attempts").exists())
             self.assertFalse((logbook_dir / "task-attempt-scorecard.json").exists())
+            self.assertFalse((logbook_dir / "swe-bench-workspaces").exists())
 
 
 def _config_without_install() -> str:

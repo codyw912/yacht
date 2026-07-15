@@ -11,6 +11,7 @@ from yacht.domain.model import (
     SecretReference,
     Vessel,
 )
+from yacht.runtimes import secrets as runtime_secrets
 
 
 class HostNixRuntimeResolutionError(ValueError):
@@ -96,7 +97,7 @@ def resolve_host_nix_runtime(
         ),
         command_prefix=("nix", "develop", runtime.flake, "--command"),
         command=tuple(runtime.command),
-        required_secret_names=_required_secret_names(runtime, riggings),
+        required_secret_names=runtime_secrets.required_secret_names(runtime, riggings),
         cleanup_paths=(instance_root,),
     )
 
@@ -159,16 +160,6 @@ def _replace_placeholders(value: str, replacements: dict[str, str]) -> str:
     for placeholder, replacement in replacements.items():
         value = value.replace(placeholder, replacement)
     return value
-
-
-def _required_secret_names(
-    runtime: RuntimeRecipe,
-    riggings: tuple[RiggingRecipe, ...],
-) -> tuple[str, ...]:
-    names = list(runtime.required_secrets)
-    for rigging in riggings:
-        names.extend(rigging.required_secrets)
-    return tuple(dict.fromkeys(names))
 
 
 def _secret_ref_to_json(name: str, secret: SecretReference) -> dict[str, object]:
