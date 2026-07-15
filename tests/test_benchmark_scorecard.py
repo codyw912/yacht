@@ -1209,11 +1209,7 @@ def _task_attempt_vessel(
 
 
 def _expanded_tool_calls(tool_counts: dict[str, int]) -> list[str]:
-    return [
-        tool
-        for tool, count in tool_counts.items()
-        for _ in range(count)
-    ]
+    return [tool for tool, count in tool_counts.items() for _ in range(count)]
 
 
 def _task_attempt_artifact(

@@ -471,9 +471,7 @@ class SchemaTests(unittest.TestCase):
             "artifacts": {
                 "course_handoff": "logbook/course-handoff.json",
                 "preflight": ["logbook/preflight/pi-vs-pi-fff/pi-plus-fff.json"],
-                "preflight_evidence_report": (
-                    "logbook/preflight-evidence-report.json"
-                ),
+                "preflight_evidence_report": ("logbook/preflight-evidence-report.json"),
                 "task_attempts": [
                     "logbook/task-attempts/pi-vs-pi-fff/pi-plus-fff/task.json"
                 ],

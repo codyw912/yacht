@@ -88,7 +88,9 @@ def _load_candidate_instance_ids(path: Path) -> set[str]:
         raise ConfigError(f"candidate records file not found: {path}")
 
     instance_ids = set()
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for line_number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), 1
+    ):
         try:
             record = json.loads(line)
         except json.JSONDecodeError as error:
@@ -167,9 +169,13 @@ def _validate_native_report(
     ):
         ids = set(report[field])
         if not ids <= submitted_ids:
-            raise ConfigError(f"grading report {field} must be a subset of submitted_ids")
+            raise ConfigError(
+                f"grading report {field} must be a subset of submitted_ids"
+            )
     if not set(report["resolved_ids"]) <= set(report["completed_ids"]):
-        raise ConfigError("grading report resolved_ids must be a subset of completed_ids")
+        raise ConfigError(
+            "grading report resolved_ids must be a subset of completed_ids"
+        )
     if not set(report["unresolved_ids"]) <= set(report["completed_ids"]):
         raise ConfigError(
             "grading report unresolved_ids must be a subset of completed_ids"

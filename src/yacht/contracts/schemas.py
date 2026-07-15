@@ -213,8 +213,7 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
         extra_task_ids = task_ids - set(adapter_instance_ids)
         if extra_task_ids:
             raise SchemaValidationError(
-                "course.tasks contains IDs not selected by "
-                "course.adapter.instance_ids"
+                "course.tasks contains IDs not selected by course.adapter.instance_ids"
             )
 
     vessels = _require_list(document["vessels"], "vessels")
@@ -366,7 +365,9 @@ def validate_preflight_document(document: dict[str, Any]) -> None:
     for index, secret_ref_value in enumerate(secret_refs):
         secret_ref = _require_object(secret_ref_value, f"secret_refs[{index}]")
         for key in ("name", "source", "ref"):
-            _require_non_empty_string(secret_ref.get(key), f"secret_refs[{index}].{key}")
+            _require_non_empty_string(
+                secret_ref.get(key), f"secret_refs[{index}].{key}"
+            )
         if secret_ref.get("redacted") is not True:
             raise SchemaValidationError(f"secret_refs[{index}].redacted must be true")
 
@@ -822,7 +823,9 @@ def validate_smoke_readiness_report_document(document: dict[str, Any]) -> None:
     )
     for key in ("regatta", "course"):
         _require_non_empty_string(document[key], key)
-    _require_allowed_value(document["status"], SMOKE_READINESS_REPORT_STATUSES, "status")
+    _require_allowed_value(
+        document["status"], SMOKE_READINESS_REPORT_STATUSES, "status"
+    )
     _validate_smoke_readiness_summary(document["summary"], "summary")
     _validate_smoke_readiness_comparisons(document["comparisons"])
 
@@ -1346,7 +1349,9 @@ def _validate_course_handoff_comparisons(value: Any) -> None:
         raise SchemaValidationError("comparisons must contain at least one comparison")
     for index, comparison_value in enumerate(comparisons):
         comparison = _require_object(comparison_value, f"comparisons[{index}]")
-        _require_keys(comparison, ("name", "course", "vessels"), f"comparisons[{index}]")
+        _require_keys(
+            comparison, ("name", "course", "vessels"), f"comparisons[{index}]"
+        )
         _require_non_empty_string(comparison.get("name"), f"comparisons[{index}].name")
         _require_non_empty_string(
             comparison.get("course"),
@@ -1567,10 +1572,7 @@ def _validate_benchmark_scorecard_delta_matches_vessels(
         - baseline["resolution_rate"],
     }
     for key, expected_value in expected.items():
-        if (
-            key == "resolution_rate_delta"
-            and abs(delta[key] - expected_value) <= 1e-9
-        ):
+        if key == "resolution_rate_delta" and abs(delta[key] - expected_value) <= 1e-9:
             continue
         if delta[key] != expected_value:
             raise SchemaValidationError(
@@ -1588,9 +1590,7 @@ def _validate_benchmark_scorecard_summary(value: Any, path: str) -> None:
     for key in BENCHMARK_SCORECARD_SUMMARY_KEYS:
         value = summary.get(key)
         if not isinstance(value, int) or value < 0:
-            raise SchemaValidationError(
-                f"{path}.summary.{key} must be an integer >= 0"
-            )
+            raise SchemaValidationError(f"{path}.summary.{key} must be an integer >= 0")
 
 
 def _validate_benchmark_scorecard_summary_matches_vessels(
@@ -1660,9 +1660,7 @@ def _validate_benchmark_scorecard_summary_matches_expected(
 ) -> None:
     for key, expected_value in expected.items():
         if summary[key] != expected_value:
-            raise SchemaValidationError(
-                f"{path}.{key} must equal {expected_value}"
-            )
+            raise SchemaValidationError(f"{path}.{key} must equal {expected_value}")
 
 
 def _validate_benchmark_execution_plan_comparisons(value: Any) -> None:
@@ -1853,7 +1851,9 @@ def _validate_benchmark_launcher_handoff_vessel(value: Any, path: str) -> None:
     if "command" in vessel:
         command = _require_list(vessel["command"], f"{path}.command")
         if not command or not all(isinstance(item, str) and item for item in command):
-            raise SchemaValidationError(f"{path}.command must contain non-empty strings")
+            raise SchemaValidationError(
+                f"{path}.command must contain non-empty strings"
+            )
     if "command_preview" in vessel:
         _require_non_empty_string(
             vessel["command_preview"],
@@ -1879,8 +1879,7 @@ def _validate_benchmark_launch_result_summary(value: Any) -> None:
         summary["completed_launches"] + summary["failed_launches"]
     ):
         raise SchemaValidationError(
-            "summary.launched_vessels must equal completed_launches + "
-            "failed_launches"
+            "summary.launched_vessels must equal completed_launches + failed_launches"
         )
     if summary["total_vessels"] != (
         summary["launched_vessels"] + summary["skipped_vessels"]
@@ -1936,7 +1935,9 @@ def _validate_benchmark_launch_result_vessel(value: Any, path: str) -> None:
         f"{path}.launcher_status",
     )
     if vessel["status"] == "skipped":
-        _require_non_empty_string(vessel.get("skipped_reason"), f"{path}.skipped_reason")
+        _require_non_empty_string(
+            vessel.get("skipped_reason"), f"{path}.skipped_reason"
+        )
         return
     _require_keys(
         vessel,
@@ -2310,9 +2311,7 @@ def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
     max_instances = adapter.get("max_instances")
     if max_instances is not None:
         if not isinstance(max_instances, int) or max_instances < 1:
-            raise SchemaValidationError(
-                f"{path}.max_instances must be an integer >= 1"
-            )
+            raise SchemaValidationError(f"{path}.max_instances must be an integer >= 1")
 
 
 def _course_adapter_selects_instances(adapter: object) -> bool:
@@ -2382,7 +2381,9 @@ def _validate_runtime_recipes(
             ("backend", "command"),
             f"runtimes.{runtime_name}",
         )
-        _require_non_empty_string(runtime["backend"], f"runtimes.{runtime_name}.backend")
+        _require_non_empty_string(
+            runtime["backend"], f"runtimes.{runtime_name}.backend"
+        )
         _validate_runtime_backend_fields(runtime, f"runtimes.{runtime_name}")
         if "harness" in runtime:
             _require_non_empty_string(
@@ -2555,7 +2556,9 @@ def _validate_rigging_install_steps(value: Any, path: str) -> None:
                 _require_non_empty_string(step.get(key), f"{step_path}.{key}")
         if "command" in step:
             command = _require_list(step["command"], f"{step_path}.command")
-            if not command or not all(isinstance(item, str) and item for item in command):
+            if not command or not all(
+                isinstance(item, str) and item for item in command
+            ):
                 raise SchemaValidationError(
                     f"{step_path}.command must contain non-empty strings"
                 )
@@ -2578,7 +2581,9 @@ def _validate_preflight_recipe(value: Any, path: str) -> None:
             raise SchemaValidationError(f"{check_path}.required must be a boolean")
         if kind == "command":
             command = _require_list(check.get("command", []), f"{check_path}.command")
-            if not command or not all(isinstance(item, str) and item for item in command):
+            if not command or not all(
+                isinstance(item, str) and item for item in command
+            ):
                 raise SchemaValidationError(
                     f"{check_path}.command must contain non-empty strings"
                 )
@@ -2649,8 +2654,7 @@ def _optional_named_table(document: dict[str, Any], key: str) -> dict[str, Any]:
 
 def _require_string_mapping(value: Any, path: str) -> None:
     if not isinstance(value, dict) or not all(
-        isinstance(key, str) and isinstance(item, str)
-        for key, item in value.items()
+        isinstance(key, str) and isinstance(item, str) for key, item in value.items()
     ):
         raise SchemaValidationError(f"{path} must be an object with string values")
 

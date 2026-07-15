@@ -161,16 +161,16 @@ def _aggregate_vessel(
             measured_runs += 1
             submitted += int(vessel["submitted_instances"])
             resolved += int(vessel["resolved_instances"])
-        usage_vessel = _usage_vessel(run["attempt_scorecard"], comparison_name, vessel_name)
+        usage_vessel = _usage_vessel(
+            run["attempt_scorecard"], comparison_name, vessel_name
+        )
         if usage_vessel is not None:
             usage_runs += 1
             tokens += int(usage_vessel["total_tokens"])
             cost += float(usage_vessel["total_cost"])
             duration += float(usage_vessel["total_duration_seconds"])
             tool_calls += int(usage_vessel["tool_call_count"])
-    run_vessels = [
-        _run_vessel(comparison_name, vessel_name, run) for run in runs
-    ]
+    run_vessels = [_run_vessel(comparison_name, vessel_name, run) for run in runs]
     return {
         "name": vessel_name,
         "runs": len(runs),
@@ -349,8 +349,7 @@ def _run_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:
             float(challenger["duration_seconds"]) - float(baseline["duration_seconds"]),
             3,
         ),
-        "tool_calls_delta": int(challenger["tool_calls"])
-        - int(baseline["tool_calls"]),
+        "tool_calls_delta": int(challenger["tool_calls"]) - int(baseline["tool_calls"]),
     }
 
 
@@ -507,7 +506,9 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
-    lines.extend(f"| {_delta_row(comparison)} |" for comparison in aggregate["comparisons"])
+    lines.extend(
+        f"| {_delta_row(comparison)} |" for comparison in aggregate["comparisons"]
+    )
     lines.extend(
         [
             "",
@@ -520,8 +521,7 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
     )
     for comparison in aggregate["comparisons"]:
         lines.extend(
-            f"| {_vessel_row(comparison, vessel)} |"
-            for vessel in comparison["vessels"]
+            f"| {_vessel_row(comparison, vessel)} |" for vessel in comparison["vessels"]
         )
     lines.extend(
         [

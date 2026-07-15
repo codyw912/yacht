@@ -110,9 +110,7 @@ class LocalSmokeTaskAttemptTests(unittest.TestCase):
             self.assertEqual(scorecard["summary"]["total_attempts"], 2)
             comparison = scorecard["comparisons"][0]
             self.assertEqual(comparison["name"], "local-agent-preflight")
-            vessels = {
-                vessel["name"]: vessel for vessel in comparison["vessels"]
-            }
+            vessels = {vessel["name"]: vessel for vessel in comparison["vessels"]}
             baseline = vessels["local-baseline"]
             rigged = vessels["local-agent-with-tool"]
             self.assertEqual(baseline["tool_call_count"], 0)

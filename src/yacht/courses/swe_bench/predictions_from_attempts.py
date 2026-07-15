@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from yacht.domain.model import ConfigError
-from yacht.contracts.schemas import SchemaValidationError, validate_task_attempt_document
+from yacht.contracts.schemas import (
+    SchemaValidationError,
+    validate_task_attempt_document,
+)
 from yacht.courses.swe_bench.predictions import write_swe_bench_prediction_records
 
 
@@ -67,7 +70,9 @@ def _load_task_attempt(path: Path) -> dict[str, Any]:
     try:
         attempt = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
-        raise ConfigError(f"task attempt artifact is not valid JSON: {error}") from error
+        raise ConfigError(
+            f"task attempt artifact is not valid JSON: {error}"
+        ) from error
     if not isinstance(attempt, dict):
         raise ConfigError("task attempt artifact must be a JSON object")
     try:
@@ -140,8 +145,4 @@ def _fenced_json_candidates(response: str) -> tuple[str, ...]:
 
 
 def _looks_like_unified_diff(response: str) -> bool:
-    return (
-        "diff --git " in response
-        and "\n--- " in response
-        and "\n+++ " in response
-    )
+    return "diff --git " in response and "\n--- " in response and "\n+++ " in response

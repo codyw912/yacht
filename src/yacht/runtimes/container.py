@@ -140,9 +140,7 @@ def _runtime_env(
         "XDG_STATE_HOME": str(trial_state),
     }
     workspace = PurePosixPath(container_workspace)
-    env.update(
-        _expand_env_values(runtime.env, home, workspace, trial_state)
-    )
+    env.update(_expand_env_values(runtime.env, home, workspace, trial_state))
     for rigging in riggings:
         env.update(
             _expand_env_values(
@@ -167,8 +165,7 @@ def _expand_env_values(
         "{workspace}": str(container_workspace),
     }
     return {
-        key: _replace_placeholders(value, replacements)
-        for key, value in values.items()
+        key: _replace_placeholders(value, replacements) for key, value in values.items()
     }
 
 

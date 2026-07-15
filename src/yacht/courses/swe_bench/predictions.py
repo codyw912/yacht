@@ -6,7 +6,10 @@ from typing import Any
 
 from yacht.courses.handoff import COURSE_HANDOFF_PATH, build_course_handoff
 from yacht.domain.model import ConfigError
-from yacht.courses.swe_bench.artifacts import candidate_patches_path, validate_handoff_vessel
+from yacht.courses.swe_bench.artifacts import (
+    candidate_patches_path,
+    validate_handoff_vessel,
+)
 
 
 SWE_BENCH_PREDICTION_FIELDS = (
@@ -106,7 +109,9 @@ def _prediction_record(value: Any, index: int) -> dict[str, str]:
     for field in SWE_BENCH_PREDICTION_FIELDS:
         field_value = value.get(field)
         if not isinstance(field_value, str) or not field_value:
-            raise ConfigError(f"predictions[{index}].{field} must be a non-empty string")
+            raise ConfigError(
+                f"predictions[{index}].{field} must be a non-empty string"
+            )
         record[field] = field_value
     return record
 

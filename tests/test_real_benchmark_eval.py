@@ -71,10 +71,13 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 task_launcher=SubprocessPiTaskLauncher(runner=task_runner),
             )
 
-            with patch(
-                "yacht.preflight._run_command",
-                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-            ), _without_task_workspace_materialization(workspace_path):
+            with (
+                patch(
+                    "yacht.preflight._run_command",
+                    return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+                ),
+                _without_task_workspace_materialization(workspace_path),
+            ):
                 summary = run_real_benchmark_eval(
                     config_path=config_path,
                     logbook_dir=logbook_dir,
@@ -114,7 +117,9 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             self.assertEqual(summary["benchmark_launch"]["status"], "complete")
             self.assertEqual(summary["grading_collection"]["status"], "complete")
             self.assertEqual(summary["scorecard"]["status"], "complete")
-            self.assertEqual(summary["next_steps"][0]["label"], "Render benchmark report")
+            self.assertEqual(
+                summary["next_steps"][0]["label"], "Render benchmark report"
+            )
             self.assertEqual(len(prompt_requests), 1)
             self.assertEqual(len(task_requests), 2)
             self.assertEqual(len(native_launches), 2)
@@ -153,9 +158,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                     "vessels": ["pi-baseline", "pi-plus-fff"],
                 },
             )
-            self.assertTrue(
-                run_index["artifacts"]["benchmark_scorecard"]["present"]
-            )
+            self.assertTrue(run_index["artifacts"]["benchmark_scorecard"]["present"])
             self.assertTrue((logbook_dir / "benchmark-scorecard.json").is_file())
             self.assertTrue(
                 (
@@ -184,36 +187,42 @@ class RealBenchmarkEvalTests(unittest.TestCase):
 
             stdout = StringIO()
             stderr = StringIO()
-            with patch(
-                "yacht.preflight._run_command",
-                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-            ), patch(
-                "yacht.harnesses.registry.SubprocessPiPromptLauncher",
-                return_value=SubprocessPiPromptLauncher(
-                    runner=lambda _request: CommandResult(
-                        exit_code=0,
-                        stdout=(
-                            '{"available": true, "configured": true, '
-                            '"tool_calls": ["fffind"]}\n'
-                        ),
-                        stderr="",
-                    )
+            with (
+                patch(
+                    "yacht.preflight._run_command",
+                    return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
                 ),
-            ), patch(
-                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
-                return_value=SubprocessPiTaskLauncher(
-                    runner=lambda _request: CommandResult(
-                        exit_code=0,
-                        stdout=json.dumps({"model_patch": MODEL_PATCH}),
-                        stderr="",
-                    )
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiPromptLauncher",
+                    return_value=SubprocessPiPromptLauncher(
+                        runner=lambda _request: CommandResult(
+                            exit_code=0,
+                            stdout=(
+                                '{"available": true, "configured": true, '
+                                '"tool_calls": ["fffind"]}\n'
+                            ),
+                            stderr="",
+                        )
+                    ),
                 ),
-            ), patch(
-                "yacht.workflows.benchmark_launch._run_command",
-                side_effect=_benchmark_command_result,
-            ), _without_task_workspace_materialization(workspace_path), redirect_stdout(
-                stdout
-            ), redirect_stderr(stderr):
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiTaskLauncher",
+                    return_value=SubprocessPiTaskLauncher(
+                        runner=lambda _request: CommandResult(
+                            exit_code=0,
+                            stdout=json.dumps({"model_patch": MODEL_PATCH}),
+                            stderr="",
+                        )
+                    ),
+                ),
+                patch(
+                    "yacht.workflows.benchmark_launch._run_command",
+                    side_effect=_benchmark_command_result,
+                ),
+                _without_task_workspace_materialization(workspace_path),
+                redirect_stdout(stdout),
+                redirect_stderr(stderr),
+            ):
                 exit_code = main(
                     [
                         "real-benchmark-eval",
@@ -225,7 +234,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                         "--secret",
                         "anthropic=test-secret",
                     ]
-            )
+                )
 
             self.assertEqual(exit_code, 0)
             report = stdout.getvalue()
@@ -263,15 +272,18 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             config_path, workspace_path, logbook_dir = _write_fixture(root)
             stdout = StringIO()
 
-            with patch(
-                "yacht.cli.run_real_benchmark_eval",
-                return_value={
-                    "status": "complete",
-                    "regatta": "pi-fff-comparison",
-                    "course": "swe-bench-lite",
-                    "artifacts": {"logbook": str(logbook_dir)},
-                },
-            ), redirect_stdout(stdout):
+            with (
+                patch(
+                    "yacht.cli.run_real_benchmark_eval",
+                    return_value={
+                        "status": "complete",
+                        "regatta": "pi-fff-comparison",
+                        "course": "swe-bench-lite",
+                        "artifacts": {"logbook": str(logbook_dir)},
+                    },
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = main(
                     [
                         "real-benchmark-eval",
@@ -418,10 +430,13 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 ),
             )
 
-            with patch(
-                "yacht.preflight._run_command",
-                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-            ), _without_task_workspace_materialization(workspace_path):
+            with (
+                patch(
+                    "yacht.preflight._run_command",
+                    return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+                ),
+                _without_task_workspace_materialization(workspace_path),
+            ):
                 summary = run_real_benchmark_eval(
                     config_path=config_path,
                     logbook_dir=logbook_dir,
@@ -454,7 +469,9 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 summary["skipped"],
                 ["benchmark-scorecard"],
             )
-            self.assertEqual(summary["next_steps"][0]["label"], "Rerun benchmark launch")
+            self.assertEqual(
+                summary["next_steps"][0]["label"], "Rerun benchmark launch"
+            )
             self.assertFalse((logbook_dir / "benchmark-scorecard.json").exists())
 
     def test_blocks_when_attempt_response_cannot_become_candidate_patch(self) -> None:
@@ -481,10 +498,13 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 ),
             )
 
-            with patch(
-                "yacht.preflight._run_command",
-                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-            ), _without_task_workspace_materialization(workspace_path):
+            with (
+                patch(
+                    "yacht.preflight._run_command",
+                    return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+                ),
+                _without_task_workspace_materialization(workspace_path),
+            ):
                 summary = run_real_benchmark_eval(
                     config_path=config_path,
                     logbook_dir=logbook_dir,
@@ -546,14 +566,17 @@ def _write_fixture(root: Path) -> tuple[Path, Path, Path]:
 
 @contextmanager
 def _without_task_workspace_materialization(workspace_path: Path):
-    with patch(
-        "yacht.courses.registry.SweBenchAdapter.task_with_context",
-        autospec=True,
-        side_effect=lambda self, *, task, adapter: task,
-    ), patch(
-        "yacht.courses.registry.SweBenchAdapter.workspace_for_attempt",
-        autospec=True,
-        return_value=workspace_path,
+    with (
+        patch(
+            "yacht.courses.registry.SweBenchAdapter.task_with_context",
+            autospec=True,
+            side_effect=lambda self, *, task, adapter: task,
+        ),
+        patch(
+            "yacht.courses.registry.SweBenchAdapter.workspace_for_attempt",
+            autospec=True,
+            return_value=workspace_path,
+        ),
     ):
         yield
 

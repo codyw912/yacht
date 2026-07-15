@@ -201,7 +201,9 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         self.assertIn("Return the expected fields.", instructions)
 
     def test_rejects_unknown_benchmark_adapter(self) -> None:
-        with self.assertRaisesRegex(ConfigError, "unsupported benchmark adapter custom"):
+        with self.assertRaisesRegex(
+            ConfigError, "unsupported benchmark adapter custom"
+        ):
             benchmark_adapter("custom")
 
     def test_course_adapter_harness_is_validated_per_adapter_kind(self) -> None:

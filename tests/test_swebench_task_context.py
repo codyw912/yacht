@@ -309,8 +309,7 @@ model = "mock"
 
             with self.assertRaisesRegex(
                 ConfigError,
-                "course.tasks contains IDs not selected by "
-                "course.adapter.instance_ids",
+                "course.tasks contains IDs not selected by course.adapter.instance_ids",
             ):
                 load_regatta(config_path)
 
@@ -538,12 +537,16 @@ def _base_commit(path: Path) -> str:
 
 def _config(repo: Path, *, with_runtime: bool = False) -> str:
     base_commit = _base_commit(repo)
-    runtime = """
+    runtime = (
+        """
 [runtimes.pi]
 backend = "host-nix"
 flake = "path:.#pi"
 command = ["pi"]
-""" if with_runtime else ""
+"""
+        if with_runtime
+        else ""
+    )
     vessel_runtime = 'runtime = "pi"' if with_runtime else ""
     return f"""
 [regatta]

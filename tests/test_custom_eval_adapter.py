@@ -4,7 +4,9 @@ import unittest
 from pathlib import Path
 
 from tests.preflight_artifacts import write_preflight_artifact
-from yacht.workflows.benchmark_grading_collection import collect_benchmark_grading_reports
+from yacht.workflows.benchmark_grading_collection import (
+    collect_benchmark_grading_reports,
+)
 from yacht.workflows.benchmark_launch import write_benchmark_launch_result
 from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.reports.benchmark_report import render_benchmark_report
@@ -143,8 +145,8 @@ tasks = [
             config_path = _write_config(
                 root,
                 CONFIG.replace(
-                    "[course]\nname = \"local-custom-eval\"",
-                    "[course]\nname = \"local-custom-eval\"\ntask_file = \"tasks.toml\"",
+                    '[course]\nname = "local-custom-eval"',
+                    '[course]\nname = "local-custom-eval"\ntask_file = "tasks.toml"',
                 ),
             )
 
@@ -404,7 +406,9 @@ def _write_preflight(*, logbook_dir: Path, vessel_name: str) -> None:
 
 
 def _write_task_attempt(*, logbook_dir: Path, vessel_name: str, result) -> None:
-    path = logbook_dir / "task-attempts" / "local-custom" / vessel_name / "custom-1.json"
+    path = (
+        logbook_dir / "task-attempts" / "local-custom" / vessel_name / "custom-1.json"
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(

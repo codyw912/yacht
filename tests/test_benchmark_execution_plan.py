@@ -275,9 +275,7 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
             ):
                 write_benchmark_execution_plan(logbook_dir)
 
-            self.assertFalse(
-                (logbook_dir / "benchmark-execution-plan.json").exists()
-            )
+            self.assertFalse((logbook_dir / "benchmark-execution-plan.json").exists())
 
 
 def _prepared_mixed_logbook(root: Path) -> Path:

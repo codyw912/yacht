@@ -354,10 +354,7 @@ def _parse_runtime_recipes(raw: dict[str, Any]) -> dict[str, RuntimeRecipe]:
             image=str(runtime["image"]) if "image" in runtime else None,
             container_home=str(runtime.get("container_home", "/home/yacht")),
             container_workspace=str(runtime.get("container_workspace", "/workspace")),
-            env={
-                str(key): str(value)
-                for key, value in runtime.get("env", {}).items()
-            },
+            env={str(key): str(value) for key, value in runtime.get("env", {}).items()},
             required_secrets=tuple(
                 str(item) for item in runtime.get("required_secrets", ())
             ),
@@ -382,13 +379,9 @@ def _parse_rigging_recipes(raw: dict[str, Any]) -> dict[str, RiggingRecipe]:
             name=str(name),
             tools=tuple(str(item) for item in rigging.get("tools", ())),
             install=tuple(
-                _parse_rigging_install_step(item)
-                for item in rigging.get("install", ())
+                _parse_rigging_install_step(item) for item in rigging.get("install", ())
             ),
-            env={
-                str(key): str(value)
-                for key, value in rigging.get("env", {}).items()
-            },
+            env={str(key): str(value) for key, value in rigging.get("env", {}).items()},
             required_secrets=tuple(
                 str(item) for item in rigging.get("required_secrets", ())
             ),
@@ -457,4 +450,3 @@ def _parse_preflight_check(raw: dict[str, Any]) -> PreflightCheck:
         prompt=str(raw["prompt"]) if "prompt" in raw else None,
         expect_tool_calls=tuple(str(item) for item in raw.get("expect_tool_calls", ())),
     )
-

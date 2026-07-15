@@ -11,14 +11,11 @@ class CourseAdapterInterface(Protocol):
     display_name: str
     supported_harnesses: tuple[str, ...]
 
-    def expected_outputs(self) -> dict[str, str]:
-        ...
+    def expected_outputs(self) -> dict[str, str]: ...
 
-    def task_prompt_instructions(self, task: Any) -> str:
-        ...
+    def task_prompt_instructions(self, task: Any) -> str: ...
 
-    def task_with_context(self, *, task: Any, adapter: Any) -> Any:
-        ...
+    def task_with_context(self, *, task: Any, adapter: Any) -> Any: ...
 
     def workspace_for_attempt(
         self,
@@ -28,8 +25,7 @@ class CourseAdapterInterface(Protocol):
         workspace_root: Path,
         comparison_name: str,
         vessel_name: str,
-    ) -> Path:
-        ...
+    ) -> Path: ...
 
     def write_predictions_from_attempts(
         self,
@@ -38,8 +34,7 @@ class CourseAdapterInterface(Protocol):
         logbook_dir: Path,
         vessel_name: str,
         comparison_name: str | None = None,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
 
 class EvaluatorAdapterInterface(Protocol):
@@ -47,8 +42,7 @@ class EvaluatorAdapterInterface(Protocol):
     display_name: str
     grading_schema: str
 
-    def grading(self, harness: str) -> dict[str, str]:
-        ...
+    def grading(self, harness: str) -> dict[str, str]: ...
 
     def launcher_command(
         self,
@@ -60,11 +54,9 @@ class EvaluatorAdapterInterface(Protocol):
         run_id: str,
         max_workers: int,
         python_command: list[str],
-    ) -> list[str]:
-        ...
+    ) -> list[str]: ...
 
-    def native_report_filename(self, *, vessel_name: str, run_id: str) -> str:
-        ...
+    def native_report_filename(self, *, vessel_name: str, run_id: str) -> str: ...
 
     def write_grading_report(
         self,
@@ -73,8 +65,7 @@ class EvaluatorAdapterInterface(Protocol):
         native_report_path: Path,
         logbook_dir: Path,
         vessel_name: str,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
 
 class BenchmarkAdapter(

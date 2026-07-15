@@ -151,9 +151,7 @@ def _command(vessel: dict[str, Any]) -> list[str]:
 
 
 def _summary(comparisons: list[dict[str, Any]]) -> dict[str, int]:
-    vessels = [
-        vessel for comparison in comparisons for vessel in comparison["vessels"]
-    ]
+    vessels = [vessel for comparison in comparisons for vessel in comparison["vessels"]]
     return {
         "total_vessels": len(vessels),
         "launched_vessels": sum(
@@ -162,9 +160,7 @@ def _summary(comparisons: list[dict[str, Any]]) -> dict[str, int]:
         "completed_launches": sum(
             1 for vessel in vessels if vessel["status"] == "completed"
         ),
-        "failed_launches": sum(
-            1 for vessel in vessels if vessel["status"] == "failed"
-        ),
+        "failed_launches": sum(1 for vessel in vessels if vessel["status"] == "failed"),
         "skipped_vessels": sum(
             1 for vessel in vessels if vessel["status"] == "skipped"
         ),

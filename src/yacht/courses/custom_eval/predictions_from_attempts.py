@@ -6,8 +6,14 @@ from typing import Any
 
 from yacht.courses.handoff import COURSE_HANDOFF_PATH, build_course_handoff
 from yacht.domain.model import ConfigError
-from yacht.contracts.schemas import SchemaValidationError, validate_task_attempt_document
-from yacht.courses.swe_bench.artifacts import candidate_patches_path, validate_handoff_vessel
+from yacht.contracts.schemas import (
+    SchemaValidationError,
+    validate_task_attempt_document,
+)
+from yacht.courses.swe_bench.artifacts import (
+    candidate_patches_path,
+    validate_handoff_vessel,
+)
 
 
 def write_custom_eval_predictions_from_attempts(
@@ -82,7 +88,9 @@ def _load_task_attempt(path: Path) -> dict[str, Any]:
     try:
         attempt = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
-        raise ConfigError(f"task attempt artifact is not valid JSON: {error}") from error
+        raise ConfigError(
+            f"task attempt artifact is not valid JSON: {error}"
+        ) from error
     if not isinstance(attempt, dict):
         raise ConfigError("task attempt artifact must be a JSON object")
     try:

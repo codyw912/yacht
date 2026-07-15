@@ -28,8 +28,7 @@ def configured_harness_name_for_regatta(
         return str(agents[0])
     if not agents:
         raise ConfigError(
-            f"{command_label} require exactly one configured agent harness; "
-            "found none"
+            f"{command_label} require exactly one configured agent harness; found none"
         )
     raise ConfigError(
         f"{command_label} require exactly one configured agent harness; "

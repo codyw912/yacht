@@ -20,7 +20,7 @@ from yacht.domain.model import (
 from yacht.runtimes.rigging_setup import (
     RiggingSetupError,
     SetupCommandRunner,
-    SetupProcessResult,
+    SetupProcessResult as SetupProcessResult,
     apply_rigging_setup,
     plan_rigging_setup,
     run_setup_command,
@@ -40,8 +40,7 @@ class RuntimeBackend(Protocol):
         trial_root: Path,
         workspace_path: Path,
         secret_values: dict[str, str],
-    ) -> RuntimeInstance:
-        ...
+    ) -> RuntimeInstance: ...
 
 
 def runtime_backend_for_recipe(runtime: RuntimeRecipe) -> RuntimeBackend:

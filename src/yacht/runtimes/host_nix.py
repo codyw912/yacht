@@ -75,9 +75,7 @@ def resolve_host_nix_runtime(
             f"runtime {runtime.name} uses unsupported backend {runtime.backend}"
         )
     if runtime.flake is None:
-        raise HostNixRuntimeResolutionError(
-            f"runtime {runtime.name} is missing flake"
-        )
+        raise HostNixRuntimeResolutionError(f"runtime {runtime.name} is missing flake")
     riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
     temp_home = instance_root / "home"
     trial_state = temp_home / ".local" / "state"
@@ -151,8 +149,7 @@ def _expand_env_values(
         "{workspace}": str(workspace_path),
     }
     return {
-        key: _replace_placeholders(value, replacements)
-        for key, value in values.items()
+        key: _replace_placeholders(value, replacements) for key, value in values.items()
     }
 
 

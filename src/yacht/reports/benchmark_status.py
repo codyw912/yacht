@@ -8,7 +8,9 @@ from yacht.logbook.index import RUN_INDEX_PATH
 from yacht.logbook.io import load_json_object
 from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.workflows.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
-from yacht.workflows.benchmark_grading_collection import BENCHMARK_GRADING_COLLECTION_PATH
+from yacht.workflows.benchmark_grading_collection import (
+    BENCHMARK_GRADING_COLLECTION_PATH,
+)
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.workflows.benchmark_launcher_handoff import BENCHMARK_LAUNCHER_HANDOFF_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH

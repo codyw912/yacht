@@ -111,8 +111,7 @@ def _execute_preflight(
     riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
     checks = _preflight_checks(runtime, riggings, include_agent_checks)
     check_results = [
-        _execute_check(check, instance, runner, agent_prompt_runner)
-        for check in checks
+        _execute_check(check, instance, runner, agent_prompt_runner) for check in checks
     ]
     artifact = {
         "schema": PREFLIGHT_SCHEMA,
@@ -220,7 +219,9 @@ def _execute_check(
     if check.kind == "runtime-capability":
         return _execute_runtime_capability_check(effective_check)
     if check.kind == "agent-prompt":
-        return _execute_agent_prompt_check(effective_check, instance, agent_prompt_runner)
+        return _execute_agent_prompt_check(
+            effective_check, instance, agent_prompt_runner
+        )
     raise ValueError(f"unsupported preflight check kind {check.kind}")
 
 
@@ -250,11 +251,7 @@ def _execute_env_check(
 ) -> dict[str, object]:
     check = effective_check.check
     missing = [name for name in check.env if name not in instance.env]
-    present = {
-        name: instance.env[name]
-        for name in check.env
-        if name in instance.env
-    }
+    present = {name: instance.env[name] for name in check.env if name in instance.env}
     evidence: dict[str, object] = {"present_env": present}
     if missing:
         evidence["missing_env"] = missing
@@ -272,9 +269,7 @@ def _execute_path_isolation_check(
     check = effective_check.check
     missing = [name for name in check.env if name not in instance.env]
     resolved_paths = {
-        name: instance.env[name]
-        for name in check.env
-        if name in instance.env
+        name: instance.env[name] for name in check.env if name in instance.env
     }
     isolation_root = _isolation_root(instance)
     outside_trial_home = {
@@ -406,7 +401,11 @@ def _agent_response_contract(response: str) -> AgentResponseContract:
 
 
 def parse_agent_response_json(response: str) -> dict[str, object] | None:
-    for candidate in (response, _markdown_fenced_body(response), *_fenced_bodies(response)):
+    for candidate in (
+        response,
+        _markdown_fenced_body(response),
+        *_fenced_bodies(response),
+    ):
         if candidate is None:
             continue
         try:

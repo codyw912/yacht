@@ -267,8 +267,9 @@ class Scorecard:
 
 
 class TaskRunner(Protocol):
-    def run_task(self, regatta: str, course: str, vessel: Vessel, task: Task) -> Wake:
-        ...
+    def run_task(
+        self, regatta: str, course: str, vessel: Vessel, task: Task
+    ) -> Wake: ...
 
 
 class MockTaskRunner:

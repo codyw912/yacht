@@ -9,7 +9,9 @@ from tests.benchmark_fixtures import PI_FFF_CONFIG_PATH
 from tests.benchmark_fixtures import write_runtime_snapshot
 from tests.benchmark_fixtures import write_vessel_candidate
 from tests.benchmark_fixtures import write_vessel_preflight
-from yacht.workflows.benchmark_grading_collection import collect_benchmark_grading_reports
+from yacht.workflows.benchmark_grading_collection import (
+    collect_benchmark_grading_reports,
+)
 from yacht.workflows.benchmark_launch import write_benchmark_launch_result
 from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
@@ -211,8 +213,7 @@ def _write_native_report(
                 command = vessel["command"]
                 run_id = command[command.index("--run_id") + 1]
                 native_report_path = (
-                    Path(vessel["native_report_dir"])
-                    / f"{vessel_name}.{run_id}.json"
+                    Path(vessel["native_report_dir"]) / f"{vessel_name}.{run_id}.json"
                 )
                 native_report_path.write_text(
                     source_path.read_text(encoding="utf-8"),
