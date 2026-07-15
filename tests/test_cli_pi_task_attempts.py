@@ -7,6 +7,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.fixtures import create_fixture_repo, hermetic_swe_bench_config
 from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
 from yacht.cli import main
 from yacht.harnesses.pi import PiTaskRequest, SubprocessPiTaskLauncher
@@ -21,7 +22,11 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             workspace_path = root / "workspace"
             logbook_dir = root / "logbook"
             requests = []
-            config_path.write_text(_config_without_install(), encoding="utf-8")
+            repo = create_fixture_repo(root / "repo")
+            config_path.write_text(
+                _hermetic_config(_config_without_install(), repo),
+                encoding="utf-8",
+            )
             workspace_path.mkdir()
 
             def runner(request: PiTaskRequest) -> CommandResult:
@@ -84,7 +89,11 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             config_path = root / "regatta.toml"
             workspace_path = root / "workspace"
             logbook_dir = root / "logbook"
-            config_path.write_text(_config_without_install(), encoding="utf-8")
+            repo = create_fixture_repo(root / "repo")
+            config_path.write_text(
+                _hermetic_config(_config_without_install(), repo),
+                encoding="utf-8",
+            )
             workspace_path.mkdir()
 
             stdout = StringIO()
@@ -118,7 +127,11 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             workspace_path = root / "workspace"
             logbook_dir = root / "logbook"
             requests = []
-            config_path.write_text(_config_without_install(), encoding="utf-8")
+            repo = create_fixture_repo(root / "repo")
+            config_path.write_text(
+                _hermetic_config(_config_without_install(), repo),
+                encoding="utf-8",
+            )
             workspace_path.mkdir()
 
             def runner(request: PiTaskRequest) -> CommandResult:
@@ -166,7 +179,11 @@ class CliPiTaskAttemptTests(unittest.TestCase):
             config_path = root / "regatta.toml"
             workspace_path = root / "workspace"
             logbook_dir = root / "logbook"
-            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            repo = create_fixture_repo(root / "repo")
+            config_path.write_text(
+                _hermetic_config(PI_WITH_FFF_CONFIG, repo),
+                encoding="utf-8",
+            )
             workspace_path.mkdir()
 
             stdout = StringIO()
@@ -198,6 +215,10 @@ def _config_without_install() -> str:
         PI_FFF_TYPED_INSTALL,
         "install = []\n",
     )
+
+
+def _hermetic_config(config: str, repo: Path) -> str:
+    return hermetic_swe_bench_config(config, repo)
 
 
 if __name__ == "__main__":
