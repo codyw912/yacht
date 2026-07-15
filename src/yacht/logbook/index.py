@@ -12,6 +12,17 @@ RUN_INDEX_PATH = Path("run-index.json")
 RUN_INDEX_SCHEMA = "yacht.run-index.v1"
 
 
+def read_run_kind(logbook_dir: Path) -> str | None:
+    from yacht.logbook.io import load_json_object
+
+    index_path = logbook_dir / RUN_INDEX_PATH
+    if not index_path.exists():
+        return None
+    index = load_json_object(index_path, "run index artifact")
+    kind = index.get("run_kind")
+    return str(kind) if kind is not None else None
+
+
 def write_run_index(
     *,
     logbook_dir: Path,
