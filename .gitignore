@@ -2,6 +2,7 @@
 /logbook/
 __pycache__/
 *.py[cod]
+.coverage
 
 # Local operator notes and generated benchmark spillover.
 /AGENTS.md

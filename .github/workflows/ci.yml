@@ -35,8 +35,13 @@ jobs:
       - name: Check formatting
         run: uv run --locked ruff format --check src tests
 
-      - name: Run tests
-        run: uv run --locked -m unittest discover -s tests
+      - name: Run tests with coverage
+        run: uv run --locked -m coverage run --source=src -m unittest discover -s tests
+
+      - name: Report coverage
+        run: |
+          uv run --locked -m coverage report
+          uv run --locked -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compile package
         run: uv run --locked -m compileall src tests

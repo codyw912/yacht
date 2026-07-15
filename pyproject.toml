@@ -25,5 +25,6 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "coverage>=7.15.1",
     "ruff>=0.15.21",
 ]
