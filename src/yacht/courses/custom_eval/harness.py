@@ -29,7 +29,9 @@ def main(argv: list[str] | None = None) -> int:
 
 def _load_candidate_records(path: Path) -> list[dict[str, Any]]:
     records = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for line_number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), 1
+    ):
         try:
             record = json.loads(line)
         except json.JSONDecodeError as error:
@@ -46,7 +48,9 @@ def _load_candidate_records(path: Path) -> list[dict[str, Any]]:
             "expect_tool_calls",
         ):
             if field not in record:
-                raise SystemExit(f"candidate records line {line_number}.{field} missing")
+                raise SystemExit(
+                    f"candidate records line {line_number}.{field} missing"
+                )
         if not isinstance(record["instance_id"], str) or not record["instance_id"]:
             raise SystemExit(
                 f"candidate records line {line_number}.instance_id must be non-empty"
@@ -59,9 +63,10 @@ def _load_candidate_records(path: Path) -> list[dict[str, Any]]:
                 "candidate records line "
                 f"{line_number}.model_name_or_path must be non-empty"
             )
-        if not isinstance(record["expect_response"], dict) or not record[
-            "expect_response"
-        ]:
+        if (
+            not isinstance(record["expect_response"], dict)
+            or not record["expect_response"]
+        ):
             raise SystemExit(
                 "candidate records line "
                 f"{line_number}.expect_response must be a non-empty object"
@@ -146,7 +151,9 @@ def _instance_result(record: dict[str, Any]) -> dict[str, Any]:
                 missing_response_fields.append(str(key))
             elif response.get(key) != expected:
                 mismatched_response_fields.append(str(key))
-        response_matched = not missing_response_fields and not mismatched_response_fields
+        response_matched = (
+            not missing_response_fields and not mismatched_response_fields
+        )
     else:
         response_matched = False
 

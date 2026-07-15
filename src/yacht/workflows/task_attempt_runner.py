@@ -220,12 +220,8 @@ def _validate_required_secrets(
             if vessel.runtime is None:
                 continue
             runtime = regatta.runtime_recipes[vessel.runtime]
-            riggings = tuple(
-                regatta.rigging_recipes[name] for name in vessel.rigging
-            )
-            for secret_name in runtime_secrets.required_secret_names(
-                runtime, riggings
-            ):
+            riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
+            for secret_name in runtime_secrets.required_secret_names(runtime, riggings):
                 if secret_name not in secret_values:
                     raise ConfigError(
                         f"missing value for required secret {secret_name}"

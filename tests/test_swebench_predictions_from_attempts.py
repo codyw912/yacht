@@ -127,9 +127,7 @@ class SweBenchPredictionsFromAttemptsTests(unittest.TestCase):
             self.assertEqual(summary["status"], "validated")
             candidate_path = Path(summary["candidate_patches_path"])
             self.assertEqual(
-                json.loads(candidate_path.read_text(encoding="utf-8"))[
-                    "model_patch"
-                ],
+                json.loads(candidate_path.read_text(encoding="utf-8"))["model_patch"],
                 MODEL_PATCH,
             )
 

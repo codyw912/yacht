@@ -18,7 +18,7 @@ from yacht.harnesses.pi import (
     _run_pi_task_subprocess,
 )
 from yacht.preflight import AgentPromptResult, CommandResult, execute_preflight
-from yacht.domain.model import ConfigError, Metrics, load_regatta
+from yacht.domain.model import Metrics, load_regatta
 from yacht.runtimes.backend import HostNixRuntimeBackend, SetupProcessResult
 from yacht.workflows.task_attempt_runner import run_task_attempts
 from yacht.workflows.task_attempts import AgentTaskResult
@@ -80,7 +80,9 @@ class PiAdapterTests(unittest.TestCase):
                 transcript_dir=root / "transcripts",
             )
 
-            result = runner("preflights/pi-fff.md", instance.env, instance.workspace_path)
+            result = runner(
+                "preflights/pi-fff.md", instance.env, instance.workspace_path
+            )
 
             self.assertEqual(result.tool_calls, ("fff",))
             self.assertEqual(len(requests), 1)
@@ -164,14 +166,17 @@ class PiAdapterTests(unittest.TestCase):
                     metrics=Metrics(tokens=42, duration_seconds=3.5),
                 )
 
-            with patch(
-                "yacht.courses.registry.SweBenchAdapter.task_with_context",
-                autospec=True,
-                side_effect=lambda self, *, task, adapter: task,
-            ), patch(
-                "yacht.courses.registry.SweBenchAdapter.workspace_for_attempt",
-                autospec=True,
-                return_value=workspace_path,
+            with (
+                patch(
+                    "yacht.courses.registry.SweBenchAdapter.task_with_context",
+                    autospec=True,
+                    side_effect=lambda self, *, task, adapter: task,
+                ),
+                patch(
+                    "yacht.courses.registry.SweBenchAdapter.workspace_for_attempt",
+                    autospec=True,
+                    return_value=workspace_path,
+                ),
             ):
                 summary = run_task_attempts(
                     config_path=config_path,
@@ -202,7 +207,9 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(attempt["metrics"]["tokens"], 42)
             self.assertNotIn("test-secret", json.dumps(attempt))
 
-    def test_task_attempt_runner_prepares_container_runtime_for_pi_adapter(self) -> None:
+    def test_task_attempt_runner_prepares_container_runtime_for_pi_adapter(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             workspace_path = root / "workspace"
@@ -368,9 +375,7 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(result.tool_calls, ("fff",))
             self.assertEqual(result.transcript_path, request.transcript_path)
 
-            transcript = json.loads(
-                request.transcript_path.read_text(encoding="utf-8")
-            )
+            transcript = json.loads(request.transcript_path.read_text(encoding="utf-8"))
             self.assertEqual(transcript["prompt"], "Confirm fff availability.")
             self.assertEqual(transcript["argv"], ["pi"])
             self.assertEqual(transcript["cwd"], str(root))
@@ -456,9 +461,7 @@ class PiAdapterTests(unittest.TestCase):
             )
             self.assertEqual(result.tool_calls, ("fffind",))
 
-            transcript = json.loads(
-                request.transcript_path.read_text(encoding="utf-8")
-            )
+            transcript = json.loads(request.transcript_path.read_text(encoding="utf-8"))
             self.assertEqual(transcript["stdout"], pi_stdout)
             self.assertEqual(transcript["response"], result.response)
             self.assertEqual(transcript["tool_calls"], ["fffind"])
@@ -505,9 +508,7 @@ class PiAdapterTests(unittest.TestCase):
             self.assertEqual(result.metrics.duration_seconds, 2.346)
             self.assertEqual(result.machine_evidence, {})
 
-            transcript = json.loads(
-                request.transcript_path.read_text(encoding="utf-8")
-            )
+            transcript = json.loads(request.transcript_path.read_text(encoding="utf-8"))
             self.assertEqual(transcript["task_id"], "django__django-11099")
             self.assertEqual(transcript["task_title"], "Fix Django issue")
             self.assertEqual(transcript["prompt"], request.prompt)
@@ -615,9 +616,7 @@ class PiAdapterTests(unittest.TestCase):
                 },
             )
 
-            transcript = json.loads(
-                request.transcript_path.read_text(encoding="utf-8")
-            )
+            transcript = json.loads(request.transcript_path.read_text(encoding="utf-8"))
             self.assertEqual(transcript["response"], result.response)
             self.assertEqual(transcript["machine_evidence"], result.machine_evidence)
 

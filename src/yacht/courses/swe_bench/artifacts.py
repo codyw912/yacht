@@ -14,11 +14,14 @@ def candidate_patches_path(
 ) -> Path:
     if vessel_name is None:
         return logbook_dir / str(handoff["expected_outputs"]["candidate_patches"])
-    return vessel_artifact_dir(
-        logbook_dir=logbook_dir,
-        handoff=handoff,
-        vessel_name=vessel_name,
-    ) / "candidate-patches.jsonl"
+    return (
+        vessel_artifact_dir(
+            logbook_dir=logbook_dir,
+            handoff=handoff,
+            vessel_name=vessel_name,
+        )
+        / "candidate-patches.jsonl"
+    )
 
 
 def grading_report_path(
@@ -29,11 +32,14 @@ def grading_report_path(
 ) -> Path:
     if vessel_name is None:
         return logbook_dir / str(handoff["expected_outputs"]["grading_report"])
-    return vessel_artifact_dir(
-        logbook_dir=logbook_dir,
-        handoff=handoff,
-        vessel_name=vessel_name,
-    ) / "grading-report.json"
+    return (
+        vessel_artifact_dir(
+            logbook_dir=logbook_dir,
+            handoff=handoff,
+            vessel_name=vessel_name,
+        )
+        / "grading-report.json"
+    )
 
 
 def vessel_artifact_dir(
@@ -42,10 +48,9 @@ def vessel_artifact_dir(
     handoff: dict[str, Any],
     vessel_name: str,
 ) -> Path:
-    return (
-        vessels_artifact_dir(logbook_dir=logbook_dir, handoff=handoff)
-        / safe_vessel_path_name(vessel_name)
-    )
+    return vessels_artifact_dir(
+        logbook_dir=logbook_dir, handoff=handoff
+    ) / safe_vessel_path_name(vessel_name)
 
 
 def vessels_artifact_dir(*, logbook_dir: Path, handoff: dict[str, Any]) -> Path:

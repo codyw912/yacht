@@ -17,7 +17,9 @@ from yacht.runtimes.plan import build_runtime_plan
 
 
 class RuntimePlanTests(unittest.TestCase):
-    def test_build_runtime_instances_plan_resolves_container_paths_and_env(self) -> None:
+    def test_build_runtime_instances_plan_resolves_container_paths_and_env(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             config_path = root / "regatta.toml"

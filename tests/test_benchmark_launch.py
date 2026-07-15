@@ -93,10 +93,13 @@ class BenchmarkLaunchTests(unittest.TestCase):
             write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
 
             stdout = StringIO()
-            with patch(
-                "yacht.workflows.benchmark_launch._run_command",
-                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-            ), redirect_stdout(stdout):
+            with (
+                patch(
+                    "yacht.workflows.benchmark_launch._run_command",
+                    return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = main(["benchmark-launch", "--logbook", str(logbook_dir)])
 
             self.assertEqual(exit_code, 0)

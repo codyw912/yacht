@@ -87,7 +87,9 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             aggregate_summary = summary["aggregate_summary"]
             self.assertEqual(aggregate_summary["run_count"], 2)
             self.assertEqual(
-                aggregate_summary["comparisons"][0]["delta"]["resolved_instances_delta"],
+                aggregate_summary["comparisons"][0]["delta"][
+                    "resolved_instances_delta"
+                ],
                 1,
             )
             aggregate = json.loads(
@@ -146,7 +148,9 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertIn("complete | real benchmark repetitions", report)
             self.assertIn("present | benchmark aggregate", report)
             self.assertIn("1. Render benchmark report", report)
-            self.assertIn(f"uv run yacht benchmark-report --logbook {logbook_dir}", report)
+            self.assertIn(
+                f"uv run yacht benchmark-report --logbook {logbook_dir}", report
+            )
 
     def test_benchmark_report_renders_repetition_parent_aggregate(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -164,7 +168,9 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             report = stdout.getvalue()
-            self.assertIn("Benchmark aggregate: pi-fff-comparison / swe-bench-lite", report)
+            self.assertIn(
+                "Benchmark aggregate: pi-fff-comparison / swe-bench-lite", report
+            )
             self.assertIn("Runs: 2", report)
             self.assertIn("Aggregate deltas:", report)
 
@@ -243,13 +249,18 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             stdout = StringIO()
             stderr = StringIO()
 
-            with patch(
-                "yacht.cli.configured_harness_name",
-                return_value="pi",
-            ), patch(
-                "yacht.cli.run_real_benchmark_repetitions",
-                side_effect=ConfigError("boom"),
-            ), redirect_stdout(stdout), redirect_stderr(stderr):
+            with (
+                patch(
+                    "yacht.cli.configured_harness_name",
+                    return_value="pi",
+                ),
+                patch(
+                    "yacht.cli.run_real_benchmark_repetitions",
+                    side_effect=ConfigError("boom"),
+                ),
+                redirect_stdout(stdout),
+                redirect_stderr(stderr),
+            ):
                 exit_code = main(
                     [
                         "real-benchmark-repetitions",
@@ -291,10 +302,14 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
                     },
                 }
 
-            with patch(
-                "yacht.cli.run_real_benchmark_repetitions",
-                side_effect=fake_runner,
-            ), redirect_stdout(stdout), redirect_stderr(stderr):
+            with (
+                patch(
+                    "yacht.cli.run_real_benchmark_repetitions",
+                    side_effect=fake_runner,
+                ),
+                redirect_stdout(stdout),
+                redirect_stderr(stderr),
+            ):
                 exit_code = main(
                     [
                         "real-benchmark-repetitions",
@@ -334,13 +349,17 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
                     "artifacts": {"logbook": str(kwargs["logbook_dir"])},
                 }
 
-            with patch(
-                "yacht.cli._default_repeated_benchmark_logbook",
-                return_value=root / "generated-series",
-            ), patch(
-                "yacht.cli.run_real_benchmark_repetitions",
-                side_effect=fake_runner,
-            ), redirect_stdout(stdout):
+            with (
+                patch(
+                    "yacht.cli._default_repeated_benchmark_logbook",
+                    return_value=root / "generated-series",
+                ),
+                patch(
+                    "yacht.cli.run_real_benchmark_repetitions",
+                    side_effect=fake_runner,
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = main(
                     [
                         "real-benchmark-repetitions",
@@ -368,21 +387,24 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
             stdout = StringIO()
 
-            with patch(
-                "yacht.cli.run_real_benchmark_repetitions",
-                return_value={
-                    "schema": "yacht.real-benchmark-repetitions.v1",
-                    "status": "complete",
-                    "regatta": "pi-fff-comparison",
-                    "course": "swe-bench-lite",
-                    "summary": {
-                        "repetitions": 2,
-                        "completed_runs": 2,
-                        "failed_runs": 0,
-                        "aggregate_logbooks": 2,
+            with (
+                patch(
+                    "yacht.cli.run_real_benchmark_repetitions",
+                    return_value={
+                        "schema": "yacht.real-benchmark-repetitions.v1",
+                        "status": "complete",
+                        "regatta": "pi-fff-comparison",
+                        "course": "swe-bench-lite",
+                        "summary": {
+                            "repetitions": 2,
+                            "completed_runs": 2,
+                            "failed_runs": 0,
+                            "aggregate_logbooks": 2,
+                        },
                     },
-                },
-            ), redirect_stdout(stdout):
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = main(
                     [
                         "real-benchmark-repetitions",

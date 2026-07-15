@@ -12,7 +12,10 @@ from yacht.contracts.schemas import (
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
     validate_benchmark_execution_plan_document,
 )
-from yacht.courses.swe_bench.artifacts import candidate_patches_path, grading_report_path
+from yacht.courses.swe_bench.artifacts import (
+    candidate_patches_path,
+    grading_report_path,
+)
 
 
 BENCHMARK_EXECUTION_PLAN_PATH = Path("benchmark-execution-plan.json")

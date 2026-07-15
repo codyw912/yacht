@@ -36,7 +36,9 @@ def _load_task_attempt(path: Path) -> dict[str, Any]:
     try:
         attempt = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
-        raise ConfigError(f"task attempt artifact is not valid JSON: {error}") from error
+        raise ConfigError(
+            f"task attempt artifact is not valid JSON: {error}"
+        ) from error
     if not isinstance(attempt, dict):
         raise ConfigError("task attempt artifact must be a JSON object")
     try:
@@ -115,11 +117,7 @@ def _top_level_summary(comparisons: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "total_comparisons": len(comparisons),
         **_summary(
-            [
-                vessel
-                for comparison in comparisons
-                for vessel in comparison["vessels"]
-            ]
+            [vessel for comparison in comparisons for vessel in comparison["vessels"]]
         ),
     }
 

@@ -10,6 +10,7 @@ from yacht.runtimes.container import container_command_prefix_template
 from yacht.domain.model import (
     Comparison,
     ConfigError,
+    CourseAdapter,
     PreflightCheck,
     PreflightRecipe,
     Regatta,
@@ -56,8 +57,7 @@ def build_runtime_plan(config_path: Path) -> dict[str, Any]:
         )
     plan["preflight_failure_policy"] = regatta.preflight.failure_policy
     plan["comparisons"] = [
-        _comparison_to_json(regatta, comparison)
-        for comparison in regatta.comparisons
+        _comparison_to_json(regatta, comparison) for comparison in regatta.comparisons
     ]
     plan["vessels"] = [_vessel_to_json(regatta, vessel) for vessel in regatta.vessels]
     return plan
@@ -89,14 +89,11 @@ def _vessel_to_json(regatta: Regatta, vessel: Vessel) -> dict[str, Any]:
             riggings,
             regatta.tool_capabilities,
         ),
-        "install": [
-            step.to_json()
-            for rigging in riggings
-            for step in rigging.install
-        ],
+        "install": [step.to_json() for rigging in riggings for step in rigging.install],
         "env": env,
         "secret_refs": [
-            _secret_ref_to_json(name, regatta.secrets[name]) for name in required_secrets
+            _secret_ref_to_json(name, regatta.secrets[name])
+            for name in required_secrets
         ],
         "preflight_checks": _preflight_checks_to_json(runtime, riggings),
     }
@@ -167,8 +164,7 @@ def _expand_env_values(
         "{workspace}": workspace,
     }
     return {
-        key: _replace_placeholders(value, replacements)
-        for key, value in values.items()
+        key: _replace_placeholders(value, replacements) for key, value in values.items()
     }
 
 

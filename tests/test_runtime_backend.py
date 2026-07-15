@@ -67,7 +67,9 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             )
             self.assertFalse(instance_root.exists())
 
-    def test_prepare_creates_isolated_runtime_instance_with_explicit_secret(self) -> None:
+    def test_prepare_creates_isolated_runtime_instance_with_explicit_secret(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             config_path = root / "regatta.toml"
@@ -133,8 +135,9 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             self.assertTrue((instance.temp_home / ".cache" / "npm").is_dir())
             self.assertTrue((instance.temp_home / ".local" / "state").is_dir())
             self.assertTrue(
-                (instance.temp_home / ".local" / "state" / "npm-global" / "bin")
-                .is_dir()
+                (
+                    instance.temp_home / ".local" / "state" / "npm-global" / "bin"
+                ).is_dir()
             )
             self.assertEqual(instance.cleanup_paths, (trial_root / "pi-plus-fff",))
             self.assertEqual(len(instance.setup_results), 1)
@@ -434,8 +437,9 @@ class ContainerRuntimeBackendTests(unittest.TestCase):
             self.assertTrue(instance.temp_home.is_dir())
             self.assertTrue((instance.temp_home / ".cache" / "npm").is_dir())
             self.assertTrue(
-                (instance.temp_home / ".local" / "state" / "npm-global" / "bin")
-                .is_dir()
+                (
+                    instance.temp_home / ".local" / "state" / "npm-global" / "bin"
+                ).is_dir()
             )
             self.assertEqual(instance.cleanup_paths, (trial_root / "pi-container-fff",))
             self.assertEqual(instance.setup_results[0].target, "npm:@ff-labs/pi-fff")

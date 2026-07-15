@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from yacht.workflows.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
-from yacht.workflows.benchmark_grading_collection import BENCHMARK_GRADING_COLLECTION_PATH
+from yacht.workflows.benchmark_grading_collection import (
+    BENCHMARK_GRADING_COLLECTION_PATH,
+)
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.workflows.benchmark_launcher_handoff import (
     BENCHMARK_LAUNCHER_HANDOFF_PATH,
@@ -336,7 +338,9 @@ def _artifacts(regatta: Regatta, logbook_dir: Path) -> dict[str, Any]:
         ],
         "runtime_instances": str(logbook_dir / RUNTIME_INSTANCES_PLAN_PATH),
         "benchmark_execution_plan": str(logbook_dir / BENCHMARK_EXECUTION_PLAN_PATH),
-        "benchmark_launcher_handoff": str(logbook_dir / BENCHMARK_LAUNCHER_HANDOFF_PATH),
+        "benchmark_launcher_handoff": str(
+            logbook_dir / BENCHMARK_LAUNCHER_HANDOFF_PATH
+        ),
         "benchmark_launch_result": str(logbook_dir / BENCHMARK_LAUNCH_RESULT_PATH),
         "benchmark_grading_collection": str(
             logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH

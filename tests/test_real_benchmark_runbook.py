@@ -132,12 +132,7 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
                 str(logbook_dir / "course-handoff.json"),
             )
             self.assertIn(
-                str(
-                    logbook_dir
-                    / "preflight"
-                    / "pi-vs-pi-fff"
-                    / "pi-plus-fff.json"
-                ),
+                str(logbook_dir / "preflight" / "pi-vs-pi-fff" / "pi-plus-fff.json"),
                 artifacts["preflight"],
             )
             self.assertEqual(

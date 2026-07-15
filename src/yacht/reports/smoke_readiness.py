@@ -48,7 +48,9 @@ def build_smoke_readiness_report(logbook_dir: Path) -> dict[str, Any]:
 def _load_scorecard(logbook_dir: Path) -> dict[str, Any]:
     scorecard_path = logbook_dir / TASK_ATTEMPT_SCORECARD_PATH
     if not scorecard_path.exists():
-        raise ConfigError(f"task attempt scorecard artifact not found: {scorecard_path}")
+        raise ConfigError(
+            f"task attempt scorecard artifact not found: {scorecard_path}"
+        )
     scorecard = _load_json_object(scorecard_path, "task attempt scorecard artifact")
     try:
         validate_task_attempt_scorecard_document(scorecard)
@@ -234,9 +236,7 @@ def _missing_expected_tool_calls(
 
 
 def _summary(comparisons: list[dict[str, Any]]) -> dict[str, int]:
-    vessels = [
-        vessel for comparison in comparisons for vessel in comparison["vessels"]
-    ]
+    vessels = [vessel for comparison in comparisons for vessel in comparison["vessels"]]
     passed_agent_prompt_checks = sum(
         int(vessel["agent_prompt_checks"]["passed"]) for vessel in vessels
     )

@@ -60,7 +60,9 @@ vessels = ["baseline", "rigged"]
 """
 
 
-FAILING_PREFLIGHT_CONFIG = PASSING_PREFLIGHT_CONFIG + """
+FAILING_PREFLIGHT_CONFIG = (
+    PASSING_PREFLIGHT_CONFIG
+    + """
 [riggings.bad-path.env]
 BAD_CACHE = "/tmp/yacht-shared-cache"
 
@@ -70,24 +72,31 @@ checks = [
   { name = "bad-cache-isolated", kind = "path-isolation", env = ["BAD_CACHE"] },
 ]
 """
+)
 
 
-AGENT_PREFLIGHT_CONFIG = PASSING_PREFLIGHT_CONFIG + """
+AGENT_PREFLIGHT_CONFIG = (
+    PASSING_PREFLIGHT_CONFIG
+    + """
 [riggings.agent-check.preflight]
 required = true
 checks = [
   { name = "agent-tool-smoke", kind = "agent-prompt", prompt = "confirm tool", expect_tool_calls = ["fff"] },
 ]
 """
+)
 
 
-UNSUPPORTED_INSTALL_CONFIG = PASSING_PREFLIGHT_CONFIG + """
+UNSUPPORTED_INSTALL_CONFIG = (
+    PASSING_PREFLIGHT_CONFIG
+    + """
 [[riggings.unsupported.install]]
 method = "package"
 target = "pytest"
 runtime = "python"
 package = "pytest"
 """
+)
 
 
 CONTAINER_PREFLIGHT_CONFIG = """
@@ -183,10 +192,7 @@ class CliPreflightTests(unittest.TestCase):
 
             self.assertEqual(result.exit_code, 0)
             artifact_path = (
-                logbook_dir
-                / "preflight"
-                / "baseline-vs-rigged"
-                / "baseline.json"
+                logbook_dir / "preflight" / "baseline-vs-rigged" / "baseline.json"
             )
             artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
             self.assertEqual(artifact["status"], "passed")
@@ -197,11 +203,7 @@ class CliPreflightTests(unittest.TestCase):
             self.assertIn(
                 "type=bind,source="
                 + str(
-                    logbook_dir
-                    / "runtime"
-                    / "baseline-vs-rigged"
-                    / "baseline"
-                    / "home"
+                    logbook_dir / "runtime" / "baseline-vs-rigged" / "baseline" / "home"
                 )
                 + ",target=/home/yacht",
                 artifact["command_prefix"],
@@ -209,11 +211,7 @@ class CliPreflightTests(unittest.TestCase):
             self.assertEqual(
                 artifact["temp_home"],
                 str(
-                    logbook_dir
-                    / "runtime"
-                    / "baseline-vs-rigged"
-                    / "baseline"
-                    / "home"
+                    logbook_dir / "runtime" / "baseline-vs-rigged" / "baseline" / "home"
                 ),
             )
             self.assertEqual(
@@ -224,17 +222,15 @@ class CliPreflightTests(unittest.TestCase):
             self.assertEqual(commands[0][1]["YACHT_TEST_TOKEN"], "test-secret")
             self.assertTrue(
                 (
-                    logbook_dir
-                    / "runtime"
-                    / "baseline-vs-rigged"
-                    / "baseline"
-                    / "home"
+                    logbook_dir / "runtime" / "baseline-vs-rigged" / "baseline" / "home"
                 ).is_dir()
             )
 
     def test_preflight_writes_artifacts_and_summary(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            result, logbook_dir = _run_preflight(PASSING_PREFLIGHT_CONFIG, Path(temp_dir))
+            result, logbook_dir = _run_preflight(
+                PASSING_PREFLIGHT_CONFIG, Path(temp_dir)
+            )
 
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.stderr, "")
@@ -268,19 +264,11 @@ class CliPreflightTests(unittest.TestCase):
             )
             self.assertEqual(
                 comparison["vessels"][0]["evidence_artifact_path"],
-                str(
-                    logbook_dir
-                    / "preflight"
-                    / "baseline-vs-rigged"
-                    / "baseline.json"
-                ),
+                str(logbook_dir / "preflight" / "baseline-vs-rigged" / "baseline.json"),
             )
 
             artifact_path = (
-                logbook_dir
-                / "preflight"
-                / "baseline-vs-rigged"
-                / "baseline.json"
+                logbook_dir / "preflight" / "baseline-vs-rigged" / "baseline.json"
             )
             artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
             self.assertEqual(artifact["status"], "passed")
@@ -311,10 +299,7 @@ class CliPreflightTests(unittest.TestCase):
             )
 
             artifact_path = (
-                logbook_dir
-                / "preflight"
-                / "baseline-vs-rigged"
-                / "rigged.json"
+                logbook_dir / "preflight" / "baseline-vs-rigged" / "rigged.json"
             )
             artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
             self.assertEqual(artifact["status"], "failed")
@@ -362,10 +347,7 @@ class CliPreflightTests(unittest.TestCase):
             self.assertIn("does not support", capability_check["failure_reason"])
             artifact = json.loads(
                 (
-                    logbook_dir
-                    / "preflight"
-                    / "baseline-vs-rigged"
-                    / "baseline.json"
+                    logbook_dir / "preflight" / "baseline-vs-rigged" / "baseline.json"
                 ).read_text(encoding="utf-8")
             )
             self.assertEqual(artifact["status"], "failed")
@@ -420,12 +402,7 @@ class CliPreflightTests(unittest.TestCase):
             rigged = summary["comparisons"][0]["vessels"][1]
             self.assertEqual(
                 rigged["evidence_artifact_path"],
-                str(
-                    logbook_dir
-                    / "preflight"
-                    / "baseline-vs-rigged"
-                    / "rigged.json"
-                ),
+                str(logbook_dir / "preflight" / "baseline-vs-rigged" / "rigged.json"),
             )
             agent_check = _check_by_name(rigged, "agent-tool-smoke")
             self.assertTrue(agent_check["included"])
@@ -435,16 +412,10 @@ class CliPreflightTests(unittest.TestCase):
             self.assertEqual(calls[0][0], "confirm tool")
             self.assertEqual(
                 calls[0][3],
-                logbook_dir
-                / "transcripts"
-                / "baseline-vs-rigged"
-                / "rigged",
+                logbook_dir / "transcripts" / "baseline-vs-rigged" / "rigged",
             )
             artifact_path = (
-                logbook_dir
-                / "preflight"
-                / "baseline-vs-rigged"
-                / "rigged.json"
+                logbook_dir / "preflight" / "baseline-vs-rigged" / "rigged.json"
             )
             artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
             agent_check = _check_by_name(artifact, "agent-tool-smoke")
@@ -483,10 +454,7 @@ class CliPreflightTests(unittest.TestCase):
             )
 
             artifact_path = (
-                logbook_dir
-                / "preflight"
-                / "baseline-vs-rigged"
-                / "rigged.json"
+                logbook_dir / "preflight" / "baseline-vs-rigged" / "rigged.json"
             )
             artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
             self.assertEqual(

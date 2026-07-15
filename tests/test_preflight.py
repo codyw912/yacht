@@ -93,9 +93,16 @@ class MachinePreflightTests(unittest.TestCase):
             )
             self.assertEqual(
                 [check["name"] for check in artifact["checks"]],
-                ["pi-present", "runtime-home-isolated", "fff-mode", "fff-state-isolated"],
+                [
+                    "pi-present",
+                    "runtime-home-isolated",
+                    "fff-mode",
+                    "fff-state-isolated",
+                ],
             )
-            self.assertEqual(_check_by_name(artifact, "pi-present")["origin"], "runtime")
+            self.assertEqual(
+                _check_by_name(artifact, "pi-present")["origin"], "runtime"
+            )
             self.assertEqual(
                 _check_by_name(artifact, "fff-mode")["origin"],
                 "rigging",
@@ -201,7 +208,9 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(fff_mode["status"], "failed")
             self.assertFalse(fff_mode["required"])
 
-    def test_execute_preflight_passes_agent_prompt_with_tool_call_evidence(self) -> None:
+    def test_execute_preflight_passes_agent_prompt_with_tool_call_evidence(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             regatta, instance = _prepared_runtime(root, vessel_index=1)
@@ -350,7 +359,9 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(calls[0][0], "Confirm fff with fffind.\n")
             self.assertEqual(agent_check["evidence"]["prompt"], calls[0][0])
 
-    def test_execute_preflight_fails_agent_prompt_without_expected_tool_call(self) -> None:
+    def test_execute_preflight_fails_agent_prompt_without_expected_tool_call(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             regatta, instance = _prepared_runtime(root, vessel_index=1)
@@ -419,7 +430,9 @@ class MachinePreflightTests(unittest.TestCase):
                 ["response.configured must be true"],
             )
 
-    def test_execute_preflight_marks_required_agent_prompt_error_without_runner(self) -> None:
+    def test_execute_preflight_marks_required_agent_prompt_error_without_runner(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             regatta, instance = _prepared_runtime(root, vessel_index=1)

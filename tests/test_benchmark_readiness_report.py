@@ -209,9 +209,7 @@ class BenchmarkReadinessReportTests(unittest.TestCase):
             self.assertEqual(payload["schema"], "yacht.benchmark-readiness-summary.v1")
             self.assertEqual(payload["blocked_vessel_count"], 1)
             self.assertEqual(
-                payload["blocked_vessels"][0]["artifact_paths"][
-                    "runtime_instances"
-                ],
+                payload["blocked_vessels"][0]["artifact_paths"]["runtime_instances"],
                 "runtime-instances.json",
             )
 

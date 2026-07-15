@@ -6,10 +6,15 @@ from typing import Any
 
 from yacht.courses.registry import evaluator_adapter
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
-from yacht.workflows.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
+from yacht.workflows.benchmark_launcher_handoff import (
+    native_report_path_from_launcher_handoff,
+)
 from yacht.reports.next_steps import command_step
 from yacht.domain.model import ConfigError
-from yacht.contracts.schemas import SchemaValidationError, validate_benchmark_launch_result_document
+from yacht.contracts.schemas import (
+    SchemaValidationError,
+    validate_benchmark_launch_result_document,
+)
 
 
 BENCHMARK_GRADING_COLLECTION_PATH = Path("benchmark-grading-collection.json")
@@ -156,9 +161,7 @@ def _vessel_to_json(
 
 
 def _summary(comparisons: list[dict[str, Any]]) -> dict[str, int]:
-    vessels = [
-        vessel for comparison in comparisons for vessel in comparison["vessels"]
-    ]
+    vessels = [vessel for comparison in comparisons for vessel in comparison["vessels"]]
     return _summary_from_vessels(vessels)
 
 
@@ -177,7 +180,9 @@ def _summary_from_vessels(vessels: list[dict[str, Any]]) -> dict[str, int]:
         "invalid_native_reports": sum(
             1 for vessel in vessels if vessel["status"] == "invalid-native-report"
         ),
-        "skipped_vessels": sum(1 for vessel in vessels if vessel["status"] == "skipped"),
+        "skipped_vessels": sum(
+            1 for vessel in vessels if vessel["status"] == "skipped"
+        ),
     }
 
 

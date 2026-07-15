@@ -80,7 +80,9 @@ class BenchmarkStatusTests(unittest.TestCase):
 
             self.assertEqual(status["status"], "empty")
             self.assertEqual(status["artifacts"][0]["state"], "missing")
-            self.assertEqual(status["next_steps"][0]["label"], "Run real benchmark eval")
+            self.assertEqual(
+                status["next_steps"][0]["label"], "Run real benchmark eval"
+            )
             self.assertEqual(
                 status["next_steps"][0]["command"][:4],
                 ["uv", "run", "yacht", "real-benchmark-eval"],

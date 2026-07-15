@@ -43,7 +43,10 @@ def _load_gradings(logbook_dir: Path, handoff: dict[str, Any]) -> list[dict[str,
         expected_path = logbook_dir / str(handoff["expected_outputs"]["grading_report"])
         raise ConfigError(f"validated grading report not found: {expected_path}")
     adapter = evaluator_adapter(str(handoff["adapter"]["kind"]))
-    return [_load_grading(path, expected_schema=adapter.grading_schema) for path in grading_paths]
+    return [
+        _load_grading(path, expected_schema=adapter.grading_schema)
+        for path in grading_paths
+    ]
 
 
 def _grading_paths(logbook_dir: Path, handoff: dict[str, Any]) -> list[Path]:
@@ -196,9 +199,7 @@ def _task_diagnostics(
                     result.get("mismatched_response_fields")
                 ),
                 "expected_tool_calls": _string_list(result.get("expected_tool_calls")),
-                "observed_tool_calls": _string_list(
-                    result.get("observed_tool_calls")
-                ),
+                "observed_tool_calls": _string_list(result.get("observed_tool_calls")),
                 "missing_tool_calls": _string_list(result.get("missing_tool_calls")),
             }
         )

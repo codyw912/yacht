@@ -63,9 +63,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertEqual(run_index["logbook"], str(logbook_dir))
             self.assertEqual(run_index["regatta"], "local-agent-preflight-smoke")
             self.assertEqual(run_index["course"], "local-smoke")
-            self.assertTrue(
-                run_index["artifacts"]["smoke_readiness_report"]["present"]
-            )
+            self.assertTrue(run_index["artifacts"]["smoke_readiness_report"]["present"])
             self.assertTrue((logbook_dir / "smoke-readiness-report.json").is_file())
             self.assertTrue((logbook_dir / "smoke-report.txt").is_file())
 
@@ -109,16 +107,21 @@ class RealSmokeEvalTests(unittest.TestCase):
                 )
 
             stdout = StringIO()
-            with patch(
-                "yacht.preflight._run_command",
-                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-            ), patch(
-                "yacht.harnesses.registry.SubprocessPiPromptLauncher",
-                return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
-            ), patch(
-                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
-                return_value=SubprocessPiTaskLauncher(runner=task_runner),
-            ), redirect_stdout(stdout):
+            with (
+                patch(
+                    "yacht.preflight._run_command",
+                    return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+                ),
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiPromptLauncher",
+                    return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
+                ),
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiTaskLauncher",
+                    return_value=SubprocessPiTaskLauncher(runner=task_runner),
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = main(
                     [
                         "real-smoke-eval",
@@ -193,16 +196,21 @@ class RealSmokeEvalTests(unittest.TestCase):
                 )
 
             stdout = StringIO()
-            with patch(
-                "yacht.preflight._run_command",
-                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-            ), patch(
-                "yacht.harnesses.registry.SubprocessPiPromptLauncher",
-                return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
-            ), patch(
-                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
-                return_value=SubprocessPiTaskLauncher(runner=task_runner),
-            ), redirect_stdout(stdout):
+            with (
+                patch(
+                    "yacht.preflight._run_command",
+                    return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+                ),
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiPromptLauncher",
+                    return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
+                ),
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiTaskLauncher",
+                    return_value=SubprocessPiTaskLauncher(runner=task_runner),
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = main(
                     [
                         "real-smoke-eval",
@@ -249,22 +257,27 @@ class RealSmokeEvalTests(unittest.TestCase):
                 )
 
             stdout = StringIO()
-            with patch(
-                "yacht.preflight._run_command",
-                return_value=CommandResult(
-                    exit_code=1,
-                    stdout="",
-                    stderr="pi unavailable",
+            with (
+                patch(
+                    "yacht.preflight._run_command",
+                    return_value=CommandResult(
+                        exit_code=1,
+                        stdout="",
+                        stderr="pi unavailable",
+                    ),
                 ),
-            ), patch(
-                "yacht.harnesses.registry.SubprocessPiPromptLauncher",
-                return_value=SubprocessPiPromptLauncher(
-                    runner=_passing_prompt_runner
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiPromptLauncher",
+                    return_value=SubprocessPiPromptLauncher(
+                        runner=_passing_prompt_runner
+                    ),
                 ),
-            ), patch(
-                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
-                return_value=SubprocessPiTaskLauncher(runner=task_runner),
-            ), redirect_stdout(stdout):
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiTaskLauncher",
+                    return_value=SubprocessPiTaskLauncher(runner=task_runner),
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = main(
                     [
                         "real-smoke-eval",
@@ -355,11 +368,15 @@ def _config_without_install() -> str:
 
 
 def _container_pi_fff_real_smoke_config_without_install() -> str:
-    return Path("examples/container-pi-fff-real-task-smoke.toml").read_text(
-        encoding="utf-8",
-    ).replace(
-        PI_FFF_TYPED_INSTALL,
-        "install = []\n",
+    return (
+        Path("examples/container-pi-fff-real-task-smoke.toml")
+        .read_text(
+            encoding="utf-8",
+        )
+        .replace(
+            PI_FFF_TYPED_INSTALL,
+            "install = []\n",
+        )
     )
 
 

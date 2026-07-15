@@ -16,7 +16,10 @@ from yacht.contracts.schemas import (
     SchemaValidationError,
     validate_benchmark_launcher_handoff_document,
 )
-from yacht.courses.swe_bench.artifacts import candidate_patches_path, grading_report_path
+from yacht.courses.swe_bench.artifacts import (
+    candidate_patches_path,
+    grading_report_path,
+)
 from yacht.courses.swe_bench.artifacts import vessel_artifact_dir
 
 
@@ -66,9 +69,7 @@ def native_report_path_from_launcher_handoff(
         path = Path(native_report_path)
         if not path.exists():
             adapter = evaluator_adapter(str(launcher_handoff["adapter"]["kind"]))
-            raise ConfigError(
-                f"native {adapter.display_name} report not found: {path}"
-            )
+            raise ConfigError(f"native {adapter.display_name} report not found: {path}")
         return path
 
     command = vessel.get("command")
@@ -79,12 +80,11 @@ def native_report_path_from_launcher_handoff(
         )
     run_id = _command_option_value(command, "--run_id", vessel_name)
     adapter = evaluator_adapter(str(launcher_handoff["adapter"]["kind"]))
-    native_report_path = (
-        Path(str(vessel["native_report_dir"]))
-        / adapter.native_report_filename(
-            vessel_name=vessel_name,
-            run_id=run_id,
-        )
+    native_report_path = Path(
+        str(vessel["native_report_dir"])
+    ) / adapter.native_report_filename(
+        vessel_name=vessel_name,
+        run_id=run_id,
     )
     if not native_report_path.exists():
         raise ConfigError(

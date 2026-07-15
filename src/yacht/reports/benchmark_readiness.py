@@ -17,9 +17,7 @@ def render_benchmark_readiness_report(
 ) -> str:
     plan_path = logbook_dir / BENCHMARK_EXECUTION_PLAN_PATH
     if not plan_path.exists():
-        raise ConfigError(
-            f"benchmark execution plan artifact not found: {plan_path}"
-        )
+        raise ConfigError(f"benchmark execution plan artifact not found: {plan_path}")
     plan = _load_plan(plan_path)
     try:
         validate_benchmark_execution_plan_document(plan)

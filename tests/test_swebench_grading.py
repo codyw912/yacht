@@ -65,9 +65,7 @@ class SweBenchGradingTests(unittest.TestCase):
             self.assertEqual(summary["submitted_instances"], 1)
             self.assertEqual(summary["resolved_instances"], 1)
             self.assertEqual(summary["resolution_rate"], 1.0)
-            grading_path = (
-                logbook_dir / "course-handoff/swe-bench/grading-report.json"
-            )
+            grading_path = logbook_dir / "course-handoff/swe-bench/grading-report.json"
             self.assertEqual(summary["grading_report_path"], str(grading_path))
             artifact = json.loads(grading_path.read_text(encoding="utf-8"))
             self.assertEqual(artifact["schema"], "yacht.swe-bench-grading.v1")
@@ -349,7 +347,9 @@ class SweBenchGradingTests(unittest.TestCase):
             )
             self.assertNotIn("Traceback", stderr.getvalue())
 
-    def test_grading_report_command_reports_config_errors_without_traceback(self) -> None:
+    def test_grading_report_command_reports_config_errors_without_traceback(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             config_path = root / "regatta.toml"
@@ -412,8 +412,7 @@ def _expected_launcher_native_report_path(
                 command = vessel["command"]
                 run_id = command[command.index("--run_id") + 1]
                 return (
-                    Path(vessel["native_report_dir"])
-                    / f"{vessel_name}.{run_id}.json"
+                    Path(vessel["native_report_dir"]) / f"{vessel_name}.{run_id}.json"
                 )
     raise AssertionError(f"missing vessel {vessel_name}")
 

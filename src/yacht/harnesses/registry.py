@@ -30,18 +30,15 @@ class TaskAgent(Protocol):
         env: dict[str, str],
         cwd: Path,
         transcript_path: Path,
-    ) -> AgentTaskResult:
-        ...
+    ) -> AgentTaskResult: ...
 
 
 class HarnessAdapter(Protocol):
     name: str
 
-    def agent_prompt_runner_factory(self) -> AgentPromptRunnerFactory:
-        ...
+    def agent_prompt_runner_factory(self) -> AgentPromptRunnerFactory: ...
 
-    def task_agent(self) -> TaskAgent:
-        ...
+    def task_agent(self) -> TaskAgent: ...
 
 
 @dataclass(frozen=True)

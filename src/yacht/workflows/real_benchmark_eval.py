@@ -99,9 +99,7 @@ def run_real_benchmark_eval(
                     "blocked_preflight_vessels": blocked_preflight[
                         "blocked_vessel_count"
                     ],
-                    "total_preflight_vessels": blocked_preflight[
-                        "total_vessel_count"
-                    ],
+                    "total_preflight_vessels": blocked_preflight["total_vessel_count"],
                 },
                 blocked_preflight=blocked_preflight,
                 skipped=[
@@ -425,9 +423,7 @@ def _blocked_preflight_summary(
                     "status": str(vessel["status"]),
                     "reason": str(vessel["reason"]),
                     "preflight_status": str(vessel["preflight_status"]),
-                    "preflight_artifact_path": str(
-                        vessel["preflight_artifact_path"]
-                    ),
+                    "preflight_artifact_path": str(vessel["preflight_artifact_path"]),
                     "failed_checks": checks_by_vessel.get(
                         (comparison_name, vessel_name),
                         [],
@@ -566,7 +562,9 @@ def _artifacts(logbook_dir: Path) -> dict[str, str]:
         "runtime_instances": str(logbook_dir / RUNTIME_INSTANCES_PLAN_PATH),
         "task_attempt_scorecard": str(logbook_dir / TASK_ATTEMPT_SCORECARD_PATH),
         "benchmark_execution_plan": str(logbook_dir / BENCHMARK_EXECUTION_PLAN_PATH),
-        "benchmark_launcher_handoff": str(logbook_dir / BENCHMARK_LAUNCHER_HANDOFF_PATH),
+        "benchmark_launcher_handoff": str(
+            logbook_dir / BENCHMARK_LAUNCHER_HANDOFF_PATH
+        ),
         "benchmark_launch_result": str(logbook_dir / BENCHMARK_LAUNCH_RESULT_PATH),
         "benchmark_grading_collection": str(
             logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH

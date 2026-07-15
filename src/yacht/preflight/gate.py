@@ -24,9 +24,7 @@ def preflight_gate(
     comparison_name: str,
     vessel_name: str,
 ) -> PreflightGate:
-    artifact_path = (
-        logbook_dir / "preflight" / comparison_name / f"{vessel_name}.json"
-    )
+    artifact_path = logbook_dir / "preflight" / comparison_name / f"{vessel_name}.json"
     if not artifact_path.exists():
         return PreflightGate(
             artifact_path=artifact_path,

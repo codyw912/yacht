@@ -228,9 +228,7 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             stdout = StringIO()
             stderr = StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                exit_code = main(
-                    ["benchmark-launcher", "--logbook", str(logbook_dir)]
-                )
+                exit_code = main(["benchmark-launcher", "--logbook", str(logbook_dir)])
 
             self.assertEqual(exit_code, 1)
             self.assertEqual(stdout.getvalue(), "")
@@ -321,9 +319,7 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             ):
                 write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
 
-            self.assertFalse(
-                (logbook_dir / "benchmark-launcher-handoff.json").exists()
-            )
+            self.assertFalse((logbook_dir / "benchmark-launcher-handoff.json").exists())
 
 
 def _prepared_ready_logbook(root: Path) -> Path:

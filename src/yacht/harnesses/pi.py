@@ -387,11 +387,7 @@ def _usage_cost(message: dict[str, Any]) -> dict[str, Any]:
     cost = usage.get("cost")
     if not isinstance(cost, dict):
         return {}
-    return {
-        key: value
-        for key, value in cost.items()
-        if isinstance(value, int | float)
-    }
+    return {key: value for key, value in cost.items() if isinstance(value, int | float)}
 
 
 def _tool_calls_from_pi_events(events: list[dict[str, Any]]) -> tuple[str, ...]:

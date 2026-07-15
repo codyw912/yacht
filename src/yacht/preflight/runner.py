@@ -145,9 +145,11 @@ def run_preflight(
         )
         for comparison in regatta.comparisons
     ]
-    status = "invalid" if any(
-        comparison["status"] == "invalid" for comparison in comparison_results
-    ) else "passed"
+    status = (
+        "invalid"
+        if any(comparison["status"] == "invalid" for comparison in comparison_results)
+        else "passed"
+    )
     summary = {
         "schema": PREFLIGHT_SUMMARY_SCHEMA,
         "regatta": regatta.name,
@@ -219,9 +221,7 @@ def _secret_value(name: str, value: str) -> str:
         )
     env_value = os.environ[env_name]
     if not env_value:
-        raise ConfigError(
-            f"environment variable {env_name} is empty for secret {name}"
-        )
+        raise ConfigError(f"environment variable {env_name} is empty for secret {name}")
     return env_value
 
 
@@ -635,8 +635,7 @@ def _summary_checks(
     artifact: dict[str, Any],
 ) -> list[dict[str, Any]]:
     status_by_name = {
-        str(check["name"]): str(check["status"])
-        for check in artifact["checks"]
+        str(check["name"]): str(check["status"]) for check in artifact["checks"]
     }
     return [_summary_check(check, status_by_name) for check in checks]
 

@@ -332,10 +332,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
             )
             self.assertIn("Aggregate variability by vessel:", report)
             self.assertIn(
-                (
-                    "pi-vs-pi-fff | pi-baseline | 0.500 | 0.0 | 0.000000 | "
-                    "0.000s | 0.0"
-                ),
+                ("pi-vs-pi-fff | pi-baseline | 0.500 | 0.0 | 0.000000 | 0.000s | 0.0"),
                 report,
             )
             self.assertIn("Aggregate delta statistics:", report)
@@ -571,7 +568,9 @@ def _write_logbook(
     return logbook_dir
 
 
-def _benchmark_scorecard(baseline_resolved: int, fff_resolved: int) -> dict[str, object]:
+def _benchmark_scorecard(
+    baseline_resolved: int, fff_resolved: int
+) -> dict[str, object]:
     vessels = [
         _benchmark_vessel("pi-baseline", baseline_resolved),
         _benchmark_vessel("pi-plus-fff", fff_resolved),
@@ -638,8 +637,12 @@ def _task_attempt_scorecard(
     fff_resolved: int,
 ) -> dict[str, object]:
     vessels = [
-        _task_attempt_vessel("pi-baseline", tokens=1000, cost=0.001, duration=10.0, tools=3),
-        _task_attempt_vessel("pi-plus-fff", tokens=2100, cost=0.0021, duration=11.1, tools=4),
+        _task_attempt_vessel(
+            "pi-baseline", tokens=1000, cost=0.001, duration=10.0, tools=3
+        ),
+        _task_attempt_vessel(
+            "pi-plus-fff", tokens=2100, cost=0.0021, duration=11.1, tools=4
+        ),
     ]
     return {
         "schema": "yacht.task-attempt-scorecard.v1",

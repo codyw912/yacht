@@ -13,7 +13,7 @@ class LogbookIndexTests(unittest.TestCase):
             config_path = root / "regatta.toml"
             logbook_dir = root / "logbook"
             (logbook_dir / "preflight").mkdir(parents=True)
-            config_path.write_text("[regatta]\nname = \"demo\"\n", encoding="utf-8")
+            config_path.write_text('[regatta]\nname = "demo"\n', encoding="utf-8")
             (logbook_dir / "preflight-evidence-report.json").write_text(
                 json.dumps({"status": "ready"}),
                 encoding="utf-8",

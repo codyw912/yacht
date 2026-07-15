@@ -193,8 +193,7 @@ def _scorecard_vessel(
             if vessel["name"] == vessel_name:
                 return vessel
     raise ConfigError(
-        "task attempt scorecard is missing vessel "
-        f"{comparison_name}/{vessel_name}"
+        f"task attempt scorecard is missing vessel {comparison_name}/{vessel_name}"
     )
 
 

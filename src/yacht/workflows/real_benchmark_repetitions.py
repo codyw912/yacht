@@ -9,7 +9,9 @@ from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.reports.benchmark_aggregate import build_benchmark_aggregate
 from yacht.reports.benchmark_aggregate import render_benchmark_aggregate_document
 from yacht.workflows.benchmark_launch import CommandRunner
-from yacht.workflows.benchmark_launcher_handoff import DEFAULT_SWEBENCH_PYTHON_EXECUTABLE
+from yacht.workflows.benchmark_launcher_handoff import (
+    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
+)
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.next_steps import command_step
 from yacht.preflight.runner import AgentPromptRunnerFactory
@@ -250,7 +252,9 @@ def _aggregate_summary(aggregate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _next_steps(logbook_dir: Path, runs: list[dict[str, Any]]) -> list[dict[str, object]]:
+def _next_steps(
+    logbook_dir: Path, runs: list[dict[str, Any]]
+) -> list[dict[str, object]]:
     aggregate_logbooks = [
         str(run["logbook"]) for run in runs if bool(run["scorecard_present"])
     ]

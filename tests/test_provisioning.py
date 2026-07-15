@@ -242,7 +242,7 @@ class ProvisioningConfigTests(unittest.TestCase):
             '{ id = "django__django-11099", title = "Fix a regression", difficulty = 3 }',
             (
                 '{ id = "django__django-11099", title = "Fix a regression", '
-                'difficulty = 3, expect_response = { completed = true, '
+                "difficulty = 3, expect_response = { completed = true, "
                 'quality = "accepted" }, expect_tool_calls = ["repo-map"] }'
             ),
         )
@@ -263,7 +263,7 @@ class ProvisioningConfigTests(unittest.TestCase):
             '{ id = "django__django-11099", title = "Fix a regression", difficulty = 3 }',
             (
                 '{ id = "django__django-11099", title = "Fix a regression", '
-                'difficulty = 3, expect_response = {} }'
+                "difficulty = 3, expect_response = {} }"
             ),
         )
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -433,7 +433,9 @@ tools = ["repo-map"]""",
                     ):
                         load_regatta(config_path)
 
-    def test_container_runtime_requires_image_and_absolute_container_paths(self) -> None:
+    def test_container_runtime_requires_image_and_absolute_container_paths(
+        self,
+    ) -> None:
         cases = {
             "image": (
                 'image = "yacht/pi-agent-runtime:pi-0.74.0"\n',
@@ -532,7 +534,9 @@ tools = ["repo-map"]""",
             ("pi-container-baseline", "pi-container-fff"),
         )
 
-    def test_preflight_artifact_records_redacted_machine_and_agent_evidence(self) -> None:
+    def test_preflight_artifact_records_redacted_machine_and_agent_evidence(
+        self,
+    ) -> None:
         artifact = {
             "schema": PREFLIGHT_SCHEMA,
             "regatta": "pi-fff-comparison",

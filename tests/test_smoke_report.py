@@ -127,18 +127,23 @@ def _run_pi_smoke_eval(
             stderr="",
         )
 
-    with patch(
-        "yacht.harnesses.registry.SubprocessPiTaskLauncher",
-        return_value=SubprocessPiTaskLauncher(runner=runner),
-    ), patch(
-        "yacht.courses.registry.SweBenchAdapter.task_with_context",
-        autospec=True,
-        side_effect=lambda self, *, task, adapter: task,
-    ), patch(
-        "yacht.courses.registry.SweBenchAdapter.workspace_for_attempt",
-        autospec=True,
-        return_value=workspace_path,
-    ), redirect_stdout(StringIO()):
+    with (
+        patch(
+            "yacht.harnesses.registry.SubprocessPiTaskLauncher",
+            return_value=SubprocessPiTaskLauncher(runner=runner),
+        ),
+        patch(
+            "yacht.courses.registry.SweBenchAdapter.task_with_context",
+            autospec=True,
+            side_effect=lambda self, *, task, adapter: task,
+        ),
+        patch(
+            "yacht.courses.registry.SweBenchAdapter.workspace_for_attempt",
+            autospec=True,
+            return_value=workspace_path,
+        ),
+        redirect_stdout(StringIO()),
+    ):
         exit_code = main(
             [
                 "pi-smoke-eval",

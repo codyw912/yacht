@@ -8,7 +8,9 @@ from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_SCHEMA
 from yacht.reports.benchmark_aggregate import build_benchmark_aggregate
 from yacht.reports.benchmark_aggregate import render_benchmark_aggregate_document
-from yacht.workflows.benchmark_grading_collection import BENCHMARK_GRADING_COLLECTION_PATH
+from yacht.workflows.benchmark_grading_collection import (
+    BENCHMARK_GRADING_COLLECTION_PATH,
+)
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.domain.model import ConfigError
@@ -20,7 +22,10 @@ from yacht.contracts.schemas import (
 )
 from yacht.reports.surface_summary import format_surface_summary
 from yacht.reports.surface_summary import load_logbook_surfaces
-from yacht.courses.swe_bench.artifacts import candidate_patches_path, grading_report_path
+from yacht.courses.swe_bench.artifacts import (
+    candidate_patches_path,
+    grading_report_path,
+)
 from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 
@@ -111,9 +116,7 @@ def _statistics_include_stdev(statistics: Any) -> bool:
     if not isinstance(statistics, dict):
         return False
     metric_keys = [
-        key
-        for key in statistics
-        if key not in {"baseline_vessel", "challenger_vessel"}
+        key for key in statistics if key not in {"baseline_vessel", "challenger_vessel"}
     ]
     return bool(metric_keys) and all(
         isinstance(statistics.get(key), dict) and "stdev" in statistics[key]
@@ -325,9 +328,13 @@ def _validate_filters(
         _vessel_has_task(vessel, task_id) for _, vessel in _vessels(scorecard)
     ):
         raise ConfigError(f"benchmark report task filter matched no task: {task_id}")
-    if vessel_name is not None and task_id is not None and not any(
-        _matches_filters(vessel, vessel_name, task_id)
-        for _, vessel in _vessels(scorecard)
+    if (
+        vessel_name is not None
+        and task_id is not None
+        and not any(
+            _matches_filters(vessel, vessel_name, task_id)
+            for _, vessel in _vessels(scorecard)
+        )
     ):
         raise ConfigError(
             "benchmark report filters matched no vessel/task pair: "
@@ -1011,8 +1018,7 @@ def _task_outcome_markdown_lines(
         else "| --- | --- | --- | --- | --- |",
     ]
     lines.extend(
-        f"| {_task_outcome_row(row, include_reason=include_reason)} |"
-        for row in rows
+        f"| {_task_outcome_row(row, include_reason=include_reason)} |" for row in rows
     )
     return lines
 
@@ -1206,12 +1212,7 @@ def _artifact_drilldown_rows(
 
 
 def _artifact_drilldown_row(row: dict[str, str]) -> str:
-    return (
-        f"{row['comparison']} | "
-        f"{row['vessel']} | "
-        f"{row['artifact']} | "
-        f"{row['path']}"
-    )
+    return f"{row['comparison']} | {row['vessel']} | {row['artifact']} | {row['path']}"
 
 
 def _artifact_rows(
@@ -1252,11 +1253,7 @@ def _attempt_artifact(
     artifacts = attempts_by_vessel.get((comparison_name, vessel_name), [])
     if task_id is None:
         return _joined(artifacts)
-    matched = [
-        artifact
-        for artifact in artifacts
-        if Path(artifact).stem == task_id
-    ]
+    matched = [artifact for artifact in artifacts if Path(artifact).stem == task_id]
     return _joined(matched)
 
 

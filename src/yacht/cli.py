@@ -11,10 +11,16 @@ from typing import Sequence
 from yacht.config.agent_selection import configured_harness_name
 from yacht.reports.benchmark_aggregate import render_benchmark_aggregate
 from yacht.workflows.benchmark_execution_plan import write_benchmark_execution_plan
-from yacht.workflows.benchmark_grading_collection import collect_benchmark_grading_reports
+from yacht.workflows.benchmark_grading_collection import (
+    collect_benchmark_grading_reports,
+)
 from yacht.workflows.benchmark_launch import write_benchmark_launch_result
-from yacht.workflows.benchmark_launcher_handoff import DEFAULT_SWEBENCH_PYTHON_EXECUTABLE
-from yacht.workflows.benchmark_launcher_handoff import native_report_path_from_launcher_handoff
+from yacht.workflows.benchmark_launcher_handoff import (
+    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
+)
+from yacht.workflows.benchmark_launcher_handoff import (
+    native_report_path_from_launcher_handoff,
+)
 from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.reports.benchmark_readiness import render_benchmark_readiness_report
 from yacht.reports.benchmark_report import render_benchmark_report
@@ -41,7 +47,9 @@ from yacht.workflows.real_benchmark_repetitions import run_real_benchmark_repeti
 from yacht.workflows.real_benchmark_runbook import render_real_benchmark_runbook
 from yacht.workflows.real_benchmark_runbook import write_real_benchmark_runbook
 from yacht.workflows.real_benchmark_summary import render_real_benchmark_eval_summary
-from yacht.workflows.real_benchmark_summary import render_real_benchmark_repetitions_summary
+from yacht.workflows.real_benchmark_summary import (
+    render_real_benchmark_repetitions_summary,
+)
 from yacht.workflows.real_smoke_eval import run_real_smoke_eval
 from yacht.workflows.real_smoke_runbook import render_real_smoke_runbook
 from yacht.workflows.real_smoke_runbook import write_real_smoke_runbook
@@ -1348,10 +1356,7 @@ def _stderr_progress(message: str) -> None:
 def _default_repeated_benchmark_logbook(config_path: Path) -> Path:
     regatta = load_regatta(config_path)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    return (
-        Path(tempfile.gettempdir())
-        / f"yacht-{_path_slug(regatta.name)}-{timestamp}"
-    )
+    return Path(tempfile.gettempdir()) / f"yacht-{_path_slug(regatta.name)}-{timestamp}"
 
 
 def _path_slug(value: str) -> str:

@@ -15,7 +15,9 @@ from yacht.preflight import CommandResult
 
 
 class CliPiTaskAttemptTests(unittest.TestCase):
-    def test_task_attempts_command_can_run_pi_with_patched_subprocess_launcher(self) -> None:
+    def test_task_attempts_command_can_run_pi_with_patched_subprocess_launcher(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             config_path = root / "regatta.toml"
@@ -38,10 +40,13 @@ class CliPiTaskAttemptTests(unittest.TestCase):
                 )
 
             stdout = StringIO()
-            with patch(
-                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
-                return_value=SubprocessPiTaskLauncher(runner=runner),
-            ), redirect_stdout(stdout):
+            with (
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiTaskLauncher",
+                    return_value=SubprocessPiTaskLauncher(runner=runner),
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = main(
                     [
                         "task-attempts",
@@ -144,10 +149,13 @@ class CliPiTaskAttemptTests(unittest.TestCase):
                 )
 
             stdout = StringIO()
-            with patch(
-                "yacht.harnesses.registry.SubprocessPiTaskLauncher",
-                return_value=SubprocessPiTaskLauncher(runner=runner),
-            ), redirect_stdout(stdout):
+            with (
+                patch(
+                    "yacht.harnesses.registry.SubprocessPiTaskLauncher",
+                    return_value=SubprocessPiTaskLauncher(runner=runner),
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = main(
                     [
                         "pi-smoke-eval",

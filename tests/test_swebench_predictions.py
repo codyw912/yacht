@@ -69,10 +69,7 @@ class SweBenchPredictionTests(unittest.TestCase):
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
             input_path.write_text(
                 json.dumps(
-                    [
-                        VALID_PREDICTIONS[0]
-                        | {"instance_id": "django__django-99999"}
-                    ]
+                    [VALID_PREDICTIONS[0] | {"instance_id": "django__django-99999"}]
                 ),
                 encoding="utf-8",
             )
@@ -88,7 +85,9 @@ class SweBenchPredictionTests(unittest.TestCase):
                 )
 
             self.assertFalse(
-                (logbook_dir / "course-handoff/swe-bench/candidate-patches.jsonl").exists()
+                (
+                    logbook_dir / "course-handoff/swe-bench/candidate-patches.jsonl"
+                ).exists()
             )
             self.assertFalse((logbook_dir / "course-handoff.json").exists())
 
@@ -142,7 +141,9 @@ class SweBenchPredictionTests(unittest.TestCase):
             self.assertEqual(payload["status"], "validated")
             self.assertEqual(payload["prediction_count"], 1)
             self.assertTrue(
-                (logbook_dir / "course-handoff/swe-bench/candidate-patches.jsonl").is_file()
+                (
+                    logbook_dir / "course-handoff/swe-bench/candidate-patches.jsonl"
+                ).is_file()
             )
 
     def test_predictions_command_writes_vessel_candidate_patches(self) -> None:

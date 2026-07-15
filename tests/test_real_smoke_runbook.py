@@ -100,12 +100,7 @@ class RealSmokeRunbookTests(unittest.TestCase):
 
             artifacts = runbook["artifacts"]
             self.assertIn(
-                str(
-                    logbook_dir
-                    / "preflight"
-                    / "pi-vs-pi-fff"
-                    / "pi-plus-fff.json"
-                ),
+                str(logbook_dir / "preflight" / "pi-vs-pi-fff" / "pi-plus-fff.json"),
                 artifacts["preflight"],
             )
             self.assertIn(
@@ -179,9 +174,7 @@ class RealSmokeRunbookTests(unittest.TestCase):
             self.assertIn("logbook/smoke-report.txt", markdown)
 
             runbook = json.loads(
-                (logbook_dir / "real-smoke-runbook.json").read_text(
-                    encoding="utf-8"
-                )
+                (logbook_dir / "real-smoke-runbook.json").read_text(encoding="utf-8")
             )
             self.assertEqual(runbook["schema"], "yacht.real-smoke-runbook.v1")
             self.assertEqual(runbook["regatta"], "pi-fff-comparison")
