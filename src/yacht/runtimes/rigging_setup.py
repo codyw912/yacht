@@ -11,6 +11,12 @@ from yacht.domain.model import (
     RuntimeRecipe,
     RuntimeSetupResult,
 )
+from yacht.harnesses.mcp_config import (
+    McpConfigError,
+    McpConfigRender,
+    render_mcp_config,
+)
+from yacht.reports.surface_metadata import harness_for_runtime
 from yacht.runtimes.capabilities import unsupported_rigging_capability_reasons
 from yacht.runtimes.process import subprocess_env
 
@@ -50,6 +56,7 @@ class RiggingSetupFile:
 class RiggingSetupPlan:
     commands: tuple[RiggingSetupCommand, ...]
     files: tuple[RiggingSetupFile, ...] = ()
+    mcp_config: McpConfigRender | None = None
 
 
 def plan_rigging_setup(
@@ -64,10 +71,14 @@ def plan_rigging_setup(
 
     commands = []
     files = []
+    mcp_steps = []
     for rigging in riggings:
         for step in rigging.install:
             if step.method == "config-file":
                 files.append(_setup_file(rigging=rigging, step=step))
+                continue
+            if step.method == "mcp-server":
+                mcp_steps.append((rigging.name, step))
                 continue
             command = _setup_command(
                 runtime=runtime,
@@ -77,7 +88,11 @@ def plan_rigging_setup(
             )
             if command is not None:
                 commands.append(command)
-    return RiggingSetupPlan(commands=tuple(commands), files=tuple(files))
+    return RiggingSetupPlan(
+        commands=tuple(commands),
+        files=tuple(files),
+        mcp_config=_mcp_config(runtime, tuple(mcp_steps)),
+    )
 
 
 def apply_rigging_setup(
@@ -91,6 +106,8 @@ def apply_rigging_setup(
     results = []
     for setup_file in plan.files:
         results.append(_write_setup_file(setup_file, temp_home))
+    if plan.mcp_config is not None:
+        results.extend(_write_mcp_config(plan.mcp_config, temp_home))
     for command in plan.commands:
         setup_result = setup_runner(command.argv, env, workspace_path)
         result = RuntimeSetupResult(
@@ -151,14 +168,11 @@ def _write_setup_file(
     setup_file: RiggingSetupFile,
     temp_home: Path,
 ) -> RuntimeSetupResult:
-    home = temp_home.resolve()
-    destination = (home / setup_file.target).resolve()
-    if not destination.is_relative_to(home):
-        raise RiggingSetupError(
-            f"config-file install target {setup_file.target} escapes the trial home"
-        )
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(setup_file.content, encoding="utf-8")
+    destination = _write_into_trial_home(
+        target=setup_file.target,
+        content=setup_file.content,
+        temp_home=temp_home,
+    )
     return RuntimeSetupResult(
         origin="rigging",
         origin_name=setup_file.origin_name,
@@ -169,6 +183,65 @@ def _write_setup_file(
         stdout=f"wrote {destination}",
         stderr="",
     )
+
+
+def _mcp_config(
+    runtime: RuntimeRecipe,
+    mcp_steps: tuple[tuple[str, RiggingInstallStep], ...],
+) -> McpConfigRender | None:
+    if not mcp_steps:
+        return None
+    try:
+        render = render_mcp_config(harness_for_runtime(runtime), mcp_steps)
+    except McpConfigError as error:
+        raise RiggingSetupError(str(error)) from error
+    if render is None:
+        raise RiggingSetupError(
+            f"runtime harness {harness_for_runtime(runtime)} does not support "
+            "rigging install method mcp-server yet"
+        )
+    return render
+
+
+def _write_mcp_config(
+    render: McpConfigRender,
+    temp_home: Path,
+) -> tuple[RuntimeSetupResult, ...]:
+    destination = _write_into_trial_home(
+        target=render.target,
+        content=render.content,
+        temp_home=temp_home,
+    )
+    return tuple(
+        RuntimeSetupResult(
+            origin="rigging",
+            origin_name=entry.origin_name,
+            action="mcp-server",
+            target=entry.server_name,
+            argv=(),
+            exit_code=0,
+            stdout=f"wrote {destination}",
+            stderr="",
+        )
+        for entry in render.entries
+    )
+
+
+def _write_into_trial_home(
+    *,
+    target: str,
+    content: str,
+    temp_home: Path,
+) -> Path:
+    home = temp_home.resolve()
+    destination = (home / target).resolve()
+    if not destination.is_relative_to(home):
+        raise RiggingSetupError(
+            f"config-file install target {target} escapes the trial home"
+        )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(content, encoding="utf-8")
+    return destination
 
 
 def _setup_command(

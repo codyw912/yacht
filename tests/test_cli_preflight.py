@@ -352,7 +352,7 @@ class CliPreflightTests(unittest.TestCase):
             self.assertEqual(
                 artifact["checks"][0]["evidence"]["reason"],
                 (
-                    "runtime backend host-nix does not support rigging install "
+                    "runtime harness mock-agent does not support rigging install "
                     "method mcp-server yet"
                 ),
             )

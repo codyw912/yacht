@@ -227,6 +227,7 @@ class RuntimePlanTests(unittest.TestCase):
                     "supported_install_methods": [
                         "agent-extension",
                         "config-file",
+                        "mcp-server",
                         "package",
                         "preinstalled",
                         "custom-command",
@@ -423,6 +424,7 @@ class RuntimePlanTests(unittest.TestCase):
                 [
                     "agent-extension",
                     "config-file",
+                    "mcp-server",
                     "package",
                     "preinstalled",
                     "custom-command",
@@ -544,7 +546,7 @@ tools = ["repo-map"]""",
                         "target": "npm:@ff-labs/pi-fff",
                         "supported": False,
                         "reason": (
-                            "runtime backend host-nix does not support rigging "
+                            "runtime harness pi does not support rigging "
                             "install method mcp-server yet"
                         ),
                     }
