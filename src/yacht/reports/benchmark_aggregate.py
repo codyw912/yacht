@@ -13,7 +13,14 @@ from yacht.contracts.schemas import (
     validate_benchmark_scorecard_document,
     validate_task_attempt_scorecard_document,
 )
+from yacht.reports.provenance_format import (
+    provenance_harness_label,
+    provenance_mixed,
+    provenance_model_label,
+    provenance_tools_label,
+)
 from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
+from yacht.workflows.provenance import collapse_provenance
 
 
 BENCHMARK_AGGREGATE_SCHEMA = "yacht.benchmark-aggregate.v1"
@@ -153,6 +160,7 @@ def _aggregate_vessel(
     cost = 0.0
     duration = 0.0
     tool_calls = 0
+    run_provenances = []
     for run in runs:
         vessel = _vessel_by_name(
             _comparison_by_name(run["scorecard"], comparison_name),
@@ -173,8 +181,9 @@ def _aggregate_vessel(
             cost += float(usage_vessel["total_cost"])
             duration += float(usage_vessel["total_duration_seconds"])
             tool_calls += int(usage_vessel["tool_call_count"])
+            run_provenances.append(usage_vessel.get("provenance"))
     run_vessels = [_run_vessel(comparison_name, vessel_name, run) for run in runs]
-    return {
+    payload = {
         "name": vessel_name,
         "runs": len(runs),
         "eligible_runs": eligible_runs,
@@ -189,6 +198,10 @@ def _aggregate_vessel(
         "total_tool_calls": tool_calls,
         "statistics": _vessel_statistics(run_vessels),
     }
+    provenance = collapse_provenance(run_provenances)
+    if provenance is not None:
+        payload["provenance"] = provenance
+    return payload
 
 
 def _aggregate_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:
@@ -418,6 +431,16 @@ def _render_text(aggregate: dict[str, Any]) -> str:
         lines.extend(
             _vessel_row(comparison, vessel) for vessel in comparison["vessels"]
         )
+    provenance_rows = _provenance_rows(aggregate)
+    if provenance_rows:
+        lines.extend(
+            [
+                "",
+                "Provenance by vessel:",
+                "comparison | vessel | harness | model | tools | mixed",
+            ]
+        )
+        lines.extend(provenance_rows)
     lines.extend(
         [
             "",
@@ -526,6 +549,18 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
         lines.extend(
             f"| {_vessel_row(comparison, vessel)} |" for vessel in comparison["vessels"]
         )
+    provenance_rows = _provenance_rows(aggregate)
+    if provenance_rows:
+        lines.extend(
+            [
+                "",
+                "## Provenance by vessel",
+                "",
+                "| Comparison | Vessel | Harness | Model | Tools | Mixed |",
+                "| --- | --- | --- | --- | --- | --- |",
+            ]
+        )
+        lines.extend(f"| {row} |" for row in provenance_rows)
     lines.extend(
         [
             "",
@@ -603,6 +638,25 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
                 for vessel in run["vessels"]
             )
     return "\n".join(lines) + "\n"
+
+
+def _provenance_rows(aggregate: dict[str, Any]) -> list[str]:
+    rows = []
+    for comparison in aggregate["comparisons"]:
+        for vessel in comparison["vessels"]:
+            provenance = vessel.get("provenance")
+            if not isinstance(provenance, dict):
+                continue
+            mixed = provenance_mixed(provenance)
+            rows.append(
+                f"{comparison['name']} | "
+                f"{vessel['name']} | "
+                f"{provenance_harness_label(provenance)} | "
+                f"{provenance_model_label(provenance)} | "
+                f"{provenance_tools_label(provenance)} | "
+                f"{', '.join(mixed) if mixed else 'none'}"
+            )
+    return rows
 
 
 def _decision_summary_row(comparison: dict[str, Any]) -> str:

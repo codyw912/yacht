@@ -11,6 +11,7 @@ from yacht.contracts.schemas import (
     validate_task_attempt_document,
     validate_task_attempt_scorecard_document,
 )
+from yacht.workflows.provenance import collapse_provenance
 
 
 TASK_ATTEMPT_SCORECARD_PATH = Path("task-attempt-scorecard.json")
@@ -94,7 +95,10 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
     total_duration = sum(
         float(attempt["metrics"]["duration_seconds"]) for attempt in attempts
     )
-    return {
+    provenance = collapse_provenance(
+        [attempt.get("provenance") for attempt in attempts]
+    )
+    payload = {
         "name": vessel_name,
         "status": "failed" if failed_attempts else "measured",
         "task_attempts": len(attempts),
@@ -111,6 +115,9 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
         "total_duration_seconds": round(total_duration, 3),
         "artifact_paths": [str(attempt["artifact_path"]) for attempt in attempts],
     }
+    if provenance is not None:
+        payload["provenance"] = provenance
+    return payload
 
 
 def _top_level_summary(comparisons: list[dict[str, Any]]) -> dict[str, Any]:
