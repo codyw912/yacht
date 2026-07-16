@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr
@@ -240,6 +241,69 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertEqual(len(task_requests), 2)
             self.assertTrue((logbook_dir / "smoke-readiness-report.json").is_file())
             self.assertTrue((logbook_dir / "smoke-report.txt").is_file())
+
+    def test_real_smoke_eval_reaches_readiness_with_relative_logbook(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, workspace_path, _ = _write_fixture(root)
+
+            def prompt_runner(request: PiPromptRequest) -> CommandResult:
+                return CommandResult(
+                    exit_code=0,
+                    stdout=(
+                        '{"available": true, "configured": true, '
+                        '"tool_calls": ["fffind"]}\n'
+                    ),
+                    stderr="",
+                )
+
+            def task_runner(request: PiTaskRequest) -> CommandResult:
+                return CommandResult(
+                    exit_code=0,
+                    stdout='{"completed": true, "tool_calls": ["fffind"]}\n',
+                    stderr="",
+                )
+
+            stdout = StringIO()
+            original_cwd = os.getcwd()
+            os.chdir(root)
+            try:
+                with (
+                    patch(
+                        "yacht.preflight._run_command",
+                        return_value=CommandResult(
+                            exit_code=0, stdout="ok\n", stderr=""
+                        ),
+                    ),
+                    patch(
+                        "yacht.harnesses.registry.SubprocessPiPromptLauncher",
+                        return_value=SubprocessPiPromptLauncher(runner=prompt_runner),
+                    ),
+                    patch(
+                        "yacht.harnesses.registry.SubprocessPiTaskLauncher",
+                        return_value=SubprocessPiTaskLauncher(runner=task_runner),
+                    ),
+                    redirect_stdout(stdout),
+                ):
+                    exit_code = main(
+                        [
+                            "run",
+                            str(config_path),
+                            "--logbook",
+                            "logbook",
+                            "--workspace",
+                            str(workspace_path),
+                            "--secret",
+                            "anthropic=test-secret",
+                        ]
+                    )
+            finally:
+                os.chdir(original_cwd)
+
+            self.assertEqual(exit_code, 0)
+            summary = json.loads(stdout.getvalue())
+            self.assertEqual(summary["status"], "ready")
+            self.assertEqual(summary["readiness"]["status"], "ready")
 
     def test_real_smoke_eval_stops_before_task_attempts_when_preflight_fails(
         self,
