@@ -35,13 +35,18 @@ Update the wheel filename when the release version changes.
 
 ## Publish
 
+Publishing runs through PyPI trusted publishing: pushing a `v<version>` tag
+triggers `.github/workflows/workflow.yml`, which re-runs the test suite,
+verifies the tag matches the project version, builds, and uploads via OIDC.
+No PyPI token is stored anywhere.
+
 ```sh
-uv publish
+git tag v<version> <main commit>
+git push origin v<version>
 ```
 
-Publishing requires a PyPI token for the `yacht-eval` project (set
-`UV_PUBLISH_TOKEN` or pass `--token`). Tag the release commit as `v<version>`
-after the upload succeeds.
+Tag the merge commit on main whose version matches the tag; the workflow
+fails if they disagree.
 
 ## Optional Real Smoke
 
