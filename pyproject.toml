@@ -1,5 +1,5 @@
 [project]
-name = "yacht"
+name = "yacht-eval"
 version = "0.1.0"
 description = "Yet Another Coding Harness Testbed"
 readme = "README.md"
@@ -22,6 +22,9 @@ src = ["src"]
 [build-system]
 requires = ["uv_build>=0.11.4,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "yacht"
 
 [dependency-groups]
 dev = [
