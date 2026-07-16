@@ -111,6 +111,7 @@ class RiggingInstallStep:
     package: str | None = None
     source: str | None = None
     command: tuple[str, ...] = ()
+    content: str | None = None
     legacy: bool = False
 
     def to_json(self) -> dict[str, Any]:
@@ -128,6 +129,8 @@ class RiggingInstallStep:
             payload["source"] = self.source
         if self.command:
             payload["command"] = list(self.command)
+        if self.content is not None:
+            payload["content"] = self.content
         if self.legacy:
             payload["legacy"] = True
         return payload

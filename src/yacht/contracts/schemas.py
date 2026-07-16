@@ -35,6 +35,7 @@ RIGGING_INSTALL_METHODS = {
     "package",
     "binary",
     "container-image",
+    "config-file",
     "preinstalled",
     "custom-command",
 }
@@ -1244,6 +1245,27 @@ def _validate_task_attempt_runtime_context(value: Any) -> None:
         context.get("cleanup_paths"),
         "runtime_context.cleanup_paths",
     )
+    if "setup_results" in context:
+        results = _require_list(
+            context["setup_results"],
+            "runtime_context.setup_results",
+        )
+        for index, result_value in enumerate(results):
+            result_path = f"runtime_context.setup_results[{index}]"
+            result = _require_object(result_value, result_path)
+            _require_keys(
+                result,
+                ("origin", "origin_name", "action", "target", "argv", "exit_code"),
+                result_path,
+            )
+            for key in ("origin", "origin_name", "action", "target"):
+                _require_non_empty_string(result.get(key), f"{result_path}.{key}")
+            _require_string_list(result.get("argv"), f"{result_path}.argv")
+            exit_code = result.get("exit_code")
+            if not isinstance(exit_code, int) or exit_code < 0:
+                raise SchemaValidationError(
+                    f"{result_path}.exit_code must be an integer >= 0"
+                )
 
 
 def _validate_task_attempt_agent(value: Any) -> None:
@@ -2554,6 +2576,8 @@ def _validate_rigging_install_steps(value: Any, path: str) -> None:
         for key in ("agent", "runtime", "package", "source"):
             if key in step:
                 _require_non_empty_string(step.get(key), f"{step_path}.{key}")
+        if "content" in step:
+            _require_string(step.get("content"), f"{step_path}.content")
         if "command" in step:
             command = _require_list(step["command"], f"{step_path}.command")
             if not command or not all(

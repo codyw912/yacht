@@ -135,7 +135,12 @@
       "type": "object",
       "minProperties": 1,
       "additionalProperties": {
-        "type": ["string", "boolean", "integer", "number"]
+        "type": [
+          "string",
+          "boolean",
+          "integer",
+          "number"
+        ]
       }
     },
     "runtimeContext": {
@@ -178,6 +183,46 @@
         },
         "cleanup_paths": {
           "$ref": "#/$defs/stringArray"
+        },
+        "setup_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "origin",
+              "origin_name",
+              "action",
+              "target",
+              "argv",
+              "exit_code"
+            ],
+            "properties": {
+              "origin": {
+                "type": "string",
+                "minLength": 1
+              },
+              "origin_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "argv": {
+                "$ref": "#/$defs/stringArray"
+              },
+              "exit_code": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
         }
       }
     },

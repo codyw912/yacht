@@ -253,7 +253,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
     def test_prepare_rejects_unsupported_install_before_partial_setup(self) -> None:
         config = PI_WITH_FFF_CONFIG.replace(
             'method = "agent-extension"',
-            'method = "package"',
+            'method = "mcp-server"',
         )
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -276,7 +276,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                 RuntimePreparationError,
                 (
                     "runtime backend host-nix does not support rigging install "
-                    "method package yet"
+                    "method mcp-server yet"
                 ),
             ):
                 HostNixRuntimeBackend(setup_runner=setup_runner).prepare(

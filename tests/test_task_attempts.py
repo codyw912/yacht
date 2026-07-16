@@ -11,6 +11,7 @@ from yacht.domain.model import (
     RiggingRecipe,
     RuntimeInstance,
     RuntimeRecipe,
+    RuntimeSetupResult,
     SecretReference,
     Task,
     Vessel,
@@ -46,6 +47,18 @@ class TaskAttemptTests(unittest.TestCase):
                 },
                 command_prefix=("nix", "develop", "github:example/pi", "--command"),
                 cleanup_paths=(root / "runtime/pi-plus-fff",),
+                setup_results=(
+                    RuntimeSetupResult(
+                        origin="rigging",
+                        origin_name="pi-fff",
+                        action="config-file",
+                        target=".config/tool/settings.json",
+                        argv=(),
+                        exit_code=0,
+                        stdout="wrote settings",
+                        stderr="",
+                    ),
+                ),
             )
             regatta = Regatta(
                 name="pi-fff-comparison",
@@ -130,6 +143,19 @@ class TaskAttemptTests(unittest.TestCase):
             self.assertEqual(artifact["agent"]["exit_code"], 0)
             self.assertEqual(artifact["agent"]["tool_calls"], ["fff"])
             self.assertEqual(artifact["agent"]["transcript_path"], str(transcript_path))
+            self.assertEqual(
+                artifact["runtime_context"]["setup_results"],
+                [
+                    {
+                        "origin": "rigging",
+                        "origin_name": "pi-fff",
+                        "action": "config-file",
+                        "target": ".config/tool/settings.json",
+                        "argv": [],
+                        "exit_code": 0,
+                    }
+                ],
+            )
             self.assertEqual(
                 artifact["agent"]["machine_evidence"],
                 {

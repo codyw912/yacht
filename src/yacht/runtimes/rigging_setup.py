@@ -40,8 +40,16 @@ class RiggingSetupCommand:
 
 
 @dataclass(frozen=True)
+class RiggingSetupFile:
+    origin_name: str
+    target: str
+    content: str
+
+
+@dataclass(frozen=True)
 class RiggingSetupPlan:
     commands: tuple[RiggingSetupCommand, ...]
+    files: tuple[RiggingSetupFile, ...] = ()
 
 
 def plan_rigging_setup(
@@ -55,8 +63,12 @@ def plan_rigging_setup(
         raise RiggingSetupError("; ".join(unsupported))
 
     commands = []
+    files = []
     for rigging in riggings:
         for step in rigging.install:
+            if step.method == "config-file":
+                files.append(_setup_file(rigging=rigging, step=step))
+                continue
             command = _setup_command(
                 runtime=runtime,
                 rigging=rigging,
@@ -65,7 +77,7 @@ def plan_rigging_setup(
             )
             if command is not None:
                 commands.append(command)
-    return RiggingSetupPlan(commands=tuple(commands))
+    return RiggingSetupPlan(commands=tuple(commands), files=tuple(files))
 
 
 def apply_rigging_setup(
@@ -74,8 +86,11 @@ def apply_rigging_setup(
     env: dict[str, str],
     workspace_path: Path,
     setup_runner: SetupCommandRunner,
+    temp_home: Path,
 ) -> tuple[RuntimeSetupResult, ...]:
     results = []
+    for setup_file in plan.files:
+        results.append(_write_setup_file(setup_file, temp_home))
     for command in plan.commands:
         setup_result = setup_runner(command.argv, env, workspace_path)
         result = RuntimeSetupResult(
@@ -118,6 +133,44 @@ def run_setup_command(
     )
 
 
+def _setup_file(
+    *,
+    rigging: RiggingRecipe,
+    step: RiggingInstallStep,
+) -> RiggingSetupFile:
+    if step.content is None:
+        raise RiggingSetupError(f"config-file install {step.target} is missing content")
+    return RiggingSetupFile(
+        origin_name=rigging.name,
+        target=step.target,
+        content=step.content,
+    )
+
+
+def _write_setup_file(
+    setup_file: RiggingSetupFile,
+    temp_home: Path,
+) -> RuntimeSetupResult:
+    home = temp_home.resolve()
+    destination = (home / setup_file.target).resolve()
+    if not destination.is_relative_to(home):
+        raise RiggingSetupError(
+            f"config-file install target {setup_file.target} escapes the trial home"
+        )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(setup_file.content, encoding="utf-8")
+    return RuntimeSetupResult(
+        origin="rigging",
+        origin_name=setup_file.origin_name,
+        action="config-file",
+        target=setup_file.target,
+        argv=(),
+        exit_code=0,
+        stdout=f"wrote {destination}",
+        stderr="",
+    )
+
+
 def _setup_command(
     *,
     runtime: RuntimeRecipe,
@@ -134,6 +187,17 @@ def _setup_command(
             origin_name=rigging.name,
             target=step.target,
             argv=command_prefix + step.command,
+        )
+    if step.method == "package":
+        if not step.target.startswith("npm:"):
+            raise RiggingSetupError(
+                f"package install target {step.target} is not supported yet"
+            )
+        package_name = step.target.removeprefix("npm:")
+        return RiggingSetupCommand(
+            origin_name=rigging.name,
+            target=step.target,
+            argv=command_prefix + ("npm", "install", "-g", package_name),
         )
     if step.method != "agent-extension":
         raise RiggingSetupError(

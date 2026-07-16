@@ -93,6 +93,7 @@
             "package",
             "binary",
             "container-image",
+            "config-file",
             "preinstalled",
             "custom-command"
           ]
@@ -124,6 +125,9 @@
             "minLength": 1
           },
           "default": []
+        },
+        "content": {
+          "type": "string"
         }
       }
     },

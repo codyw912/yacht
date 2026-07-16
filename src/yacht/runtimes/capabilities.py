@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import PurePosixPath
 from typing import Any
 
 from yacht.domain.model import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
@@ -8,9 +9,23 @@ from yacht.runtimes.tool_capabilities import ToolCapability, tool_capabilities_t
 
 
 SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
-    "container": ("agent-extension", "preinstalled", "custom-command"),
-    "host-nix": ("agent-extension", "preinstalled", "custom-command"),
+    "container": (
+        "agent-extension",
+        "config-file",
+        "package",
+        "preinstalled",
+        "custom-command",
+    ),
+    "host-nix": (
+        "agent-extension",
+        "config-file",
+        "package",
+        "preinstalled",
+        "custom-command",
+    ),
 }
+
+SUPPORTED_PACKAGE_TARGET_PREFIXES = ("npm:",)
 
 
 def rigging_capabilities_to_json(
@@ -102,7 +117,30 @@ def _step_support(
                 "agent-extension install targets agent "
                 f"{step.agent}, but runtime harness is {runtime_harness}",
             )
+    if step.method == "package" and not step.target.startswith(
+        SUPPORTED_PACKAGE_TARGET_PREFIXES
+    ):
+        return (
+            False,
+            f"package install target {step.target} is not supported yet; "
+            "supported prefixes: " + ", ".join(SUPPORTED_PACKAGE_TARGET_PREFIXES),
+        )
+    if step.method == "config-file":
+        target_path = _relative_target_path(step.target)
+        if target_path is None:
+            return (
+                False,
+                f"config-file install target {step.target} must be a relative "
+                "path inside the trial home without traversal",
+            )
     return True, None
+
+
+def _relative_target_path(target: str) -> str | None:
+    path = PurePosixPath(target)
+    if path.is_absolute() or ".." in path.parts or not path.parts:
+        return None
+    return str(path)
 
 
 def _supported_methods(runtime: RuntimeRecipe) -> tuple[str, ...]:
