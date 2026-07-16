@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
+from yacht.reports.html_report import render_benchmark_aggregate_html
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
     SchemaValidationError,
@@ -53,6 +54,8 @@ def render_benchmark_aggregate_document(
 ) -> str:
     if output_format == "json":
         return json.dumps(aggregate, indent=2) + "\n"
+    if output_format == "html":
+        return render_benchmark_aggregate_html(aggregate)
     if output_format == "markdown":
         return _render_markdown(aggregate)
     return _render_text(aggregate)

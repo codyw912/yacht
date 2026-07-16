@@ -48,7 +48,7 @@ def register(subcommands: argparse._SubParsersAction) -> None:
     )
     benchmark_aggregate_parser.add_argument(
         "--format",
-        choices=("text", "markdown", "json"),
+        choices=("text", "markdown", "json", "html"),
         default="text",
         help="Output format for the aggregate report.",
     )
