@@ -4,6 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
+from yacht.harnesses.claude_code import (
+    ClaudeCodeAdapter,
+    SubprocessClaudeCodePromptLauncher,
+    SubprocessClaudeCodeTaskLauncher,
+)
 from yacht.harnesses.local_smoke import LocalSmokeAgentAdapter
 from yacht.harnesses.pi import (
     PiAdapter,
@@ -103,6 +108,18 @@ def _pi_task_agent() -> TaskAgent:
     return PiAdapter(task_launcher=SubprocessPiTaskLauncher())
 
 
+def _claude_code_prompt_runner_factory() -> AgentPromptRunnerFactory:
+    adapter = ClaudeCodeAdapter(launcher=SubprocessClaudeCodePromptLauncher())
+    return lambda instance, transcript_dir: adapter.agent_prompt_runner(
+        instance=instance,
+        transcript_dir=transcript_dir,
+    )
+
+
+def _claude_code_task_agent() -> TaskAgent:
+    return ClaudeCodeAdapter(task_launcher=SubprocessClaudeCodeTaskLauncher())
+
+
 def _local_smoke_prompt_runner_factory() -> AgentPromptRunnerFactory:
     adapter = LocalSmokeAgentAdapter()
     return lambda instance, transcript_dir: adapter.agent_prompt_runner(
@@ -116,6 +133,11 @@ def _local_smoke_task_agent() -> TaskAgent:
 
 
 _HARNESS_ADAPTERS: dict[str, HarnessAdapter] = {
+    "claude-code": RegisteredHarnessAdapter(
+        name="claude-code",
+        _agent_prompt_runner_factory=_claude_code_prompt_runner_factory,
+        _task_agent=_claude_code_task_agent,
+    ),
     "local-smoke": RegisteredHarnessAdapter(
         name="local-smoke",
         _agent_prompt_runner_factory=_local_smoke_prompt_runner_factory,
