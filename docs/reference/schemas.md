@@ -21,7 +21,9 @@ artifacts should remain consumable by other tools and future runners.
 
 ## Task Attempt Artifacts
 
-- `yacht.task-attempt.v1.schema.json` for per-agent task attempt evidence.
+- `yacht.task-attempt.v1.schema.json` for per-agent task attempt evidence,
+  including run provenance (harness, model, and tool versions resolved from
+  evidence; ADR 0009).
 - `yacht.task-attempt-scorecard.v1.schema.json` for task attempt summaries,
   including harnesses, token, cost, duration, and tool-call rollups.
 - `yacht.smoke-readiness-report.v1.schema.json` for real smoke-run readiness

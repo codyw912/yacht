@@ -60,6 +60,9 @@
     "task": {
       "$ref": "#/$defs/task"
     },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
     "runtime_context": {
       "$ref": "#/$defs/runtimeContext"
     },
@@ -142,6 +145,121 @@
           "number"
         ]
       }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "yacht",
+        "harness",
+        "model",
+        "runtime",
+        "tools"
+      ],
+      "properties": {
+        "yacht": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version"
+          ],
+          "properties": {
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "harness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/nullableString"
+            },
+            "version": {
+              "$ref": "#/$defs/nullableString"
+            }
+          }
+        },
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "configured",
+            "resolved"
+          ],
+          "properties": {
+            "configured": {
+              "type": "string",
+              "minLength": 1
+            },
+            "resolved": {
+              "$ref": "#/$defs/nullableString"
+            }
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "backend",
+            "image"
+          ],
+          "properties": {
+            "backend": {
+              "type": "string",
+              "minLength": 1
+            },
+            "image": {
+              "$ref": "#/$defs/nullableString"
+            }
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "tools",
+              "version",
+              "source"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "tools": {
+                "$ref": "#/$defs/stringArray"
+              },
+              "version": {
+                "$ref": "#/$defs/nullableString"
+              },
+              "source": {
+                "$ref": "#/$defs/nullableString"
+              }
+            }
+          }
+        }
+      }
+    },
+    "nullableString": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "runtimeContext": {
       "type": "object",

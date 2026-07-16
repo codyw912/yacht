@@ -15,6 +15,7 @@ from yacht.domain.model import (
     Vessel,
 )
 from yacht.contracts.schemas import TASK_ATTEMPT_SCHEMA, validate_task_attempt_document
+from yacht.workflows.provenance import build_provenance
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,12 @@ def build_task_attempt(
         "runtime": instance.runtime.name,
         "status": _status_for_exit_code(result.exit_code),
         "task": _task_to_json(task),
+        "provenance": build_provenance(
+            regatta=regatta,
+            vessel=vessel,
+            instance=instance,
+            machine_evidence=result.machine_evidence,
+        ),
         "runtime_context": _runtime_context_to_json(instance),
         "prompt": prompt,
         "agent": _agent_to_json(result),
