@@ -4,6 +4,7 @@ from pathlib import PurePosixPath
 from typing import Any
 
 from yacht.domain.model import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
+from yacht.harnesses.mcp_config import supports_mcp_server_installs
 from yacht.reports.surface_metadata import harness_for_runtime
 from yacht.runtimes.tool_capabilities import ToolCapability, tool_capabilities_to_json
 
@@ -12,6 +13,7 @@ SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
     "container": (
         "agent-extension",
         "config-file",
+        "mcp-server",
         "package",
         "preinstalled",
         "custom-command",
@@ -19,6 +21,7 @@ SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
     "host-nix": (
         "agent-extension",
         "config-file",
+        "mcp-server",
         "package",
         "preinstalled",
         "custom-command",
@@ -116,6 +119,19 @@ def _step_support(
                 False,
                 "agent-extension install targets agent "
                 f"{step.agent}, but runtime harness is {runtime_harness}",
+            )
+    if step.method == "mcp-server":
+        runtime_harness = harness_for_runtime(runtime)
+        if not supports_mcp_server_installs(runtime_harness):
+            return (
+                False,
+                f"runtime harness {runtime_harness} does not support rigging "
+                "install method mcp-server yet",
+            )
+        if not step.command:
+            return (
+                False,
+                f"mcp-server install {step.target} requires command",
             )
     if step.method == "package" and not step.target.startswith(
         SUPPORTED_PACKAGE_TARGET_PREFIXES

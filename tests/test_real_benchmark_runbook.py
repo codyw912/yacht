@@ -57,6 +57,7 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
                     "supported_install_methods": [
                         "agent-extension",
                         "config-file",
+                        "mcp-server",
                         "package",
                         "preinstalled",
                         "custom-command",

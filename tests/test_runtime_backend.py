@@ -238,7 +238,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 RuntimePreparationError,
                 (
-                    "runtime backend host-nix does not support rigging install "
+                    "runtime harness pi does not support rigging install "
                     "method mcp-server yet"
                 ),
             ):
@@ -275,7 +275,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 RuntimePreparationError,
                 (
-                    "runtime backend host-nix does not support rigging install "
+                    "runtime harness pi does not support rigging install "
                     "method mcp-server yet"
                 ),
             ):

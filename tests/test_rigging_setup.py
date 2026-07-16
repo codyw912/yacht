@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,6 +21,20 @@ def _runtime() -> RuntimeRecipe:
         image="yacht/pi-agent-runtime:pi-0.74.0",
         command=("pi",),
     )
+
+
+def _claude_code_runtime() -> RuntimeRecipe:
+    return RuntimeRecipe(
+        name="claude-code-container",
+        backend="container",
+        harness="claude-code",
+        image="yacht/claude-code-runtime:claude-2.1.211",
+        command=("claude",),
+    )
+
+
+def _mcp_step(name: str, command: tuple[str, ...]) -> RiggingInstallStep:
+    return RiggingInstallStep(method="mcp-server", target=name, command=command)
 
 
 class RiggingSetupTests(unittest.TestCase):
@@ -224,6 +239,144 @@ class RiggingSetupTests(unittest.TestCase):
                 riggings=(rigging,),
                 command_prefix=(),
             )
+
+
+class McpServerSetupTests(unittest.TestCase):
+    def test_plans_mcp_servers_as_merged_claude_code_config(self) -> None:
+        riggings = (
+            RiggingRecipe(
+                name="fff-mcp",
+                install=(_mcp_step("fff", ("npx", "-y", "@ff-labs/mcp-fff")),),
+            ),
+            RiggingRecipe(
+                name="repo-map",
+                install=(_mcp_step("repo-map", ("repo-map-mcp", "--stdio")),),
+            ),
+        )
+
+        plan = plan_rigging_setup(
+            runtime=_claude_code_runtime(),
+            riggings=riggings,
+            command_prefix=("docker", "run", "image"),
+        )
+
+        self.assertEqual(plan.commands, ())
+        self.assertEqual(plan.files, ())
+        assert plan.mcp_config is not None
+        self.assertEqual(plan.mcp_config.target, ".claude.json")
+        self.assertEqual(
+            json.loads(plan.mcp_config.content),
+            {
+                "mcpServers": {
+                    "fff": {"command": "npx", "args": ["-y", "@ff-labs/mcp-fff"]},
+                    "repo-map": {"command": "repo-map-mcp", "args": ["--stdio"]},
+                }
+            },
+        )
+        self.assertEqual(
+            [
+                (entry.origin_name, entry.server_name)
+                for entry in plan.mcp_config.entries
+            ],
+            [("fff-mcp", "fff"), ("repo-map", "repo-map")],
+        )
+
+    def test_rejects_mcp_server_for_harness_without_renderer(self) -> None:
+        rigging = RiggingRecipe(
+            name="fff-mcp",
+            install=(_mcp_step("fff", ("npx", "-y", "@ff-labs/mcp-fff")),),
+        )
+
+        with self.assertRaisesRegex(
+            RiggingSetupError,
+            "runtime harness pi does not support rigging install method mcp-server yet",
+        ):
+            plan_rigging_setup(
+                runtime=_runtime(),
+                riggings=(rigging,),
+                command_prefix=(),
+            )
+
+    def test_rejects_mcp_server_without_command(self) -> None:
+        rigging = RiggingRecipe(
+            name="fff-mcp",
+            install=(RiggingInstallStep(method="mcp-server", target="fff"),),
+        )
+
+        with self.assertRaisesRegex(
+            RiggingSetupError,
+            "mcp-server install fff requires command",
+        ):
+            plan_rigging_setup(
+                runtime=_claude_code_runtime(),
+                riggings=(rigging,),
+                command_prefix=(),
+            )
+
+    def test_rejects_duplicate_mcp_server_names(self) -> None:
+        rigging = RiggingRecipe(
+            name="fff-mcp",
+            install=(
+                _mcp_step("fff", ("npx", "-y", "@ff-labs/mcp-fff")),
+                _mcp_step("fff", ("other-server", "--stdio")),
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            RiggingSetupError,
+            "mcp-server install declares duplicate server name fff",
+        ):
+            plan_rigging_setup(
+                runtime=_claude_code_runtime(),
+                riggings=(rigging,),
+                command_prefix=(),
+            )
+
+    def test_writes_mcp_config_into_trial_home_with_per_server_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_home = Path(temp_dir) / "home"
+            temp_home.mkdir()
+            plan = plan_rigging_setup(
+                runtime=_claude_code_runtime(),
+                riggings=(
+                    RiggingRecipe(
+                        name="fff-mcp",
+                        install=(
+                            _mcp_step("fff", ("npx", "-y", "@ff-labs/mcp-fff")),
+                            _mcp_step("repo-map", ("repo-map-mcp", "--stdio")),
+                        ),
+                    ),
+                ),
+                command_prefix=(),
+            )
+
+            results = apply_rigging_setup(
+                plan=plan,
+                env={},
+                workspace_path=Path(temp_dir),
+                setup_runner=lambda argv, env, cwd: None,
+                temp_home=temp_home,
+            )
+
+            written = temp_home / ".claude.json"
+            self.assertEqual(
+                json.loads(written.read_text(encoding="utf-8"))["mcpServers"].keys(),
+                {"fff", "repo-map"},
+            )
+            self.assertEqual(len(results), 2)
+            self.assertEqual(
+                [
+                    (result.action, result.target, result.origin_name)
+                    for result in results
+                ],
+                [
+                    ("mcp-server", "fff", "fff-mcp"),
+                    ("mcp-server", "repo-map", "fff-mcp"),
+                ],
+            )
+            for result in results:
+                self.assertEqual(result.exit_code, 0)
+                self.assertIn(str(written.resolve()), result.stdout)
 
 
 class ApplyRiggingSetupTests(unittest.TestCase):

@@ -578,6 +578,87 @@ class ClaudeCodeAdapterTests(unittest.TestCase):
             self.assertEqual(attempt["agent"]["tool_calls"], ["Bash"])
             self.assertEqual(attempt["metrics"]["tokens"], 12 + 345 + 678 + 90)
 
+    def test_task_attempt_runner_writes_mcp_config_into_trial_home(self) -> None:
+        config = CLAUDE_CODE_CONTAINER_CONFIG.replace(
+            '[[vessels]]\nname = "claude-code-container-b"\nmodel = "claude-haiku-4-5"\nruntime = "claude-code-container"\n',
+            '[riggings.fff-mcp]\ntools = ["fff"]\n\n'
+            "[[riggings.fff-mcp.install]]\n"
+            'method = "mcp-server"\n'
+            'target = "fff"\n'
+            'command = ["npx", "-y", "@ff-labs/mcp-fff"]\n\n'
+            '[[vessels]]\nname = "claude-code-container-b"\nmodel = "claude-haiku-4-5"\nruntime = "claude-code-container"\nrigging = ["fff-mcp"]\n',
+        )
+        self.assertIn("fff-mcp", config)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            workspace_path = root / "workspace"
+            logbook_dir = root / "logbook"
+            config_path.write_text(config, encoding="utf-8")
+            workspace_path.mkdir()
+
+            def runner(request: ClaudeCodeTaskRequest) -> CommandResult:
+                return CommandResult(
+                    exit_code=0,
+                    stdout=_stream(
+                        _init_event(),
+                        _success_result_event("Done."),
+                    ),
+                    stderr="",
+                )
+
+            with patch(
+                "yacht.harnesses.registry.SubprocessClaudeCodeTaskLauncher",
+                return_value=SubprocessClaudeCodeTaskLauncher(runner=runner),
+            ):
+                summary = run_task_attempts(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    workspace_path=workspace_path,
+                    secret_values={},
+                    agent_name="claude-code",
+                )
+
+            self.assertEqual(summary["status"], "completed")
+
+            attempt_path = (
+                logbook_dir
+                / "task-attempts"
+                / "container-claude-code-runtime"
+                / "claude-code-container-b"
+                / "container-claude-code-smoke-1.json"
+            )
+            attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+            setup_results = attempt["runtime_context"]["setup_results"]
+            self.assertEqual(
+                setup_results,
+                [
+                    {
+                        "origin": "rigging",
+                        "origin_name": "fff-mcp",
+                        "action": "mcp-server",
+                        "target": "fff",
+                        "argv": [],
+                        "exit_code": 0,
+                    }
+                ],
+            )
+
+            mcp_config_path = (
+                Path(attempt["runtime_context"]["temp_home"]) / ".claude.json"
+            )
+            self.assertEqual(
+                json.loads(mcp_config_path.read_text(encoding="utf-8")),
+                {
+                    "mcpServers": {
+                        "fff": {
+                            "command": "npx",
+                            "args": ["-y", "@ff-labs/mcp-fff"],
+                        }
+                    }
+                },
+            )
+
 
 def _task() -> Task:
     return Task(id="task-1", title="Fix the bug", difficulty=1)
