@@ -141,6 +141,38 @@ class ContainerImageTests(unittest.TestCase):
         self.assertEqual(regatta.vessels[1].name, "pi-container-fff")
         self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))
 
+    def test_claude_code_mcp_example_pins_tool_and_renders_mcp_server(self) -> None:
+        regatta = load_regatta(
+            Path("examples/container-claude-code-mcp-real-task-smoke.toml")
+        )
+        runtime = regatta.runtime_recipes["claude-code-container"]
+        rigging = regatta.rigging_recipes["fff-mcp"]
+
+        self.assertEqual(
+            runtime.image,
+            f"yacht/claude-code-runtime:claude-{CLAUDE_CODE_VERSION}",
+        )
+        self.assertEqual(runtime.harness, "claude-code")
+        self.assertEqual(runtime.required_secrets, ("anthropic",))
+        self.assertEqual(
+            runtime.command,
+            ("claude", "--model", "claude-haiku-4-5"),
+        )
+        self.assertEqual(rigging.install[0].method, "package")
+        self.assertEqual(rigging.install[0].target, "npm:@ff-labs/mcp-fff@0.3.0")
+        self.assertEqual(rigging.install[1].method, "mcp-server")
+        self.assertEqual(rigging.install[1].target, "fff")
+        self.assertEqual(rigging.install[1].command, ("mcp-fff", "--stdio"))
+        self.assertEqual(
+            rigging.preflight.checks[1].expect_tool_calls,
+            ("mcp__fff__fffind",),
+        )
+        self.assertEqual(regatta.vessels[1].rigging, ("fff-mcp",))
+        self.assertEqual(
+            regatta.course.tasks[0].id,
+            "container-claude-code-mcp-smoke-1",
+        )
+
     def test_claude_code_dockerfile_builds_pinned_claude_code(self) -> None:
         dockerfile = Path("containers/claude-code-runtime/Dockerfile")
         contents = dockerfile.read_text(encoding="utf-8")
