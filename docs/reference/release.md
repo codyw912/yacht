@@ -22,13 +22,26 @@ uv run --locked yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-r
 
 ## Package Build
 
+The PyPI distribution is named `yacht-eval`; the import package and console
+script stay `yacht` (see ADR 0007).
+
 ```sh
 uv build
-uv run --with ./dist/yacht-0.1.0-py3-none-any.whl yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
-uv run --with ./dist/yacht-0.1.0-py3-none-any.whl yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-wheel-smoke
+uv run --isolated --no-project --with ./dist/yacht_eval-0.1.0-py3-none-any.whl yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
+uv run --isolated --no-project --with ./dist/yacht_eval-0.1.0-py3-none-any.whl yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-wheel-smoke
 ```
 
 Update the wheel filename when the release version changes.
+
+## Publish
+
+```sh
+uv publish
+```
+
+Publishing requires a PyPI token for the `yacht-eval` project (set
+`UV_PUBLISH_TOKEN` or pass `--token`). Tag the release commit as `v<version>`
+after the upload succeeds.
 
 ## Optional Real Smoke
 
