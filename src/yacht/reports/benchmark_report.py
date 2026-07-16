@@ -46,11 +46,6 @@ def render_benchmark_report(
                     "benchmark report filters require a single-run benchmark "
                     "scorecard; repeated-run aggregate reports cannot be filtered"
                 )
-            if output_format == "html":
-                raise ConfigError(
-                    "html reports for repeated-run aggregate logbooks are not "
-                    "supported yet; use --format text or markdown"
-                )
             return _render_aggregate_report(aggregate_path, output_format)
         raise ConfigError(
             f"benchmark scorecard artifact not found: {scorecard_path}; "
