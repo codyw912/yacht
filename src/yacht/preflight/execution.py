@@ -8,6 +8,7 @@ from typing import Callable
 
 from yacht.domain.model import (
     Comparison,
+    ConfigError,
     PreflightCheck,
     Regatta,
     RiggingRecipe,
@@ -110,6 +111,12 @@ def _execute_preflight(
     runtime = instance.runtime
     riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
     checks = _preflight_checks(runtime, riggings, include_agent_checks)
+    if not checks:
+        raise ConfigError(
+            f"vessel {vessel.name} has no preflight checks: add checks to "
+            f"runtime {runtime.name} or its riggings under "
+            "[runtimes.<name>.preflight] before running an eval"
+        )
     check_results = [
         _execute_check(check, instance, runner, agent_prompt_runner) for check in checks
     ]

@@ -2,13 +2,22 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from yacht.domain.model import PreflightCheck, RuntimeInstance, RuntimeRecipe
+from yacht.domain.model import (
+    ConfigError,
+    Course,
+    PreflightCheck,
+    Regatta,
+    RuntimeInstance,
+    RuntimeRecipe,
+    Vessel,
+)
 from yacht.preflight.execution import (
     EffectiveCheck,
     _agent_response_contract,
     _execute_check,
     _execute_path_isolation_check,
     _run_command,
+    execute_preflight,
 )
 
 
@@ -97,6 +106,37 @@ class ExecuteCheckTests(unittest.TestCase):
             result = _execute_path_isolation_check(_effective_check(check), instance)
 
         self.assertEqual(result["status"], "passed")
+
+
+class ExecutePreflightTests(unittest.TestCase):
+    def test_rejects_vessel_without_any_preflight_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            instance = _instance(root, env={})
+            vessel = Vessel(
+                name="baseline",
+                model="mock",
+                rigging=(),
+                runtime="host",
+            )
+            regatta = Regatta(
+                name="no-checks",
+                course=Course(name="tiny-course", tasks=()),
+                vessels=(vessel,),
+                runtime_recipes={"host": instance.runtime},
+            )
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "vessel baseline has no preflight checks",
+            ):
+                execute_preflight(
+                    regatta=regatta,
+                    vessel=vessel,
+                    instance=instance,
+                    artifact_path=root / "preflight.json",
+                )
+            self.assertFalse((root / "preflight.json").exists())
 
 
 class AgentResponseContractTests(unittest.TestCase):
