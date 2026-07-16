@@ -1,0 +1,70 @@
+[regatta]
+name = "container-claude-code-mcp-real-task-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "container-claude-code-mcp-real-task-smoke"
+tasks = [
+  { id = "container-claude-code-mcp-smoke-1", title = "Inspect this repository using any configured MCP tooling available to you, then reply with a compact JSON object containing completed and tool_calls.", difficulty = 1 },
+]
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.claude-code-container]
+backend = "container"
+harness = "claude-code"
+image = "yacht/claude-code-runtime:claude-2.1.211"
+command = ["claude", "--model", "claude-haiku-4-5"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+required_secrets = ["anthropic"]
+
+[runtimes.claude-code-container.preflight]
+required = true
+checks = [
+  { name = "claude-present", kind = "command", command = ["claude", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[riggings.fff-mcp]
+tools = ["fff"]
+instructions = "Use the fff MCP tools for codebase memory and navigation. For this smoke task, make exactly one minimal mcp__fff__fffind tool call before answering."
+
+# Pin the tool version at setup time so the MCP server start is offline and
+# deterministic; the mcp-server command references the installed binary
+# instead of fetching a floating version through npx at session start.
+[[riggings.fff-mcp.install]]
+method = "package"
+target = "npm:@ff-labs/mcp-fff@0.3.0"
+
+[[riggings.fff-mcp.install]]
+method = "mcp-server"
+target = "fff"
+command = ["mcp-fff", "--stdio"]
+
+[riggings.fff-mcp.preflight]
+required = true
+checks = [
+  { name = "fff-mcp-connected", kind = "command", command = ["claude", "mcp", "list"] },
+  { name = "fff-mcp-headless-smoke", kind = "agent-prompt", prompt = "preflights/claude-code-fff-mcp.md", expect_tool_calls = ["mcp__fff__fffind"] },
+]
+
+[[vessels]]
+name = "claude-code-container-baseline"
+model = "claude-haiku-4-5"
+runtime = "claude-code-container"
+
+[[vessels]]
+name = "claude-code-container-fff-mcp"
+model = "claude-haiku-4-5"
+runtime = "claude-code-container"
+rigging = ["fff-mcp"]
+
+[[comparisons]]
+name = "container-claude-code-vs-fff-mcp-real-task"
+course = "container-claude-code-mcp-real-task-smoke"
+vessels = ["claude-code-container-baseline", "claude-code-container-fff-mcp"]

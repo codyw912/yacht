@@ -163,6 +163,7 @@ provider credentials.
 - [Roadmap](docs/project/roadmap.md)
 - [Audit-backed plan](docs/project/audit-backed-plan.md)
 - [Codebase structure](docs/project/codebase-structure.md)
+- [Validating a tool claim](docs/tutorials/validating-a-tool-claim.md)
 - [Command reference](docs/reference/commands.md)
 - [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)
