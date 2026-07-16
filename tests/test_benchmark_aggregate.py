@@ -287,6 +287,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-aggregate",
                         "--logbook",
                         str(first),
@@ -375,6 +376,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-aggregate",
                         "--logbook",
                         str(logbook_dir),
@@ -397,6 +399,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-aggregate",
                         "--logbook",
                         str(Path(temp_dir) / "missing"),
@@ -436,7 +439,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(parent),
                     ]
@@ -477,7 +480,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(parent),
                     ]
@@ -518,7 +521,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
-                        "benchmark-report",
+                        "report",
                         "--logbook",
                         str(parent),
                     ]

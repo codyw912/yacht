@@ -127,6 +127,7 @@ class SweBenchPredictionTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "predictions",
                         str(config_path),
                         "--input",
@@ -159,6 +160,7 @@ class SweBenchPredictionTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "predictions",
                         str(config_path),
                         "--input",
@@ -214,6 +216,7 @@ class SweBenchPredictionTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "predictions",
                         str(config_path),
                         "--input",

@@ -127,6 +127,7 @@ class CourseHandoffTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "handoff",
                         str(config_path),
                         "--logbook",
@@ -152,6 +153,7 @@ class CourseHandoffTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "handoff",
                         str(config_path),
                         "--logbook",

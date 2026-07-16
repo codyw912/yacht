@@ -20,6 +20,30 @@ class DispatchCase:
 
 CONFIG = "regatta.toml"
 
+TOP_LEVEL_COMMANDS = {"doctor", "run", "validate", "status", "report", "internals"}
+
+INTERNAL_COMMANDS = {
+    "plan",
+    "runtime-instances",
+    "handoff",
+    "predictions",
+    "predictions-from-attempts",
+    "grading-report",
+    "benchmark-scorecard",
+    "benchmark-aggregate",
+    "benchmark-plan",
+    "benchmark-readiness-report",
+    "readiness-gate",
+    "benchmark-launcher",
+    "benchmark-launch",
+    "benchmark-collect-grading",
+    "preflight-report",
+    "preflight",
+    "task-attempts",
+    "task-attempt-scorecard",
+    "smoke-readiness-report",
+}
+
 DISPATCH_CASES = (
     DispatchCase(
         argv=("doctor",),
@@ -57,59 +81,47 @@ DISPATCH_CASES = (
         extra_patches={"commands.inspect._run_kind": "benchmark"},
     ),
     DispatchCase(
-        argv=("plan", CONFIG),
-        patches={"commands.regatta.build_runtime_plan": {}},
+        argv=("internals", "plan", CONFIG),
+        patches={"commands.runtimes.build_runtime_plan": {}},
     ),
     DispatchCase(
-        argv=("runtime-instances", CONFIG),
+        argv=("internals", "runtime-instances", CONFIG),
         patches={"commands.runtimes.build_runtime_instances_plan": {}},
     ),
     DispatchCase(
-        argv=("handoff", CONFIG),
+        argv=("internals", "handoff", CONFIG),
         patches={"commands.artifacts.write_course_handoff": {}},
     ),
     DispatchCase(
-        argv=("predictions", CONFIG, "--input", "predictions.json"),
+        argv=("internals", "predictions", CONFIG, "--input", "predictions.json"),
         patches={"commands.artifacts.write_swe_bench_predictions": {}},
     ),
     DispatchCase(
-        argv=("predictions-from-attempts", CONFIG, "--vessel", "baseline"),
+        argv=("internals", "predictions-from-attempts", CONFIG, "--vessel", "baseline"),
         patches={"commands.artifacts.write_swe_bench_predictions_from_attempts": {}},
     ),
     DispatchCase(
-        argv=("grading-report", CONFIG, "--input", "report.json"),
+        argv=("internals", "grading-report", CONFIG, "--input", "report.json"),
         patches={"commands.artifacts.write_swe_bench_grading_report": {}},
     ),
     DispatchCase(
-        argv=("benchmark-scorecard",),
+        argv=("internals", "benchmark-scorecard"),
         patches={"commands.benchmark.write_benchmark_scorecard": {}},
     ),
     DispatchCase(
-        argv=("benchmark-report",),
-        patches={"commands.benchmark.render_benchmark_report": "report\n"},
-    ),
-    DispatchCase(
-        argv=("benchmark-aggregate", "--logbook", "logbook"),
+        argv=("internals", "benchmark-aggregate", "--logbook", "logbook"),
         patches={"commands.benchmark.render_benchmark_aggregate": "aggregate\n"},
     ),
     DispatchCase(
-        argv=("benchmark-status",),
-        patches={"commands.benchmark.render_benchmark_status": "status\n"},
-    ),
-    DispatchCase(
-        argv=("latest-logbook",),
-        patches={"commands.benchmark.render_latest_logbook": "latest\n"},
-    ),
-    DispatchCase(
-        argv=("benchmark-plan",),
+        argv=("internals", "benchmark-plan"),
         patches={"commands.benchmark.write_benchmark_execution_plan": {}},
     ),
     DispatchCase(
-        argv=("benchmark-readiness-report",),
+        argv=("internals", "benchmark-readiness-report"),
         patches={"commands.benchmark.render_benchmark_readiness_report": "readiness\n"},
     ),
     DispatchCase(
-        argv=("readiness-gate",),
+        argv=("internals", "readiness-gate"),
         patches={
             "commands.benchmark.evaluate_readiness_gate": SimpleNamespace(
                 summary_json="{}\n",
@@ -119,17 +131,17 @@ DISPATCH_CASES = (
         },
     ),
     DispatchCase(
-        argv=("benchmark-launcher",),
+        argv=("internals", "benchmark-launcher"),
         patches={"commands.benchmark.write_benchmark_launcher_handoff": {}},
     ),
     DispatchCase(
-        argv=("benchmark-launch",),
+        argv=("internals", "benchmark-launch"),
         patches={
             "commands.benchmark.write_benchmark_launch_result": {"status": "complete"}
         },
     ),
     DispatchCase(
-        argv=("benchmark-collect-grading", CONFIG),
+        argv=("internals", "benchmark-collect-grading", CONFIG),
         patches={
             "commands.benchmark.collect_benchmark_grading_reports": {
                 "status": "complete"
@@ -137,97 +149,34 @@ DISPATCH_CASES = (
         },
     ),
     DispatchCase(
-        argv=("preflight-report",),
+        argv=("internals", "preflight-report"),
         patches={"commands.preflight.write_preflight_evidence_report": {}},
         extra_patches={
             "commands.preflight.render_preflight_evidence_report": "report\n"
         },
     ),
     DispatchCase(
-        argv=("smoke-readiness-report",),
-        patches={"commands.smoke.write_smoke_readiness_report": {"status": "ready"}},
-    ),
-    DispatchCase(
-        argv=("smoke-report",),
-        patches={"commands.smoke.render_smoke_report": "smoke\n"},
-    ),
-    DispatchCase(
-        argv=("preflight", CONFIG),
+        argv=("internals", "preflight", CONFIG),
         patches={"commands.preflight.run_preflight": {"status": "passed"}},
     ),
     DispatchCase(
-        argv=("preflight", CONFIG, "--dry-run"),
+        argv=("internals", "preflight", CONFIG, "--dry-run"),
         patches={"commands.preflight.build_preflight_execution_plan": {}},
     ),
     DispatchCase(
-        argv=("task-attempts", CONFIG, "--agent", "pi"),
+        argv=("internals", "task-attempts", CONFIG, "--agent", "pi"),
         patches={"commands.attempts.run_task_attempts": {"status": "completed"}},
         extra_patches={"commands.attempts.task_agent": None},
     ),
     DispatchCase(
-        argv=("task-attempt-scorecard",),
+        argv=("internals", "task-attempt-scorecard"),
         patches={
             "commands.attempts.write_task_attempt_scorecard": {"status": "complete"}
         },
     ),
     DispatchCase(
-        argv=("local-smoke-eval", CONFIG),
-        patches={"commands.smoke.run_local_smoke_eval": {"status": "complete"}},
-    ),
-    DispatchCase(
-        argv=("pi-smoke-eval", CONFIG),
-        patches={"commands.smoke.run_pi_smoke_eval": {"status": "complete"}},
-        extra_patches={"commands.smoke.task_agent": None},
-    ),
-    DispatchCase(
-        argv=("real-smoke-eval", CONFIG),
-        patches={"commands.smoke.run_real_smoke_eval": {"status": "ready"}},
-        extra_patches={
-            "commands.smoke.configured_harness_name": "pi",
-            "commands.smoke.agent_prompt_runner_factory": None,
-            "commands.smoke.task_agent": None,
-        },
-    ),
-    DispatchCase(
-        argv=("real-benchmark-eval", CONFIG, "--format", "json"),
-        patches={
-            "commands.real_benchmark.run_real_benchmark_eval": {"status": "complete"}
-        },
-        extra_patches={
-            "commands.real_benchmark.configured_harness_name": "pi",
-            "commands.real_benchmark.agent_prompt_runner_factory": None,
-            "commands.real_benchmark.task_agent": None,
-        },
-    ),
-    DispatchCase(
-        argv=(
-            "real-benchmark-repetitions",
-            CONFIG,
-            "--repetitions",
-            "2",
-            "--logbook",
-            "logbook",
-            "--format",
-            "json",
-        ),
-        patches={
-            "commands.real_benchmark.run_real_benchmark_repetitions": {
-                "status": "complete"
-            }
-        },
-        extra_patches={
-            "commands.real_benchmark.configured_harness_name": "pi",
-            "commands.real_benchmark.agent_prompt_runner_factory": None,
-            "commands.real_benchmark.task_agent": None,
-        },
-    ),
-    DispatchCase(
-        argv=("real-smoke-runbook", CONFIG),
-        patches={"commands.smoke.write_real_smoke_runbook": {}},
-    ),
-    DispatchCase(
-        argv=("real-benchmark-runbook", CONFIG),
-        patches={"commands.real_benchmark.write_real_benchmark_runbook": {}},
+        argv=("internals", "smoke-readiness-report"),
+        patches={"commands.smoke.write_smoke_readiness_report": {"status": "ready"}},
     ),
 )
 
@@ -243,28 +192,47 @@ class CliDispatchTests(unittest.TestCase):
                     self.assertEqual(
                         mocks[name].call_count,
                         1,
-                        f"{case.argv[0]} did not call {name} exactly once",
+                        f"{' '.join(case.argv)} did not call {name} exactly once",
                     )
 
-    def test_dispatch_cases_cover_every_registered_command(self) -> None:
-        subparsers = next(
-            action
-            for action in build_parser()._actions
-            if isinstance(action, argparse._SubParsersAction)
-        )
-        registered = set(subparsers.choices)
-        covered = {case.argv[0] for case in DISPATCH_CASES}
+    def test_top_level_parser_exposes_exactly_the_six_commands(self) -> None:
+        subparsers = self._subparsers_action(build_parser())
 
+        self.assertEqual(set(subparsers.choices), TOP_LEVEL_COMMANDS)
+
+    def test_internals_parser_exposes_exactly_the_stage_commands(self) -> None:
+        internals_parser = self._internals_parser()
+        internal_subparsers = self._subparsers_action(internals_parser)
+
+        self.assertEqual(set(internal_subparsers.choices), INTERNAL_COMMANDS)
+
+    def test_dispatch_cases_cover_every_registered_command(self) -> None:
+        covered_top_level = {case.argv[0] for case in DISPATCH_CASES}
         self.assertEqual(
-            registered,
-            covered,
-            "every CLI command needs a dispatch case in this test",
+            covered_top_level,
+            TOP_LEVEL_COMMANDS,
+            "every top-level CLI command needs a dispatch case in this test",
+        )
+
+        covered_internals = {
+            case.argv[1] for case in DISPATCH_CASES if case.argv[0] == "internals"
+        }
+        self.assertEqual(
+            covered_internals,
+            INTERNAL_COMMANDS,
+            "every internals stage command needs a dispatch case in this test",
         )
 
     def test_unknown_command_is_rejected_by_the_parser(self) -> None:
         with redirect_stderr(StringIO()):
             with self.assertRaises(SystemExit) as caught:
                 main(["not-a-command"])
+        self.assertEqual(caught.exception.code, 2)
+
+    def test_unknown_internals_command_is_rejected_by_the_parser(self) -> None:
+        with redirect_stderr(StringIO()):
+            with self.assertRaises(SystemExit) as caught:
+                main(["internals", "not-a-command"])
         self.assertEqual(caught.exception.code, 2)
 
     def _run_case(self, case: DispatchCase) -> tuple[int, dict[str, Any]]:
@@ -279,6 +247,19 @@ class CliDispatchTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(list(case.argv))
         return exit_code, mocks
+
+    def _subparsers_action(
+        self, parser: argparse.ArgumentParser
+    ) -> argparse._SubParsersAction:
+        return next(
+            action
+            for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+
+    def _internals_parser(self) -> argparse.ArgumentParser:
+        subparsers = self._subparsers_action(build_parser())
+        return subparsers.choices["internals"]
 
 
 if __name__ == "__main__":

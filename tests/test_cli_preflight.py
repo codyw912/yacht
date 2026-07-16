@@ -485,6 +485,7 @@ class CliPreflightTests(unittest.TestCase):
                 with redirect_stdout(stdout):
                     exit_code = main(
                         [
+                            "internals",
                             "preflight",
                             str(config_path),
                             "--logbook",
@@ -520,6 +521,7 @@ class CliPreflightTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "preflight",
                         str(config_path),
                         "--logbook",
@@ -566,6 +568,7 @@ class CliPreflightTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "preflight",
                         str(config_path),
                         "--logbook",
@@ -604,6 +607,7 @@ class CliPreflightTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "preflight",
                         str(config_path),
                         "--logbook",
@@ -647,6 +651,7 @@ def _run_preflight(config: str, root: Path) -> tuple[CliResult, Path]:
     with redirect_stdout(stdout), redirect_stderr(stderr):
         exit_code = main(
             [
+                "internals",
                 "preflight",
                 str(config_path),
                 "--logbook",

@@ -136,7 +136,7 @@ vessels = ["codex-baseline", "codex-challenger"]
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
-                        "real-benchmark-eval",
+                        "run",
                         str(config_path),
                         "--logbook",
                         str(root / "logbook"),

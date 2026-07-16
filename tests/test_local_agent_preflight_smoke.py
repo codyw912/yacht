@@ -97,6 +97,7 @@ class LocalAgentPreflightSmokeTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "preflight",
                         "examples/local-agent-preflight-smoke.toml",
                         "--logbook",
@@ -139,6 +140,7 @@ class LocalAgentPreflightSmokeTests(unittest.TestCase):
             with redirect_stdout(stdout):
                 exit_code = main(
                     [
+                        "internals",
                         "preflight",
                         "examples/local-agent-preflight-smoke.toml",
                         "--logbook",

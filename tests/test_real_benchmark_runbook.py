@@ -1,12 +1,13 @@
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
-from io import StringIO
 from pathlib import Path
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
-from yacht.cli import main
+from yacht.workflows.real_benchmark_runbook import (
+    render_real_benchmark_runbook,
+    write_real_benchmark_runbook,
+)
 
 
 class RealBenchmarkRunbookTests(unittest.TestCase):
@@ -19,21 +20,13 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
             workspace_path.mkdir()
 
-            stdout = StringIO()
-            with redirect_stdout(stdout):
-                exit_code = main(
-                    [
-                        "real-benchmark-runbook",
-                        str(config_path),
-                        "--logbook",
-                        str(logbook_dir),
-                        "--workspace",
-                        str(workspace_path),
-                    ]
-                )
+            runbook = write_real_benchmark_runbook(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                workspace_path=workspace_path,
+                max_workers=1,
+            )
 
-            self.assertEqual(exit_code, 0)
-            runbook = json.loads(stdout.getvalue())
             self.assertEqual(runbook["schema"], "yacht.real-benchmark-runbook.v1")
             self.assertEqual(runbook["regatta"], "pi-fff-comparison")
             self.assertEqual(runbook["course"], "swe-bench-lite")
@@ -91,37 +84,37 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
 
             commands = {step["name"]: step["command"] for step in runbook["steps"]}
             self.assertIn(
-                "uv run yacht real-benchmark-eval",
-                commands["real-benchmark-eval"],
+                "uv run yacht run",
+                commands["run"],
             )
             self.assertEqual(
-                commands["real-benchmark-eval"],
+                commands["run"],
                 (
-                    f"uv run yacht real-benchmark-eval {config_path} "
+                    f"uv run yacht run {config_path} "
                     f"--logbook {logbook_dir} --workspace {workspace_path} "
                     "--secret anthropic=@env:ANTHROPIC_API_KEY "
                     "--max-workers 1"
                 ),
             )
             self.assertEqual(
-                commands["benchmark-status"],
-                f"uv run yacht benchmark-status --logbook {logbook_dir}",
+                commands["status"],
+                f"uv run yacht status --logbook {logbook_dir}",
             )
             self.assertEqual(
-                commands["benchmark-report"],
-                f"uv run yacht benchmark-report --logbook {logbook_dir}",
+                commands["report"],
+                f"uv run yacht report --logbook {logbook_dir}",
             )
             self.assertEqual(
-                commands["benchmark-report-filtered"],
+                commands["report-filtered"],
                 (
-                    f"uv run yacht benchmark-report --logbook {logbook_dir} "
+                    f"uv run yacht report --logbook {logbook_dir} "
                     "--vessel pi-plus-fff --task django__django-11099"
                 ),
             )
             self.assertEqual(
-                commands["benchmark-report-markdown"],
+                commands["report-markdown"],
                 (
-                    f"uv run yacht benchmark-report --logbook {logbook_dir} "
+                    f"uv run yacht report --logbook {logbook_dir} "
                     f"--format markdown --output {logbook_dir / 'benchmark-report.md'}"
                 ),
             )
@@ -194,29 +187,20 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
             workspace_path.mkdir()
 
-            stdout = StringIO()
-            with redirect_stdout(stdout):
-                exit_code = main(
-                    [
-                        "real-benchmark-runbook",
-                        str(config_path),
-                        "--logbook",
-                        str(logbook_dir),
-                        "--workspace",
-                        str(workspace_path),
-                        "--format",
-                        "markdown",
-                    ]
+            markdown = render_real_benchmark_runbook(
+                write_real_benchmark_runbook(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    workspace_path=workspace_path,
+                    max_workers=1,
                 )
-
-            self.assertEqual(exit_code, 0)
-            markdown = stdout.getvalue()
+            )
             self.assertIn("## Real Benchmark Runbook", markdown)
             self.assertIn("Regatta: `pi-fff-comparison`", markdown)
             self.assertIn("### Runtime Capabilities", markdown)
             self.assertIn("`pi-plus-fff`: `supported`", markdown)
             self.assertIn("### Commands", markdown)
-            self.assertIn("```sh\nuv run yacht real-benchmark-eval", markdown)
+            self.assertIn("```sh\nuv run yacht run", markdown)
             self.assertIn("--secret anthropic=@env:ANTHROPIC_API_KEY", markdown)
             self.assertNotIn("--python-executable", markdown)
             self.assertIn("--vessel pi-plus-fff --task django__django-11099", markdown)
@@ -244,27 +228,17 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
             workspace_path.mkdir()
 
-            stdout = StringIO()
-            with redirect_stdout(stdout):
-                exit_code = main(
-                    [
-                        "real-benchmark-runbook",
-                        str(config_path),
-                        "--logbook",
-                        str(logbook_dir),
-                        "--workspace",
-                        str(workspace_path),
-                        "--python-executable",
-                        "custom python",
-                    ]
-                )
-
-            self.assertEqual(exit_code, 0)
-            runbook = json.loads(stdout.getvalue())
+            runbook = write_real_benchmark_runbook(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                workspace_path=workspace_path,
+                max_workers=1,
+                python_executable="custom python",
+            )
             commands = {step["name"]: step["command"] for step in runbook["steps"]}
             self.assertIn(
                 "--python-executable 'custom python'",
-                commands["real-benchmark-eval"],
+                commands["run"],
             )
 
     def test_real_benchmark_runbook_lists_small_task_set_artifacts(self) -> None:
@@ -274,21 +248,12 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             logbook_dir = root / "logbook"
             workspace_path.mkdir()
 
-            stdout = StringIO()
-            with redirect_stdout(stdout):
-                exit_code = main(
-                    [
-                        "real-benchmark-runbook",
-                        "examples/container-pi-fff-real-benchmark-small.toml",
-                        "--logbook",
-                        str(logbook_dir),
-                        "--workspace",
-                        str(workspace_path),
-                    ]
-                )
-
-            self.assertEqual(exit_code, 0)
-            runbook = json.loads(stdout.getvalue())
+            runbook = write_real_benchmark_runbook(
+                config_path=Path("examples/container-pi-fff-real-benchmark-small.toml"),
+                logbook_dir=logbook_dir,
+                workspace_path=workspace_path,
+                max_workers=1,
+            )
             self.assertEqual(
                 runbook["regatta"],
                 "container-pi-fff-real-benchmark-small",
@@ -297,7 +262,7 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             commands = {step["name"]: step["command"] for step in runbook["steps"]}
             self.assertIn(
                 "--vessel pi-container-fff --task django__django-11099",
-                commands["benchmark-report-filtered"],
+                commands["report-filtered"],
             )
             self.assertIn(
                 str(

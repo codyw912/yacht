@@ -188,7 +188,9 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
             stdout = StringIO()
             stderr = StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                exit_code = main(["benchmark-plan", "--logbook", str(logbook_dir)])
+                exit_code = main(
+                    ["internals", "benchmark-plan", "--logbook", str(logbook_dir)]
+                )
 
             self.assertEqual(exit_code, 1)
             self.assertEqual(stdout.getvalue(), "")
@@ -234,7 +236,9 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
 
             stdout = StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["benchmark-plan", "--logbook", str(logbook_dir)])
+                exit_code = main(
+                    ["internals", "benchmark-plan", "--logbook", str(logbook_dir)]
+                )
 
             self.assertEqual(exit_code, 0)
             payload = json.loads(stdout.getvalue())
@@ -251,6 +255,7 @@ class BenchmarkExecutionPlanTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 exit_code = main(
                     [
+                        "internals",
                         "benchmark-plan",
                         "--logbook",
                         str(Path(temp_dir) / "logbook"),

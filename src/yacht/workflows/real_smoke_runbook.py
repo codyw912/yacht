@@ -133,11 +133,11 @@ def _steps(
 ) -> list[dict[str, Any]]:
     secrets = " ".join(placeholder["argument"] for placeholder in secret_placeholders)
     secret_suffix = f" {secrets}" if secrets else ""
-    steps = [
+    return [
         {
-            "name": "real-smoke-eval",
+            "name": "run",
             "command": (
-                "uv run yacht real-smoke-eval "
+                "uv run yacht run "
                 f"{_quote(config_path)} --logbook {_quote(logbook_dir)} "
                 f"--workspace {_quote(workspace_path)}{secret_suffix}"
             ),
@@ -152,7 +152,7 @@ def _steps(
         {
             "name": "preflight",
             "command": (
-                "uv run yacht preflight "
+                "uv run yacht internals preflight "
                 f"{_quote(config_path)} --agent-preflight {agent_name} "
                 f"--logbook {_quote(logbook_dir)} "
                 f"--workspace {_quote(workspace_path)}{secret_suffix}"
@@ -162,49 +162,27 @@ def _steps(
         {
             "name": "task-attempts",
             "command": (
-                "uv run yacht task-attempts "
+                "uv run yacht internals task-attempts "
                 f"{_quote(config_path)} --agent {agent_name} "
                 f"--logbook {_quote(logbook_dir)} "
                 f"--workspace {_quote(workspace_path)}{secret_suffix}"
             ),
             "artifacts": artifacts["task_attempts"],
         },
+        {
+            "name": "smoke-readiness-report",
+            "command": (
+                "uv run yacht internals smoke-readiness-report "
+                f"--logbook {_quote(logbook_dir)}"
+            ),
+            "artifacts": [artifacts["smoke_readiness_report"]],
+        },
+        {
+            "name": "report",
+            "command": f"uv run yacht report --logbook {_quote(logbook_dir)}",
+            "artifacts": [artifacts["smoke_report"]],
+        },
     ]
-    if agent_name == "pi":
-        steps.append(
-            {
-                "name": "pi-smoke-eval",
-                "command": (
-                    "uv run yacht pi-smoke-eval "
-                    f"{_quote(config_path)} --logbook {_quote(logbook_dir)} "
-                    f"--workspace {_quote(workspace_path)}{secret_suffix}"
-                ),
-                "artifacts": [
-                    *artifacts["task_attempts"],
-                    artifacts["task_attempt_scorecard"],
-                ],
-            }
-        )
-    steps.extend(
-        [
-            {
-                "name": "smoke-readiness-report",
-                "command": (
-                    "uv run yacht smoke-readiness-report "
-                    f"--logbook {_quote(logbook_dir)}"
-                ),
-                "artifacts": [artifacts["smoke_readiness_report"]],
-            },
-            {
-                "name": "smoke-report",
-                "command": (
-                    f"uv run yacht smoke-report --logbook {_quote(logbook_dir)}"
-                ),
-                "artifacts": [artifacts["smoke_report"]],
-            },
-        ]
-    )
-    return steps
 
 
 def _secret_placeholders(regatta: Regatta) -> list[dict[str, str]]:
