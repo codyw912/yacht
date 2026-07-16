@@ -7,6 +7,8 @@ from yacht.domain.model import load_regatta
 PI_AGENT_IMAGE = "yacht/pi-agent-runtime:pi-0.74.0"
 PI_AGENT_VERSION = "0.74.0"
 PI_AGENT_PACKAGE = "@earendil-works/pi-coding-agent"
+CLAUDE_CODE_VERSION = "2.1.211"
+CLAUDE_CODE_PACKAGE = "@anthropic-ai/claude-code"
 
 
 class ContainerImageTests(unittest.TestCase):
@@ -138,6 +140,18 @@ class ContainerImageTests(unittest.TestCase):
         self.assertEqual(regatta.vessels[0].name, "pi-container-baseline")
         self.assertEqual(regatta.vessels[1].name, "pi-container-fff")
         self.assertEqual(regatta.vessels[1].rigging, ("pi-fff",))
+
+    def test_claude_code_dockerfile_builds_pinned_claude_code(self) -> None:
+        dockerfile = Path("containers/claude-code-runtime/Dockerfile")
+        contents = dockerfile.read_text(encoding="utf-8")
+
+        self.assertIn(f"ARG CLAUDE_CODE_VERSION={CLAUDE_CODE_VERSION}", contents)
+        self.assertIn(
+            f"npm install -g {CLAUDE_CODE_PACKAGE}@$CLAUDE_CODE_VERSION",
+            contents,
+        )
+        self.assertIn("WORKDIR /workspace", contents)
+        self.assertIn("USER yacht", contents)
 
     def test_pi_container_dockerfile_builds_pinned_pi_agent(self) -> None:
         dockerfile = Path("containers/pi-agent-runtime/Dockerfile")
