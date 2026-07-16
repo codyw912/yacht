@@ -1126,6 +1126,8 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
     ):
         _require_non_negative_int(vessel.get(key), f"{path}.{key}")
     _require_non_negative_number(vessel.get("success_rate"), f"{path}.success_rate")
+    if "provenance" in vessel:
+        _validate_collapsed_provenance(vessel["provenance"], f"{path}.provenance")
     _require_non_negative_number(
         vessel.get("total_duration_seconds"),
         f"{path}.total_duration_seconds",
@@ -1255,6 +1257,37 @@ def _require_nullable_non_empty_string(value: Any, path: str) -> None:
     if value is None:
         return
     _require_non_empty_string(value, path)
+
+
+def _validate_collapsed_provenance(value: Any, path: str) -> None:
+    provenance = _require_object(value, path)
+    _require_keys(
+        provenance,
+        ("yacht", "harness", "model", "runtime", "tools", "mixed"),
+        path,
+    )
+    for section, leaves in (
+        ("yacht", ("version",)),
+        ("harness", ("name", "version")),
+        ("model", ("configured", "resolved")),
+        ("runtime", ("backend", "image")),
+    ):
+        block = _require_object(provenance[section], f"{path}.{section}")
+        for leaf in leaves:
+            _require_nullable_non_empty_string(
+                block.get(leaf), f"{path}.{section}.{leaf}"
+            )
+    if provenance["tools"] is not None:
+        tools = _require_list(provenance["tools"], f"{path}.tools")
+        for index, tool_value in enumerate(tools):
+            tool_path = f"{path}.tools[{index}]"
+            tool = _require_object(tool_value, tool_path)
+            _require_keys(tool, ("name", "tools", "version", "source"), tool_path)
+            _require_non_empty_string(tool["name"], f"{tool_path}.name")
+            _require_string_list(tool["tools"], f"{tool_path}.tools")
+            _require_nullable_non_empty_string(tool["version"], f"{tool_path}.version")
+            _require_nullable_non_empty_string(tool["source"], f"{tool_path}.source")
+    _require_string_list(provenance["mixed"], f"{path}.mixed")
 
 
 def _validate_task_attempt_runtime_context(value: Any) -> None:

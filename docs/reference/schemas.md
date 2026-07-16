@@ -25,7 +25,8 @@ artifacts should remain consumable by other tools and future runners.
   including run provenance (harness, model, and tool versions resolved from
   evidence; ADR 0009).
 - `yacht.task-attempt-scorecard.v1.schema.json` for task attempt summaries,
-  including harnesses, token, cost, duration, and tool-call rollups.
+  including harnesses, token, cost, duration, and tool-call rollups, plus
+  collapsed per-vessel provenance with mixed-dimension labels (ADR 0009).
 - `yacht.smoke-readiness-report.v1.schema.json` for real smoke-run readiness
   checks.
 - `yacht.real-smoke-runbook.v1.schema.json` for shareable real smoke runbooks.

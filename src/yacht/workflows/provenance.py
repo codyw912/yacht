@@ -9,6 +9,7 @@ resolved is recorded as null, never guessed.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -19,6 +20,68 @@ from yacht.reports.surface_metadata import harness_for_runtime
 
 _IMAGE_TAG_VERSION = re.compile(r"(\d+(?:\.\d+)+)$")
 _TARGET_VERSION = re.compile(r"^\d+(?:\.\d+)+(?:[-+][\w.-]+)?$")
+
+PROVENANCE_LEAVES = (
+    ("yacht", "version"),
+    ("harness", "name"),
+    ("harness", "version"),
+    ("model", "configured"),
+    ("model", "resolved"),
+    ("runtime", "backend"),
+    ("runtime", "image"),
+)
+
+
+def collapse_provenance(blocks: list[Any]) -> dict[str, Any] | None:
+    """Collapse per-attempt or per-run provenance blocks into one summary.
+
+    Leaves where every block agrees keep their value; leaves that disagree
+    become null and are listed under "mixed" so an aggregate never presents
+    blended provenance as homogeneous. Blocks that already carry a "mixed"
+    list (earlier collapses) contribute it to the union. Returns None when
+    no block carries provenance at all.
+    """
+    present = [block for block in blocks if isinstance(block, dict)]
+    if not present:
+        return None
+    collapsed: dict[str, Any] = {
+        "yacht": {},
+        "harness": {},
+        "model": {},
+        "runtime": {},
+    }
+    mixed: set[str] = set()
+    for block in present:
+        inherited = block.get("mixed")
+        if isinstance(inherited, list):
+            mixed.update(str(item) for item in inherited)
+    for section, leaf in PROVENANCE_LEAVES:
+        values = {_leaf_value(block, section, leaf) for block in present}
+        if len(values) == 1:
+            collapsed[section][leaf] = values.pop()
+        else:
+            collapsed[section][leaf] = None
+            mixed.add(f"{section}.{leaf}")
+    tool_variants = {
+        json.dumps(block.get("tools"), sort_keys=True) for block in present
+    }
+    if len(tool_variants) == 1:
+        collapsed["tools"] = present[0].get("tools")
+    else:
+        collapsed["tools"] = None
+        mixed.add("tools")
+    collapsed["mixed"] = sorted(mixed)
+    return collapsed
+
+
+def _leaf_value(block: dict[str, Any], section: str, leaf: str) -> str | None:
+    section_value = block.get(section)
+    if not isinstance(section_value, dict):
+        return None
+    value = section_value.get(leaf)
+    if isinstance(value, str) and value:
+        return value
+    return None
 
 
 def build_provenance(

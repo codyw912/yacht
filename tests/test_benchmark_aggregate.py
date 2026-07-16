@@ -6,7 +6,10 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from yacht.reports.benchmark_aggregate import build_benchmark_aggregate
+from yacht.reports.benchmark_aggregate import (
+    build_benchmark_aggregate,
+    render_benchmark_aggregate_document,
+)
 from yacht.cli import main
 from yacht.domain.model import ConfigError
 
@@ -276,6 +279,78 @@ class BenchmarkAggregateTests(unittest.TestCase):
                     },
                 ],
             )
+
+    def test_aggregate_carries_matching_provenance_across_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _write_logbook(
+                root / "run-1",
+                baseline_resolved=1,
+                fff_resolved=1,
+                harness_version="0.74.0",
+            )
+            second = _write_logbook(
+                root / "run-2",
+                baseline_resolved=0,
+                fff_resolved=1,
+                harness_version="0.74.0",
+            )
+
+            aggregate = build_benchmark_aggregate([first, second])
+
+            vessel = aggregate["comparisons"][0]["vessels"][0]
+            self.assertEqual(
+                vessel["provenance"]["harness"],
+                {"name": "pi", "version": "0.74.0"},
+            )
+            self.assertEqual(vessel["provenance"]["mixed"], [])
+
+    def test_aggregate_labels_mixed_provenance_across_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _write_logbook(
+                root / "run-1",
+                baseline_resolved=1,
+                fff_resolved=1,
+                harness_version="0.74.0",
+            )
+            second = _write_logbook(
+                root / "run-2",
+                baseline_resolved=0,
+                fff_resolved=1,
+                harness_version="0.75.0",
+            )
+
+            aggregate = build_benchmark_aggregate([first, second])
+
+            vessel = aggregate["comparisons"][0]["vessels"][0]
+            self.assertIsNone(vessel["provenance"]["harness"]["version"])
+            self.assertEqual(vessel["provenance"]["harness"]["name"], "pi")
+            self.assertEqual(
+                vessel["provenance"]["mixed"],
+                ["harness.version", "runtime.image"],
+            )
+
+            text = render_benchmark_aggregate_document(aggregate, "text")
+            self.assertIn("Provenance by vessel:", text)
+            self.assertIn("harness.version, runtime.image", text)
+
+            html = render_benchmark_aggregate_document(aggregate, "html")
+            self.assertIn("mixed provenance across runs", html)
+            self.assertIn("harness.version, runtime.image", html)
+
+    def test_aggregate_omits_provenance_for_legacy_scorecards(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _write_logbook(root / "run-1", baseline_resolved=1, fff_resolved=1)
+            second = _write_logbook(root / "run-2", baseline_resolved=0, fff_resolved=1)
+
+            aggregate = build_benchmark_aggregate([first, second])
+
+            vessel = aggregate["comparisons"][0]["vessels"][0]
+            self.assertNotIn("provenance", vessel)
+            text = render_benchmark_aggregate_document(aggregate, "text")
+            self.assertNotIn("Provenance by vessel:", text)
 
     def test_benchmark_aggregate_command_prints_text_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -558,6 +633,7 @@ def _write_logbook(
     *,
     baseline_resolved: int,
     fff_resolved: int,
+    harness_version: str | None = None,
 ) -> Path:
     logbook_dir.mkdir(parents=True)
     (logbook_dir / "benchmark-scorecard.json").write_text(
@@ -565,7 +641,14 @@ def _write_logbook(
         encoding="utf-8",
     )
     (logbook_dir / "task-attempt-scorecard.json").write_text(
-        json.dumps(_task_attempt_scorecard(baseline_resolved, fff_resolved)) + "\n",
+        json.dumps(
+            _task_attempt_scorecard(
+                baseline_resolved,
+                fff_resolved,
+                harness_version=harness_version,
+            )
+        )
+        + "\n",
         encoding="utf-8",
     )
     return logbook_dir
@@ -638,13 +721,25 @@ def _benchmark_vessel(name: str, resolved: int) -> dict[str, object]:
 def _task_attempt_scorecard(
     baseline_resolved: int,
     fff_resolved: int,
+    *,
+    harness_version: str | None = None,
 ) -> dict[str, object]:
     vessels = [
         _task_attempt_vessel(
-            "pi-baseline", tokens=1000, cost=0.001, duration=10.0, tools=3
+            "pi-baseline",
+            tokens=1000,
+            cost=0.001,
+            duration=10.0,
+            tools=3,
+            harness_version=harness_version,
         ),
         _task_attempt_vessel(
-            "pi-plus-fff", tokens=2100, cost=0.0021, duration=11.1, tools=4
+            "pi-plus-fff",
+            tokens=2100,
+            cost=0.0021,
+            duration=11.1,
+            tools=4,
+            harness_version=harness_version,
         ),
     ]
     return {
@@ -670,8 +765,9 @@ def _task_attempt_vessel(
     cost: float,
     duration: float,
     tools: int,
+    harness_version: str | None = None,
 ) -> dict[str, object]:
-    return {
+    vessel: dict[str, object] = {
         "name": name,
         "status": "measured",
         "task_attempts": 1,
@@ -685,6 +781,19 @@ def _task_attempt_vessel(
         "total_duration_seconds": duration,
         "artifact_paths": [f"/tmp/{name}/django__django-11099.json"],
     }
+    if harness_version is not None:
+        vessel["provenance"] = {
+            "yacht": {"version": "0.2.0"},
+            "harness": {"name": "pi", "version": harness_version},
+            "model": {"configured": "haiku", "resolved": "claude-haiku-4-5"},
+            "runtime": {
+                "backend": "container",
+                "image": f"yacht/pi-agent-runtime:pi-{harness_version}",
+            },
+            "tools": [],
+            "mixed": [],
+        }
+    return vessel
 
 
 def _task_attempt_summary(

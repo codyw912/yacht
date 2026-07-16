@@ -5,6 +5,13 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
+from yacht.reports.provenance_format import (
+    provenance_harness_label,
+    provenance_mixed,
+    provenance_model_label,
+    provenance_tools_label,
+)
+
 _STYLE = """
 :root {
   --bg: #ffffff; --fg: #1a1f2e; --muted: #5b6472; --line: #e3e7ee;
@@ -124,6 +131,10 @@ def _aggregate_comparison_sections(
     sections.append(f"<h2>Comparison: {_e(str(comparison['name']))}</h2>")
     sections.append(_aggregate_verdict_card(comparison, run_count))
     sections.append(_aggregate_vessel_table(comparison))
+    provenance_table = _aggregate_provenance_table(comparison)
+    if provenance_table:
+        sections.append("<h2>Provenance</h2>")
+        sections.append(provenance_table)
     runs_table = _aggregate_runs_table(comparison)
     if runs_table:
         sections.append("<h2>Per-run deltas</h2>")
@@ -147,6 +158,7 @@ def _aggregate_verdict_card(comparison: dict[str, Any], run_count: int) -> str:
         kind = "tied"
         headline = f"{challenger} tied with {baseline} across all runs"
     badge = _variance_badge(stats.get("resolved_instances_delta"), run_count)
+    badge += _mixed_provenance_badge(comparison)
     detail = (
         f"Baseline <code>{_e(baseline)}</code> vs challenger "
         f"<code>{_e(challenger)}</code> &middot; total resolution rate delta "
@@ -157,6 +169,47 @@ def _aggregate_verdict_card(comparison: dict[str, Any], run_count: int) -> str:
         f'<div class="verdict {kind}"><span class="headline">{_e(headline)}'
         f"</span>{badge}"
         f'<div class="detail">{detail}</div></div>'
+    )
+
+
+def _mixed_provenance_badge(comparison: dict[str, Any]) -> str:
+    mixed: set[str] = set()
+    for vessel in comparison.get("vessels", []):
+        provenance = vessel.get("provenance")
+        if isinstance(provenance, dict):
+            mixed.update(provenance_mixed(provenance))
+    if not mixed:
+        return ""
+    return (
+        '<span class="badge">mixed provenance across runs: '
+        f"{_e(', '.join(sorted(mixed)))}</span>"
+    )
+
+
+def _aggregate_provenance_table(comparison: dict[str, Any]) -> str:
+    rows = []
+    for vessel in comparison.get("vessels", []):
+        provenance = vessel.get("provenance")
+        if not isinstance(provenance, dict):
+            continue
+        mixed = provenance_mixed(provenance)
+        mixed_cell = (
+            f'<td class="fail">{_e(", ".join(mixed))}</td>'
+            if mixed
+            else '<td class="muted">none</td>'
+        )
+        rows.append(
+            f"<tr><td>{_e(str(vessel['name']))}</td>"
+            f"<td><code>{_e(provenance_harness_label(provenance))}</code></td>"
+            f"<td><code>{_e(provenance_model_label(provenance))}</code></td>"
+            f"<td><code>{_e(provenance_tools_label(provenance))}</code></td>"
+            f"{mixed_cell}</tr>"
+        )
+    if not rows:
+        return ""
+    return (
+        "<table><tr><th>Vessel</th><th>Harness</th><th>Model</th>"
+        "<th>Tools</th><th>Mixed dimensions</th></tr>" + "".join(rows) + "</table>"
     )
 
 
