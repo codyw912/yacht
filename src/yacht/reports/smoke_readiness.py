@@ -297,7 +297,7 @@ def _aggregate_status(items: list[dict[str, Any]]) -> str:
 
 def _resolve_logbook_path(logbook_dir: Path, path: str) -> Path:
     artifact_path = Path(path)
-    if artifact_path.is_absolute():
+    if artifact_path.is_absolute() or artifact_path.exists():
         return artifact_path
     return logbook_dir / artifact_path
 
