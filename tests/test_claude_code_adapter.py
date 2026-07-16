@@ -629,6 +629,25 @@ class ClaudeCodeAdapterTests(unittest.TestCase):
                 / "container-claude-code-smoke-1.json"
             )
             attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                attempt["provenance"]["harness"],
+                {"name": "claude-code", "version": "2.1.211"},
+            )
+            self.assertEqual(
+                attempt["provenance"]["model"]["resolved"],
+                "claude-haiku-4-5",
+            )
+            self.assertEqual(
+                attempt["provenance"]["tools"],
+                [
+                    {
+                        "name": "fff-mcp",
+                        "tools": ["fff"],
+                        "version": None,
+                        "source": None,
+                    }
+                ],
+            )
             setup_results = attempt["runtime_context"]["setup_results"]
             self.assertEqual(
                 setup_results,

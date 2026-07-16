@@ -781,6 +781,8 @@ def validate_task_attempt_document(document: dict[str, Any]) -> None:
     _require_string_list(document["rigging"], "rigging")
     _require_allowed_value(document["status"], TASK_ATTEMPT_STATUSES, "status")
     _validate_task_attempt_task(document["task"])
+    if "provenance" in document:
+        _validate_task_attempt_provenance(document["provenance"])
     _validate_task_attempt_runtime_context(document["runtime_context"])
     _validate_task_attempt_agent(document["agent"])
     _validate_task_attempt_metrics(document["metrics"])
@@ -1215,6 +1217,44 @@ def _validate_expect_tool_calls(value: Any, path: str) -> None:
     for index, tool_call in enumerate(tool_calls):
         if not isinstance(tool_call, str) or not tool_call:
             raise SchemaValidationError(f"{path}[{index}] must be non-empty")
+
+
+def _validate_task_attempt_provenance(value: Any) -> None:
+    provenance = _require_object(value, "provenance")
+    _require_keys(
+        provenance,
+        ("yacht", "harness", "model", "runtime", "tools"),
+        "provenance",
+    )
+    yacht_block = _require_object(provenance["yacht"], "provenance.yacht")
+    _require_non_empty_string(yacht_block.get("version"), "provenance.yacht.version")
+    harness = _require_object(provenance["harness"], "provenance.harness")
+    _require_keys(harness, ("name", "version"), "provenance.harness")
+    _require_nullable_non_empty_string(harness["name"], "provenance.harness.name")
+    _require_nullable_non_empty_string(harness["version"], "provenance.harness.version")
+    model = _require_object(provenance["model"], "provenance.model")
+    _require_keys(model, ("configured", "resolved"), "provenance.model")
+    _require_non_empty_string(model["configured"], "provenance.model.configured")
+    _require_nullable_non_empty_string(model["resolved"], "provenance.model.resolved")
+    runtime = _require_object(provenance["runtime"], "provenance.runtime")
+    _require_keys(runtime, ("backend", "image"), "provenance.runtime")
+    _require_non_empty_string(runtime["backend"], "provenance.runtime.backend")
+    _require_nullable_non_empty_string(runtime["image"], "provenance.runtime.image")
+    tools = _require_list(provenance["tools"], "provenance.tools")
+    for index, tool_value in enumerate(tools):
+        tool_path = f"provenance.tools[{index}]"
+        tool = _require_object(tool_value, tool_path)
+        _require_keys(tool, ("name", "tools", "version", "source"), tool_path)
+        _require_non_empty_string(tool["name"], f"{tool_path}.name")
+        _require_string_list(tool["tools"], f"{tool_path}.tools")
+        _require_nullable_non_empty_string(tool["version"], f"{tool_path}.version")
+        _require_nullable_non_empty_string(tool["source"], f"{tool_path}.source")
+
+
+def _require_nullable_non_empty_string(value: Any, path: str) -> None:
+    if value is None:
+        return
+    _require_non_empty_string(value, path)
 
 
 def _validate_task_attempt_runtime_context(value: Any) -> None:
