@@ -1,42 +1,59 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - First Published Release
 
-- Added `benchmark-aggregate` for summarizing resolution and usage across
-  multiple completed benchmark logbooks.
-- Added `real-benchmark-repetitions` to run repeated real benchmark evals into
-  child logbooks and persist an aggregate summary.
-- Added `benchmark-status` and `benchmark-report` support for repeated-run parent
-  logbooks.
+The first release distributed on PyPI as `yacht-eval` (the import package and
+CLI stay `yacht`). YACHT 0.2.0 consolidates the command surface, hardens the
+first-run path, and generalizes the evaluation pipeline that 0.1.0 proved.
+
+### CLI
+
+- Consolidated the user-facing CLI to six commands: `doctor`, `run`,
+  `validate`, `status`, `report`, and the `internals` group holding the
+  pipeline stage commands for debugging and incremental re-runs (ADR 0006).
+- Added `yacht doctor` for host prerequisite checks: Python, uv, Git, the
+  Docker CLI and daemon, logbook writability, the native SWE-bench harness,
+  and config-aware runtime image and secret checks, each with an actionable
+  hint.
+- Unified `yacht run` to execute the full pipeline and detect smoke versus
+  benchmark courses from the config, with `--repetitions` for repeated
+  benchmark runs aggregated under one parent logbook.
+- Unified `yacht status` and `yacht report` to detect the run type through
+  the logbook run index and default to `./logbook`, then the most recent
+  yacht logbook.
+- Runbook artifacts are written automatically at the start of each run, and
+  every next-step hint emitted into artifacts names a runnable command.
+
+### Evaluation pipeline
+
+- Required secrets are validated before task context loading and workspace
+  materialization, so misconfigured runs fail before network work or tokens
+  are spent.
+- SWE-bench dataset records are cached per process, keyed by dataset and
+  split, so multi-task and multi-vessel runs load each split once.
+- Task IDs, vessel names, and comparison names from config are validated as
+  path-safe before they are interpolated into logbook paths.
+- Repeated benchmark runs produce per-run rows, aggregate statistics for
+  resolution rate, tokens, cost, duration, and tool calls, and an automatic
+  markdown report on the parent logbook.
+- Typed rigging install steps describe agent extensions, MCP servers,
+  packages, binaries, container images, preinstalled tools, and custom
+  commands; unsupported capabilities are blocked with explicit
+  `runtime-capability` preflight evidence before setup commands run.
+- The agent harness is selected from configured runtime surface metadata
+  instead of assuming Pi, and artifacts report which harness ran each vessel.
 - Fixed agent-prompt preflight JSON extraction when agents wrap the required
-  JSON object in a Markdown fence with surrounding text.
-- Added stderr progress updates for long-running real benchmark commands while
-  preserving final JSON on stdout.
-- Added per-run rows to benchmark aggregate reports so repeated benchmark runs
-  expose individual run usage, outcomes, and child logbook paths.
-- Added automatic `benchmark-report.md` generation for repeated benchmark parent
-  logbooks when at least one child run completes.
-- Added timestamped default logbooks for `real-benchmark-repetitions` when
-  `--logbook` is omitted.
-- Compacted `real-benchmark-repetitions` output by replacing the embedded full
-  aggregate with a smaller aggregate summary and artifact paths.
-- Added repeated-run aggregate statistics for resolution rate, tokens, cost,
-  duration, and tool calls by vessel and comparison delta.
-- Added explicit agent/tool/benchmark surface metadata to provisioning configs,
-  runtime plans, runtime instance dry-runs, and real benchmark runbooks.
-- Added typed rigging install steps so tool setup can describe agent extensions,
-  MCP servers, packages, binaries, container images, preinstalled tools, or
-  custom commands without treating npm as the generic install model.
-- Real benchmark commands now select the agent harness from configured runtime
-  surface metadata instead of assuming Pi at the orchestration boundary.
-- Real benchmark artifacts, status output, and scorecard reports now surface the
-  configured agent, tool, and benchmark harness metadata used for the run.
-- Runtime plans and dry-run instances now report whether typed rigging install
-  steps are supported by the selected runtime backend before setup commands run.
-- Preflight now blocks unsupported rigging install capabilities with explicit
-  `runtime-capability` evidence before any runtime setup commands are executed.
-- Real benchmark summaries now include blocked preflight vessel details and
-  next steps that point directly to preflight evidence when preflight blocks.
+  JSON object in a Markdown fence, and fixed smoke readiness resolution for
+  relative logbook paths.
+
+### Project
+
+- The unit suite is hermetic (no network) and runs in seconds; CI enforces
+  ruff lint and formatting and reports coverage.
+- Production input validation uses explicit project errors instead of
+  asserts.
+- Recorded architecture decisions for the six-command CLI (ADR 0006) and the
+  `yacht-eval` distribution name (ADR 0007).
 
 ## 0.1.0 - First Usable Benchmark Smoke
 
