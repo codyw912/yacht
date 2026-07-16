@@ -101,7 +101,14 @@ uv run yacht report --logbook logbook
 uv run yacht report --logbook logbook --vessel pi-container-fff
 uv run yacht report --logbook logbook --vessel pi-container-fff --task django__django-11099
 uv run yacht report --logbook logbook --format markdown --output logbook/benchmark-report.md
+uv run yacht report --logbook logbook --format html --output logbook/report.html
 ```
+
+The html format writes a single self-contained file (no scripts, no external
+assets) with a verdict banner, per-vessel outcomes and usage, tool-call
+evidence showing whether a challenger tool was actually used, and per-task
+results. Small samples are labeled so single-run smoke deltas are not
+mistaken for statistically meaningful results.
 
 `yacht report` renders the report for a smoke or benchmark logbook. Benchmark
 reports start with a decision summary that says whether the challenger

@@ -12,8 +12,9 @@ from yacht.reports.benchmark_report import render_benchmark_report
 from yacht.reports.benchmark_status import render_benchmark_status
 from yacht.reports.latest_logbook import build_latest_logbook
 from yacht.reports.smoke_readiness import SMOKE_READINESS_REPORT_PATH
+from yacht.reports.html_report import render_smoke_html
 from yacht.reports.smoke_report import render_smoke_report
-from yacht.reports.smoke_status import render_smoke_status
+from yacht.reports.smoke_status import build_smoke_status, render_smoke_status
 
 
 def register(subcommands: argparse._SubParsersAction) -> None:
@@ -58,7 +59,7 @@ def register(subcommands: argparse._SubParsersAction) -> None:
     )
     report_parser.add_argument(
         "--format",
-        choices=("text", "markdown"),
+        choices=("text", "markdown", "html"),
         default="text",
         help="Output format for the rendered report.",
     )
@@ -100,7 +101,13 @@ def _report(args: argparse.Namespace) -> int:
                     "--vessel and --task filters apply to benchmark logbooks; "
                     f"{logbook_dir} holds a smoke run"
                 )
-            report = render_smoke_report(logbook_dir, args.format)
+            if args.format == "html":
+                report = render_smoke_html(
+                    smoke_status=build_smoke_status(logbook_dir),
+                    logbook_dir=logbook_dir,
+                )
+            else:
+                report = render_smoke_report(logbook_dir, args.format)
         else:
             report = render_benchmark_report(
                 logbook_dir,

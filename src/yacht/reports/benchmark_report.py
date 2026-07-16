@@ -13,6 +13,7 @@ from yacht.workflows.benchmark_grading_collection import (
 )
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
+from yacht.reports.html_report import render_benchmark_html
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
     SchemaValidationError,
@@ -45,6 +46,11 @@ def render_benchmark_report(
                     "benchmark report filters require a single-run benchmark "
                     "scorecard; repeated-run aggregate reports cannot be filtered"
                 )
+            if output_format == "html":
+                raise ConfigError(
+                    "html reports for repeated-run aggregate logbooks are not "
+                    "supported yet; use --format text or markdown"
+                )
             return _render_aggregate_report(aggregate_path, output_format)
         raise ConfigError(
             f"benchmark scorecard artifact not found: {scorecard_path}; "
@@ -59,6 +65,17 @@ def render_benchmark_report(
         ) from error
     task_attempt_scorecard = _load_task_attempt_scorecard(logbook_dir)
     _validate_filters(scorecard, vessel_name, task_id)
+    if output_format == "html":
+        if vessel_name is not None or task_id is not None:
+            raise ConfigError(
+                "--vessel and --task filters apply to text and markdown "
+                "formats; the html report always includes every vessel and task"
+            )
+        return render_benchmark_html(
+            scorecard=scorecard,
+            task_attempt_scorecard=task_attempt_scorecard,
+            logbook_dir=logbook_dir,
+        )
     if output_format == "markdown":
         return _render_scorecard_markdown(
             logbook_dir,
