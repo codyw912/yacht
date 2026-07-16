@@ -313,7 +313,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             config_path.write_text(
                 PI_WITH_FFF_CONFIG.replace(
                     'method = "agent-extension"',
-                    'method = "package"',
+                    'method = "mcp-server"',
                 ),
                 encoding="utf-8",
             )
@@ -370,14 +370,14 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             self.assertEqual(
                 summary["blocked_preflight"]["vessels"][0]["failed_checks"][0],
                 {
-                    "name": "rigging-capability-pi-fff-package",
+                    "name": "rigging-capability-pi-fff-mcp-server",
                     "kind": "runtime-capability",
                     "status": "failed",
                     "origin": "rigging",
                     "origin_name": "pi-fff",
                     "reason": (
                         "runtime backend host-nix does not support rigging install "
-                        "method package yet"
+                        "method mcp-server yet"
                     ),
                 },
             )

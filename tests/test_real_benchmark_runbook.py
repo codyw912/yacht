@@ -56,6 +56,8 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
                     "runtime_agent": "pi",
                     "supported_install_methods": [
                         "agent-extension",
+                        "config-file",
+                        "package",
                         "preinstalled",
                         "custom-command",
                     ],

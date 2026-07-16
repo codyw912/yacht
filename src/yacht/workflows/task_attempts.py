@@ -123,6 +123,17 @@ def _runtime_context_to_json(instance: RuntimeInstance) -> dict[str, Any]:
         "command_prefix": list(instance.command_prefix),
         "command": list(instance.runtime.command),
         "cleanup_paths": [str(path) for path in instance.cleanup_paths],
+        "setup_results": [
+            {
+                "origin": result.origin,
+                "origin_name": result.origin_name,
+                "action": result.action,
+                "target": result.target,
+                "argv": list(result.argv),
+                "exit_code": result.exit_code,
+            }
+            for result in instance.setup_results
+        ],
     }
 
 

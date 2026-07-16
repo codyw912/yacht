@@ -1,7 +1,25 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 from yacht.domain.model import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
-from yacht.runtimes.rigging_setup import RiggingSetupError, plan_rigging_setup
+from yacht.runtimes.rigging_setup import (
+    RiggingSetupError,
+    RiggingSetupFile,
+    RiggingSetupPlan,
+    apply_rigging_setup,
+    plan_rigging_setup,
+)
+
+
+def _runtime() -> RuntimeRecipe:
+    return RuntimeRecipe(
+        name="pi-container",
+        backend="container",
+        harness="pi",
+        image="yacht/pi-agent-runtime:pi-0.74.0",
+        command=("pi",),
+    )
 
 
 class RiggingSetupTests(unittest.TestCase):
@@ -138,13 +156,130 @@ class RiggingSetupTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             RiggingSetupError,
-            "runtime backend host-nix does not support rigging install method package yet",
+            "package install target ripgrep is not supported yet",
         ):
             plan_rigging_setup(
                 runtime=runtime,
                 riggings=(rigging,),
                 command_prefix=("nix", "develop", "--command"),
             )
+
+    def test_plans_npm_package_install_through_command_prefix(self) -> None:
+        rigging = RiggingRecipe(
+            name="tool",
+            install=(RiggingInstallStep(method="package", target="npm:some-tool"),),
+        )
+
+        plan = plan_rigging_setup(
+            runtime=_runtime(),
+            riggings=(rigging,),
+            command_prefix=("docker", "run", "image"),
+        )
+
+        self.assertEqual(
+            plan.commands[0].argv,
+            ("docker", "run", "image", "npm", "install", "-g", "some-tool"),
+        )
+
+    def test_plans_config_file_as_setup_file(self) -> None:
+        rigging = RiggingRecipe(
+            name="tool",
+            install=(
+                RiggingInstallStep(
+                    method="config-file",
+                    target=".config/tool/settings.json",
+                    content='{"enabled": true}',
+                ),
+            ),
+        )
+
+        plan = plan_rigging_setup(
+            runtime=_runtime(),
+            riggings=(rigging,),
+            command_prefix=("docker", "run", "image"),
+        )
+
+        self.assertEqual(plan.commands, ())
+        self.assertEqual(len(plan.files), 1)
+        self.assertEqual(plan.files[0].target, ".config/tool/settings.json")
+
+    def test_rejects_config_file_target_outside_trial_home(self) -> None:
+        rigging = RiggingRecipe(
+            name="tool",
+            install=(
+                RiggingInstallStep(
+                    method="config-file",
+                    target="../outside.json",
+                    content="{}",
+                ),
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            RiggingSetupError,
+            "must be a relative path inside the trial home",
+        ):
+            plan_rigging_setup(
+                runtime=_runtime(),
+                riggings=(rigging,),
+                command_prefix=(),
+            )
+
+
+class ApplyRiggingSetupTests(unittest.TestCase):
+    def test_writes_config_file_into_trial_home_with_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_home = Path(temp_dir) / "home"
+            temp_home.mkdir()
+            plan = RiggingSetupPlan(
+                commands=(),
+                files=(
+                    RiggingSetupFile(
+                        origin_name="tool",
+                        target=".config/tool/settings.json",
+                        content='{"enabled": true}',
+                    ),
+                ),
+            )
+
+            results = apply_rigging_setup(
+                plan=plan,
+                env={},
+                workspace_path=Path(temp_dir),
+                setup_runner=lambda argv, env, cwd: None,
+                temp_home=temp_home,
+            )
+
+            written = temp_home / ".config" / "tool" / "settings.json"
+            self.assertEqual(written.read_text(encoding="utf-8"), '{"enabled": true}')
+            self.assertEqual(results[0].action, "config-file")
+            self.assertEqual(results[0].exit_code, 0)
+            self.assertIn(str(written.resolve()), results[0].stdout)
+
+    def test_blocks_file_write_that_escapes_trial_home(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_home = Path(temp_dir) / "home"
+            temp_home.mkdir()
+            plan = RiggingSetupPlan(
+                commands=(),
+                files=(
+                    RiggingSetupFile(
+                        origin_name="tool",
+                        target="safe/../../escape.json",
+                        content="{}",
+                    ),
+                ),
+            )
+
+            with self.assertRaisesRegex(RiggingSetupError, "escapes the trial home"):
+                apply_rigging_setup(
+                    plan=plan,
+                    env={},
+                    workspace_path=Path(temp_dir),
+                    setup_runner=lambda argv, env, cwd: None,
+                    temp_home=temp_home,
+                )
+            self.assertFalse((Path(temp_dir) / "escape.json").exists())
 
 
 if __name__ == "__main__":

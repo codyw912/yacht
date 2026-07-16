@@ -171,6 +171,7 @@ def _apply_rigging_installs(
             env=env,
             workspace_path=resolution.workspace_path,
             setup_runner=setup_runner,
+            temp_home=resolution.temp_home,
         )
     except RiggingSetupError as error:
         raise RuntimePreparationError(str(error)) from error

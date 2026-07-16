@@ -91,10 +91,8 @@ UNSUPPORTED_INSTALL_CONFIG = (
     PASSING_PREFLIGHT_CONFIG
     + """
 [[riggings.unsupported.install]]
-method = "package"
-target = "pytest"
-runtime = "python"
-package = "pytest"
+method = "mcp-server"
+target = "context-server"
 """
 )
 
@@ -340,7 +338,7 @@ class CliPreflightTests(unittest.TestCase):
             self.assertEqual(baseline["status"], "failed")
             capability_check = _check_by_name(
                 baseline,
-                "rigging-capability-unsupported-package",
+                "rigging-capability-unsupported-mcp-server",
             )
             self.assertEqual(capability_check["kind"], "runtime-capability")
             self.assertEqual(capability_check["status"], "failed")
@@ -355,7 +353,7 @@ class CliPreflightTests(unittest.TestCase):
                 artifact["checks"][0]["evidence"]["reason"],
                 (
                     "runtime backend host-nix does not support rigging install "
-                    "method package yet"
+                    "method mcp-server yet"
                 ),
             )
             self.assertFalse((logbook_dir / "runtime").exists())
@@ -584,7 +582,7 @@ class CliPreflightTests(unittest.TestCase):
             rigged = payload["comparisons"][0]["vessels"][1]
             capability_check = _check_by_name(
                 rigged,
-                "rigging-capability-unsupported-package",
+                "rigging-capability-unsupported-mcp-server",
             )
             self.assertEqual(capability_check["kind"], "runtime-capability")
             self.assertTrue(capability_check["included"])

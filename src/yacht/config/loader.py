@@ -70,7 +70,7 @@ def load_regatta(config_path: Path) -> Regatta:
         comparisons=comparisons,
         secrets=_parse_secrets(raw),
         runtime_recipes=_parse_runtime_recipes(raw),
-        rigging_recipes=_parse_rigging_recipes(raw),
+        rigging_recipes=_parse_rigging_recipes(raw, config_path.parent),
         tool_capabilities=_parse_tool_capabilities(raw),
     )
 
@@ -373,13 +373,17 @@ def _parse_runtime_harness(runtime: dict[str, Any]) -> str | None:
     return None
 
 
-def _parse_rigging_recipes(raw: dict[str, Any]) -> dict[str, RiggingRecipe]:
+def _parse_rigging_recipes(
+    raw: dict[str, Any],
+    config_dir: Path,
+) -> dict[str, RiggingRecipe]:
     return {
         str(name): RiggingRecipe(
             name=str(name),
             tools=tuple(str(item) for item in rigging.get("tools", ())),
             install=tuple(
-                _parse_rigging_install_step(item) for item in rigging.get("install", ())
+                _parse_rigging_install_step(item, config_dir)
+                for item in rigging.get("install", ())
             ),
             env={str(key): str(value) for key, value in rigging.get("env", {}).items()},
             required_secrets=tuple(
@@ -414,7 +418,7 @@ def _parse_tool_capabilities(raw: dict[str, Any]) -> dict[str, ToolCapability]:
     return capabilities
 
 
-def _parse_rigging_install_step(raw: Any) -> RiggingInstallStep:
+def _parse_rigging_install_step(raw: Any, config_dir: Path) -> RiggingInstallStep:
     if isinstance(raw, str):
         return RiggingInstallStep(
             method="agent-extension",
@@ -422,15 +426,42 @@ def _parse_rigging_install_step(raw: Any) -> RiggingInstallStep:
             legacy=True,
         )
     step = raw
+    method = str(step["method"])
     return RiggingInstallStep(
-        method=str(step["method"]),
+        method=method,
         target=str(step["target"]),
         agent=str(step["agent"]) if "agent" in step else None,
         runtime=str(step["runtime"]) if "runtime" in step else None,
         package=str(step["package"]) if "package" in step else None,
         source=str(step["source"]) if "source" in step else None,
         command=tuple(str(item) for item in step.get("command", ())),
+        content=_parse_install_content(step, method, config_dir),
     )
+
+
+def _parse_install_content(
+    step: dict[str, Any],
+    method: str,
+    config_dir: Path,
+) -> str | None:
+    content = str(step["content"]) if "content" in step else None
+    if method != "config-file":
+        return content
+    if content is not None and "source" in step:
+        raise ConfigError("config-file install must not define both content and source")
+    if content is not None:
+        return content
+    if "source" not in step:
+        raise ConfigError("config-file install requires content or source")
+    source_path = Path(str(step["source"]))
+    if not source_path.is_absolute():
+        source_path = config_dir / source_path
+    try:
+        return source_path.read_text(encoding="utf-8")
+    except FileNotFoundError as error:
+        raise ConfigError(
+            f"config-file install source not found: {source_path}"
+        ) from error
 
 
 def _parse_preflight_recipe(raw: dict[str, Any]) -> PreflightRecipe:
