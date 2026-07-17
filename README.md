@@ -23,23 +23,26 @@ coding-agent evaluation.
 
 ## Current Status
 
-YACHT now has a real end-to-end benchmark smoke path:
+YACHT runs real end-to-end benchmark comparisons:
 
-- containerized Pi baseline vs containerized Pi+fff
-- explicit secret injection
-- runtime and rigging preflight
-- SWE-bench Lite task context loading
-- per-task repository checkout at the benchmark base commit
-- agent task attempts and transcripts
-- candidate patch extraction
-- native SWE-bench Docker grading
-- benchmark scorecards with outcome, token, cost, duration, and tool-use metrics
+- two real harness adapters: containerized Pi and containerized Claude Code
+- rigging for tools under test: agent extensions, config files, pinned npm
+  packages, and MCP servers rendered into the harness's own configuration
+- explicit secret injection, runtime and rigging preflight before tokens are
+  spent
+- SWE-bench Lite task context loading, per-task repository checkout, agent
+  task attempts and transcripts, candidate patch extraction, and native
+  SWE-bench Docker grading
+- benchmark scorecards with outcome, token, cost, duration, and tool-use
+  metrics, plus run provenance (harness, model, and tool versions resolved
+  from evidence)
+- self-contained HTML reports with verdict banners and variance badges, and
+  a local read-only dashboard (`yacht serve`) that filters and groups runs
+  by provenance
 
-The first verified real benchmark smoke used `django__django-11099`; both
-baseline and fff vessels resolved the task. A two-task smoke using
-`django__django-11099` and `django__django-11179` has also completed end to
-end. That is a foundation, not a final tool. The next phase is making this
-easier for humans to run, inspect, and extend.
+See the [Validating a Tool Claim](docs/tutorials/validating-a-tool-claim.md)
+tutorial for the core workflow: turn a tool's claim into a pinned,
+preflighted comparison and read the verdict.
 
 ## Core Concepts
 

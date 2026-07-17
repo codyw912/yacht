@@ -1,6 +1,6 @@
 [project]
 name = "yacht-eval"
-version = "0.2.0"
+version = "0.3.0"
 description = "Yet Another Coding Harness Testbed"
 readme = "README.md"
 license = "Apache-2.0"
