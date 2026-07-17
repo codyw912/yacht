@@ -118,6 +118,23 @@ artifact paths when task attempt data is available. Use `--vessel` and
 `--task` to narrow the detailed sections while keeping the full summary for
 context. On a repetition parent logbook, the report renders the aggregate.
 
+## serve
+
+```sh
+uv run yacht serve --root /private/tmp
+uv run yacht serve --root logbooks --port 8080
+```
+
+`yacht serve` starts a local, read-only dashboard over a directory of
+logbooks (ADR 0010). It scans the root and one level of subdirectories for
+logbooks, groups them by regatta and course on the index page, and renders
+each run with the same HTML the report command produces. Pages are rendered
+from the artifacts on disk at request time — there is no database and no
+ingestion step, so the dashboard is always current and deleting a logbook
+directory removes it. Logbooks with broken or invalid artifacts appear as
+visibly broken entries instead of being skipped. The server binds localhost
+by default and is a single-user inspection tool, not a deployment target.
+
 ## Internals
 
 `yacht internals <stage>` exposes the pipeline stage commands for debugging

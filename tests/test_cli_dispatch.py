@@ -20,7 +20,15 @@ class DispatchCase:
 
 CONFIG = "regatta.toml"
 
-TOP_LEVEL_COMMANDS = {"doctor", "run", "validate", "status", "report", "internals"}
+TOP_LEVEL_COMMANDS = {
+    "doctor",
+    "run",
+    "validate",
+    "status",
+    "report",
+    "serve",
+    "internals",
+}
 
 INTERNAL_COMMANDS = {
     "plan",
@@ -79,6 +87,10 @@ DISPATCH_CASES = (
         argv=("report", "--logbook", "logbook"),
         patches={"commands.inspect.render_benchmark_report": "report\n"},
         extra_patches={"commands.inspect._run_kind": "benchmark"},
+    ),
+    DispatchCase(
+        argv=("serve", "--root", "logbooks"),
+        patches={"commands.serve.run_server": 0},
     ),
     DispatchCase(
         argv=("internals", "plan", CONFIG),
@@ -195,7 +207,7 @@ class CliDispatchTests(unittest.TestCase):
                         f"{' '.join(case.argv)} did not call {name} exactly once",
                     )
 
-    def test_top_level_parser_exposes_exactly_the_six_commands(self) -> None:
+    def test_top_level_parser_exposes_exactly_the_seven_commands(self) -> None:
         subparsers = self._subparsers_action(build_parser())
 
         self.assertEqual(set(subparsers.choices), TOP_LEVEL_COMMANDS)
