@@ -135,6 +135,16 @@ directory removes it. Logbooks with broken or invalid artifacts appear as
 visibly broken entries instead of being skipped. The server binds localhost
 by default and is a single-user inspection tool, not a deployment target.
 
+The `/vessels` view lists every vessel run across all logbooks and supports
+filtering and grouping by provenance facets through URL query parameters —
+`harness`, `harness.version`, `model`, `model.resolved`, `backend`, `image`,
+`tool`, and `tool.version` — so "all claude-code runs" and "only
+claude-code 2.1.211" are the same page at different depths (for example
+`/vessels?harness=claude-code&group=harness.version`). Records whose
+provenance collapsed to mixed values group under an explicit unknown bucket
+and carry their mixed dimensions in the table, so blended views are always
+labeled. Every filter and group state is a bookmarkable URL.
+
 ## Internals
 
 `yacht internals <stage>` exposes the pipeline stage commands for debugging

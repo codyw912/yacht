@@ -109,6 +109,96 @@ class RespondTests(unittest.TestCase):
             self.assertEqual(status, 200)
 
 
+class VesselsViewTests(unittest.TestCase):
+    def _root_with_two_versions(self, temp_dir: str) -> Path:
+        root = Path(temp_dir)
+        _write_logbook(
+            root / "run-1",
+            baseline_resolved=1,
+            fff_resolved=1,
+            harness_version="0.74.0",
+        )
+        _write_logbook(
+            root / "run-2",
+            baseline_resolved=0,
+            fff_resolved=1,
+            harness_version="0.75.0",
+        )
+        return root
+
+    def test_lists_all_records_with_facet_pickers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root_with_two_versions(temp_dir)
+
+            status, body = respond(root, "/vessels")
+
+            self.assertEqual(status, 200)
+            self.assertIn("4 of 4 vessel runs", body)
+            self.assertIn("pi 0.74.0", body)
+            self.assertIn("pi 0.75.0", body)
+            self.assertIn('href="/logbook/run-1"', body)
+            self.assertIn("harness.version", body)
+
+    def test_filter_narrows_to_matching_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root_with_two_versions(temp_dir)
+
+            status, body = respond(root, "/vessels?harness.version=pi+0.74.0")
+
+            self.assertEqual(status, 200)
+            self.assertIn("2 of 4 vessel runs", body)
+            self.assertIn("remove</a>", body)
+            self.assertNotIn('href="/logbook/run-2"', body)
+
+    def test_name_filter_matches_across_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root_with_two_versions(temp_dir)
+
+            status, body = respond(root, "/vessels?harness=pi")
+
+            self.assertEqual(status, 200)
+            self.assertIn("4 of 4 vessel runs", body)
+
+    def test_grouping_renders_a_section_per_facet_value(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root_with_two_versions(temp_dir)
+
+            status, body = respond(root, "/vessels?group=harness.version")
+
+            self.assertEqual(status, 200)
+            self.assertIn("harness.version = pi 0.74.0", body)
+            self.assertIn("harness.version = pi 0.75.0", body)
+            self.assertIn("ungroup</a>", body)
+
+    def test_records_without_provenance_group_as_unknown(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_logbook(root / "run-1", baseline_resolved=1, fff_resolved=1)
+
+            status, body = respond(root, "/vessels?group=harness.version")
+
+            self.assertEqual(status, 200)
+            self.assertIn("harness.version unknown or mixed", body)
+
+    def test_unknown_facet_key_is_a_bad_request(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root_with_two_versions(temp_dir)
+
+            for query in ("harness.minor=2", "group=harness.minor"):
+                status, body = respond(root, f"/vessels?{query}")
+                self.assertEqual(status, 400, query)
+                self.assertIn("unsupported provenance facet", body)
+
+    def test_group_summary_reports_resolution_and_usage(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root_with_two_versions(temp_dir)
+
+            status, body = respond(root, "/vessels?harness.version=pi+0.74.0")
+
+            self.assertEqual(status, 200)
+            self.assertIn("resolved 2/2 (rate 1.000)", body)
+
+
 class HttpServerTests(unittest.TestCase):
     def test_real_server_serves_index_over_http(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
