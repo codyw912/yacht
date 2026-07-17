@@ -555,6 +555,11 @@ def _max_submitted(comparison: dict[str, Any]) -> int:
     )
 
 
+def render_page(title: str, body: list[str]) -> str:
+    """Public wrapper so other surfaces (yacht serve) share the page chrome."""
+    return _page(title, body)
+
+
 def _page(title: str, body: list[str]) -> str:
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
