@@ -13,14 +13,24 @@ from __future__ import annotations
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 
 from yacht.reports.html_report import render_benchmark_html, render_page
+from yacht.reports.provenance_format import provenance_mixed
 from yacht.serve.collection import (
     LogbookEntry,
+    VesselRecord,
     collect_vessel_records,
     discover_logbooks,
 )
+from yacht.serve.query import (
+    FACET_KEYS,
+    UNKNOWN_GROUP,
+    facet_values,
+    filter_records,
+    group_records,
+)
+from yacht.domain.model import ConfigError
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 9224
@@ -30,10 +40,16 @@ ROOT_ENTRY_ID = "."
 
 def respond(root: Path, request_path: str) -> tuple[int, str]:
     """Resolve one request to (status, html body)."""
-    path = unquote(urlsplit(request_path).path)
+    split = urlsplit(request_path)
+    path = unquote(split.path)
     if path in ("", "/"):
         return 200, _index_page(root)
     parts = [part for part in path.split("/") if part]
+    if parts == ["vessels"]:
+        try:
+            return 200, _vessels_page(root, split.query)
+        except ConfigError as error:
+            return 400, _bad_request_page(str(error))
     if len(parts) == 2 and parts[0] == "logbook":
         entry = _entry_by_id(root, parts[1])
         if entry is not None:
@@ -103,6 +119,10 @@ def _index_page(root: Path) -> str:
     if not entries:
         body.append('<p class="muted">No logbooks found under this root.</p>')
         return render_page("YACHT dashboard", body)
+    body.append(
+        '<p><a href="/vessels">All vessel runs</a> &mdash; filter and group '
+        "by harness, model, and tool provenance.</p>"
+    )
     for (regatta, course), group in _group_entries(entries).items():
         body.append(f"<h2>{_e(regatta)} <code>{_e(course)}</code></h2>")
         body.append(_entries_table(root, group))
@@ -198,6 +218,178 @@ def _attempts_table(entry: LogbookEntry) -> str:
         )
     rows.append("</table>")
     return "".join(rows)
+
+
+def _vessels_page(root: Path, query: str) -> str:
+    filters, group_key = _parse_query(query)
+    records = collect_vessel_records(discover_logbooks(root))
+    filtered = filter_records(records, filters)
+    body = [
+        "<h1>Vessel runs</h1>",
+        f'<p class="sub">{len(filtered)} of {len(records)} vessel run'
+        f"{'s' if len(records) != 1 else ''} across all logbooks "
+        '&middot; <a href="/">&larr; all logbooks</a></p>',
+    ]
+    body.append(_active_filters_section(filters, group_key))
+    body.append(_facet_picker_section(filtered, filters, group_key))
+    if group_key is not None:
+        for value, group in group_records(filtered, group_key).items():
+            heading = (
+                f"{group_key} = {value}"
+                if value != UNKNOWN_GROUP
+                else f"{group_key} unknown or mixed"
+            )
+            body.append(f"<h2>{_e(heading)}</h2>")
+            body.append(_group_summary(group))
+            body.append(_records_table(root, group))
+    else:
+        body.append(_group_summary(filtered))
+        body.append(_records_table(root, filtered))
+    return render_page("YACHT: vessel runs", body)
+
+
+def _parse_query(query: str) -> tuple[dict[str, str], str | None]:
+    params = parse_qs(query, keep_blank_values=False)
+    filters = {}
+    group_key = None
+    for key, values in params.items():
+        if key == "group":
+            group_key = values[-1]
+            continue
+        if key not in FACET_KEYS:
+            raise ConfigError(
+                f"unsupported provenance facet {key}; supported: "
+                + ", ".join(FACET_KEYS)
+            )
+        filters[key] = values[-1]
+    if group_key is not None and group_key not in FACET_KEYS:
+        raise ConfigError(
+            f"unsupported provenance facet {group_key}; supported: "
+            + ", ".join(FACET_KEYS)
+        )
+    return filters, group_key
+
+
+def _vessels_url(filters: dict[str, str], group_key: str | None) -> str:
+    params = dict(sorted(filters.items()))
+    if group_key is not None:
+        params["group"] = group_key
+    if not params:
+        return "/vessels"
+    return "/vessels?" + urlencode(params)
+
+
+def _active_filters_section(
+    filters: dict[str, str],
+    group_key: str | None,
+) -> str:
+    parts = []
+    for key, value in sorted(filters.items()):
+        remaining = {k: v for k, v in filters.items() if k != key}
+        parts.append(
+            f"<code>{_e(key)} = {_e(value)}</code> "
+            f'<a href="{_e(_vessels_url(remaining, group_key))}">remove</a>'
+        )
+    if group_key is not None:
+        parts.append(
+            f"<code>grouped by {_e(group_key)}</code> "
+            f'<a href="{_e(_vessels_url(filters, None))}">ungroup</a>'
+        )
+    if not parts:
+        return ""
+    return '<div class="card">Active: ' + " &middot; ".join(parts) + "</div>"
+
+
+def _facet_picker_section(
+    records: list[VesselRecord],
+    filters: dict[str, str],
+    group_key: str | None,
+) -> str:
+    rows = []
+    for key in FACET_KEYS:
+        links = [
+            f'<a href="{_e(_vessels_url({**filters, key: value}, group_key))}">'
+            f'{_e(value)}</a> <span class="muted">({count})</span>'
+            for value, count in facet_values(records, key)
+            if filters.get(key) != value
+        ]
+        group_link = (
+            f'<a href="{_e(_vessels_url(filters, key))}">group</a>'
+            if group_key != key
+            else '<span class="muted">grouped</span>'
+        )
+        cells = " &middot; ".join(links) if links else '<span class="muted">-</span>'
+        rows.append(
+            f"<tr><td><code>{_e(key)}</code></td><td>{cells}</td>"
+            f"<td>{group_link}</td></tr>"
+        )
+    return (
+        "<h2>Facets</h2><table><tr><th>Facet</th><th>Values</th><th></th></tr>"
+        + "".join(rows)
+        + "</table>"
+    )
+
+
+def _group_summary(records: list[VesselRecord]) -> str:
+    submitted = sum(
+        int(record.outcome.get("submitted_instances", 0)) for record in records
+    )
+    resolved = sum(
+        int(record.outcome.get("resolved_instances", 0)) for record in records
+    )
+    tokens = sum(int(record.usage.get("total_tokens", 0)) for record in records)
+    cost = sum(float(record.usage.get("total_cost", 0.0)) for record in records)
+    rate = f"{resolved / submitted:.3f}" if submitted else "-"
+    return (
+        f'<p class="sub">{len(records)} vessel run'
+        f"{'s' if len(records) != 1 else ''} &middot; "
+        f"resolved {resolved}/{submitted} (rate {rate}) &middot; "
+        f"{tokens} tokens &middot; cost {cost:.6f}</p>"
+    )
+
+
+def _records_table(root: Path, records: list[VesselRecord]) -> str:
+    rows = [
+        "<table><tr><th>Logbook</th><th>Comparison</th><th>Vessel</th>"
+        '<th class="num">Resolved</th><th class="num">Tokens</th>'
+        '<th class="num">Cost</th><th>Mixed provenance</th></tr>'
+    ]
+    for record in records:
+        logbook_path = Path(record.logbook)
+        entry_id = ROOT_ENTRY_ID if logbook_path == root else logbook_path.name
+        mixed = provenance_mixed(record.provenance or {})
+        mixed_cell = (
+            f'<td class="fail">{_e(", ".join(mixed))}</td>'
+            if mixed
+            else '<td class="muted">none</td>'
+        )
+        resolved = (
+            f"{record.outcome['resolved_instances']}/"
+            f"{record.outcome['submitted_instances']}"
+            if record.outcome
+            else "-"
+        )
+        rows.append(
+            f'<tr><td><a href="/logbook/{_e(entry_id)}">'
+            f"<code>{_e(entry_id)}</code></a></td>"
+            f"<td>{_e(record.comparison)}</td>"
+            f"<td><code>{_e(record.vessel)}</code></td>"
+            f'<td class="num">{_e(resolved)}</td>'
+            f'<td class="num">{record.usage.get("total_tokens", 0)}</td>'
+            f'<td class="num">{record.usage.get("total_cost", 0.0):.6f}</td>'
+            f"{mixed_cell}</tr>"
+        )
+    rows.append("</table>")
+    return "".join(rows)
+
+
+def _bad_request_page(message: str) -> str:
+    body = [
+        "<h1>Bad request</h1>",
+        f'<p class="sub">{_e(message)}</p>',
+        '<p><a href="/vessels">&larr; back to vessel runs</a></p>',
+    ]
+    return render_page("YACHT: bad request", body)
 
 
 def _not_found_page(path: str) -> str:
