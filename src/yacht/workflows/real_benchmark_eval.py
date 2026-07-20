@@ -122,17 +122,29 @@ def run_real_benchmark_eval(
             comparisons=regatta.comparisons,
         )
 
-    _progress(progress, "task attempts: running")
-    attempts = run_task_attempts(
-        config_path=config_path,
-        logbook_dir=logbook_dir,
-        workspace_path=workspace_path,
-        secret_values=secret_values,
-        agent_name=agent_name,
-        task_agent=task_agent,
-    )
-    _progress(progress, f"task attempts: {attempts['status']}")
-    task_scorecard = write_task_attempt_scorecard(logbook_dir)
+    if regatta.course.adapter is None:
+        raise ConfigError("real benchmark eval requires a course adapter")
+    adapter = course_adapter(regatta.course.adapter.kind)
+
+    if adapter.native_rollout:
+        _progress(
+            progress,
+            f"task attempts: delegated to the native {adapter.display_name} rollout",
+        )
+        attempts = {"status": "completed", "mode": "native-rollout"}
+        task_scorecard = None
+    else:
+        _progress(progress, "task attempts: running")
+        attempts = run_task_attempts(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            workspace_path=workspace_path,
+            secret_values=secret_values,
+            agent_name=agent_name,
+            task_agent=task_agent,
+        )
+        _progress(progress, f"task attempts: {attempts['status']}")
+        task_scorecard = write_task_attempt_scorecard(logbook_dir)
     if attempts["status"] != "completed":
         _progress(progress, "real benchmark eval blocked: task attempts incomplete")
         return _write_summary(
@@ -164,10 +176,10 @@ def run_real_benchmark_eval(
 
     predictions = []
     try:
-        _progress(progress, "candidate outputs: extracting from task attempts")
-        if regatta.course.adapter is None:
-            raise ConfigError("real benchmark eval requires a course adapter")
-        adapter = course_adapter(regatta.course.adapter.kind)
+        if adapter.native_rollout:
+            _progress(progress, "candidate outputs: writing native rollout plan")
+        else:
+            _progress(progress, "candidate outputs: extracting from task attempts")
         for comparison in regatta.comparisons:
             for vessel_name in comparison.vessels:
                 predictions.append(
@@ -303,30 +315,32 @@ def run_real_benchmark_eval(
     _progress(progress, "benchmark scorecard: writing")
     scorecard = write_benchmark_scorecard(logbook_dir)
     _progress(progress, f"real benchmark eval complete: {scorecard['status']}")
+    complete_summary = {
+        "status": scorecard["status"],
+        "regatta": scorecard["regatta"],
+        "course": scorecard["course"],
+        "agent": agent_name,
+        "surfaces": surfaces,
+        "course_handoff": course_handoff,
+        "preflight": preflight,
+        "preflight_evidence_report": preflight_evidence_report,
+        "attempts": attempts,
+        "predictions": predictions,
+        "runtime_instances": runtime_instances,
+        "benchmark_plan": benchmark_plan,
+        "readiness_gate": readiness_gate.summary,
+        "launcher_handoff": launcher_handoff,
+        "benchmark_launch": benchmark_launch,
+        "grading_collection": grading_collection,
+        "scorecard": scorecard,
+        "next_steps": scorecard["next_steps"],
+        "artifacts": _artifacts(logbook_dir),
+    }
+    if task_scorecard is not None:
+        complete_summary["task_attempt_scorecard"] = task_scorecard
     return _write_summary(
         logbook_dir,
-        {
-            "status": scorecard["status"],
-            "regatta": scorecard["regatta"],
-            "course": scorecard["course"],
-            "agent": agent_name,
-            "surfaces": surfaces,
-            "course_handoff": course_handoff,
-            "preflight": preflight,
-            "preflight_evidence_report": preflight_evidence_report,
-            "attempts": attempts,
-            "task_attempt_scorecard": task_scorecard,
-            "predictions": predictions,
-            "runtime_instances": runtime_instances,
-            "benchmark_plan": benchmark_plan,
-            "readiness_gate": readiness_gate.summary,
-            "launcher_handoff": launcher_handoff,
-            "benchmark_launch": benchmark_launch,
-            "grading_collection": grading_collection,
-            "scorecard": scorecard,
-            "next_steps": scorecard["next_steps"],
-            "artifacts": _artifacts(logbook_dir),
-        },
+        complete_summary,
         config_path=config_path,
         comparisons=regatta.comparisons,
     )

@@ -31,9 +31,12 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
     def test_exposes_supported_benchmark_adapter_metadata(self) -> None:
         self.assertEqual(
             supported_benchmark_adapter_kinds(),
-            ("custom-eval", "swe-bench"),
+            ("custom-eval", "swe-bench", "terminal-bench"),
         )
-        self.assertEqual(supported_course_adapter_harnesses(), ("docker", "local"))
+        self.assertEqual(
+            supported_course_adapter_harnesses(),
+            ("docker", "harbor", "local"),
+        )
         self.assertEqual(supported_course_adapter_harnesses("swe-bench"), ("docker",))
 
         adapter = benchmark_adapter("swe-bench")
@@ -80,6 +83,71 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
             },
         )
 
+    def test_exposes_terminal_bench_adapter_metadata(self) -> None:
+        adapter = benchmark_adapter("terminal-bench")
+
+        self.assertEqual(adapter.kind, "terminal-bench")
+        self.assertEqual(adapter.display_name, "Terminal-Bench")
+        self.assertEqual(adapter.supported_harnesses, ("harbor",))
+        self.assertTrue(adapter.native_rollout)
+        self.assertFalse(benchmark_adapter("swe-bench").native_rollout)
+        self.assertFalse(benchmark_adapter("custom-eval").native_rollout)
+        self.assertEqual(
+            adapter.grading_schema,
+            "yacht.terminal-bench-grading.v1",
+        )
+        self.assertEqual(
+            adapter.expected_outputs(),
+            {
+                "candidate_patches": (
+                    "course-handoff/terminal-bench/candidate-patches.jsonl"
+                ),
+                "grading_report": ("course-handoff/terminal-bench/grading-report.json"),
+            },
+        )
+
+    def test_builds_terminal_bench_launcher_command(self) -> None:
+        adapter = benchmark_adapter("terminal-bench")
+
+        command = adapter.launcher_command(
+            course_adapter={
+                "kind": "terminal-bench",
+                "dataset": "terminal-bench/terminal-bench-2",
+                "split": "2.0",
+                "harness": "harbor",
+            },
+            tasks=[{"id": "hello-world"}],
+            candidate_path=Path("/tmp/vessels/tb-vessel/candidate-patches.jsonl"),
+            native_report_dir=Path("/tmp/native-report"),
+            run_id="run-1",
+            vessel_name="tb-vessel",
+            max_workers=1,
+            python_command=["ignored"],
+        )
+
+        self.assertEqual(
+            command,
+            [
+                "uv",
+                "run",
+                "python",
+                "-m",
+                "yacht.courses.terminal_bench.harness",
+                "--job",
+                "/tmp/vessels/tb-vessel/terminal-bench-job.json",
+                "--roster",
+                "/tmp/vessels/tb-vessel/candidate-patches.jsonl",
+                "--trials-dir",
+                "/tmp/vessels/tb-vessel/harbor-trials",
+                "--report-dir",
+                "/tmp/native-report",
+                "--run-id",
+                "run-1",
+                "--vessel",
+                "tb-vessel",
+            ],
+        )
+
     def test_builds_custom_eval_launcher_command(self) -> None:
         adapter = benchmark_adapter("custom-eval")
 
@@ -94,6 +162,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
             candidate_path=Path("/tmp/candidate-patches.jsonl"),
             native_report_dir=Path("/tmp/native-report"),
             run_id="run-1",
+            vessel_name="local-agent-with-tool",
             max_workers=1,
             python_command=["ignored"],
         )
@@ -132,6 +201,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
             candidate_path=Path("/tmp/candidate-patches.jsonl"),
             native_report_dir=Path("/tmp/native-report"),
             run_id="run-1",
+            vessel_name="pi-baseline",
             max_workers=2,
             python_command=["uv", "run", "python"],
         )

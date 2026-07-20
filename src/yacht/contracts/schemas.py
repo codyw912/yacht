@@ -1483,7 +1483,7 @@ def _validate_course_handoff_grading(value: Any) -> None:
     )
     _require_allowed_value(
         grading.get("execution"),
-        {"docker-harness", "local-harness"},
+        {f"{harness}-harness" for harness in COURSE_ADAPTER_HARNESSES},
         "grading.execution",
     )
     _require_allowed_value(grading.get("status"), {"planned"}, "grading.status")
@@ -2484,6 +2484,11 @@ def _validate_runtime_recipes(
             _require_non_empty_string(
                 runtime.get("harness"),
                 f"runtimes.{runtime_name}.harness",
+            )
+        if "harness_version" in runtime:
+            _require_non_empty_string(
+                runtime.get("harness_version"),
+                f"runtimes.{runtime_name}.harness_version",
             )
         if "agent" in runtime:
             _require_non_empty_string(
