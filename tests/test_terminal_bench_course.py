@@ -499,6 +499,94 @@ class TerminalBenchHarnessTests(unittest.TestCase):
         )
 
 
+class TerminalBenchAttemptsFromTrialsTests(unittest.TestCase):
+    def test_synthesizes_attempts_for_missing_and_errored_trials(self) -> None:
+        from yacht.courses.terminal_bench.attempts_from_trials import (
+            write_terminal_bench_attempts_from_trials,
+        )
+        from yacht.courses.terminal_bench.harness import native_report_from_trials
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = _write_config(root)
+            logbook_dir = root / "logbook"
+            summary = write_terminal_bench_rollout_plan(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                vessel_name="claude-baseline",
+                comparison_name="claude-vs-claude-fff",
+            )
+            trials_dir = root / "trials"
+            _write_trial(trials_dir, _trial_result("hello-world", exception=True))
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["hello-world", "fix-permissions"],
+            )
+            handoff = json.loads(
+                (logbook_dir / "course-handoff.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(handoff["adapter"]["kind"], "terminal-bench")
+            with patch(
+                "yacht.courses.terminal_bench.attempts_from_trials."
+                "native_report_path_from_launcher_handoff",
+                return_value=_written_report(root, report),
+            ):
+                attempt_summary = write_terminal_bench_attempts_from_trials(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    vessel_name="claude-baseline",
+                    comparison_name="claude-vs-claude-fff",
+                )
+
+            self.assertEqual(attempt_summary["attempt_count"], 2)
+            self.assertEqual(attempt_summary["completed_attempts"], 0)
+            self.assertEqual(attempt_summary["failed_attempts"], 2)
+            errored = json.loads(
+                (
+                    logbook_dir
+                    / "task-attempts/claude-vs-claude-fff/claude-baseline"
+                    / "hello-world.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(errored["status"], "failed")
+            self.assertEqual(
+                errored["agent"]["machine_evidence"]["exception"]["type"],
+                "AgentTimeoutError",
+            )
+            self.assertEqual(errored["provenance"]["harness"]["version"], "2.1.211")
+            missing = json.loads(
+                (
+                    logbook_dir
+                    / "task-attempts/claude-vs-claude-fff/claude-baseline"
+                    / "fix-permissions.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(missing["status"], "failed")
+            self.assertEqual(
+                missing["agent"]["machine_evidence"],
+                {
+                    "format": "terminal-bench-harbor-trial",
+                    "status": "trial-missing",
+                },
+            )
+            self.assertIsNone(missing["provenance"]["harness"]["version"])
+            self.assertEqual(
+                missing["metrics"],
+                {
+                    "tokens": 0,
+                    "duration_seconds": 0.0,
+                },
+            )
+            self.assertEqual(summary["status"], "validated")
+
+
+def _written_report(root: Path, report: dict[str, Any]) -> Path:
+    report_path = root / "native-report" / "claude-baseline.run-1.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    return report_path
+
+
 class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
     def test_runs_native_rollout_end_to_end(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -566,8 +654,40 @@ class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
                     "mode": "native-rollout",
                 },
             )
-            self.assertNotIn("task_attempt_scorecard", summary)
-            self.assertFalse((logbook_dir / "task-attempts").exists())
+            self.assertEqual(summary["task_attempt_scorecard"]["status"], "complete")
+            self.assertEqual(len(summary["native_attempts"]), 2)
+            for entry in summary["native_attempts"]:
+                self.assertEqual(entry["mode"], "native-rollout")
+                self.assertEqual(entry["attempt_count"], 2)
+                self.assertEqual(entry["completed_attempts"], 2)
+            attempt_path = (
+                logbook_dir
+                / "task-attempts/claude-vs-claude-fff/claude-with-fff/hello-world.json"
+            )
+            self.assertTrue(attempt_path.is_file())
+            attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+            self.assertEqual(attempt["status"], "completed")
+            self.assertEqual(
+                attempt["provenance"]["harness"],
+                {"name": "claude-code", "version": "2.1.211"},
+            )
+            self.assertEqual(
+                attempt["provenance"]["model"],
+                {
+                    "configured": "claude-haiku-4-5",
+                    "resolved": "claude-haiku-4-5",
+                },
+            )
+            self.assertEqual(
+                attempt["provenance"]["runtime"],
+                {"backend": "harbor", "image": None},
+            )
+            self.assertEqual(attempt["metrics"]["tokens"], 1650)
+            self.assertEqual(attempt["metrics"]["duration_seconds"], 300.0)
+            evidence = attempt["agent"]["machine_evidence"]
+            self.assertEqual(evidence["format"], "terminal-bench-harbor-trial")
+            self.assertEqual(evidence["reward"], 1.0)
+            self.assertEqual(evidence["cost"], {"total": 0.0123})
             self.assertEqual(len(native_launches), 2)
             self.assertEqual(
                 native_launches[0][:5],
