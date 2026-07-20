@@ -91,6 +91,7 @@ class RuntimeRecipe:
     backend: str
     command: tuple[str, ...]
     harness: str | None = None
+    harness_version: str | None = None
     flake: str | None = None
     image: str | None = None
     container_home: str = "/home/yacht"

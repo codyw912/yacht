@@ -349,6 +349,11 @@ def _parse_runtime_recipes(raw: dict[str, Any]) -> dict[str, RuntimeRecipe]:
             backend=str(runtime["backend"]),
             command=tuple(str(item) for item in runtime["command"]),
             harness=_parse_runtime_harness(runtime),
+            harness_version=(
+                str(runtime["harness_version"])
+                if "harness_version" in runtime
+                else None
+            ),
             agent=str(runtime["agent"]) if "agent" in runtime else None,
             flake=str(runtime["flake"]) if "flake" in runtime else None,
             image=str(runtime["image"]) if "image" in runtime else None,

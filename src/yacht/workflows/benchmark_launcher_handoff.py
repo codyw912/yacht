@@ -275,6 +275,7 @@ def _vessel_to_json(
             candidate_path=candidate_path,
             native_report_dir=Path(str(vessel["native_report_dir"])),
             run_id=run_id,
+            vessel_name=vessel_name,
             max_workers=max_workers,
             python_command=python_command,
         )
