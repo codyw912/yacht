@@ -13,7 +13,7 @@ from yacht.contracts.schemas import (
     BENCHMARK_SCORECARD_SCHEMA,
     validate_benchmark_scorecard_document,
 )
-from yacht.courses.swe_bench.artifacts import grading_report_path, vessels_artifact_dir
+from yacht.courses.artifacts import grading_report_path, vessels_artifact_dir
 
 
 BENCHMARK_SCORECARD_PATH = Path("benchmark-scorecard.json")

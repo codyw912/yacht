@@ -12,7 +12,7 @@ from yacht.contracts.schemas import (
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
     validate_benchmark_execution_plan_document,
 )
-from yacht.courses.swe_bench.artifacts import (
+from yacht.courses.artifacts import (
     candidate_patches_path,
     grading_report_path,
 )

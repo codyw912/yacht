@@ -23,7 +23,7 @@ from yacht.contracts.schemas import (
 )
 from yacht.reports.surface_summary import format_surface_summary
 from yacht.reports.surface_summary import load_logbook_surfaces
-from yacht.courses.swe_bench.artifacts import (
+from yacht.courses.artifacts import (
     candidate_patches_path,
     grading_report_path,
 )
