@@ -33,6 +33,8 @@ YACHT runs real end-to-end benchmark comparisons:
 - SWE-bench Lite task context loading, per-task repository checkout, agent
   task attempts and transcripts, candidate patch extraction, and native
   SWE-bench Docker grading
+- a Terminal-Bench 2.0 course that delegates rollout and verification to
+  the official Harbor harness with pinned agent versions
 - benchmark scorecards with outcome, token, cost, duration, and tool-use
   metrics, plus run provenance (harness, model, and tool versions resolved
   from evidence)
@@ -168,6 +170,7 @@ provider credentials.
 - [Codebase structure](docs/project/codebase-structure.md)
 - [Validating a tool claim](docs/tutorials/validating-a-tool-claim.md)
 - [Command reference](docs/reference/commands.md)
+- [Terminal-Bench course](docs/reference/terminal-bench.md)
 - [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)
 - [Architecture decisions](docs/adr/)
