@@ -65,8 +65,12 @@ Near-term slices:
 
 - Harden SWE-bench Lite into a documented supported adapter.
 - Add multi-task SWE-bench smoke support with clearer sampling controls.
-- Add Terminal-Bench as the first post-SWE-bench adapter target.
-- Add LiveCodeBench Lite as a recognizable model/code benchmark target.
+- Build out the Harbor-format course foundation (ADR 0012): Terminal-Bench
+  first, then further registry datasets such as Aider Polyglot as
+  configuration plus documentation.
+- Add LiveCodeBench through its official evaluation harness as the
+  maintained non-Harbor course beyond SWE-bench, so the course/evaluator
+  seam stays proven against contracts we do not choose.
 - Add a tiny repo-local benchmark adapter for fast CI and docs examples.
 - Define an evaluator adapter interface separate from native benchmark
   launchers.
