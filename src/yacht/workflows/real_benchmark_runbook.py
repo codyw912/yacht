@@ -33,7 +33,7 @@ from yacht.contracts.schemas import (
     validate_real_benchmark_runbook_document,
 )
 from yacht.reports.surface_metadata import regatta_surfaces_to_json
-from yacht.courses.swe_bench.artifacts import candidate_patches_path
+from yacht.courses.artifacts import candidate_patches_path
 from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 

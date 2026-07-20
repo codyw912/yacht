@@ -19,7 +19,7 @@ from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_
 from yacht.cli import main
 from yacht.courses.handoff import write_course_handoff
 from yacht.domain.model import ConfigError
-from yacht.courses.swe_bench.artifacts import candidate_patches_path
+from yacht.courses.artifacts import candidate_patches_path
 from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.courses.swe_bench.grading import write_swe_bench_grading_report
 from yacht.courses.swe_bench.predictions import write_swe_bench_predictions

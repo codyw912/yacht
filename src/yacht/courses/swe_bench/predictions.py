@@ -4,12 +4,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.courses.artifacts import (
+    candidate_patches_path,
+    handoff_task_ids,
+    validate_handoff_vessel,
+    write_json_artifact,
+    write_jsonl_records,
+)
 from yacht.courses.handoff import COURSE_HANDOFF_PATH, build_course_handoff
 from yacht.domain.model import ConfigError
-from yacht.courses.swe_bench.artifacts import (
-    candidate_patches_path,
-    validate_handoff_vessel,
-)
 
 
 SWE_BENCH_PREDICTION_FIELDS = (
@@ -47,17 +50,17 @@ def write_swe_bench_prediction_records(
         validate_handoff_vessel(handoff, vessel_name)
     _validate_prediction_records(
         records,
-        allowed_instance_ids=_task_ids(handoff),
+        allowed_instance_ids=handoff_task_ids(handoff),
         vessel_name=vessel_name,
     )
 
-    _write_json(logbook_dir / COURSE_HANDOFF_PATH, handoff)
+    write_json_artifact(logbook_dir / COURSE_HANDOFF_PATH, handoff)
     candidate_path = candidate_patches_path(
         logbook_dir=logbook_dir,
         handoff=handoff,
         vessel_name=vessel_name,
     )
-    _write_jsonl(candidate_path, records)
+    write_jsonl_records(candidate_path, records)
 
     summary: dict[str, Any] = {
         "status": "validated",
@@ -84,22 +87,6 @@ def _load_prediction_records(path: Path) -> list[dict[str, str]]:
     if not isinstance(payload, list):
         raise ConfigError("predictions must be a JSON array")
     return [_prediction_record(item, index) for index, item in enumerate(payload)]
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-
-
-def _write_jsonl(path: Path, records: list[dict[str, str]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
-        encoding="utf-8",
-    )
 
 
 def _prediction_record(value: Any, index: int) -> dict[str, str]:
@@ -139,10 +126,3 @@ def _validate_prediction_records(
             raise ConfigError(
                 f"prediction model_name_or_path must match vessel {vessel_name}"
             )
-
-
-def _task_ids(handoff: dict[str, Any]) -> set[str]:
-    tasks = handoff["tasks"]
-    if not isinstance(tasks, list):
-        raise ConfigError("course handoff tasks must be a list")
-    return {str(task["id"]) for task in tasks}

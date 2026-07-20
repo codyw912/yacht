@@ -16,11 +16,11 @@ from yacht.contracts.schemas import (
     SchemaValidationError,
     validate_benchmark_launcher_handoff_document,
 )
-from yacht.courses.swe_bench.artifacts import (
+from yacht.courses.artifacts import (
     candidate_patches_path,
     grading_report_path,
 )
-from yacht.courses.swe_bench.artifacts import vessel_artifact_dir
+from yacht.courses.artifacts import vessel_artifact_dir
 
 
 BENCHMARK_LAUNCHER_HANDOFF_PATH = Path("benchmark-launcher-handoff.json")
