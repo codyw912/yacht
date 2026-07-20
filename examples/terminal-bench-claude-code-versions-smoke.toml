@@ -1,0 +1,81 @@
+# Compare two pinned Claude Code versions on one Terminal-Bench 2.0 task.
+#
+# Rollout and verification are delegated to Terminal-Bench's official Harbor
+# harness (ADR 0011): Harbor builds the task container, installs the pinned
+# Claude Code version inside it, runs the agent, and runs the task's tests.
+#
+# Requirements: Docker running, nix (for the host-nix preflight shell), uv,
+# and ANTHROPIC_API_KEY exported. Run with:
+#
+#   uv run yacht run examples/terminal-bench-claude-code-versions-smoke.toml \
+#     --logbook /private/tmp/yacht-terminal-bench-smoke \
+#     --workspace . \
+#     --secret anthropic=@env:ANTHROPIC_API_KEY
+
+[regatta]
+name = "terminal-bench-claude-code-versions-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "terminal-bench-2"
+
+[[course.tasks]]
+id = "fix-git"
+title = "Recover lost changes and merge them into the master branch"
+
+[course.adapter]
+kind = "terminal-bench"
+dataset = "terminal-bench"
+split = "2.0"
+harness = "harbor"
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.harbor-claude-211]
+backend = "host-nix"
+harness = "claude-code"
+harness_version = "2.1.211"
+flake = "path:."
+command = ["claude"]
+required_secrets = ["anthropic"]
+
+[runtimes.harbor-claude-211.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-available", kind = "command", command = ["uv", "run", "--with", "harbor==0.20.0", "--with", "litellm==1.91.3", "harbor", "--version"] },
+]
+
+[runtimes.harbor-claude-215]
+backend = "host-nix"
+harness = "claude-code"
+harness_version = "2.1.215"
+flake = "path:."
+command = ["claude"]
+required_secrets = ["anthropic"]
+
+[runtimes.harbor-claude-215.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-available", kind = "command", command = ["uv", "run", "--with", "harbor==0.20.0", "--with", "litellm==1.91.3", "harbor", "--version"] },
+]
+
+[[vessels]]
+name = "claude-code-2-1-211"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-claude-211"
+
+[[vessels]]
+name = "claude-code-2-1-215"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-claude-215"
+
+[[comparisons]]
+name = "claude-code-211-vs-215"
+course = "terminal-bench-2"
+vessels = ["claude-code-2-1-211", "claude-code-2-1-215"]

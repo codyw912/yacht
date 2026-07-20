@@ -135,7 +135,7 @@ def _trial_result(
 
 
 def _write_trial(trials_dir: Path, result: dict[str, Any]) -> None:
-    trial_dir = trials_dir / str(result["trial_name"])
+    trial_dir = trials_dir / "harbor" / str(result["trial_name"])
     trial_dir.mkdir(parents=True, exist_ok=True)
     (trial_dir / "result.json").write_text(json.dumps(result), encoding="utf-8")
 
@@ -488,7 +488,14 @@ class TerminalBenchHarnessTests(unittest.TestCase):
         )
         self.assertEqual(
             run_config["agents"][0]["mcp_servers"],
-            [{"name": "fff", "command": "mcp-fff", "args": ["--stdio"]}],
+            [
+                {
+                    "transport": "stdio",
+                    "name": "fff",
+                    "command": "mcp-fff",
+                    "args": ["--stdio"],
+                }
+            ],
         )
 
 

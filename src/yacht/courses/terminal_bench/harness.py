@@ -12,6 +12,8 @@ from yacht.domain.model import ConfigError
 
 
 HARBOR_REQUIREMENT = "harbor==0.20.0"
+LITELLM_REQUIREMENT = "litellm==1.91.3"
+HARBOR_JOB_NAME = "harbor"
 NATIVE_REPORT_SCHEMA_VERSION = 1
 
 CommandRunner = Callable[[list[str], Path], int]
@@ -96,10 +98,14 @@ def harbor_command(harbor_config_path: Path) -> list[str]:
         "run",
         "--with",
         HARBOR_REQUIREMENT,
+        "--with",
+        LITELLM_REQUIREMENT,
         "harbor",
         "run",
         "-c",
         str(harbor_config_path),
+        "--yes",
+        "--quiet",
     ]
 
 
@@ -113,10 +119,13 @@ def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any
     if agent.get("env"):
         agent_config["env"] = dict(agent["env"])
     if agent.get("mcp_servers"):
-        agent_config["mcp_servers"] = list(agent["mcp_servers"])
+        agent_config["mcp_servers"] = [
+            {"transport": "stdio", **dict(server)} for server in agent["mcp_servers"]
+        ]
     dataset = job["dataset"]
     return {
         "jobs_dir": str(trials_dir),
+        "job_name": HARBOR_JOB_NAME,
         "agents": [agent_config],
         "datasets": [
             {
@@ -195,7 +204,7 @@ def native_report_from_trials(
 
 
 def collect_trial_results(trials_dir: Path) -> list[dict[str, Any]]:
-    result_paths = sorted(trials_dir.glob("*/result.json"))
+    result_paths = sorted((trials_dir / HARBOR_JOB_NAME).glob("*/result.json"))
     return [_trial_summary(path) for path in result_paths]
 
 
