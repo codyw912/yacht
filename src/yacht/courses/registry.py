@@ -37,6 +37,15 @@ class CourseAdapterInterface(Protocol):
         comparison_name: str | None = None,
     ) -> dict[str, Any]: ...
 
+    def write_attempts_from_native_rollout(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]: ...
+
 
 class EvaluatorAdapterInterface(Protocol):
     kind: str
@@ -192,6 +201,21 @@ class BenchmarkAdapterFacade:
             comparison_name=comparison_name,
         )
 
+    def write_attempts_from_native_rollout(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        return self.course.write_attempts_from_native_rollout(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+            comparison_name=comparison_name,
+        )
+
 
 @dataclass(frozen=True)
 class SweBenchCourseAdapter:
@@ -264,6 +288,16 @@ class SweBenchCourseAdapter:
             vessel_name=vessel_name,
             comparison_name=comparison_name,
         )
+
+    def write_attempts_from_native_rollout(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        raise _no_native_rollout(self.kind)
 
 
 @dataclass(frozen=True)
@@ -395,6 +429,16 @@ class CustomEvalCourseAdapter:
             comparison_name=comparison_name,
         )
 
+    def write_attempts_from_native_rollout(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        raise _no_native_rollout(self.kind)
+
 
 @dataclass(frozen=True)
 class CustomEvalEvaluatorAdapter:
@@ -510,6 +554,25 @@ class TerminalBenchCourseAdapter:
             comparison_name=comparison_name,
         )
 
+    def write_attempts_from_native_rollout(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        from yacht.courses.terminal_bench.attempts_from_trials import (
+            write_terminal_bench_attempts_from_trials,
+        )
+
+        return write_terminal_bench_attempts_from_trials(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+            comparison_name=comparison_name,
+        )
+
 
 @dataclass(frozen=True)
 class TerminalBenchEvaluatorAdapter:
@@ -580,6 +643,14 @@ class TerminalBenchEvaluatorAdapter:
             logbook_dir=logbook_dir,
             vessel_name=vessel_name,
         )
+
+
+def _no_native_rollout(kind: str) -> Exception:
+    from yacht.domain.model import ConfigError
+
+    return ConfigError(
+        f"course adapter {kind} does not synthesize attempts from a native rollout"
+    )
 
 
 SweBenchAdapter = SweBenchCourseAdapter

@@ -60,6 +60,15 @@ missing trials as incomplete. Harbor's trial directories — transcripts,
 verifier output, rewards — are kept under the vessel's
 `harbor-trials/` directory in the logbook for inspection.
 
+After grading, YACHT synthesizes task-attempt artifacts from the trial
+results so Terminal-Bench runs carry the same usage and provenance
+surface as harness-run attempts: tokens, cost, and duration from
+Harbor's recorded totals, the harness version and model resolved from
+what Harbor actually installed and ran (ADR 0009 — null when absent,
+never guessed), and the trial directory as the transcript path. The
+task-attempt scorecard, aggregate reports, and the `yacht serve`
+dashboard consume these like any other attempts.
+
 ## Example
 
 `examples/terminal-bench-claude-code-versions-smoke.toml` compares two

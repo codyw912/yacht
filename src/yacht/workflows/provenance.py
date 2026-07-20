@@ -106,7 +106,7 @@ def build_provenance(
             "backend": runtime.backend,
             "image": runtime.image,
         },
-        "tools": _tool_provenance(regatta, vessel),
+        "tools": tool_provenance(regatta, vessel),
     }
 
 
@@ -127,7 +127,7 @@ def _resolved_model(machine_evidence: dict[str, Any]) -> str | None:
     return None
 
 
-def _tool_provenance(regatta: Regatta, vessel: Vessel) -> list[dict[str, Any]]:
+def tool_provenance(regatta: Regatta, vessel: Vessel) -> list[dict[str, Any]]:
     entries = []
     for rigging_name in vessel.rigging:
         rigging = regatta.rigging_recipes.get(rigging_name)

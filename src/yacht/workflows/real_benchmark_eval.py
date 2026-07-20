@@ -312,6 +312,56 @@ def run_real_benchmark_eval(
             config_path=config_path,
             comparisons=regatta.comparisons,
         )
+    native_attempts: list[dict[str, Any]] = []
+    if adapter.native_rollout:
+        try:
+            _progress(
+                progress,
+                "task attempts: synthesizing from native rollout results",
+            )
+            for comparison in regatta.comparisons:
+                for vessel_name in comparison.vessels:
+                    native_attempts.append(
+                        adapter.write_attempts_from_native_rollout(
+                            config_path=config_path,
+                            logbook_dir=logbook_dir,
+                            vessel_name=vessel_name,
+                            comparison_name=comparison.name,
+                        )
+                    )
+            task_scorecard = write_task_attempt_scorecard(logbook_dir)
+        except ConfigError as error:
+            _progress(
+                progress,
+                "real benchmark eval blocked: native attempt synthesis failed",
+            )
+            return _write_summary(
+                logbook_dir,
+                _blocked_summary(
+                    regatta=regatta.name,
+                    course=regatta.course.name,
+                    course_handoff=course_handoff,
+                    preflight=preflight,
+                    preflight_evidence_report=preflight_evidence_report,
+                    agent_name=agent_name,
+                    surfaces=surfaces,
+                    attempts=attempts,
+                    predictions=predictions,
+                    runtime_instances=runtime_instances,
+                    benchmark_plan=benchmark_plan,
+                    readiness_gate=readiness_gate.summary,
+                    launcher_handoff=launcher_handoff,
+                    benchmark_launch=benchmark_launch,
+                    grading_collection=grading_collection,
+                    failed_stage="attempts-from-native-rollout",
+                    error=str(error),
+                    skipped=["benchmark-scorecard"],
+                    logbook_dir=logbook_dir,
+                ),
+                config_path=config_path,
+                comparisons=regatta.comparisons,
+            )
+
     _progress(progress, "benchmark scorecard: writing")
     scorecard = write_benchmark_scorecard(logbook_dir)
     _progress(progress, f"real benchmark eval complete: {scorecard['status']}")
@@ -338,6 +388,8 @@ def run_real_benchmark_eval(
     }
     if task_scorecard is not None:
         complete_summary["task_attempt_scorecard"] = task_scorecard
+    if native_attempts:
+        complete_summary["native_attempts"] = native_attempts
     return _write_summary(
         logbook_dir,
         complete_summary,
