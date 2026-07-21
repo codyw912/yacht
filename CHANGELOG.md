@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.4.0 - Terminal-Bench and the Harbor Course Foundation
+
+YACHT 0.4.0 adds the second real benchmark course — Terminal-Bench 2.0 —
+and, underneath it, a general foundation for running Harbor-format courses
+with YACHT-owned agents in a hermetic launcher (ADR 0011, ADR 0012).
+
+### Terminal-Bench course
+
+- Added the `terminal-bench` course: rollout and verification are
+  delegated to Terminal-Bench's official Harbor harness, which builds each
+  task's own container, installs the pinned agent inside it, runs the
+  agent, and runs the task's tests. Courses can now declare native
+  rollout, and the pipeline skips YACHT-side task attempts for them.
+- Harbor's per-trial results translate into the normalized grading
+  reports the scorecard consumes (verifier reward to resolved/unresolved,
+  exceptions to errors, missing trials to incomplete), and task-attempt
+  artifacts are synthesized from trial evidence so Terminal-Bench runs
+  carry the same usage and provenance surface as harness-run attempts —
+  harness version and model resolved from what Harbor actually installed
+  and ran, null when absent, never guessed.
+- Added `examples/terminal-bench-claude-code-versions-smoke.toml`
+  (pinned Claude Code 2.1.211 vs 2.1.215 on one task) and a
+  Terminal-Bench reference page. Validated live end to end, including a
+  real token-spending comparison run.
+
+### Yacht-owned agents and the pinned launcher (ADR 0012)
+
+- Vessels on Harbor courses run through YACHT's own agent classes, baked
+  into a pinned launcher image (`containers/harbor-launcher`): the pinned
+  harness is installed and YACHT's typed rigging steps are applied inside
+  the task container — pinned npm `package` installs, `config-file`
+  content behind a traversal guard, and stdio `mcp-server` entries.
+  Unpinned packages and inexpressible methods are rejected before launch,
+  and trial evidence names the agent implementation.
+- The orchestrator is hermetic: Harbor and its dependencies resolve at
+  image build time, and the launcher container sees only the mounted
+  trial directory, the Docker socket for sibling task containers, and
+  explicitly declared secret environment variables.
+- Added the `harbor` runtime backend: recipes declare the launcher
+  image, harness, and a required pinned `harness_version` — no
+  ceremonial commands or flakes — and validation enforces course/backend
+  agreement in both directions. No rigging ever executes on the host for
+  these vessels.
+- Added the `install-only` preflight check: Harbor's install-only trial
+  mode proves agent-plus-rigging installation in a real task container
+  before tokens are spent, passing only when the trial records the
+  installed agent version.
+
+### Project
+
+- Course-agnostic grading, artifact, and attempt helpers extracted from
+  the SWE-bench package into shared course modules.
+- Recorded the Terminal-Bench decision (ADR 0011) and the Harbor-course
+  architecture with its independence constraints (ADR 0012): YACHT
+  schemas remain the contract, official native harnesses remain grading
+  truth, and the roadmap keeps a maintained non-Harbor course.
+- The dashboard skips unreadable directories during logbook discovery
+  instead of failing the whole scan.
+
 ## 0.3.0 - Tool-Claim Validation, Provenance, and the Dashboard
 
 YACHT 0.3.0 delivers the tool-claim validation workstream: a second real
