@@ -49,11 +49,10 @@ source = "env"
 name = "ANTHROPIC_API_KEY"
 
 [runtimes.harbor-claude]
-backend = "host-nix"
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
 harness = "claude-code"
 harness_version = "2.1.211"
-flake = "path:."
-command = ["claude"]
 required_secrets = ["anthropic"]
 
 [runtimes.harbor-claude.preflight]
@@ -219,16 +218,12 @@ class TerminalBenchJobTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "regatta.toml"
             config_path.write_text(config, encoding="utf-8")
-            regatta = load_regatta(config_path)
 
             with self.assertRaisesRegex(
-                ConfigError,
-                "runtime harbor-claude must pin harness_version",
+                ValueError,
+                "harness_version is required for the harbor backend",
             ):
-                render_terminal_bench_job(
-                    regatta=regatta,
-                    vessel_name="claude-baseline",
-                )
+                load_regatta(config_path)
 
     def test_rejects_harness_without_harbor_agent(self) -> None:
         config = TERMINAL_BENCH_CONFIG.replace(
@@ -284,6 +279,63 @@ class TerminalBenchJobTests(unittest.TestCase):
                     regatta=regatta,
                     vessel_name="claude-with-fff",
                 )
+
+
+class HarborBackendValidationTests(unittest.TestCase):
+    def _expect_invalid(self, config: str, message: str) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, message):
+                load_regatta(config_path)
+
+    def test_rejects_command_on_harbor_backend(self) -> None:
+        config = TERMINAL_BENCH_CONFIG.replace(
+            'harness = "claude-code"\n',
+            'harness = "claude-code"\ncommand = ["claude"]\n',
+            1,
+        )
+        self._expect_invalid(config, "command must not be set for the harbor backend")
+
+    def test_rejects_flake_on_harbor_backend(self) -> None:
+        config = TERMINAL_BENCH_CONFIG.replace(
+            'harness = "claude-code"\n',
+            'harness = "claude-code"\nflake = "path:."\n',
+            1,
+        )
+        self._expect_invalid(config, "flake must not be set for the harbor backend")
+
+    def test_requires_launcher_image_on_harbor_backend(self) -> None:
+        config = TERMINAL_BENCH_CONFIG.replace(
+            'image = "yacht/harbor-launcher:harbor-0.20.0"\n', ""
+        )
+        self._expect_invalid(config, "image is required for the harbor backend")
+
+    def test_terminal_bench_vessels_must_use_harbor_backend(self) -> None:
+        config = TERMINAL_BENCH_CONFIG.replace(
+            '''backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "claude-code"
+harness_version = "2.1.211"''',
+            '''backend = "host-nix"
+flake = "path:."
+command = ["claude"]
+harness = "claude-code"
+harness_version = "2.1.211"''',
+        )
+        self._expect_invalid(
+            config,
+            "must use the harbor backend for the terminal-bench course",
+        )
+
+    def test_harbor_backend_requires_a_native_rollout_course(self) -> None:
+        config = TERMINAL_BENCH_CONFIG.replace(
+            'kind = "terminal-bench"', 'kind = "custom-eval"'
+        ).replace('harness = "harbor"', 'harness = "local"')
+        self._expect_invalid(
+            config,
+            "uses the harbor backend, which requires a native-rollout course",
+        )
 
 
 class TerminalBenchRolloutPlanTests(unittest.TestCase):
@@ -699,15 +751,9 @@ class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
             def unused_prompt_runner_factory(instance, transcript_dir):
                 return unused_prompt_runner
 
-            with (
-                patch(
-                    "yacht.preflight._run_command",
-                    return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
-                ),
-                patch(
-                    "yacht.runtimes.backend.apply_rigging_setup",
-                    return_value=(),
-                ),
+            with patch(
+                "yacht.preflight._run_command",
+                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
             ):
                 summary = run_real_benchmark_eval(
                     config_path=config_path,
@@ -754,7 +800,10 @@ class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
             )
             self.assertEqual(
                 attempt["provenance"]["runtime"],
-                {"backend": "harbor", "image": None},
+                {
+                    "backend": "harbor",
+                    "image": "yacht/harbor-launcher:harbor-0.20.0",
+                },
             )
             self.assertEqual(attempt["metrics"]["tokens"], 1650)
             self.assertEqual(attempt["metrics"]["duration_seconds"], 300.0)

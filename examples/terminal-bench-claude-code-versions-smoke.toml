@@ -4,7 +4,7 @@
 # harness (ADR 0011): Harbor builds the task container, installs the pinned
 # Claude Code version inside it, runs the agent, and runs the task's tests.
 #
-# Requirements: Docker running, nix (for the host-nix preflight shell), uv,
+# Requirements: Docker running, uv,
 # ANTHROPIC_API_KEY exported, and the pinned launcher image built:
 #
 #   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
@@ -40,11 +40,10 @@ source = "env"
 name = "ANTHROPIC_API_KEY"
 
 [runtimes.harbor-claude-211]
-backend = "host-nix"
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
 harness = "claude-code"
 harness_version = "2.1.211"
-flake = "path:."
-command = ["claude"]
 required_secrets = ["anthropic"]
 
 [runtimes.harbor-claude-211.preflight]
@@ -55,11 +54,10 @@ checks = [
 ]
 
 [runtimes.harbor-claude-215]
-backend = "host-nix"
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
 harness = "claude-code"
 harness_version = "2.1.215"
-flake = "path:."
-command = ["claude"]
 required_secrets = ["anthropic"]
 
 [runtimes.harbor-claude-215.preflight]

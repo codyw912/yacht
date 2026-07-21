@@ -74,6 +74,7 @@ def run_terminal_bench_job(
         harbor_config_path,
         trials_dir=trials_dir,
         secret_env=[str(name) for name in job.get("secret_env", [])],
+        launcher_image=str(job.get("launcher_image", HARBOR_LAUNCHER_IMAGE)),
     )
     exit_code = runner(command, trials_dir)
     if exit_code != 0:
@@ -101,6 +102,7 @@ def harbor_command(
     *,
     trials_dir: Path,
     secret_env: list[str],
+    launcher_image: str = HARBOR_LAUNCHER_IMAGE,
 ) -> list[str]:
     command = [
         "docker",
@@ -115,7 +117,7 @@ def harbor_command(
         command.extend(["-e", name])
     command.extend(
         [
-            HARBOR_LAUNCHER_IMAGE,
+            launcher_image,
             "harbor",
             "run",
             "-c",

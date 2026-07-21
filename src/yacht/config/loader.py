@@ -347,7 +347,7 @@ def _parse_runtime_recipes(raw: dict[str, Any]) -> dict[str, RuntimeRecipe]:
         str(name): RuntimeRecipe(
             name=str(name),
             backend=str(runtime["backend"]),
-            command=tuple(str(item) for item in runtime["command"]),
+            command=tuple(str(item) for item in runtime.get("command", ())),
             harness=_parse_runtime_harness(runtime),
             harness_version=(
                 str(runtime["harness_version"])

@@ -18,6 +18,11 @@ SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
         "preinstalled",
         "custom-command",
     ),
+    "harbor": (
+        "config-file",
+        "mcp-server",
+        "package",
+    ),
     "host-nix": (
         "agent-extension",
         "config-file",
