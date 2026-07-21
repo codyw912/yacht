@@ -1,4 +1,4 @@
-# Terminal-Bench Course
+# Harbor Courses: Terminal-Bench and Aider Polyglot
 
 The `terminal-bench` course runs Terminal-Bench 2.0 through its official
 harness, Harbor (ADR 0011). Unlike SWE-bench, a Terminal-Bench task is a
@@ -105,3 +105,15 @@ uv run yacht run examples/terminal-bench-claude-code-versions-smoke.toml \
 
 Requirements: Docker running, uv, and `ANTHROPIC_API_KEY` exported.
 The first run downloads the dataset task and builds its container image.
+
+## Other Harbor courses
+
+The machinery above is a shared foundation (ADR 0012): a Harbor-registry
+dataset becomes a course by registering a kind and pointing config at the
+pinned dataset. `aider-polyglot` is registered on it — all 225 Exercism
+exercises across six languages, with tasks named
+`polyglot_<language>_<exercise>` — and
+`examples/aider-polyglot-claude-code-versions-smoke.toml` runs one Python
+exercise through the same launcher image and yacht agents. Results are
+Harbor-adaptation numbers and carry the same caveats as any Harbor
+course.

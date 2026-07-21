@@ -31,7 +31,13 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
     def test_exposes_supported_benchmark_adapter_metadata(self) -> None:
         self.assertEqual(
             supported_benchmark_adapter_kinds(),
-            ("custom-eval", "livecodebench", "swe-bench", "terminal-bench"),
+            (
+                "aider-polyglot",
+                "custom-eval",
+                "livecodebench",
+                "swe-bench",
+                "terminal-bench",
+            ),
         )
         self.assertEqual(
             supported_course_adapter_harnesses(),
@@ -103,6 +109,24 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
                     "course-handoff/terminal-bench/candidate-patches.jsonl"
                 ),
                 "grading_report": ("course-handoff/terminal-bench/grading-report.json"),
+            },
+        )
+
+    def test_aider_polyglot_reuses_the_harbor_course_foundation(self) -> None:
+        adapter = benchmark_adapter("aider-polyglot")
+
+        self.assertEqual(adapter.kind, "aider-polyglot")
+        self.assertEqual(adapter.display_name, "Aider Polyglot")
+        self.assertEqual(adapter.supported_harnesses, ("harbor",))
+        self.assertTrue(adapter.native_rollout)
+        self.assertEqual(adapter.grading_schema, "yacht.aider-polyglot-grading.v1")
+        self.assertEqual(
+            adapter.expected_outputs(),
+            {
+                "candidate_patches": (
+                    "course-handoff/aider-polyglot/candidate-patches.jsonl"
+                ),
+                "grading_report": ("course-handoff/aider-polyglot/grading-report.json"),
             },
         )
 
