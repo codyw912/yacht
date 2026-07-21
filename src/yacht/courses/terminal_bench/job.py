@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from yacht.domain.model import (
@@ -15,11 +16,13 @@ TERMINAL_BENCH_JOB_SCHEMA = "yacht.terminal-bench-job.v1"
 TERMINAL_BENCH_JOB_FILENAME = "terminal-bench-job.json"
 
 HARBOR_AGENT_BY_HARNESS = {
-    "claude-code": "claude-code",
-    "pi": "pi",
+    "claude-code": "yacht_harbor_agents.agents:YachtClaudeCode",
+    "pi": "yacht_harbor_agents.agents:YachtPi",
 }
 
-SUPPORTED_RIGGING_INSTALL_METHODS = ("mcp-server",)
+SUPPORTED_RIGGING_INSTALL_METHODS = ("config-file", "mcp-server", "package")
+
+_PACKAGE_PIN = re.compile(r"@\d+(?:\.\d+)+(?:[-+][\w.-]+)?$")
 
 
 def render_terminal_bench_job(
@@ -41,11 +44,13 @@ def render_terminal_bench_job(
         },
         "tasks": [str(task.id) for task in regatta.course.tasks],
         "agent": {
-            "name": _harbor_agent(runtime),
+            "name": _harness_name(runtime),
+            "import_path": _harbor_agent(runtime),
             "version": _harness_version(runtime),
             "model": str(vessel.model),
             "env": _agent_env(riggings),
             "mcp_servers": _mcp_servers(riggings),
+            "rigging_steps": _rigging_steps(riggings),
         },
         "secret_env": _secret_env(regatta, runtime, riggings),
         "vessel": vessel.name,
@@ -81,12 +86,17 @@ def _rigging(regatta: Regatta, vessel: Vessel, rigging_name: str) -> RiggingReci
     return rigging
 
 
-def _harbor_agent(runtime: RuntimeRecipe) -> str:
+def _harness_name(runtime: RuntimeRecipe) -> str:
     harness = runtime.harness
     if harness is None:
         raise ConfigError(
             f"runtime {runtime.name} must declare a harness for terminal-bench"
         )
+    return harness
+
+
+def _harbor_agent(runtime: RuntimeRecipe) -> str:
+    harness = _harness_name(runtime)
     agent = HARBOR_AGENT_BY_HARNESS.get(harness)
     if agent is None:
         supported = ", ".join(sorted(HARBOR_AGENT_BY_HARNESS))
@@ -144,13 +154,9 @@ def _mcp_servers(riggings: list[RiggingRecipe]) -> list[dict[str, Any]]:
     seen: set[str] = set()
     for rigging in riggings:
         for step in rigging.install:
+            _require_supported_method(rigging, step)
             if step.method != "mcp-server":
-                supported = ", ".join(SUPPORTED_RIGGING_INSTALL_METHODS)
-                raise ConfigError(
-                    f"rigging {rigging.name} install method {step.method} is not "
-                    f"supported for terminal-bench yet; supported methods: "
-                    f"{supported}"
-                )
+                continue
             if not step.command:
                 raise ConfigError(
                     f"rigging {rigging.name} mcp-server {step.target} must declare "
@@ -170,3 +176,32 @@ def _mcp_servers(riggings: list[RiggingRecipe]) -> list[dict[str, Any]]:
                 }
             )
     return servers
+
+
+def _rigging_steps(riggings: list[RiggingRecipe]) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    for rigging in riggings:
+        for step in rigging.install:
+            _require_supported_method(rigging, step)
+            if step.method == "mcp-server":
+                continue
+            if step.method == "package" and not _PACKAGE_PIN.search(step.target):
+                raise ConfigError(
+                    f"rigging {rigging.name} package {step.target} must pin a "
+                    "version for terminal-bench"
+                )
+            steps.append(step.to_json())
+    return steps
+
+
+def _require_supported_method(
+    rigging: RiggingRecipe,
+    step: Any,
+) -> None:
+    if step.method not in SUPPORTED_RIGGING_INSTALL_METHODS:
+        supported = ", ".join(SUPPORTED_RIGGING_INSTALL_METHODS)
+        raise ConfigError(
+            f"rigging {rigging.name} install method {step.method} is not "
+            f"supported for terminal-bench yet; supported methods: "
+            f"{supported}"
+        )
