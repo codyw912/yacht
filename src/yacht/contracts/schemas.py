@@ -1504,6 +1504,102 @@ def _validate_course_handoff_grading(value: Any) -> None:
     _require_allowed_value(grading.get("status"), {"planned"}, "grading.status")
 
 
+VERDICT_GRADES = {
+    "insufficient-evidence",
+    "not-distinguishable",
+    "evidence-of-difference",
+}
+
+
+def _validate_benchmark_scorecard_statistics(value: Any, path: str) -> None:
+    statistics = _require_object(value, f"{path}.statistics")
+    _require_keys(
+        statistics,
+        ("confidence_level", "rates", "paired"),
+        f"{path}.statistics",
+    )
+    confidence = statistics.get("confidence_level")
+    if (
+        not isinstance(confidence, (int, float))
+        or isinstance(confidence, bool)
+        or not 0.0 < float(confidence) < 1.0
+    ):
+        raise SchemaValidationError(
+            f"{path}.statistics.confidence_level must be between 0 and 1"
+        )
+    rates = _require_object(statistics["rates"], f"{path}.statistics.rates")
+    for vessel_name, rate_value in rates.items():
+        rate_path = f"{path}.statistics.rates.{vessel_name}"
+        rate = _require_object(rate_value, rate_path)
+        _require_keys(
+            rate,
+            ("resolved_instances", "submitted_instances", "interval"),
+            rate_path,
+        )
+        for key in ("resolved_instances", "submitted_instances"):
+            _require_non_negative_int(rate.get(key), f"{rate_path}.{key}")
+        _validate_rate_interval(rate.get("interval"), f"{rate_path}.interval")
+    paired = _require_object(statistics["paired"], f"{path}.statistics.paired")
+    _require_keys(
+        paired,
+        (
+            "shared_tasks",
+            "concordant_resolved",
+            "concordant_unresolved",
+            "discordant_baseline_only",
+            "discordant_challenger_only",
+            "p_value",
+            "grade",
+        ),
+        f"{path}.statistics.paired",
+    )
+    for key in (
+        "shared_tasks",
+        "concordant_resolved",
+        "concordant_unresolved",
+        "discordant_baseline_only",
+        "discordant_challenger_only",
+    ):
+        _require_non_negative_int(paired.get(key), f"{path}.statistics.paired.{key}")
+    p_value = paired.get("p_value")
+    if (
+        not isinstance(p_value, (int, float))
+        or isinstance(p_value, bool)
+        or not 0.0 <= float(p_value) <= 1.0
+    ):
+        raise SchemaValidationError(
+            f"{path}.statistics.paired.p_value must be between 0 and 1"
+        )
+    _require_allowed_value(
+        paired.get("grade"),
+        VERDICT_GRADES,
+        f"{path}.statistics.paired.grade",
+    )
+    if "min_significant_discordant" in paired:
+        _require_non_negative_int(
+            paired.get("min_significant_discordant"),
+            f"{path}.statistics.paired.min_significant_discordant",
+        )
+    for key in ("discordant_baseline_only_ids", "discordant_challenger_only_ids"):
+        if key in paired:
+            _require_string_list(paired.get(key), f"{path}.statistics.paired.{key}")
+
+
+def _validate_rate_interval(value: Any, path: str) -> None:
+    if value is None:
+        return
+    interval = _require_object(value, path)
+    _require_keys(interval, ("low", "high"), path)
+    for key in ("low", "high"):
+        bound = interval.get(key)
+        if (
+            not isinstance(bound, (int, float))
+            or isinstance(bound, bool)
+            or not 0.0 <= float(bound) <= 1.0
+        ):
+            raise SchemaValidationError(f"{path}.{key} must be between 0 and 1")
+
+
 def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
     comparisons = _require_list(value, "comparisons")
     if not comparisons:
@@ -1526,6 +1622,11 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
             comparison["delta"],
             comparison_path,
         )
+        if "statistics" in comparison:
+            _validate_benchmark_scorecard_statistics(
+                comparison["statistics"],
+                comparison_path,
+            )
         vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
         if len(vessels) < 2:
             raise SchemaValidationError(

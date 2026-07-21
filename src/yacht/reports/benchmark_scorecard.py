@@ -8,6 +8,11 @@ from yacht.courses.registry import evaluator_adapter
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
 from yacht.reports.next_steps import command_step
 from yacht.reports.preflight_evidence import build_preflight_evidence_report
+from yacht.reports.statistics import (
+    CONFIDENCE_LEVEL,
+    paired_resolution_statistics,
+    wilson_interval,
+)
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
     BENCHMARK_SCORECARD_SCHEMA,
@@ -227,13 +232,17 @@ def _comparison_to_json(
         )
         for vessel_name in comparison["vessels"]
     ]
-    return {
+    payload = {
         "name": comparison_name,
         "course": str(comparison["course"]),
         "summary": _comparison_summary(vessels),
         "delta": _comparison_delta(vessels),
         "vessels": vessels,
     }
+    statistics = _comparison_statistics(vessels)
+    if statistics is not None:
+        payload["statistics"] = statistics
+    return payload
 
 
 def _vessel_score(
@@ -284,6 +293,34 @@ def _comparison_summary(vessels: list[dict[str, Any]]) -> dict[str, int]:
             1 for vessel in vessels if vessel["status"] == "missing"
         ),
     }
+
+
+def _comparison_statistics(vessels: list[dict[str, Any]]) -> dict[str, Any] | None:
+    baseline = vessels[0]
+    challenger = vessels[1]
+    if baseline["status"] != "measured" or challenger["status"] != "measured":
+        return None
+    statistics: dict[str, Any] = {
+        "confidence_level": CONFIDENCE_LEVEL,
+        "rates": {
+            str(vessel["name"]): {
+                "resolved_instances": int(vessel["resolved_instances"]),
+                "submitted_instances": int(vessel["submitted_instances"]),
+                "interval": wilson_interval(
+                    int(vessel["resolved_instances"]),
+                    int(vessel["submitted_instances"]),
+                ),
+            }
+            for vessel in (baseline, challenger)
+        },
+        "paired": paired_resolution_statistics(
+            baseline_resolved_ids=list(baseline.get("resolved_ids", [])),
+            baseline_unresolved_ids=list(baseline.get("unresolved_ids", [])),
+            challenger_resolved_ids=list(challenger.get("resolved_ids", [])),
+            challenger_unresolved_ids=list(challenger.get("unresolved_ids", [])),
+        ),
+    }
+    return statistics
 
 
 def _comparison_delta(vessels: list[dict[str, Any]]) -> dict[str, int | float | str]:
