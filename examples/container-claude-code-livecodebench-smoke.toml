@@ -1,0 +1,88 @@
+# Compare two Claude models on two LiveCodeBench problems from a pinned
+# contest-date window (ADR 0014).
+#
+# Attempts run in yacht's pinned Claude Code runtime container; grading runs
+# the official LiveCodeBench evaluator in the pinned lcb-runner container,
+# which is where the generated code executes.
+#
+# Requirements: Docker running, uv, ANTHROPIC_API_KEY exported, and both
+# pinned images built:
+#
+#   docker build -t yacht/claude-code-runtime:claude-2.1.211 containers/claude-code-runtime
+#   docker build -t yacht/lcb-runner:lcb-28fef95 containers/lcb-runner
+#
+# Run with:
+#
+#   uv run yacht run examples/container-claude-code-livecodebench-smoke.toml \
+#     --logbook /private/tmp/yacht-livecodebench-smoke \
+#     --workspace . \
+#     --secret anthropic=@env:ANTHROPIC_API_KEY
+
+[regatta]
+name = "container-claude-code-livecodebench-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "livecodebench-lite"
+
+[course.adapter]
+kind = "livecodebench"
+dataset = "livecodebench/code_generation_lite"
+split = "release_v1"
+harness = "docker"
+instance_ids = ["2727", "abc301_a"]
+start_date = "2023-05-01"
+end_date = "2023-05-14"
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.claude-code-haiku]
+backend = "container"
+harness = "claude-code"
+image = "yacht/claude-code-runtime:claude-2.1.211"
+command = ["claude", "--model", "claude-haiku-4-5"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+required_secrets = ["anthropic"]
+
+[runtimes.claude-code-haiku.preflight]
+required = true
+checks = [
+  { name = "claude-present", kind = "command", command = ["claude", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[runtimes.claude-code-sonnet]
+backend = "container"
+harness = "claude-code"
+image = "yacht/claude-code-runtime:claude-2.1.211"
+command = ["claude", "--model", "claude-sonnet-5"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+required_secrets = ["anthropic"]
+
+[runtimes.claude-code-sonnet.preflight]
+required = true
+checks = [
+  { name = "claude-present", kind = "command", command = ["claude", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[[vessels]]
+name = "claude-code-haiku"
+model = "claude-haiku-4-5"
+runtime = "claude-code-haiku"
+
+[[vessels]]
+name = "claude-code-sonnet"
+model = "claude-sonnet-5"
+runtime = "claude-code-sonnet"
+
+[[comparisons]]
+name = "haiku-vs-sonnet-livecodebench"
+course = "livecodebench-lite"
+vessels = ["claude-code-haiku", "claude-code-sonnet"]
