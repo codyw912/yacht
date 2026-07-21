@@ -38,6 +38,12 @@ YACHT runs real end-to-end benchmark comparisons:
   harness and rigging inside each task container, orchestrated from a
   pinned launcher image, with install-only preflight before tokens are
   spent
+- a LiveCodeBench course graded by the official evaluator in a pinned
+  container, with contest-date windows recorded as contamination
+  provenance
+- comparison verdicts graded by statistical evidence: Wilson intervals,
+  paired sign tests, and t-intervals over repeated runs, with
+  insufficient-evidence verdicts labeled as observations
 - benchmark scorecards with outcome, token, cost, duration, and tool-use
   metrics, plus run provenance (harness, model, and tool versions resolved
   from evidence)
@@ -174,6 +180,7 @@ provider credentials.
 - [Validating a tool claim](docs/tutorials/validating-a-tool-claim.md)
 - [Command reference](docs/reference/commands.md)
 - [Terminal-Bench course](docs/reference/terminal-bench.md)
+- [LiveCodeBench course](docs/reference/livecodebench.md)
 - [Adding a course](docs/reference/adding-a-course.md)
 - [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)
