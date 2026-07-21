@@ -510,15 +510,15 @@ class TerminalBenchCourseAdapter:
     def expected_outputs(self) -> dict[str, str]:
         return {
             "candidate_patches": (
-                "course-handoff/terminal-bench/candidate-patches.jsonl"
+                f"course-handoff/{self.kind}/candidate-patches.jsonl"
             ),
-            "grading_report": "course-handoff/terminal-bench/grading-report.json",
+            "grading_report": f"course-handoff/{self.kind}/grading-report.json",
         }
 
     def task_prompt_instructions(self, task: Any) -> str:
         return (
-            "\nTerminal-Bench tasks are rolled out natively by the Harbor "
-            "harness; yacht does not prompt the agent directly.\n"
+            f"\n{self.display_name} tasks are rolled out natively by the "
+            "Harbor harness; yacht does not prompt the agent directly.\n"
         )
 
     def task_with_context(self, *, task: Any, adapter: Any) -> Any:
@@ -642,6 +642,7 @@ class TerminalBenchEvaluatorAdapter:
             native_report_path=native_report_path,
             logbook_dir=logbook_dir,
             vessel_name=vessel_name,
+            grading_schema=self.grading_schema,
         )
 
 
@@ -816,6 +817,10 @@ CustomEvalAdapter = CustomEvalCourseAdapter
 
 
 _COURSE_ADAPTERS: dict[str, CourseAdapterInterface] = {
+    "aider-polyglot": TerminalBenchCourseAdapter(
+        kind="aider-polyglot",
+        display_name="Aider Polyglot",
+    ),
     "custom-eval": CustomEvalCourseAdapter(),
     "livecodebench": LiveCodeBenchCourseAdapter(),
     "swe-bench": SweBenchCourseAdapter(),
@@ -823,6 +828,11 @@ _COURSE_ADAPTERS: dict[str, CourseAdapterInterface] = {
 }
 
 _EVALUATOR_ADAPTERS: dict[str, EvaluatorAdapterInterface] = {
+    "aider-polyglot": TerminalBenchEvaluatorAdapter(
+        kind="aider-polyglot",
+        display_name="Aider Polyglot",
+        grading_schema="yacht.aider-polyglot-grading.v1",
+    ),
     "custom-eval": CustomEvalEvaluatorAdapter(),
     "livecodebench": LiveCodeBenchEvaluatorAdapter(),
     "swe-bench": SweBenchEvaluatorAdapter(),

@@ -179,7 +179,7 @@ provider credentials.
 - [Codebase structure](docs/project/codebase-structure.md)
 - [Validating a tool claim](docs/tutorials/validating-a-tool-claim.md)
 - [Command reference](docs/reference/commands.md)
-- [Terminal-Bench course](docs/reference/terminal-bench.md)
+- [Harbor courses: Terminal-Bench and Aider Polyglot](docs/reference/terminal-bench.md)
 - [LiveCodeBench course](docs/reference/livecodebench.md)
 - [Adding a course](docs/reference/adding-a-course.md)
 - [Release checklist](docs/reference/release.md)
