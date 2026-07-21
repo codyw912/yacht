@@ -476,7 +476,7 @@ def _decision_summary_row(
     return " | ".join(
         [
             str(comparison["name"]),
-            _resolution_decision(delta),
+            _resolution_decision(delta, comparison.get("statistics")),
             _usage_decision(usage_delta, "tokens", "tokens"),
             _usage_decision(usage_delta, "cost", "cost"),
             _usage_decision(usage_delta, "duration", "duration"),
@@ -484,7 +484,10 @@ def _decision_summary_row(
     )
 
 
-def _resolution_decision(delta: dict[str, Any]) -> str:
+def _resolution_decision(
+    delta: dict[str, Any],
+    statistics: dict[str, Any] | None = None,
+) -> str:
     resolved_delta = int(delta["resolved_instances_delta"])
     rate_delta = float(delta["resolution_rate_delta"])
     if resolved_delta > 0:
@@ -497,10 +500,38 @@ def _resolution_decision(delta: dict[str, Any]) -> str:
         label = "worse"
     else:
         label = "tied"
-    return (
+    decision = (
         f"resolution {label} "
         f"({_signed_int(resolved_delta)} resolved, {_signed_float(rate_delta)} rate)"
     )
+    evidence = _resolution_evidence(statistics)
+    if evidence is not None:
+        decision = f"{decision} [{evidence}]"
+    return decision
+
+
+def _resolution_evidence(statistics: dict[str, Any] | None) -> str | None:
+    if not isinstance(statistics, dict):
+        return None
+    paired = statistics.get("paired")
+    if not isinstance(paired, dict):
+        return None
+    grade = paired.get("grade")
+    discordant = int(paired.get("discordant_baseline_only", 0)) + int(
+        paired.get("discordant_challenger_only", 0)
+    )
+    if grade == "insufficient-evidence":
+        minimum = paired.get("min_significant_discordant")
+        return (
+            "insufficient evidence: observation only "
+            f"({discordant} discordant task(s), need >={minimum})"
+        )
+    p_value = float(paired.get("p_value", 1.0))
+    if grade == "not-distinguishable":
+        return f"not distinguishable from noise (p={p_value:.3f})"
+    if grade == "evidence-of-difference":
+        return f"evidence of difference (p={p_value:.3f})"
+    return None
 
 
 def _usage_decision(

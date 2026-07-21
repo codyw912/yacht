@@ -8,6 +8,7 @@ from pathlib import Path
 
 from tests.preflight_artifacts import write_preflight_artifact
 from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
+from yacht.reports.statistics import wilson_interval
 from yacht.cli import main
 from yacht.domain.model import ConfigError
 from yacht.courses.swe_bench.grading import write_swe_bench_grading_report
@@ -139,6 +140,35 @@ class BenchmarkScorecardTests(unittest.TestCase):
                             resolved_instances_delta=1,
                             resolution_rate_delta=1.0,
                         ),
+                        "statistics": {
+                            "confidence_level": 0.95,
+                            "rates": {
+                                "pi-baseline": {
+                                    "resolved_instances": 0,
+                                    "submitted_instances": 1,
+                                    "interval": wilson_interval(0, 1),
+                                },
+                                "pi-plus-fff": {
+                                    "resolved_instances": 1,
+                                    "submitted_instances": 1,
+                                    "interval": wilson_interval(1, 1),
+                                },
+                            },
+                            "paired": {
+                                "shared_tasks": 1,
+                                "concordant_resolved": 0,
+                                "concordant_unresolved": 0,
+                                "discordant_baseline_only": 0,
+                                "discordant_challenger_only": 1,
+                                "discordant_baseline_only_ids": [],
+                                "discordant_challenger_only_ids": [
+                                    "django__django-11099"
+                                ],
+                                "grade": "insufficient-evidence",
+                                "p_value": 1.0,
+                                "min_significant_discordant": 6,
+                            },
+                        },
                         "vessels": [
                             {
                                 "name": "pi-baseline",
@@ -325,7 +355,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "",
                         "Decision summary:",
                         "comparison | resolution | tokens | cost | duration",
-                        "pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) | "
+                        "pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
                         "tokens unavailable | cost unavailable | duration unavailable",
                         f"Artifacts: logbook={logbook_dir} | "
                         f"scorecard={logbook_dir / 'benchmark-scorecard.json'} | "
@@ -413,7 +443,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "",
                         "## Decision summary",
                         "",
-                        "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) | "
+                        "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
                         "tokens unavailable | cost unavailable | duration unavailable",
                         "",
                         "## Notable deltas",
@@ -478,7 +508,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 stdout.getvalue(),
             )
             self.assertIn(
-                "pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) | "
+                "pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
                 "tokens better (-3141) | cost better (-0.001310) | "
                 "duration better (-2.000s)",
                 stdout.getvalue(),
@@ -815,7 +845,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "",
                         "## Decision summary",
                         "",
-                        "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) | "
+                        "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
                         "tokens unavailable | cost unavailable | duration unavailable",
                         "",
                         "## Notable deltas",
