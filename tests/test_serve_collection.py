@@ -28,6 +28,23 @@ class DiscoverLogbooksTests(unittest.TestCase):
                 self.assertIsNotNone(entry.benchmark_scorecard)
                 self.assertIsNotNone(entry.attempt_scorecard)
 
+    def test_skips_unreadable_directories_under_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_logbook(root / "run-1", baseline_resolved=1, fff_resolved=1)
+            locked = root / "locked"
+            locked.mkdir()
+            locked.chmod(0o000)
+            try:
+                entries = discover_logbooks(root)
+            finally:
+                locked.chmod(0o755)
+
+            self.assertEqual(
+                [entry.logbook.name for entry in entries],
+                ["run-1"],
+            )
+
     def test_root_itself_can_be_a_logbook(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
