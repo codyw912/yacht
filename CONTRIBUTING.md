@@ -1,5 +1,12 @@
 # Contributing
 
+## Adding a Benchmark Course
+
+The most valuable contribution is a new course. The contract — adapter
+interfaces, artifact shapes, pinning and trust rules, and the quality bar
+a course PR must meet — is documented in
+[Adding a Course](docs/reference/adding-a-course.md).
+
 ## License
 
 By contributing to YACHT, you agree that your contribution is licensed under the
