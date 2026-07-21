@@ -707,6 +707,93 @@ def _written_report(root: Path, report: dict[str, Any]) -> Path:
     return report_path
 
 
+class TerminalBenchInstallOnlyTests(unittest.TestCase):
+    def _run(self, root, fake_runner, vessel_name="claude-baseline"):
+        from yacht.courses.terminal_bench.install_only import (
+            run_terminal_bench_install_only,
+        )
+
+        regatta = load_regatta(_write_config(root))
+        return run_terminal_bench_install_only(
+            regatta=regatta,
+            vessel_name=vessel_name,
+            work_dir=root / "install-only",
+            command_runner=fake_runner,
+        )
+
+    def test_passes_when_install_trial_records_agent_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            commands = []
+
+            def fake_runner(argv, cwd):
+                commands.append(argv)
+                _write_trial(
+                    root / "install-only",
+                    _trial_result("hello-world", reward=None),
+                )
+                return CommandResult(exit_code=0, stdout="", stderr="")
+
+            summary = self._run(root, fake_runner)
+
+            self.assertEqual(summary["status"], "passed")
+            self.assertEqual(
+                summary["evidence"]["agent"],
+                {"name": "claude-code", "version": "2.1.211"},
+            )
+            self.assertEqual(summary["evidence"]["task"], "hello-world")
+            self.assertEqual(commands[0][-1], "--install-only")
+            run_config = json.loads(
+                (root / "install-only/harbor-run-config.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(run_config["datasets"][0]["task_names"], ["hello-world"])
+
+    def test_fails_when_harbor_run_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+
+            summary = self._run(
+                root,
+                lambda argv, cwd: CommandResult(exit_code=3, stdout="", stderr="boom"),
+            )
+
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["evidence"]["exit_code"], 3)
+            self.assertEqual(summary["evidence"]["stderr"], "boom")
+
+    def test_fails_when_no_trial_result_is_written(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+
+            summary = self._run(
+                root,
+                lambda argv, cwd: CommandResult(exit_code=0, stdout="", stderr=""),
+            )
+
+            self.assertEqual(summary["status"], "failed")
+            self.assertIn("no trial result", summary["evidence"]["error"])
+
+    def test_fails_when_install_raises_in_container(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+
+            def fake_runner(argv, cwd):
+                _write_trial(
+                    root / "install-only",
+                    _trial_result("hello-world", exception=True),
+                )
+                return CommandResult(exit_code=0, stdout="", stderr="")
+
+            summary = self._run(root, fake_runner)
+
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(
+                summary["evidence"]["exception"]["type"], "AgentTimeoutError"
+            )
+
+
 class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
     def test_runs_native_rollout_end_to_end(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

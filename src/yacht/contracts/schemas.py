@@ -44,6 +44,7 @@ PREFLIGHT_CHECK_KINDS = {
     "artifact",
     "command",
     "env",
+    "install-only",
     "mcp-server",
     "path-isolation",
     "runtime-capability",

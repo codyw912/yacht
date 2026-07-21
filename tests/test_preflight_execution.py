@@ -39,6 +39,18 @@ class ExecuteCheckTests(unittest.TestCase):
     def test_rejects_unsupported_check_kind(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             instance = _instance(Path(temp_dir), env={})
+            vessel = Vessel(
+                name="baseline",
+                model="mock",
+                rigging=(),
+                runtime="host",
+            )
+            regatta = Regatta(
+                name="bad-check",
+                course=Course(name="tiny-course", tasks=()),
+                vessels=(vessel,),
+                runtime_recipes={"host": instance.runtime},
+            )
 
             with self.assertRaisesRegex(
                 ValueError, "unsupported preflight check kind bogus"
@@ -48,6 +60,8 @@ class ExecuteCheckTests(unittest.TestCase):
                     instance,
                     command_runner=lambda argv, env, cwd: None,
                     agent_prompt_runner=None,
+                    regatta=regatta,
+                    vessel=vessel,
                 )
 
     def test_path_isolation_fails_for_paths_outside_trial_home(self) -> None:
