@@ -7,6 +7,11 @@ from typing import Any
 
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.html_report import render_benchmark_aggregate_html
+from yacht.reports.statistics import (
+    GRADE_INSUFFICIENT,
+    interval_grade,
+    t_interval,
+)
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
     SchemaValidationError,
@@ -277,38 +282,70 @@ def _delta_statistics(run_summaries: list[dict[str, Any]]) -> dict[str, Any]:
         "challenger_vessel": deltas[0]["challenger_vessel"],
         "resolved_instances_delta": _stats(
             [int(delta["resolved_instances_delta"]) for delta in deltas],
+            graded=True,
         ),
         "resolution_rate_delta": _stats(
             [float(delta["resolution_rate_delta"]) for delta in deltas],
             digits=3,
+            graded=True,
         ),
-        "tokens_delta": _stats([int(delta["tokens_delta"]) for delta in deltas]),
+        "tokens_delta": _stats(
+            [int(delta["tokens_delta"]) for delta in deltas],
+            graded=True,
+        ),
         "cost_delta": _stats(
             [float(delta["cost_delta"]) for delta in deltas],
             digits=6,
+            graded=True,
         ),
         "duration_seconds_delta": _stats(
             [float(delta["duration_seconds_delta"]) for delta in deltas],
             digits=3,
+            graded=True,
         ),
         "tool_calls_delta": _stats(
             [int(delta["tool_calls_delta"]) for delta in deltas],
+            graded=True,
         ),
     }
 
 
-def _stats(values: list[float | int], *, digits: int = 3) -> dict[str, Any]:
+def _stats(
+    values: list[float | int],
+    *,
+    digits: int = 3,
+    graded: bool = False,
+) -> dict[str, Any]:
     if not values:
-        return {"runs": 0, "mean": 0.0, "stdev": 0.0, "min": 0, "max": 0}
+        payload: dict[str, Any] = {
+            "runs": 0,
+            "mean": 0.0,
+            "stdev": 0.0,
+            "min": 0,
+            "max": 0,
+        }
+        if graded:
+            payload["grade"] = GRADE_INSUFFICIENT
+        return payload
     mean = sum(values) / len(values)
     variance = sum((value - mean) ** 2 for value in values) / len(values)
-    return {
+    payload = {
         "runs": len(values),
         "mean": round(mean, digits),
         "stdev": round(math.sqrt(variance), digits),
         "min": round(min(values), digits),
         "max": round(max(values), digits),
     }
+    if graded:
+        interval = t_interval([float(value) for value in values])
+        if interval is not None:
+            payload["interval"] = {
+                "mean": round(interval["mean"], digits),
+                "low": round(interval["low"], digits),
+                "high": round(interval["high"], digits),
+            }
+        payload["grade"] = interval_grade(interval)
+    return payload
 
 
 def _run_vessel(
@@ -494,6 +531,16 @@ def _render_text(aggregate: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "Aggregate delta evidence (95% CI on per-run deltas):",
+            "comparison | resolved | rate | tokens | cost | duration",
+        ]
+    )
+    lines.extend(
+        _delta_evidence_row(comparison) for comparison in aggregate["comparisons"]
+    )
+    lines.extend(
+        [
+            "",
             "Aggregate runs by vessel:",
             "comparison | run | vessel | status | submitted | resolved | rate | "
             "tokens | cost | duration | tool_calls | logbook",
@@ -619,6 +666,19 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
     )
     lines.extend(
         f"| {_delta_variability_row(comparison)} |"
+        for comparison in aggregate["comparisons"]
+    )
+    lines.extend(
+        [
+            "",
+            "## Aggregate delta evidence (95% CI on per-run deltas)",
+            "",
+            "| Comparison | Resolved | Rate | Tokens | Cost | Duration |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+    )
+    lines.extend(
+        f"| {_delta_evidence_row(comparison)} |"
         for comparison in aggregate["comparisons"]
     )
     lines.extend(
@@ -803,6 +863,30 @@ def _delta_variability_row(comparison: dict[str, Any]) -> str:
         f"{_stats_duration_stdev(stats['duration_seconds_delta'])} | "
         f"{_stats_number_stdev(stats['tool_calls_delta'])}"
     )
+
+
+def _delta_evidence_row(comparison: dict[str, Any]) -> str:
+    stats = comparison["delta_statistics"]
+    return (
+        f"{comparison['name']} | "
+        f"{_evidence_cell(stats['resolved_instances_delta'])} | "
+        f"{_evidence_cell(stats['resolution_rate_delta'])} | "
+        f"{_evidence_cell(stats['tokens_delta'])} | "
+        f"{_evidence_cell(stats['cost_delta'])} | "
+        f"{_evidence_cell(stats['duration_seconds_delta'])}"
+    )
+
+
+def _evidence_cell(metric: dict[str, Any]) -> str:
+    grade = metric.get("grade")
+    interval = metric.get("interval")
+    if grade == "insufficient-evidence" or not isinstance(interval, dict):
+        runs = int(metric.get("runs", 0))
+        return f"insufficient ({runs} run{'s' if runs != 1 else ''})"
+    span = f"CI {interval['low']:+g}..{interval['high']:+g}"
+    if grade == "evidence-of-difference":
+        return f"difference ({span})"
+    return f"not distinguishable ({span})"
 
 
 def _run_vessel_row(

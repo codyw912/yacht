@@ -215,7 +215,30 @@ def _aggregate_provenance_table(comparison: dict[str, Any]) -> str:
 
 def _variance_badge(delta_stats: Any, run_count: int) -> str:
     if not isinstance(delta_stats, dict) or run_count < 2:
-        return '<span class="badge">single run: no variance estimate</span>'
+        return (
+            '<span class="badge">single run: observation only, '
+            "no evidence estimate</span>"
+        )
+    grade = delta_stats.get("grade")
+    interval = delta_stats.get("interval")
+    if grade is None:
+        return _legacy_variance_badge(delta_stats, run_count)
+    if grade == "evidence-of-difference" and isinstance(interval, dict):
+        return (
+            '<span class="badge good">evidence of difference '
+            f"(95% CI {float(interval['low']):+.2f}"
+            f"&hellip;{float(interval['high']):+.2f})</span>"
+        )
+    if grade == "not-distinguishable" and isinstance(interval, dict):
+        return (
+            '<span class="badge">not distinguishable from run-to-run '
+            f"variation (95% CI {float(interval['low']):+.2f}"
+            f"&hellip;{float(interval['high']):+.2f})</span>"
+        )
+    return f'<span class="badge">insufficient evidence across {run_count} runs</span>'
+
+
+def _legacy_variance_badge(delta_stats: dict[str, Any], run_count: int) -> str:
     mean = float(delta_stats.get("mean") or 0.0)
     stdev = float(delta_stats.get("stdev") or 0.0)
     if stdev == 0.0:
