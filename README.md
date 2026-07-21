@@ -174,6 +174,7 @@ provider credentials.
 - [Validating a tool claim](docs/tutorials/validating-a-tool-claim.md)
 - [Command reference](docs/reference/commands.md)
 - [Terminal-Bench course](docs/reference/terminal-bench.md)
+- [Adding a course](docs/reference/adding-a-course.md)
 - [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)
 - [Architecture decisions](docs/adr/)
