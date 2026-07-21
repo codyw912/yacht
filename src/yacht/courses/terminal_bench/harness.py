@@ -11,8 +11,8 @@ from typing import Any
 from yacht.domain.model import ConfigError
 
 
-HARBOR_REQUIREMENT = "harbor==0.20.0"
-LITELLM_REQUIREMENT = "litellm==1.91.3"
+HARBOR_LAUNCHER_IMAGE = "yacht/harbor-launcher:harbor-0.20.0"
+DOCKER_SOCKET = "/var/run/docker.sock"
 HARBOR_JOB_NAME = "harbor"
 NATIVE_REPORT_SCHEMA_VERSION = 1
 
@@ -70,7 +70,11 @@ def run_terminal_bench_job(
     _write_json(harbor_config_path, harbor_run_config(job, trials_dir=trials_dir))
 
     runner = command_runner if command_runner is not None else _run_command
-    command = harbor_command(harbor_config_path)
+    command = harbor_command(
+        harbor_config_path,
+        trials_dir=trials_dir,
+        secret_env=[str(name) for name in job.get("secret_env", [])],
+    )
     exit_code = runner(command, trials_dir)
     if exit_code != 0:
         raise ConfigError(f"harbor run failed with exit code {exit_code}")
@@ -92,21 +96,35 @@ def run_terminal_bench_job(
     }
 
 
-def harbor_command(harbor_config_path: Path) -> list[str]:
-    return [
-        "uv",
+def harbor_command(
+    harbor_config_path: Path,
+    *,
+    trials_dir: Path,
+    secret_env: list[str],
+) -> list[str]:
+    command = [
+        "docker",
         "run",
-        "--with",
-        HARBOR_REQUIREMENT,
-        "--with",
-        LITELLM_REQUIREMENT,
-        "harbor",
-        "run",
-        "-c",
-        str(harbor_config_path),
-        "--yes",
-        "--quiet",
+        "--rm",
+        "-v",
+        f"{DOCKER_SOCKET}:{DOCKER_SOCKET}",
+        "-v",
+        f"{trials_dir}:{trials_dir}",
     ]
+    for name in secret_env:
+        command.extend(["-e", name])
+    command.extend(
+        [
+            HARBOR_LAUNCHER_IMAGE,
+            "harbor",
+            "run",
+            "-c",
+            str(harbor_config_path),
+            "--yes",
+            "--quiet",
+        ]
+    )
+    return command
 
 
 def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any]:

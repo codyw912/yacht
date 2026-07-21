@@ -44,12 +44,17 @@ dataset = "terminal-bench/terminal-bench-2"
 split = "2.0"
 harness = "harbor"
 
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
 [runtimes.harbor-claude]
 backend = "host-nix"
 harness = "claude-code"
 harness_version = "2.1.211"
 flake = "path:."
 command = ["claude"]
+required_secrets = ["anthropic"]
 
 [runtimes.harbor-claude.preflight]
 required = true
@@ -157,6 +162,7 @@ class TerminalBenchJobTests(unittest.TestCase):
         )
         self.assertEqual(job["tasks"], ["hello-world", "fix-permissions"])
         self.assertEqual(job["vessel"], "claude-with-fff")
+        self.assertEqual(job["secret_env"], ["ANTHROPIC_API_KEY"])
         self.assertEqual(
             job["agent"],
             {
@@ -406,9 +412,20 @@ class TerminalBenchHarnessTests(unittest.TestCase):
             self.assertEqual(len(harbor_commands), 1)
             argv, cwd = harbor_commands[0]
             self.assertEqual(
-                argv, harbor_command(trials_dir / "harbor-run-config.json")
+                argv,
+                harbor_command(
+                    trials_dir / "harbor-run-config.json",
+                    trials_dir=trials_dir,
+                    secret_env=["ANTHROPIC_API_KEY"],
+                ),
             )
-            self.assertEqual(argv[:4], ["uv", "run", "--with", "harbor==0.20.0"])
+            self.assertEqual(argv[:3], ["docker", "run", "--rm"])
+            self.assertIn("-v", argv)
+            self.assertIn("/var/run/docker.sock:/var/run/docker.sock", argv)
+            self.assertIn(f"{trials_dir}:{trials_dir}", argv)
+            self.assertIn("-e", argv)
+            self.assertIn("ANTHROPIC_API_KEY", argv)
+            self.assertIn("yacht/harbor-launcher:harbor-0.20.0", argv)
             self.assertEqual(cwd, trials_dir)
             run_config = json.loads(
                 (trials_dir / "harbor-run-config.json").read_text(encoding="utf-8")
@@ -639,7 +656,7 @@ class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
                     config_path=config_path,
                     logbook_dir=logbook_dir,
                     workspace_path=workspace_path,
-                    secret_values={},
+                    secret_values={"anthropic": "test-secret"},
                     agent_prompt_runner_factory=unused_prompt_runner_factory,
                     task_agent=None,
                     agent_name="claude-code",

@@ -52,7 +52,13 @@ attempts and instead writes, per vessel, a task roster and a
 `terminal-bench-job.json` describing the agent, pinned version, model,
 and rigging surface. The native launcher
 (`python -m yacht.courses.terminal_bench.harness`) translates that job
-into a Harbor run configuration, invokes a pinned `harbor run`, and
+into a Harbor run configuration and runs Harbor inside the pinned
+launcher image (`yacht/harbor-launcher`, built from
+`containers/harbor-launcher`), which holds Harbor and its dependencies
+resolved at image build time — the orchestrator sees only the mounted
+trial directory, the Docker socket for starting sibling task
+containers, and explicitly declared secret environment variables. The
+launcher then
 converts Harbor's per-trial `result.json` files into the normalized
 grading report the scorecard consumes: a verifier reward of 1 counts as
 resolved, a lower reward as unresolved, trial exceptions as errors, and
@@ -75,6 +81,8 @@ dashboard consume these like any other attempts.
 pinned Claude Code versions on a single task:
 
 ```sh
+docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+
 uv run yacht run examples/terminal-bench-claude-code-versions-smoke.toml \
   --logbook /private/tmp/yacht-terminal-bench-smoke \
   --workspace . \

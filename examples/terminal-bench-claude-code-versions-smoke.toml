@@ -5,7 +5,11 @@
 # Claude Code version inside it, runs the agent, and runs the task's tests.
 #
 # Requirements: Docker running, nix (for the host-nix preflight shell), uv,
-# and ANTHROPIC_API_KEY exported. Run with:
+# ANTHROPIC_API_KEY exported, and the pinned launcher image built:
+#
+#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+#
+# Run with:
 #
 #   uv run yacht run examples/terminal-bench-claude-code-versions-smoke.toml \
 #     --logbook /private/tmp/yacht-terminal-bench-smoke \
@@ -47,7 +51,7 @@ required_secrets = ["anthropic"]
 required = true
 checks = [
   { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
-  { name = "harbor-available", kind = "command", command = ["uv", "run", "--with", "harbor==0.20.0", "--with", "litellm==1.91.3", "harbor", "--version"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
 ]
 
 [runtimes.harbor-claude-215]
@@ -62,7 +66,7 @@ required_secrets = ["anthropic"]
 required = true
 checks = [
   { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
-  { name = "harbor-available", kind = "command", command = ["uv", "run", "--with", "harbor==0.20.0", "--with", "litellm==1.91.3", "harbor", "--version"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
 ]
 
 [[vessels]]
