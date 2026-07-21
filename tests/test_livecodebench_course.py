@@ -314,3 +314,29 @@ class LiveCodeBenchAdapterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiveCodeBenchPipelineArtifactTests(unittest.TestCase):
+    def test_plan_and_launcher_handoff_preserve_the_window(self) -> None:
+        from yacht.courses.handoff import write_course_handoff
+        from yacht.workflows.benchmark_execution_plan import (
+            write_benchmark_execution_plan,
+        )
+        from yacht.workflows.benchmark_launcher_handoff import (
+            write_benchmark_launcher_handoff,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            config_path.write_text(LIVECODEBENCH_CONFIG, encoding="utf-8")
+            logbook_dir = root / "logbook"
+            write_course_handoff(config_path, logbook_dir)
+
+            plan = write_benchmark_execution_plan(logbook_dir)
+            launcher = write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
+
+            for document in (plan, launcher):
+                self.assertEqual(document["adapter"]["kind"], "livecodebench")
+                self.assertEqual(document["adapter"]["start_date"], "2023-05-01")
+                self.assertEqual(document["adapter"]["end_date"], "2023-05-14")

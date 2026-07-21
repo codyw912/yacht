@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.courses.registry import command_preview
+from yacht.courses.registry import course_adapter_block
 from yacht.courses.registry import evaluator_adapter
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
 from yacht.preflight.gate import PreflightGate, preflight_gate
@@ -156,10 +157,7 @@ def _build_launcher_handoff(
         "regatta": str(handoff["regatta"]),
         "course": str(handoff["course"]),
         "adapter": {
-            "kind": str(handoff["adapter"]["kind"]),
-            "dataset": str(handoff["adapter"]["dataset"]),
-            "split": str(handoff["adapter"]["split"]),
-            "harness": str(handoff["adapter"]["harness"]),
+            **course_adapter_block(handoff["adapter"]),
         },
         "status": _aggregate_status(
             [comparison["status"] for comparison in comparisons]
