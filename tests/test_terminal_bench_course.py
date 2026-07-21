@@ -70,9 +70,18 @@ instructions = "Use the fff MCP server when searching files."
 FFF_MODE = "mcp"
 
 [[riggings.fff-mcp.install]]
+method = "package"
+target = "npm:@ff-labs/mcp-fff@0.3.0"
+
+[[riggings.fff-mcp.install]]
 method = "mcp-server"
 target = "fff"
 command = ["mcp-fff", "--stdio"]
+
+[[riggings.fff-mcp.install]]
+method = "config-file"
+target = "fff/config.json"
+content = '{"mode": "fast"}'
 
 [riggings.fff-mcp.preflight]
 required = true
@@ -167,6 +176,7 @@ class TerminalBenchJobTests(unittest.TestCase):
             job["agent"],
             {
                 "name": "claude-code",
+                "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
                 "version": "2.1.211",
                 "model": "claude-haiku-4-5",
                 "env": {"FFF_MODE": "mcp"},
@@ -176,6 +186,17 @@ class TerminalBenchJobTests(unittest.TestCase):
                         "command": "mcp-fff",
                         "args": ["--stdio"],
                     }
+                ],
+                "rigging_steps": [
+                    {
+                        "method": "package",
+                        "target": "npm:@ff-labs/mcp-fff@0.3.0",
+                    },
+                    {
+                        "method": "config-file",
+                        "target": "fff/config.json",
+                        "content": '{"mode": "fast"}',
+                    },
                 ],
             },
         )
@@ -191,6 +212,7 @@ class TerminalBenchJobTests(unittest.TestCase):
 
         self.assertEqual(job["agent"]["env"], {})
         self.assertEqual(job["agent"]["mcp_servers"], [])
+        self.assertEqual(job["agent"]["rigging_steps"], [])
 
     def test_rejects_runtime_without_pinned_harness_version(self) -> None:
         config = TERMINAL_BENCH_CONFIG.replace('harness_version = "2.1.211"\n', "")
@@ -228,10 +250,26 @@ class TerminalBenchJobTests(unittest.TestCase):
 
     def test_rejects_rigging_install_methods_harbor_cannot_express(self) -> None:
         config = TERMINAL_BENCH_CONFIG.replace(
-            'method = "mcp-server"', 'method = "package"'
-        ).replace(
-            'command = ["mcp-fff", "--stdio"]',
-            'command = ["npm", "install"]\npackage = "npm:@ff-labs/fff@0.3.0"',
+            'method = "mcp-server"', 'method = "agent-extension"'
+        ).replace('command = ["mcp-fff", "--stdio"]', "")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "install method agent-extension is not supported for terminal-bench",
+            ):
+                render_terminal_bench_job(
+                    regatta=regatta,
+                    vessel_name="claude-with-fff",
+                )
+
+    def test_rejects_unpinned_package_rigging(self) -> None:
+        config = TERMINAL_BENCH_CONFIG.replace(
+            'target = "npm:@ff-labs/mcp-fff@0.3.0"',
+            'target = "npm:@ff-labs/mcp-fff"',
         )
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "regatta.toml"
@@ -240,7 +278,7 @@ class TerminalBenchJobTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 ConfigError,
-                "install method package is not supported for terminal-bench",
+                "package npm:@ff-labs/mcp-fff must pin a version",
             ):
                 render_terminal_bench_job(
                     regatta=regatta,
@@ -444,7 +482,7 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                 run_config["agents"],
                 [
                     {
-                        "name": "claude-code",
+                        "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
                         "model_name": "claude-haiku-4-5",
                         "kwargs": {"version": "2.1.211"},
                     }
@@ -488,11 +526,15 @@ class TerminalBenchHarnessTests(unittest.TestCase):
             "vessel": "claude-with-fff",
             "agent": {
                 "name": "claude-code",
+                "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
                 "version": "2.1.211",
                 "model": "claude-haiku-4-5",
                 "env": {"FFF_MODE": "mcp"},
                 "mcp_servers": [
                     {"name": "fff", "command": "mcp-fff", "args": ["--stdio"]}
+                ],
+                "rigging_steps": [
+                    {"method": "package", "target": "npm:@ff-labs/mcp-fff@0.3.0"}
                 ],
             },
         }
@@ -513,6 +555,15 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                     "args": ["--stdio"],
                 }
             ],
+        )
+        self.assertEqual(
+            run_config["agents"][0]["kwargs"],
+            {
+                "version": "2.1.211",
+                "rigging_steps": [
+                    {"method": "package", "target": "npm:@ff-labs/mcp-fff@0.3.0"}
+                ],
+            },
         )
 
 
@@ -648,9 +699,15 @@ class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
             def unused_prompt_runner_factory(instance, transcript_dir):
                 return unused_prompt_runner
 
-            with patch(
-                "yacht.preflight._run_command",
-                return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+            with (
+                patch(
+                    "yacht.preflight._run_command",
+                    return_value=CommandResult(exit_code=0, stdout="ok\n", stderr=""),
+                ),
+                patch(
+                    "yacht.runtimes.backend.apply_rigging_setup",
+                    return_value=(),
+                ),
             ):
                 summary = run_real_benchmark_eval(
                     config_path=config_path,

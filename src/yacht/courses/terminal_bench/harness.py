@@ -129,10 +129,13 @@ def harbor_command(
 
 def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any]:
     agent = job["agent"]
+    kwargs: dict[str, Any] = {"version": str(agent["version"])}
+    if agent.get("rigging_steps"):
+        kwargs["rigging_steps"] = list(agent["rigging_steps"])
     agent_config: dict[str, Any] = {
-        "name": str(agent["name"]),
+        "import_path": str(agent["import_path"]),
         "model_name": str(agent["model"]),
-        "kwargs": {"version": str(agent["version"])},
+        "kwargs": kwargs,
     }
     if agent.get("env"):
         agent_config["env"] = dict(agent["env"])

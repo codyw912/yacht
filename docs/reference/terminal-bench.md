@@ -36,11 +36,16 @@ required_secrets = ["anthropic"]
   required — job rendering refuses unpinned runtimes.
 - The vessel's `model` is passed to Harbor verbatim and uses Harbor's
   provider-prefixed form, e.g. `anthropic/claude-haiku-4-5`.
-- Rigging maps onto Harbor's agent configuration: `mcp-server` install
-  steps become stdio MCP server entries and rigging env becomes agent
-  env. Install methods Harbor cannot express are rejected before launch.
-  Note that an MCP server command must be runnable inside the task's own
-  container image.
+- Vessels run through yacht-owned Harbor agents (ADR 0012) baked into
+  the launcher image, which install the pinned harness and then apply
+  yacht's rigging steps inside the task container: `package` steps run
+  pinned npm installs, `config-file` steps write declared content into
+  the container home, and `mcp-server` steps become stdio MCP server
+  entries in the harness's own configuration. Unsupported methods and
+  unpinned package targets are rejected before launch. Note that
+  rigging commands run in the task's own container image — a `package`
+  step needs npm there, and an MCP server command must be runnable
+  there; the install-only preflight is the cheap way to find out.
 - Provider credentials flow through the environment of the launch
   process (for Anthropic models, export `ANTHROPIC_API_KEY`), consistent
   with Harbor's own convention. YACHT never copies auth state.

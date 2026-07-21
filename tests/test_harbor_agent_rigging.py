@@ -1,0 +1,83 @@
+import base64
+import importlib.util
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+
+def _load_rigging_module():
+    module_path = (
+        Path(__file__).resolve().parent.parent
+        / "containers/harbor-launcher/yacht_harbor_agents/rigging.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "yacht_harbor_agents_rigging", module_path
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+rigging = _load_rigging_module()
+
+
+class HarborAgentRiggingTests(unittest.TestCase):
+    def test_package_step_installs_pinned_npm_target(self) -> None:
+        commands = rigging.rigging_commands(
+            [{"method": "package", "target": "npm:@ff-labs/mcp-fff@0.3.0"}]
+        )
+        self.assertEqual(commands, ["npm install -g @ff-labs/mcp-fff@0.3.0"])
+
+    def test_package_step_requires_npm_prefix(self) -> None:
+        with self.assertRaisesRegex(ValueError, "npm: prefix"):
+            rigging.rigging_commands(
+                [{"method": "package", "target": "pip:some-package==1.0"}]
+            )
+
+    def test_config_file_step_writes_content_into_home(self) -> None:
+        content = '{"mode": "fast"}\nline two\'s "quotes" $HOME `backticks`\n'
+        commands = rigging.rigging_commands(
+            [
+                {
+                    "method": "config-file",
+                    "target": "fff/config.json",
+                    "content": content,
+                }
+            ]
+        )
+        self.assertEqual(len(commands), 1)
+        encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
+        self.assertIn(encoded, commands[0])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            completed = subprocess.run(
+                ["sh", "-c", commands[0]],
+                env={"HOME": temp_dir, "PATH": "/usr/bin:/bin"},
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            written = Path(temp_dir, "fff/config.json").read_text(encoding="utf-8")
+            self.assertEqual(written, content)
+
+    def test_config_file_step_rejects_escaping_paths(self) -> None:
+        for target in ("/etc/passwd", "../outside", "a/../../b"):
+            with self.assertRaisesRegex(ValueError, "relative path"):
+                rigging.rigging_commands(
+                    [
+                        {
+                            "method": "config-file",
+                            "target": target,
+                            "content": "x",
+                        }
+                    ]
+                )
+
+    def test_rejects_unsupported_methods(self) -> None:
+        with self.assertRaisesRegex(ValueError, "not supported"):
+            rigging.rigging_commands([{"method": "mcp-server", "target": "fff"}])
+
+
+if __name__ == "__main__":
+    unittest.main()

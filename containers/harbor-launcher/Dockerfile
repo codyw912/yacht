@@ -25,6 +25,10 @@ RUN pip install --no-cache-dir \
         "harbor==${HARBOR_VERSION}" \
         "litellm==${LITELLM_VERSION}"
 
+COPY yacht_harbor_agents /opt/yacht/yacht_harbor_agents
+
+ENV PYTHONPATH=/opt/yacht
+
 WORKDIR /workspace
 
 CMD ["harbor", "--version"]
