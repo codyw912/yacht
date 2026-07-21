@@ -34,7 +34,10 @@ YACHT runs real end-to-end benchmark comparisons:
   task attempts and transcripts, candidate patch extraction, and native
   SWE-bench Docker grading
 - a Terminal-Bench 2.0 course that delegates rollout and verification to
-  the official Harbor harness with pinned agent versions
+  the official Harbor harness: YACHT-owned agents install the pinned
+  harness and rigging inside each task container, orchestrated from a
+  pinned launcher image, with install-only preflight before tokens are
+  spent
 - benchmark scorecards with outcome, token, cost, duration, and tool-use
   metrics, plus run provenance (harness, model, and tool versions resolved
   from evidence)
