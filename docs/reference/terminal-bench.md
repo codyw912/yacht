@@ -37,6 +37,12 @@ required_secrets = ["anthropic"]
   ceremonial `command`/`flake` fields, and pairing the backend with a
   course that is not native-rollout (or vice versa). Preflight command
   checks for harbor vessels run directly on the host.
+- An `install-only` preflight check (`{ name = "agent-install",
+  kind = "install-only" }`) runs Harbor's install-only trial mode
+  against the course's first task before tokens are spent: the pinned
+  harness and the vessel's rigging are installed into a real task
+  container, and the check passes only when the trial records the
+  installed agent version — machine evidence at zero token cost.
 - The vessel's `model` is passed to Harbor verbatim and uses Harbor's
   provider-prefixed form, e.g. `anthropic/claude-haiku-4-5`.
 - Vessels run through yacht-owned Harbor agents (ADR 0012) baked into

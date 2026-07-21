@@ -51,6 +51,7 @@ required = true
 checks = [
   { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
   { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "agent-install", kind = "install-only" },
 ]
 
 [runtimes.harbor-claude-215]
@@ -65,6 +66,7 @@ required = true
 checks = [
   { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
   { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "agent-install", kind = "install-only" },
 ]
 
 [[vessels]]

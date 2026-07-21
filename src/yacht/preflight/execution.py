@@ -22,7 +22,13 @@ from yacht.runtimes.process import subprocess_env
 from yacht.contracts.schemas import PREFLIGHT_SCHEMA, validate_preflight_document
 
 
-MACHINE_CHECK_KINDS = {"command", "env", "path-isolation", "runtime-capability"}
+MACHINE_CHECK_KINDS = {
+    "command",
+    "env",
+    "install-only",
+    "path-isolation",
+    "runtime-capability",
+}
 AGENT_CHECK_KINDS = {"agent-prompt"}
 
 
@@ -118,7 +124,15 @@ def _execute_preflight(
             "[runtimes.<name>.preflight] before running an eval"
         )
     check_results = [
-        _execute_check(check, instance, runner, agent_prompt_runner) for check in checks
+        _execute_check(
+            check,
+            instance,
+            runner,
+            agent_prompt_runner,
+            regatta=regatta,
+            vessel=vessel,
+        )
+        for check in checks
     ]
     artifact = {
         "schema": PREFLIGHT_SCHEMA,
@@ -215,6 +229,9 @@ def _execute_check(
     instance: RuntimeInstance,
     command_runner: CommandRunner,
     agent_prompt_runner: AgentPromptRunner | None,
+    *,
+    regatta: Regatta,
+    vessel: Vessel,
 ) -> dict[str, object]:
     check = effective_check.check
     if check.kind == "command":
@@ -225,6 +242,14 @@ def _execute_check(
         return _execute_path_isolation_check(effective_check, instance)
     if check.kind == "runtime-capability":
         return _execute_runtime_capability_check(effective_check)
+    if check.kind == "install-only":
+        return _execute_install_only_check(
+            effective_check,
+            instance,
+            command_runner,
+            regatta=regatta,
+            vessel=vessel,
+        )
     if check.kind == "agent-prompt":
         return _execute_agent_prompt_check(
             effective_check, instance, agent_prompt_runner
@@ -294,6 +319,53 @@ def _execute_path_isolation_check(
         **_check_result_base(effective_check),
         "status": status,
         "evidence": evidence,
+    }
+
+
+def _execute_install_only_check(
+    effective_check: EffectiveCheck,
+    instance: RuntimeInstance,
+    command_runner: CommandRunner,
+    *,
+    regatta: Regatta,
+    vessel: Vessel,
+) -> dict[str, object]:
+    if instance.runtime.backend != "harbor":
+        return {
+            **_check_result_base(effective_check),
+            "status": "failed",
+            "evidence": {
+                "error": (
+                    "install-only checks require the harbor runtime backend, "
+                    f"got {instance.runtime.backend}"
+                ),
+            },
+        }
+
+    from yacht.courses.terminal_bench.install_only import (
+        run_terminal_bench_install_only,
+    )
+
+    def runner(argv: tuple[str, ...], cwd: Path) -> CommandResult:
+        return command_runner(argv, instance.env, cwd)
+
+    try:
+        result = run_terminal_bench_install_only(
+            regatta=regatta,
+            vessel_name=vessel.name,
+            work_dir=instance.temp_home / "install-only",
+            command_runner=runner,
+        )
+    except ConfigError as error:
+        return {
+            **_check_result_base(effective_check),
+            "status": "failed",
+            "evidence": {"error": str(error)},
+        }
+    return {
+        **_check_result_base(effective_check),
+        "status": result["status"],
+        "evidence": result["evidence"],
     }
 
 
