@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
+from yacht.courses.registry import course_adapter_block
 from yacht.preflight.gate import PreflightGate, preflight_gate
 from yacht.domain.model import ConfigError
 from yacht.runtimes.snapshot_gate import RuntimeSnapshotGate, runtime_snapshot_gate
@@ -56,10 +57,7 @@ def _build_plan(logbook_dir: Path, handoff: dict[str, Any]) -> dict[str, Any]:
         "regatta": str(handoff["regatta"]),
         "course": str(handoff["course"]),
         "adapter": {
-            "kind": str(handoff["adapter"]["kind"]),
-            "dataset": str(handoff["adapter"]["dataset"]),
-            "split": str(handoff["adapter"]["split"]),
-            "harness": str(handoff["adapter"]["harness"]),
+            **course_adapter_block(handoff["adapter"]),
         },
         "status": _aggregate_status(
             [comparison["status"] for comparison in comparisons]

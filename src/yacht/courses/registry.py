@@ -909,6 +909,22 @@ def course_adapter_to_json(adapter: Any) -> dict[str, Any]:
     return payload
 
 
+def course_adapter_block(adapter_json: dict[str, Any]) -> dict[str, Any]:
+    """Rebuild a course adapter block from handoff JSON, keeping the
+    optional fields that per-kind validation may require."""
+    block: dict[str, Any] = {
+        "kind": str(adapter_json["kind"]),
+        "dataset": str(adapter_json["dataset"]),
+        "split": str(adapter_json["split"]),
+        "harness": str(adapter_json["harness"]),
+    }
+    for key in ("start_date", "end_date"):
+        value = adapter_json.get(key)
+        if isinstance(value, str) and value:
+            block[key] = value
+    return block
+
+
 def course_adapter_summary(adapter: Any) -> dict[str, Any]:
     return {
         "kind": adapter.kind,
