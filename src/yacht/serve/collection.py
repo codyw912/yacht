@@ -61,13 +61,29 @@ def discover_logbooks(root: Path) -> list[LogbookEntry]:
     if not root.is_dir():
         raise ConfigError(f"dashboard root is not a directory: {root}")
     candidates = [root]
-    candidates.extend(sorted(child for child in root.iterdir() if child.is_dir()))
+    candidates.extend(
+        sorted(child for child in root.iterdir() if _is_readable_dir(child))
+    )
     entries = []
     for candidate in candidates:
-        if any((candidate / marker).is_file() for marker in _LOGBOOK_MARKERS):
+        if any(_is_marker_file(candidate / marker) for marker in _LOGBOOK_MARKERS):
             entries.append(_load_entry(candidate))
     entries.sort(key=lambda entry: (entry.updated_at, str(entry.logbook)), reverse=True)
     return entries
+
+
+def _is_readable_dir(path: Path) -> bool:
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
+def _is_marker_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False
 
 
 def collect_vessel_records(entries: list[LogbookEntry]) -> list[VesselRecord]:
