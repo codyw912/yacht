@@ -47,6 +47,7 @@ def render_terminal_bench_job(
             "env": _agent_env(riggings),
             "mcp_servers": _mcp_servers(riggings),
         },
+        "secret_env": _secret_env(regatta, runtime, riggings),
         "vessel": vessel.name,
     }
 
@@ -102,6 +103,28 @@ def _harness_version(runtime: RuntimeRecipe) -> str:
             f"runtime {runtime.name} must pin harness_version for terminal-bench"
         )
     return str(runtime.harness_version)
+
+
+def _secret_env(
+    regatta: Regatta,
+    runtime: RuntimeRecipe,
+    riggings: list[RiggingRecipe],
+) -> list[str]:
+    names = list(runtime.required_secrets)
+    for rigging in riggings:
+        names.extend(rigging.required_secrets)
+    env_names = []
+    for name in dict.fromkeys(names):
+        secret = regatta.secrets.get(name)
+        if secret is None:
+            raise ConfigError(f"required secret {name} is not defined in the config")
+        if secret.source != "env" or secret.name is None:
+            raise ConfigError(
+                f"terminal-bench supports env-source secrets only; "
+                f"secret {name} uses source {secret.source}"
+            )
+        env_names.append(secret.name)
+    return env_names
 
 
 def _agent_env(riggings: list[RiggingRecipe]) -> dict[str, str]:
