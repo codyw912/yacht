@@ -208,7 +208,13 @@ class BenchmarkHtmlTests(unittest.TestCase):
         self.assertNotIn("https://", html)
 
 
-def _aggregate(*, mean: float, stdev: float, run_count: int = 3) -> dict:
+def _aggregate(
+    *,
+    mean: float,
+    stdev: float,
+    run_count: int = 3,
+    delta_stats_extra: dict | None = None,
+) -> dict:
     return {
         "schema": "yacht.benchmark-aggregate.v1",
         "regatta": "tool-claim-check",
@@ -276,6 +282,7 @@ def _aggregate(*, mean: float, stdev: float, run_count: int = 3) -> dict:
                         "runs": run_count,
                         "mean": mean,
                         "stdev": stdev,
+                        **(delta_stats_extra or {}),
                     },
                 },
             }
@@ -305,7 +312,37 @@ class AggregateHtmlTests(unittest.TestCase):
             _aggregate(mean=1.0, stdev=0.0, run_count=1)
         )
 
-        self.assertIn("single run: no variance estimate", html)
+        self.assertIn("single run: observation only, no evidence estimate", html)
+
+    def test_graded_difference_renders_evidence_badge(self) -> None:
+        html = render_benchmark_aggregate_html(
+            _aggregate(
+                mean=1.0,
+                stdev=0.2,
+                delta_stats_extra={
+                    "grade": "evidence-of-difference",
+                    "interval": {"mean": 1.0, "low": 0.5, "high": 1.5},
+                },
+            )
+        )
+
+        self.assertIn("evidence of difference", html)
+        self.assertIn("95% CI +0.50", html)
+        self.assertIn('class="badge good"', html)
+
+    def test_graded_noise_renders_not_distinguishable_badge(self) -> None:
+        html = render_benchmark_aggregate_html(
+            _aggregate(
+                mean=0.5,
+                stdev=0.5,
+                delta_stats_extra={
+                    "grade": "not-distinguishable",
+                    "interval": {"mean": 0.5, "low": -5.85, "high": 6.85},
+                },
+            )
+        )
+
+        self.assertIn("not distinguishable from run-to-run variation", html)
 
     def test_per_run_delta_rows_render(self) -> None:
         html = render_benchmark_aggregate_html(_aggregate(mean=1.0, stdev=0.0))

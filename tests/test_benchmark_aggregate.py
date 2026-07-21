@@ -134,6 +134,8 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "stdev": 0.5,
                         "min": 0,
                         "max": 1,
+                        "interval": {"mean": 0.5, "low": -5.853, "high": 6.853},
+                        "grade": "not-distinguishable",
                     },
                     "resolution_rate_delta": {
                         "runs": 2,
@@ -141,6 +143,8 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "stdev": 0.5,
                         "min": 0.0,
                         "max": 1.0,
+                        "interval": {"mean": 0.5, "low": -5.853, "high": 6.853},
+                        "grade": "not-distinguishable",
                     },
                     "tokens_delta": {
                         "runs": 2,
@@ -148,6 +152,8 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "stdev": 0.0,
                         "min": 1100,
                         "max": 1100,
+                        "interval": {"mean": 1100.0, "low": 1100.0, "high": 1100.0},
+                        "grade": "evidence-of-difference",
                     },
                     "cost_delta": {
                         "runs": 2,
@@ -155,6 +161,8 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "stdev": 0.0,
                         "min": 0.0011,
                         "max": 0.0011,
+                        "interval": {"mean": 0.0011, "low": 0.0011, "high": 0.0011},
+                        "grade": "evidence-of-difference",
                     },
                     "duration_seconds_delta": {
                         "runs": 2,
@@ -162,6 +170,8 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "stdev": 0.0,
                         "min": 1.1,
                         "max": 1.1,
+                        "interval": {"mean": 1.1, "low": 1.1, "high": 1.1},
+                        "grade": "evidence-of-difference",
                     },
                     "tool_calls_delta": {
                         "runs": 2,
@@ -169,6 +179,8 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "stdev": 0.0,
                         "min": 1,
                         "max": 1,
+                        "interval": {"mean": 1.0, "low": 1.0, "high": 1.0},
+                        "grade": "evidence-of-difference",
                     },
                 },
             )
