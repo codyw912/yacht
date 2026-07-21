@@ -6,6 +6,8 @@ from typing import Protocol
 from yacht.runtimes.container import ContainerRuntimeResolution
 from yacht.runtimes.container import ContainerRuntimeResolutionError
 from yacht.runtimes.container import resolve_container_runtime
+from yacht.runtimes.harbor import HarborRuntimeResolutionError
+from yacht.runtimes.harbor import resolve_harbor_runtime
 from yacht.runtimes.host_nix import HostNixRuntimeResolution
 from yacht.runtimes.host_nix import HostNixRuntimeResolutionError
 from yacht.runtimes.host_nix import resolve_host_nix_runtime
@@ -48,6 +50,8 @@ def runtime_backend_for_recipe(runtime: RuntimeRecipe) -> RuntimeBackend:
         return HostNixRuntimeBackend()
     if runtime.backend == "container":
         return ContainerRuntimeBackend()
+    if runtime.backend == "harbor":
+        return HarborRuntimeBackend()
     raise ConfigError(f"unsupported runtime backend {runtime.backend}")
 
 
@@ -138,6 +142,42 @@ class ContainerRuntimeBackend:
             command_prefix=resolution.command_prefix,
             cleanup_paths=resolution.cleanup_paths,
             setup_results=setup_results,
+        )
+
+
+class HarborRuntimeBackend:
+    def prepare(
+        self,
+        *,
+        regatta: Regatta,
+        vessel: Vessel,
+        trial_root: Path,
+        workspace_path: Path,
+        secret_values: dict[str, str],
+    ) -> RuntimeInstance:
+        try:
+            resolution = resolve_harbor_runtime(
+                regatta=regatta,
+                vessel=vessel,
+                instance_root=trial_root / vessel.name,
+                workspace_path=workspace_path,
+            )
+            env = resolution.env_with_secret_values(
+                regatta=regatta,
+                secret_values=secret_values,
+            )
+        except HarborRuntimeResolutionError as error:
+            raise RuntimePreparationError(str(error)) from error
+
+        resolution.temp_home.mkdir(parents=True, exist_ok=True)
+        return RuntimeInstance(
+            runtime=resolution.runtime,
+            temp_home=resolution.temp_home,
+            workspace_path=resolution.workspace_path,
+            env=env,
+            command_prefix=(),
+            cleanup_paths=resolution.cleanup_paths,
+            setup_results=(),
         )
 
 

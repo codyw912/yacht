@@ -220,6 +220,9 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
     vessels = _require_list(document["vessels"], "vessels")
     if not vessels:
         raise SchemaValidationError("vessels must contain at least one vessel")
+    adapter_kind = adapter.get("kind") if isinstance(adapter, dict) else None
+    native_rollout = _adapter_native_rollout(adapter_kind)
+    runtimes_table = _optional_named_table(document, "runtimes")
     vessel_names = set()
     for index, vessel_value in enumerate(vessels):
         vessel = _require_object(vessel_value, f"vessels[{index}]")
@@ -232,6 +235,17 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
             if runtime not in runtime_names:
                 raise SchemaValidationError(
                     f"vessels[{index}].runtime references undefined runtime {runtime}"
+                )
+            backend = runtimes_table.get(runtime, {}).get("backend")
+            if native_rollout and backend != "harbor":
+                raise SchemaValidationError(
+                    f"vessels[{index}].runtime {runtime} must use the harbor "
+                    f"backend for the {adapter_kind} course"
+                )
+            if not native_rollout and backend == "harbor":
+                raise SchemaValidationError(
+                    f"vessels[{index}].runtime {runtime} uses the harbor "
+                    "backend, which requires a native-rollout course"
                 )
         rigging = vessel.get("rigging", [])
         if not isinstance(rigging, list) or not all(
@@ -2473,7 +2487,7 @@ def _validate_runtime_recipes(
         runtime = _require_object(runtime_value, f"runtimes.{runtime_name}")
         _require_keys(
             runtime,
-            ("backend", "command"),
+            ("backend",),
             f"runtimes.{runtime_name}",
         )
         _require_non_empty_string(
@@ -2504,11 +2518,16 @@ def _validate_runtime_recipes(
                 f"runtimes.{runtime_name}.agent must match "
                 f"runtimes.{runtime_name}.harness when both are set"
             )
-        command = _require_list(runtime["command"], f"runtimes.{runtime_name}.command")
-        if not command or not all(isinstance(item, str) and item for item in command):
-            raise SchemaValidationError(
-                f"runtimes.{runtime_name}.command must contain non-empty strings"
+        if "command" in runtime:
+            command = _require_list(
+                runtime["command"], f"runtimes.{runtime_name}.command"
             )
+            if not command or not all(
+                isinstance(item, str) and item for item in command
+            ):
+                raise SchemaValidationError(
+                    f"runtimes.{runtime_name}.command must contain non-empty strings"
+                )
         _require_string_mapping(runtime.get("env", {}), f"runtimes.{runtime_name}.env")
         _require_string_list(
             runtime.get("required_secrets", []),
@@ -2531,15 +2550,27 @@ def _validate_runtime_recipes(
     return set(runtimes)
 
 
+def _adapter_native_rollout(kind: Any) -> bool:
+    if not isinstance(kind, str) or kind not in COURSE_ADAPTER_KINDS:
+        return False
+    from yacht.courses.registry import course_adapter
+
+    return bool(course_adapter(kind).native_rollout)
+
+
 def _validate_runtime_backend_fields(runtime: dict[str, Any], path: str) -> None:
     backend = runtime["backend"]
     if backend == "host-nix":
+        if "command" not in runtime:
+            raise SchemaValidationError(f"{path}.command is required")
         if "flake" not in runtime:
             raise SchemaValidationError(f"{path}.flake is required")
         _require_non_empty_string(runtime.get("flake"), f"{path}.flake")
         if "image" in runtime:
             _require_non_empty_string(runtime["image"], f"{path}.image")
     elif backend == "container":
+        if "command" not in runtime:
+            raise SchemaValidationError(f"{path}.command is required")
         if "image" not in runtime:
             raise SchemaValidationError(f"{path}.image is required")
         _require_non_empty_string(runtime.get("image"), f"{path}.image")
@@ -2553,8 +2584,23 @@ def _validate_runtime_backend_fields(runtime: dict[str, Any], path: str) -> None
             runtime.get("container_workspace", "/workspace"),
             f"{path}.container_workspace",
         )
+    elif backend == "harbor":
+        for key in ("command", "flake"):
+            if key in runtime:
+                raise SchemaValidationError(
+                    f"{path}.{key} must not be set for the harbor backend; "
+                    "the launcher image owns execution"
+                )
+        for key in ("image", "harness", "harness_version"):
+            if key not in runtime:
+                raise SchemaValidationError(
+                    f"{path}.{key} is required for the harbor backend"
+                )
+        _require_non_empty_string(runtime.get("image"), f"{path}.image")
     else:
-        raise SchemaValidationError(f"{path}.backend must be host-nix or container")
+        raise SchemaValidationError(
+            f"{path}.backend must be host-nix, container, or harbor"
+        )
 
 
 def _validate_tool_capabilities(document: dict[str, Any]) -> set[str]:

@@ -6,6 +6,8 @@ from typing import Any
 
 from yacht.runtimes.container import ContainerRuntimeResolutionError
 from yacht.runtimes.container import resolve_container_runtime
+from yacht.runtimes.harbor import HarborRuntimeResolutionError
+from yacht.runtimes.harbor import resolve_harbor_runtime
 from yacht.runtimes.host_nix import HostNixRuntimeResolutionError
 from yacht.runtimes.host_nix import resolve_host_nix_runtime
 from yacht.domain.model import (
@@ -124,9 +126,20 @@ def _vessel_to_json(
                 instance_root=trial_root,
                 workspace_path=workspace_path,
             )
+        elif runtime.backend == "harbor":
+            resolution = resolve_harbor_runtime(
+                regatta=regatta,
+                vessel=vessel,
+                instance_root=trial_root,
+                workspace_path=workspace_path,
+            )
         else:
             raise ConfigError(f"unsupported runtime backend {runtime.backend}")
-    except (ContainerRuntimeResolutionError, HostNixRuntimeResolutionError) as error:
+    except (
+        ContainerRuntimeResolutionError,
+        HarborRuntimeResolutionError,
+        HostNixRuntimeResolutionError,
+    ) as error:
         raise ConfigError(str(error)) from error
 
     payload = {

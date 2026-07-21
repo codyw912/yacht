@@ -52,9 +52,18 @@ def render_terminal_bench_job(
             "mcp_servers": _mcp_servers(riggings),
             "rigging_steps": _rigging_steps(riggings),
         },
+        "launcher_image": _launcher_image(runtime),
         "secret_env": _secret_env(regatta, runtime, riggings),
         "vessel": vessel.name,
     }
+
+
+def _launcher_image(runtime: RuntimeRecipe) -> str:
+    if runtime.image is None:
+        raise ConfigError(
+            f"runtime {runtime.name} must declare the harbor launcher image"
+        )
+    return str(runtime.image)
 
 
 def _vessel(regatta: Regatta, vessel_name: str) -> Vessel:

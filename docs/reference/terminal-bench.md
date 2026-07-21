@@ -21,19 +21,22 @@ id = "fix-git"               # Terminal-Bench task name
 title = "Recover lost changes and merge them into the master branch"
 
 [runtimes.harbor-claude]
-backend = "host-nix"
-harness = "claude-code"      # maps to Harbor's installed agent
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"  # the pinned launcher image
+harness = "claude-code"      # maps to yacht's Harbor agent
 harness_version = "2.1.215"  # required: the pinned agent version
-flake = "path:."
-command = ["claude"]
 required_secrets = ["anthropic"]
 ```
 
 - `dataset` and `split` name a pinned dataset version in the Harbor
   registry; there is no floating "latest".
-- The vessel's `harness` selects the matching Harbor installed agent
-  (`claude-code` and `pi` are supported), and `harness_version` is
-  required — job rendering refuses unpinned runtimes.
+- Vessels use the `harbor` runtime backend (ADR 0012): the recipe's
+  `image` is the pinned launcher image yacht executes, `harness` selects
+  the matching yacht agent (`claude-code` and `pi` are supported), and
+  `harness_version` is required — validation refuses unpinned runtimes,
+  ceremonial `command`/`flake` fields, and pairing the backend with a
+  course that is not native-rollout (or vice versa). Preflight command
+  checks for harbor vessels run directly on the host.
 - The vessel's `model` is passed to Harbor verbatim and uses Harbor's
   provider-prefixed form, e.g. `anthropic/claude-haiku-4-5`.
 - Vessels run through yacht-owned Harbor agents (ADR 0012) baked into
@@ -94,5 +97,5 @@ uv run yacht run examples/terminal-bench-claude-code-versions-smoke.toml \
   --secret anthropic=@env:ANTHROPIC_API_KEY
 ```
 
-Requirements: Docker running, nix, uv, and `ANTHROPIC_API_KEY` exported.
+Requirements: Docker running, uv, and `ANTHROPIC_API_KEY` exported.
 The first run downloads the dataset task and builds its container image.

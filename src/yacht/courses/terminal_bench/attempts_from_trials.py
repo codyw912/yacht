@@ -116,7 +116,7 @@ def _attempt_from_trial(
         "task": _task_to_json(task),
         "provenance": _provenance(regatta, vessel, runtime, trial),
         "runtime_context": {
-            "backend": "harbor",
+            "backend": runtime.backend,
             "harness": runtime.harness,
             "agent": runtime.harness,
             "temp_home": trial_dir,
@@ -151,8 +151,8 @@ def _provenance(
             "resolved": _non_empty(agent.get("model")),
         },
         "runtime": {
-            "backend": "harbor",
-            "image": None,
+            "backend": runtime.backend,
+            "image": runtime.image,
         },
         "tools": tool_provenance(regatta, vessel),
     }
