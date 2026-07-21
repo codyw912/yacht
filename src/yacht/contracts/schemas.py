@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from yacht.courses.registry import supported_benchmark_adapter_kinds
@@ -2474,6 +2475,36 @@ def _validate_course_adapter(course: dict[str, Any]) -> None:
     )
 
 
+_CONTEST_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _validate_course_adapter_window(adapter: dict[str, Any], path: str) -> None:
+    start_date = adapter.get("start_date")
+    end_date = adapter.get("end_date")
+    for key, value in (("start_date", start_date), ("end_date", end_date)):
+        if value is not None and (
+            not isinstance(value, str) or _CONTEST_DATE.fullmatch(value) is None
+        ):
+            raise SchemaValidationError(
+                f"{path}.{key} must be a YYYY-MM-DD date string"
+            )
+    if (
+        isinstance(start_date, str)
+        and isinstance(end_date, str)
+        and start_date > end_date
+    ):
+        raise SchemaValidationError(
+            f"{path}.start_date must not be after {path}.end_date"
+        )
+    if adapter.get("kind") == "livecodebench" and (
+        start_date is None or end_date is None
+    ):
+        raise SchemaValidationError(
+            f"{path} requires start_date and end_date for the livecodebench "
+            "contest-date window"
+        )
+
+
 def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
     _require_keys(
         adapter,
@@ -2492,6 +2523,7 @@ def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
         set(supported_course_adapter_harnesses(str(adapter.get("kind")))),
         f"{path}.harness",
     )
+    _validate_course_adapter_window(adapter, path)
     instance_ids = adapter.get("instance_ids")
     if instance_ids is not None:
         _validate_adapter_instance_ids(instance_ids, f"{path}.instance_ids")

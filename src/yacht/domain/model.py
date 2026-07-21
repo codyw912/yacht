@@ -40,6 +40,8 @@ class CourseAdapter:
     split: str
     harness: str
     instance_ids: tuple[str, ...] = ()
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 @dataclass(frozen=True)

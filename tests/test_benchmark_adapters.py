@@ -31,7 +31,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
     def test_exposes_supported_benchmark_adapter_metadata(self) -> None:
         self.assertEqual(
             supported_benchmark_adapter_kinds(),
-            ("custom-eval", "swe-bench", "terminal-bench"),
+            ("custom-eval", "livecodebench", "swe-bench", "terminal-bench"),
         )
         self.assertEqual(
             supported_course_adapter_harnesses(),

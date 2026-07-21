@@ -272,6 +272,8 @@ def _parse_course_adapter(raw_course: dict[str, Any]) -> CourseAdapter | None:
         split=str(adapter["split"]),
         harness=str(adapter["harness"]),
         instance_ids=tuple(str(item) for item in adapter.get("instance_ids", ())),
+        start_date=(str(adapter["start_date"]) if "start_date" in adapter else None),
+        end_date=str(adapter["end_date"]) if "end_date" in adapter else None,
     )
 
 
@@ -285,8 +287,18 @@ def _parse_course_tasks(
 
     tasks_by_id = {task.id: task for task in tasks}
     return tuple(
-        tasks_by_id.get(instance_id) or _default_swe_bench_task(instance_id)
+        tasks_by_id.get(instance_id) or _default_adapter_task(adapter, instance_id)
         for instance_id in adapter.instance_ids
+    )
+
+
+def _default_adapter_task(adapter: CourseAdapter, instance_id: str) -> Task:
+    if adapter.kind == "swe-bench":
+        return _default_swe_bench_task(instance_id)
+    return Task(
+        id=instance_id,
+        title=f"{adapter.kind} instance {instance_id}",
+        difficulty=1,
     )
 
 

@@ -645,6 +645,164 @@ class TerminalBenchEvaluatorAdapter:
         )
 
 
+@dataclass(frozen=True)
+class LiveCodeBenchCourseAdapter:
+    kind: str = "livecodebench"
+    display_name: str = "LiveCodeBench"
+    supported_harnesses: tuple[str, ...] = ("docker",)
+    native_rollout: bool = False
+
+    def expected_outputs(self) -> dict[str, str]:
+        return {
+            "candidate_patches": (
+                "course-handoff/livecodebench/candidate-patches.jsonl"
+            ),
+            "grading_report": "course-handoff/livecodebench/grading-report.json",
+        }
+
+    def task_prompt_instructions(self, task: Any) -> str:
+        prompt = "\nLiveCodeBench submission instructions:\n"
+        prompt += (
+            "Solve the problem in Python. If starter code is given, complete "
+            "it; otherwise read from standard input and print to standard "
+            "output. When finished, respond with a JSON object containing a "
+            "non-empty code string holding the complete solution. Do not wrap "
+            "the JSON in markdown fences.\n"
+        )
+        if task.problem_statement is not None:
+            prompt += f"\nProblem:\n{task.problem_statement}\n"
+        return prompt
+
+    def task_with_context(self, *, task: Any, adapter: Any) -> Any:
+        from yacht.courses.livecodebench.task_context import (
+            task_with_livecodebench_context,
+        )
+
+        return task_with_livecodebench_context(task=task, adapter=adapter)
+
+    def workspace_for_attempt(
+        self,
+        *,
+        task: Any,
+        workspace_path: Path,
+        workspace_root: Path,
+        comparison_name: str,
+        vessel_name: str,
+    ) -> Path:
+        return workspace_path
+
+    def write_predictions_from_attempts(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        from yacht.courses.livecodebench.predictions_from_attempts import (
+            write_livecodebench_predictions_from_attempts,
+        )
+
+        return write_livecodebench_predictions_from_attempts(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+            comparison_name=comparison_name,
+        )
+
+    def write_attempts_from_native_rollout(
+        self,
+        *,
+        config_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+        comparison_name: str | None = None,
+    ) -> dict[str, Any]:
+        raise _no_native_rollout(self.kind)
+
+
+@dataclass(frozen=True)
+class LiveCodeBenchEvaluatorAdapter:
+    kind: str = "livecodebench"
+    display_name: str = "LiveCodeBench"
+    grading_schema: str = "yacht.livecodebench-grading.v1"
+
+    def grading(self, harness: str) -> dict[str, str]:
+        return {
+            "delegated_to": self.kind,
+            "execution": f"{harness}-harness",
+            "status": "planned",
+        }
+
+    def launcher_command(
+        self,
+        *,
+        course_adapter: dict[str, Any],
+        tasks: list[dict[str, Any]],
+        candidate_path: Path,
+        native_report_dir: Path,
+        run_id: str,
+        vessel_name: str,
+        max_workers: int,
+        python_command: list[str],
+    ) -> list[str]:
+        from yacht.courses.livecodebench.predictions_from_attempts import (
+            LCB_WINDOW_FILENAME,
+        )
+
+        vessel_dir = candidate_path.parent
+        command = [
+            "uv",
+            "run",
+            "python",
+            "-m",
+            "yacht.courses.livecodebench.harness",
+            "--candidates",
+            str(candidate_path),
+            "--window-file",
+            str(vessel_dir / LCB_WINDOW_FILENAME),
+            "--work-dir",
+            str(vessel_dir / "lcb-eval"),
+            "--report-dir",
+            str(native_report_dir),
+            "--run-id",
+            run_id,
+            "--vessel",
+            vessel_name,
+            "--release-version",
+            str(course_adapter["split"]),
+        ]
+        start_date = course_adapter.get("start_date")
+        if isinstance(start_date, str) and start_date:
+            command.extend(["--start-date", start_date])
+        end_date = course_adapter.get("end_date")
+        if isinstance(end_date, str) and end_date:
+            command.extend(["--end-date", end_date])
+        return command
+
+    def native_report_filename(self, *, vessel_name: str, run_id: str) -> str:
+        return f"{vessel_name}.{run_id}.json"
+
+    def write_grading_report(
+        self,
+        *,
+        config_path: Path,
+        native_report_path: Path,
+        logbook_dir: Path,
+        vessel_name: str,
+    ) -> dict[str, Any]:
+        from yacht.courses.livecodebench.grading import (
+            write_livecodebench_grading_report,
+        )
+
+        return write_livecodebench_grading_report(
+            config_path=config_path,
+            native_report_path=native_report_path,
+            logbook_dir=logbook_dir,
+            vessel_name=vessel_name,
+        )
+
+
 def _no_native_rollout(kind: str) -> Exception:
     from yacht.domain.model import ConfigError
 
@@ -659,12 +817,14 @@ CustomEvalAdapter = CustomEvalCourseAdapter
 
 _COURSE_ADAPTERS: dict[str, CourseAdapterInterface] = {
     "custom-eval": CustomEvalCourseAdapter(),
+    "livecodebench": LiveCodeBenchCourseAdapter(),
     "swe-bench": SweBenchCourseAdapter(),
     "terminal-bench": TerminalBenchCourseAdapter(),
 }
 
 _EVALUATOR_ADAPTERS: dict[str, EvaluatorAdapterInterface] = {
     "custom-eval": CustomEvalEvaluatorAdapter(),
+    "livecodebench": LiveCodeBenchEvaluatorAdapter(),
     "swe-bench": SweBenchEvaluatorAdapter(),
     "terminal-bench": TerminalBenchEvaluatorAdapter(),
 }
@@ -732,6 +892,10 @@ def course_adapter_to_json(adapter: Any) -> dict[str, Any]:
     }
     if adapter.instance_ids:
         payload["instance_ids"] = list(adapter.instance_ids)
+    if adapter.start_date is not None:
+        payload["start_date"] = adapter.start_date
+    if adapter.end_date is not None:
+        payload["end_date"] = adapter.end_date
     return payload
 
 
