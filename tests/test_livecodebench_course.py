@@ -335,8 +335,26 @@ class LiveCodeBenchPipelineArtifactTests(unittest.TestCase):
 
             plan = write_benchmark_execution_plan(logbook_dir)
             launcher = write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
+            from yacht.workflows.benchmark_launch import (
+                write_benchmark_launch_result,
+            )
+            from yacht.workflows.benchmark_grading_collection import (
+                collect_benchmark_grading_reports,
+            )
+            from yacht.preflight import CommandResult
 
-            for document in (plan, launcher):
+            launch = write_benchmark_launch_result(
+                logbook_dir=logbook_dir,
+                command_runner=lambda argv, cwd: CommandResult(
+                    exit_code=0, stdout="", stderr=""
+                ),
+            )
+            collection = collect_benchmark_grading_reports(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+            )
+
+            for document in (plan, launcher, launch, collection):
                 self.assertEqual(document["adapter"]["kind"], "livecodebench")
                 self.assertEqual(document["adapter"]["start_date"], "2023-05-01")
                 self.assertEqual(document["adapter"]["end_date"], "2023-05-14")
