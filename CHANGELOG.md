@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.5.0 - Statistical Verdicts, LiveCodeBench, and Aider Polyglot
+
+YACHT 0.5.0 makes comparison verdicts statistically honest, adds two
+benchmark courses — LiveCodeBench through its official evaluator and
+Aider Polyglot on the Harbor foundation — and publishes the contract for
+contributing new courses.
+
+### Statistical rigor (ADR 0013)
+
+- Comparison scorecards now carry a `statistics` block per comparison:
+  Wilson score intervals on resolution rates and an exact paired sign
+  test over discordant tasks, all stdlib-only.
+- Resolution verdicts are graded by evidence: `insufficient-evidence`
+  (fewer discordant tasks than the significance threshold — an
+  observation, not a conclusion), `not-distinguishable` (p >= 0.05), or
+  `evidence-of-difference` (p < 0.05). Reports append the grade to the
+  decision line instead of presenting raw deltas as findings.
+- Repetition aggregates replace the old variance heuristics with
+  t-based 95% confidence intervals on per-run deltas, graded the same
+  way; HTML reports badge the grade and label single runs as
+  observation-only.
+
+### LiveCodeBench course (ADR 0014)
+
+- Added the `livecodebench` course: YACHT runs the rollout (competitive
+  programming problems fetched with full context from the pinned
+  dataset), and grading is delegated to the official LiveCodeBench
+  evaluator, pinned by commit in a dedicated launcher image
+  (`containers/lcb-runner`) so untrusted generated code executes only in
+  a container.
+- Course configs declare the contest-date window (`start_date` /
+  `end_date`) that selects the problem set; unattempted window problems
+  are padded into the evaluator input as required by the harness and
+  reported distinctly from real submissions. The window is carried
+  through every pipeline artifact and validated at each stage.
+- Added `examples/container-claude-code-livecodebench-smoke.toml`
+  (haiku vs sonnet on two problems) and a LiveCodeBench reference page.
+  Validated live end to end with a real token-spending comparison run.
+
+### Aider Polyglot course
+
+- Registered `aider-polyglot` (225 Exercism tasks across six languages)
+  on the Harbor course foundation from 0.4.0 — same yacht-owned agents,
+  pinned launcher, rigging, and install-only preflight; only the
+  dataset pin and grading schema differ. Added
+  `examples/aider-polyglot-claude-code-versions-smoke.toml`.
+
+### Project
+
+- Documented the course contract (`docs/reference/adding-a-course.md`):
+  the decision tree between yacht-run and native-rollout shapes, the
+  adapter surfaces to implement, the normalized native report
+  invariants, and the pinning and trust rules a new course must satisfy.
+  CONTRIBUTING.md now leads with it.
+- Course adapter blocks are rebuilt from one shared helper across all
+  pipeline artifacts, fixing mid-run validation failures where
+  LiveCodeBench window fields were dropped between stages.
+
 ## 0.4.0 - Terminal-Bench and the Harbor Course Foundation
 
 YACHT 0.4.0 adds the second real benchmark course — Terminal-Bench 2.0 —
