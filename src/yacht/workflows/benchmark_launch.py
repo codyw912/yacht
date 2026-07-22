@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
+from yacht.courses.registry import course_adapter_block
 from yacht.workflows.benchmark_launcher_handoff import BENCHMARK_LAUNCHER_HANDOFF_PATH
 from yacht.reports.next_steps import command_step
 from yacht.preflight import CommandResult
@@ -61,12 +62,7 @@ def _build_launch_result(
         "schema": BENCHMARK_LAUNCH_RESULT_SCHEMA,
         "regatta": str(launcher_handoff["regatta"]),
         "course": str(launcher_handoff["course"]),
-        "adapter": {
-            "kind": str(launcher_handoff["adapter"]["kind"]),
-            "dataset": str(launcher_handoff["adapter"]["dataset"]),
-            "split": str(launcher_handoff["adapter"]["split"]),
-            "harness": str(launcher_handoff["adapter"]["harness"]),
-        },
+        "adapter": course_adapter_block(launcher_handoff["adapter"]),
         "status": _status(summary),
         "summary": summary,
         "next_steps": _next_steps(logbook_dir, summary),

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.courses.registry import course_adapter_block
 from yacht.courses.registry import evaluator_adapter
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.workflows.benchmark_launcher_handoff import (
@@ -41,12 +42,7 @@ def collect_benchmark_grading_reports(
         "schema": BENCHMARK_GRADING_COLLECTION_SCHEMA,
         "regatta": str(launch_result["regatta"]),
         "course": str(launch_result["course"]),
-        "adapter": {
-            "kind": str(launch_result["adapter"]["kind"]),
-            "dataset": str(launch_result["adapter"]["dataset"]),
-            "split": str(launch_result["adapter"]["split"]),
-            "harness": str(launch_result["adapter"]["harness"]),
-        },
+        "adapter": course_adapter_block(launch_result["adapter"]),
         "status": _status(summary),
         "summary": summary,
         "next_steps": _next_steps(logbook_dir, summary),
