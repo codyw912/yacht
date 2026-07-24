@@ -1,0 +1,89 @@
+# Compare two pinned Claude Code versions on a user-authored eval.
+#
+# The course is a local directory of Harbor-format tasks
+# (examples/custom-evals). Rollout and verification run through the pinned
+# Harbor launcher exactly like a registry course (ADR 0015): Harbor builds
+# each task's environment container, installs the pinned Claude Code version
+# inside it, runs the agent, and runs the task's verifier. The course handoff
+# records a content digest of the task directory, and the launch refuses to
+# run if the tasks changed after planning.
+#
+# Requirements: Docker running, uv,
+# ANTHROPIC_API_KEY exported, and the pinned launcher image built:
+#
+#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+#
+# Run with:
+#
+#   uv run yacht run examples/custom-eval-claude-code-versions-smoke.toml \
+#     --logbook /private/tmp/yacht-custom-eval-smoke \
+#     --workspace . \
+#     --secret anthropic=@env:ANTHROPIC_API_KEY
+
+[regatta]
+name = "custom-eval-claude-code-versions-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "yacht-example-evals"
+
+[[course.tasks]]
+id = "hello-task"
+title = "Write a greeting file in the task container"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "custom-evals"
+split = "v1"
+harness = "harbor"
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.harbor-claude-211]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "claude-code"
+harness_version = "2.1.211"
+required_secrets = ["anthropic"]
+
+[runtimes.harbor-claude-211.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "agent-install", kind = "install-only" },
+]
+
+[runtimes.harbor-claude-215]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "claude-code"
+harness_version = "2.1.215"
+required_secrets = ["anthropic"]
+
+[runtimes.harbor-claude-215.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "agent-install", kind = "install-only" },
+]
+
+[[vessels]]
+name = "claude-code-2-1-211"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-claude-211"
+
+[[vessels]]
+name = "claude-code-2-1-215"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-claude-215"
+
+[[comparisons]]
+name = "claude-code-211-vs-215"
+course = "yacht-example-evals"
+vessels = ["claude-code-2-1-211", "claude-code-2-1-215"]

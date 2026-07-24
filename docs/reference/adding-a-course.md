@@ -128,11 +128,11 @@ A course PR (or slice series) is complete when it has:
 
 ## Worked examples
 
-| Contract element | swe-bench | terminal-bench | livecodebench |
-| ---------------- | --------- | -------------- | ------------- |
-| Shape | yacht-run | native rollout | yacht-run |
-| Dataset pin | HF dataset + split | registry version → git commits | HF release + date window |
-| Candidate records | unified-diff patches | task roster | solution code |
-| Native evaluator | `swebench` Docker harness | Harbor in `containers/harbor-launcher` | `lcb_runner` in `containers/lcb-runner` |
-| External contract absorbed | patch/prediction format | whole-trial containers, agent installation | whole-window output assertion (padding) |
-| Attempt evidence | harness-run attempts | synthesized from trials | harness-run attempts |
+| Contract element | swe-bench | terminal-bench | livecodebench | custom-eval |
+| ---------------- | --------- | -------------- | ------------- | ----------- |
+| Shape | yacht-run | native rollout | yacht-run | native rollout |
+| Dataset pin | HF dataset + split | registry version → git commits | HF release + date window | content digest of local task directory |
+| Candidate records | unified-diff patches | task roster | solution code | task roster |
+| Native evaluator | `swebench` Docker harness | Harbor in `containers/harbor-launcher` | `lcb_runner` in `containers/lcb-runner` | Harbor in `containers/harbor-launcher` |
+| External contract absorbed | patch/prediction format | whole-trial containers, agent installation | whole-window output assertion (padding) | user-authored task/verifier trust |
+| Attempt evidence | harness-run attempts | synthesized from trials | harness-run attempts | synthesized from trials |
