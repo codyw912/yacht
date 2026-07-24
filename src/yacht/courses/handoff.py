@@ -35,7 +35,7 @@ def build_course_handoff(config_path: Path) -> dict[str, Any]:
         "regatta": regatta.name,
         "course": regatta.course.name,
         "status": "planned",
-        "adapter": course_adapter_to_json(regatta.course.adapter),
+        "adapter": _adapter_to_json(regatta.course.adapter),
         "tasks": [_task_to_json(task) for task in regatta.course.tasks],
         "comparisons": [
             _comparison_to_json(comparison) for comparison in regatta.comparisons
@@ -51,6 +51,15 @@ def write_course_handoff(config_path: Path, logbook_dir: Path) -> dict[str, Any]
     handoff = build_course_handoff(config_path)
     write_json(logbook_dir / COURSE_HANDOFF_PATH, handoff)
     return handoff
+
+
+def _adapter_to_json(adapter: CourseAdapter) -> dict[str, Any]:
+    payload = course_adapter_to_json(adapter)
+    if adapter.kind == "custom-eval":
+        from yacht.courses.task_directory import task_directory_digest
+
+        payload["content_digest"] = task_directory_digest(Path(adapter.dataset))
+    return payload
 
 
 def _task_to_json(task: Task) -> dict[str, Any]:

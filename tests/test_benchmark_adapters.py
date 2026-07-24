@@ -41,7 +41,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         )
         self.assertEqual(
             supported_course_adapter_harnesses(),
-            ("docker", "harbor", "local"),
+            ("docker", "harbor"),
         )
         self.assertEqual(supported_course_adapter_harnesses("swe-bench"), ("docker",))
 
@@ -71,7 +71,8 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
 
         self.assertEqual(adapter.kind, "custom-eval")
         self.assertEqual(adapter.display_name, "Custom eval")
-        self.assertEqual(adapter.supported_harnesses, ("local",))
+        self.assertEqual(adapter.supported_harnesses, ("harbor",))
+        self.assertTrue(adapter.native_rollout)
         self.assertEqual(adapter.grading_schema, "yacht.custom-eval-grading.v1")
         self.assertEqual(
             adapter.expected_outputs(),
@@ -81,10 +82,10 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            adapter.grading("local"),
+            adapter.grading("harbor"),
             {
                 "delegated_to": "custom-eval",
-                "execution": "local-harness",
+                "execution": "harbor-harness",
                 "status": "planned",
             },
         )
@@ -97,7 +98,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(adapter.supported_harnesses, ("harbor",))
         self.assertTrue(adapter.native_rollout)
         self.assertFalse(benchmark_adapter("swe-bench").native_rollout)
-        self.assertFalse(benchmark_adapter("custom-eval").native_rollout)
+        self.assertTrue(benchmark_adapter("custom-eval").native_rollout)
         self.assertEqual(
             adapter.grading_schema,
             "yacht.terminal-bench-grading.v1",
@@ -178,15 +179,15 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         command = adapter.launcher_command(
             course_adapter={
                 "kind": "custom-eval",
-                "dataset": "local",
-                "split": "smoke",
-                "harness": "local",
+                "dataset": "/tmp/evals",
+                "split": "v1",
+                "harness": "harbor",
             },
-            tasks=[{"id": "local-smoke-1"}],
-            candidate_path=Path("/tmp/candidate-patches.jsonl"),
+            tasks=[{"id": "hello-task"}],
+            candidate_path=Path("/tmp/vessels/custom-vessel/candidate-patches.jsonl"),
             native_report_dir=Path("/tmp/native-report"),
             run_id="run-1",
-            vessel_name="local-agent-with-tool",
+            vessel_name="custom-vessel",
             max_workers=1,
             python_command=["ignored"],
         )
@@ -198,13 +199,19 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
                 "run",
                 "python",
                 "-m",
-                "yacht.courses.custom_eval.harness",
-                "--candidate-records",
-                "/tmp/candidate-patches.jsonl",
+                "yacht.courses.terminal_bench.harness",
+                "--job",
+                "/tmp/vessels/custom-vessel/terminal-bench-job.json",
+                "--roster",
+                "/tmp/vessels/custom-vessel/candidate-patches.jsonl",
+                "--trials-dir",
+                "/tmp/vessels/custom-vessel/harbor-trials",
                 "--report-dir",
                 "/tmp/native-report",
                 "--run-id",
                 "run-1",
+                "--vessel",
+                "custom-vessel",
             ],
         )
 
@@ -274,25 +281,16 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         self.assertIn("repo: django/django", instructions)
         self.assertIn("base_commit: abc123", instructions)
 
-    def test_custom_eval_prompt_instructions_include_expected_response_fields(
-        self,
-    ) -> None:
+    def test_custom_eval_prompt_instructions_note_native_rollout(self) -> None:
         task = Task(
             id="custom-1",
             title="Complete custom task",
             difficulty=1,
-            problem_statement="Return the expected fields.",
-            expect_response={"completed": True, "quality": "accepted"},
-            expect_tool_calls=("repo-map",),
         )
 
         instructions = benchmark_adapter("custom-eval").task_prompt_instructions(task)
 
-        self.assertIn("Custom eval submission instructions", instructions)
-        self.assertIn("completed=True", instructions)
-        self.assertIn("quality='accepted'", instructions)
-        self.assertIn("repo-map", instructions)
-        self.assertIn("Return the expected fields.", instructions)
+        self.assertIn("rolled out natively by the Harbor harness", instructions)
 
     def test_rejects_unknown_benchmark_adapter(self) -> None:
         with self.assertRaisesRegex(
@@ -322,7 +320,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 ConfigError,
-                "course.adapter.harness must be one of: local",
+                "course.adapter.harness must be one of: harbor",
             ):
                 load_regatta(config_path)
 

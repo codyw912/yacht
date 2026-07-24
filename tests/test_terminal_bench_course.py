@@ -330,8 +330,8 @@ harness_version = "2.1.211"''',
 
     def test_harbor_backend_requires_a_native_rollout_course(self) -> None:
         config = TERMINAL_BENCH_CONFIG.replace(
-            'kind = "terminal-bench"', 'kind = "custom-eval"'
-        ).replace('harness = "harbor"', 'harness = "local"')
+            'kind = "terminal-bench"', 'kind = "swe-bench"'
+        ).replace('harness = "harbor"', 'harness = "docker"')
         self._expect_invalid(
             config,
             "uses the harbor backend, which requires a native-rollout course",
