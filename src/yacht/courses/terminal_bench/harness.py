@@ -117,7 +117,10 @@ def harbor_command(
         f"{trials_dir}:{trials_dir}",
     ]
     if tasks_path is not None:
-        command.extend(["-v", f"{tasks_path}:{tasks_path}:ro"])
+        # Not :ro — read-only binds of macOS directories intermittently
+        # surface as missing inside the container under OrbStack's virtiofs.
+        # The content-digest check guards task integrity instead.
+        command.extend(["-v", f"{tasks_path}:{tasks_path}"])
     for name in secret_env:
         command.extend(["-e", name])
     command.extend(

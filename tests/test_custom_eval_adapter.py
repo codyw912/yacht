@@ -255,7 +255,7 @@ class CustomEvalHarnessTests(unittest.TestCase):
                 [{"path": str(tasks_dir), "task_names": ["hello-task"]}],
             )
 
-    def test_harbor_command_mounts_the_task_directory_read_only(self) -> None:
+    def test_harbor_command_mounts_the_task_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             tasks_dir = _write_task_directory(root)
@@ -268,7 +268,7 @@ class CustomEvalHarnessTests(unittest.TestCase):
                 tasks_path=tasks_dir,
             )
 
-            self.assertIn(f"{tasks_dir}:{tasks_dir}:ro", command)
+            self.assertIn(f"{tasks_dir}:{tasks_dir}", command)
 
     def test_run_rejects_a_changed_task_directory(self) -> None:
         import json
