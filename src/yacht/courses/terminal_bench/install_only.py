@@ -38,11 +38,13 @@ def run_terminal_bench_install_only(
         + "\n",
         encoding="utf-8",
     )
+    tasks_path = Path(str(job["dataset"]["path"])) if "path" in job["dataset"] else None
     command = harbor_command(
         config_path,
         trials_dir=work_dir,
         secret_env=[str(name) for name in job.get("secret_env", [])],
         launcher_image=str(job["launcher_image"]),
+        tasks_path=tasks_path,
     )
     command.append("--install-only")
 

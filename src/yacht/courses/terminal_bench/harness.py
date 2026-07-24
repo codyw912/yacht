@@ -66,6 +66,7 @@ def run_terminal_bench_job(
 ) -> dict[str, Any]:
     job = _load_job(job_path)
     roster_ids = _load_roster_ids(roster_path)
+    tasks_path = _verified_tasks_path(job)
     harbor_config_path = trials_dir / "harbor-run-config.json"
     _write_json(harbor_config_path, harbor_run_config(job, trials_dir=trials_dir))
 
@@ -75,6 +76,7 @@ def run_terminal_bench_job(
         trials_dir=trials_dir,
         secret_env=[str(name) for name in job.get("secret_env", [])],
         launcher_image=str(job.get("launcher_image", HARBOR_LAUNCHER_IMAGE)),
+        tasks_path=tasks_path,
     )
     exit_code = runner(command, trials_dir)
     if exit_code != 0:
@@ -103,6 +105,7 @@ def harbor_command(
     trials_dir: Path,
     secret_env: list[str],
     launcher_image: str = HARBOR_LAUNCHER_IMAGE,
+    tasks_path: Path | None = None,
 ) -> list[str]:
     command = [
         "docker",
@@ -113,6 +116,8 @@ def harbor_command(
         "-v",
         f"{trials_dir}:{trials_dir}",
     ]
+    if tasks_path is not None:
+        command.extend(["-v", f"{tasks_path}:{tasks_path}:ro"])
     for name in secret_env:
         command.extend(["-e", name])
     command.extend(
@@ -146,19 +151,47 @@ def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any
             {"transport": "stdio", **dict(server)} for server in agent["mcp_servers"]
         ]
     dataset = job["dataset"]
+    task_names = [str(task) for task in job["tasks"]]
+    if "path" in dataset:
+        dataset_config: dict[str, Any] = {
+            "path": str(dataset["path"]),
+            "task_names": task_names,
+        }
+    else:
+        dataset_config = {
+            "name": str(dataset["name"]),
+            "version": str(dataset["version"]),
+            "task_names": task_names,
+        }
     return {
         "jobs_dir": str(trials_dir),
         "job_name": HARBOR_JOB_NAME,
         "agents": [agent_config],
-        "datasets": [
-            {
-                "name": str(dataset["name"]),
-                "version": str(dataset["version"]),
-                "task_names": [str(task) for task in job["tasks"]],
-            }
-        ],
+        "datasets": [dataset_config],
         "n_attempts": 1,
     }
+
+
+def _verified_tasks_path(job: dict[str, Any]) -> Path | None:
+    dataset = job["dataset"]
+    if "path" not in dataset:
+        return None
+    from yacht.courses.task_directory import task_directory_digest
+
+    tasks_path = Path(str(dataset["path"]))
+    recorded = str(dataset.get("digest", ""))
+    if not recorded:
+        raise ConfigError(
+            "job dataset with a local task path must record a content digest"
+        )
+    actual = task_directory_digest(tasks_path)
+    if actual != recorded:
+        raise ConfigError(
+            f"task directory {tasks_path} does not match the job's recorded "
+            f"content digest (expected {recorded}, found {actual}); the tasks "
+            "changed after the job was planned"
+        )
+    return tasks_path
 
 
 def native_report_from_trials(

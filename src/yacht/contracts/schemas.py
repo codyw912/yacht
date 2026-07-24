@@ -2524,6 +2524,9 @@ def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
         f"{path}.harness",
     )
     _validate_course_adapter_window(adapter, path)
+    content_digest = adapter.get("content_digest")
+    if content_digest is not None:
+        _require_non_empty_string(content_digest, f"{path}.content_digest")
     instance_ids = adapter.get("instance_ids")
     if instance_ids is not None:
         _validate_adapter_instance_ids(instance_ids, f"{path}.instance_ids")

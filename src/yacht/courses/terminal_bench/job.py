@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 from yacht.domain.model import (
@@ -38,10 +39,7 @@ def render_terminal_bench_job(
 
     return {
         "schema": TERMINAL_BENCH_JOB_SCHEMA,
-        "dataset": {
-            "name": str(regatta.course.adapter.dataset),
-            "version": str(regatta.course.adapter.split),
-        },
+        "dataset": _dataset(regatta.course.adapter),
         "tasks": [str(task.id) for task in regatta.course.tasks],
         "agent": {
             "name": _harness_name(runtime),
@@ -55,6 +53,21 @@ def render_terminal_bench_job(
         "launcher_image": _launcher_image(runtime),
         "secret_env": _secret_env(regatta, runtime, riggings),
         "vessel": vessel.name,
+    }
+
+
+def _dataset(adapter: Any) -> dict[str, str]:
+    if adapter.kind == "custom-eval":
+        from yacht.courses.task_directory import task_directory_digest
+
+        path = Path(str(adapter.dataset))
+        return {
+            "path": str(path),
+            "digest": task_directory_digest(path),
+        }
+    return {
+        "name": str(adapter.dataset),
+        "version": str(adapter.split),
     }
 
 

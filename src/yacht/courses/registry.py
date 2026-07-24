@@ -367,140 +367,6 @@ class SweBenchEvaluatorAdapter:
 
 
 @dataclass(frozen=True)
-class CustomEvalCourseAdapter:
-    kind: str = "custom-eval"
-    display_name: str = "Custom eval"
-    supported_harnesses: tuple[str, ...] = ("local",)
-    native_rollout: bool = False
-
-    def expected_outputs(self) -> dict[str, str]:
-        return {
-            "candidate_patches": "course-handoff/custom-eval/candidate-patches.jsonl",
-            "grading_report": "course-handoff/custom-eval/grading-report.json",
-        }
-
-    def task_prompt_instructions(self, task: Any) -> str:
-        prompt = "\nCustom eval submission instructions:\n"
-        expected = task.expect_response or {"completed": True}
-        fields = ", ".join(
-            f"{key}={value!r}" for key, value in sorted(expected.items())
-        )
-        prompt += (
-            "When finished, respond with a JSON object matching these expected "
-            f"top-level fields: {fields}. Do not wrap the JSON in markdown fences.\n"
-        )
-        if task.expect_tool_calls:
-            tools = ", ".join(sorted(task.expect_tool_calls))
-            prompt += f"Expected tool-call evidence: {tools}.\n"
-        if task.problem_statement is not None:
-            prompt += f"\nProblem statement:\n{task.problem_statement}\n"
-        return prompt
-
-    def task_with_context(self, *, task: Any, adapter: Any) -> Any:
-        return task
-
-    def workspace_for_attempt(
-        self,
-        *,
-        task: Any,
-        workspace_path: Path,
-        workspace_root: Path,
-        comparison_name: str,
-        vessel_name: str,
-    ) -> Path:
-        return workspace_path
-
-    def write_predictions_from_attempts(
-        self,
-        *,
-        config_path: Path,
-        logbook_dir: Path,
-        vessel_name: str,
-        comparison_name: str | None = None,
-    ) -> dict[str, Any]:
-        from yacht.courses.custom_eval.predictions_from_attempts import (
-            write_custom_eval_predictions_from_attempts,
-        )
-
-        return write_custom_eval_predictions_from_attempts(
-            config_path=config_path,
-            logbook_dir=logbook_dir,
-            vessel_name=vessel_name,
-            comparison_name=comparison_name,
-        )
-
-    def write_attempts_from_native_rollout(
-        self,
-        *,
-        config_path: Path,
-        logbook_dir: Path,
-        vessel_name: str,
-        comparison_name: str | None = None,
-    ) -> dict[str, Any]:
-        raise _no_native_rollout(self.kind)
-
-
-@dataclass(frozen=True)
-class CustomEvalEvaluatorAdapter:
-    kind: str = "custom-eval"
-    display_name: str = "Custom eval"
-    grading_schema: str = "yacht.custom-eval-grading.v1"
-
-    def grading(self, harness: str) -> dict[str, str]:
-        return {
-            "delegated_to": self.kind,
-            "execution": f"{harness}-harness",
-            "status": "planned",
-        }
-
-    def launcher_command(
-        self,
-        *,
-        course_adapter: dict[str, Any],
-        tasks: list[dict[str, Any]],
-        candidate_path: Path,
-        native_report_dir: Path,
-        run_id: str,
-        vessel_name: str,
-        max_workers: int,
-        python_command: list[str],
-    ) -> list[str]:
-        return [
-            "uv",
-            "run",
-            "python",
-            "-m",
-            "yacht.courses.custom_eval.harness",
-            "--candidate-records",
-            str(candidate_path),
-            "--report-dir",
-            str(native_report_dir),
-            "--run-id",
-            run_id,
-        ]
-
-    def native_report_filename(self, *, vessel_name: str, run_id: str) -> str:
-        return f"{vessel_name}.{run_id}.json"
-
-    def write_grading_report(
-        self,
-        *,
-        config_path: Path,
-        native_report_path: Path,
-        logbook_dir: Path,
-        vessel_name: str,
-    ) -> dict[str, Any]:
-        from yacht.courses.custom_eval.grading import write_custom_eval_grading_report
-
-        return write_custom_eval_grading_report(
-            config_path=config_path,
-            native_report_path=native_report_path,
-            logbook_dir=logbook_dir,
-            vessel_name=vessel_name,
-        )
-
-
-@dataclass(frozen=True)
 class TerminalBenchCourseAdapter:
     kind: str = "terminal-bench"
     display_name: str = "Terminal-Bench"
@@ -813,7 +679,6 @@ def _no_native_rollout(kind: str) -> Exception:
 
 
 SweBenchAdapter = SweBenchCourseAdapter
-CustomEvalAdapter = CustomEvalCourseAdapter
 
 
 _COURSE_ADAPTERS: dict[str, CourseAdapterInterface] = {
@@ -821,7 +686,10 @@ _COURSE_ADAPTERS: dict[str, CourseAdapterInterface] = {
         kind="aider-polyglot",
         display_name="Aider Polyglot",
     ),
-    "custom-eval": CustomEvalCourseAdapter(),
+    "custom-eval": TerminalBenchCourseAdapter(
+        kind="custom-eval",
+        display_name="Custom eval",
+    ),
     "livecodebench": LiveCodeBenchCourseAdapter(),
     "swe-bench": SweBenchCourseAdapter(),
     "terminal-bench": TerminalBenchCourseAdapter(),
@@ -833,7 +701,11 @@ _EVALUATOR_ADAPTERS: dict[str, EvaluatorAdapterInterface] = {
         display_name="Aider Polyglot",
         grading_schema="yacht.aider-polyglot-grading.v1",
     ),
-    "custom-eval": CustomEvalEvaluatorAdapter(),
+    "custom-eval": TerminalBenchEvaluatorAdapter(
+        kind="custom-eval",
+        display_name="Custom eval",
+        grading_schema="yacht.custom-eval-grading.v1",
+    ),
     "livecodebench": LiveCodeBenchEvaluatorAdapter(),
     "swe-bench": SweBenchEvaluatorAdapter(),
     "terminal-bench": TerminalBenchEvaluatorAdapter(),
@@ -918,7 +790,7 @@ def course_adapter_block(adapter_json: dict[str, Any]) -> dict[str, Any]:
         "split": str(adapter_json["split"]),
         "harness": str(adapter_json["harness"]),
     }
-    for key in ("start_date", "end_date"):
+    for key in ("start_date", "end_date", "content_digest"):
         value = adapter_json.get(key)
         if isinstance(value, str) and value:
             block[key] = value

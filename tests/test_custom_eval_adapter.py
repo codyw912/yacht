@@ -1,470 +1,371 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from tests.preflight_artifacts import write_preflight_artifact
-from yacht.workflows.benchmark_grading_collection import (
-    collect_benchmark_grading_reports,
-)
-from yacht.workflows.benchmark_launch import write_benchmark_launch_result
-from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
-from yacht.reports.benchmark_report import render_benchmark_report
-from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
 from yacht.courses.handoff import write_course_handoff
-from yacht.courses.custom_eval.harness import main as custom_eval_harness_main
-from yacht.courses.custom_eval.predictions_from_attempts import (
-    write_custom_eval_predictions_from_attempts,
+from yacht.courses.task_directory import task_directory_digest
+from yacht.courses.terminal_bench.harness import (
+    harbor_command,
+    harbor_run_config,
+    run_terminal_bench_job,
 )
-from yacht.reports.preflight_evidence import write_preflight_evidence_report
-from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
-from yacht.domain.model import ConfigError, Metrics, load_regatta
-from yacht.runtimes.instances import write_runtime_instances_plan
-from yacht.workflows.task_attempts import AgentTaskResult
-from yacht.reports.task_attempt_scorecard import write_task_attempt_scorecard
+from yacht.courses.terminal_bench.job import render_terminal_bench_job
+from yacht.domain.model import ConfigError, load_regatta
 
 
-CONFIG = """
+CUSTOM_EVAL_CONFIG = """
 [regatta]
-name = "local-custom-eval-smoke"
+name = "custom-eval-comparison"
 
 [preflight]
 failure_policy = "abort-group"
 
 [course]
-name = "local-custom-eval"
-tasks = [
-  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" }, expect_tool_calls = ["local-smoke"] },
-]
+name = "team-evals"
+
+[[course.tasks]]
+id = "hello-task"
+title = "Greet the user from a container"
 
 [course.adapter]
 kind = "custom-eval"
-dataset = "local"
-split = "smoke"
-harness = "local"
+dataset = "evals"
+split = "v1"
+harness = "harbor"
 
-[runtimes.local-agent]
-backend = "host-nix"
-harness = "local-smoke"
-flake = "path:."
-command = ["local-agent"]
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
 
-[runtimes.local-agent.preflight]
-required = true
-checks = [
-  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
-]
-
-[[vessels]]
-name = "local-baseline"
-model = "mock"
-runtime = "local-agent"
+[runtimes.harbor-claude]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "claude-code"
+harness_version = "2.1.211"
+required_secrets = ["anthropic"]
 
 [[vessels]]
-name = "local-tool"
-model = "mock"
-runtime = "local-agent"
+name = "claude-baseline"
+model = "claude-haiku-4-5"
+runtime = "harbor-claude"
+
+[[vessels]]
+name = "claude-candidate"
+model = "claude-haiku-4-5"
+runtime = "harbor-claude"
 
 [[comparisons]]
-name = "local-custom"
-course = "local-custom-eval"
-vessels = ["local-baseline", "local-tool"]
+name = "baseline-vs-candidate"
+course = "team-evals"
+vessels = ["claude-baseline", "claude-candidate"]
 """
 
 
-class CustomEvalAdapterTests(unittest.TestCase):
-    def test_loads_custom_eval_tasks_from_task_file(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            tasks_dir = root / "tasks"
-            tasks_dir.mkdir()
-            (tasks_dir / "local-smoke.toml").write_text(
-                """
-tasks = [
-  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true }, expect_tool_calls = ["local-smoke"] },
-]
-""",
-                encoding="utf-8",
-            )
-            config_path = _write_config(
-                root,
-                CONFIG.replace(
-                    """tasks = [
-  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" }, expect_tool_calls = ["local-smoke"] },
-]""",
-                    'task_file = "tasks/local-smoke.toml"',
-                ),
-            )
-
-            task = load_regatta(config_path).course.tasks[0]
-
-            self.assertEqual(task.id, "custom-1")
-            self.assertEqual(task.expect_response, {"completed": True})
-            self.assertEqual(task.expect_tool_calls, ("local-smoke",))
-
-    def test_loads_custom_eval_tasks_from_multiple_task_files(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            tasks_dir = root / "tasks"
-            tasks_dir.mkdir()
-            (tasks_dir / "one.toml").write_text(
-                """
-tasks = [
-  { id = "custom-1", title = "Complete custom task one", difficulty = 1, expect_response = { completed = true } },
-]
-""",
-                encoding="utf-8",
-            )
-            (tasks_dir / "two.toml").write_text(
-                """
-tasks = [
-  { id = "custom-2", title = "Complete custom task two", difficulty = 2, expect_response = { completed = true }, expect_tool_calls = ["local-smoke"] },
-]
-""",
-                encoding="utf-8",
-            )
-            config_path = _write_config(
-                root,
-                CONFIG.replace(
-                    """tasks = [
-  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" }, expect_tool_calls = ["local-smoke"] },
-]""",
-                    'task_files = ["tasks/one.toml", "tasks/two.toml"]',
-                ),
-            )
-
-            tasks = load_regatta(config_path).course.tasks
-
-            self.assertEqual([task.id for task in tasks], ["custom-1", "custom-2"])
-            self.assertEqual(tasks[1].difficulty, 2)
-            self.assertEqual(tasks[1].expect_tool_calls, ("local-smoke",))
-
-    def test_rejects_mixing_inline_tasks_and_task_file(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config_path = _write_config(
-                root,
-                CONFIG.replace(
-                    '[course]\nname = "local-custom-eval"',
-                    '[course]\nname = "local-custom-eval"\ntask_file = "tasks.toml"',
-                ),
-            )
-
-            with self.assertRaisesRegex(
-                ConfigError,
-                "course must not define both tasks and task_file",
-            ):
-                load_regatta(config_path)
-
-    def test_rejects_mixing_task_file_and_task_files(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config_path = _write_config(
-                root,
-                CONFIG.replace(
-                    """tasks = [
-  { id = "custom-1", title = "Complete custom task", difficulty = 1, expect_response = { completed = true, quality = "accepted" }, expect_tool_calls = ["local-smoke"] },
-]""",
-                    'task_file = "tasks.toml"\ntask_files = ["tasks/one.toml"]',
-                ),
-            )
-
-            with self.assertRaisesRegex(
-                ConfigError,
-                "course must not define both task_file and task_files",
-            ):
-                load_regatta(config_path)
-
-    def test_custom_eval_predictions_harness_grading_and_scorecard(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config_path = _write_config(root)
-            logbook_dir = root / "logbook"
-            workspace_path = root / "workspace"
-            workspace_path.mkdir()
-            _write_completed_attempt(
-                logbook_dir=logbook_dir,
-                vessel_name="local-baseline",
-                response={"completed": True, "quality": "accepted"},
-                tool_calls=(),
-            )
-            _write_completed_attempt(
-                logbook_dir=logbook_dir,
-                vessel_name="local-tool",
-                response={"completed": True, "quality": "accepted"},
-                tool_calls=("local-smoke",),
-            )
-            write_course_handoff(config_path, logbook_dir)
-            write_runtime_instances_plan(config_path, logbook_dir, workspace_path)
-            _write_preflight(logbook_dir=logbook_dir, vessel_name="local-baseline")
-            _write_preflight(logbook_dir=logbook_dir, vessel_name="local-tool")
-            write_preflight_evidence_report(logbook_dir)
-
-            baseline_summary = write_custom_eval_predictions_from_attempts(
-                config_path=config_path,
-                logbook_dir=logbook_dir,
-                vessel_name="local-baseline",
-                comparison_name="local-custom",
-            )
-            tool_summary = write_custom_eval_predictions_from_attempts(
-                config_path=config_path,
-                logbook_dir=logbook_dir,
-                vessel_name="local-tool",
-                comparison_name="local-custom",
-            )
-            launcher = write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
-
-            self.assertEqual(baseline_summary["adapter"], "custom-eval")
-            self.assertEqual(tool_summary["adapter"], "custom-eval")
-            baseline_record = _read_jsonl(
-                logbook_dir
-                / "course-handoff"
-                / "custom-eval"
-                / "vessels"
-                / "local-baseline"
-                / "candidate-patches.jsonl"
-            )[0]
-            self.assertEqual(
-                baseline_record["expect_response"],
-                {"completed": True, "quality": "accepted"},
-            )
-            self.assertEqual(baseline_record["expect_tool_calls"], ["local-smoke"])
-            self.assertEqual(baseline_record["tool_calls"], [])
-            self.assertEqual(launcher["status"], "ready-to-launch")
-            command = launcher["comparisons"][0]["vessels"][0]["command"]
-            self.assertEqual(command[:4], ["uv", "run", "python", "-m"])
-            self.assertEqual(command[4], "yacht.courses.custom_eval.harness")
-
-            launch = write_benchmark_launch_result(logbook_dir=logbook_dir)
-            grading = collect_benchmark_grading_reports(
-                config_path=config_path,
-                logbook_dir=logbook_dir,
-            )
-            scorecard = write_benchmark_scorecard(logbook_dir)
-
-            self.assertEqual(launch["status"], "complete")
-            self.assertEqual(grading["status"], "complete")
-            self.assertEqual(scorecard["status"], "complete")
-            vessels = scorecard["comparisons"][0]["vessels"]
-            self.assertEqual(vessels[0]["resolved_instances"], 0)
-            self.assertEqual(vessels[1]["resolved_instances"], 1)
-            self.assertEqual(
-                scorecard["comparisons"][0]["delta"]["resolved_instances_delta"],
-                1,
-            )
-            baseline_diagnostic = vessels[0]["task_diagnostics"][0]
-            self.assertEqual(baseline_diagnostic["task"], "custom-1")
-            self.assertEqual(baseline_diagnostic["result"], "unresolved")
-            self.assertEqual(baseline_diagnostic["response_matched"], True)
-            self.assertEqual(
-                baseline_diagnostic["missing_tool_calls"],
-                ["local-smoke"],
-            )
-            self.assertEqual(
-                baseline_diagnostic["reason"],
-                "missing_tool_calls: local-smoke",
-            )
-            write_task_attempt_scorecard(logbook_dir)
-            report = render_benchmark_report(
-                logbook_dir,
-                vessel_name="local-baseline",
-                task_id="custom-1",
-            )
-            self.assertIn(
-                "comparison | vessel | task | result | reason | attempt_artifact",
-                report,
-            )
-            self.assertIn(
-                "local-custom | local-baseline | custom-1 | unresolved | "
-                "missing_tool_calls: local-smoke | ",
-                report,
-            )
-
-    def test_real_benchmark_eval_runs_custom_eval_end_to_end(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config_path = _write_config(root)
-            logbook_dir = root / "logbook"
-            workspace_path = root / "workspace"
-            workspace_path.mkdir()
-
-            summary = run_real_benchmark_eval(
-                config_path=config_path,
-                logbook_dir=logbook_dir,
-                workspace_path=workspace_path,
-                secret_values={},
-                agent_prompt_runner_factory=lambda _instance, _transcript_dir: None,
-                task_agent=_CustomTaskAgent(),
-                agent_name="local-smoke",
-            )
-
-            self.assertEqual(summary["status"], "complete")
-            self.assertEqual(summary["scorecard"]["adapter"]["kind"], "custom-eval")
-            self.assertEqual(summary["grading_collection"]["status"], "complete")
-            self.assertEqual(summary["benchmark_launch"]["status"], "complete")
-            self.assertEqual(
-                summary["scorecard"]["comparisons"][0]["delta"][
-                    "resolved_instances_delta"
-                ],
-                0,
-            )
-
-    def test_custom_eval_harness_rejects_mixed_vessel_records(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            records_path = root / "records.jsonl"
-            records_path.write_text(
-                json.dumps(
-                    {
-                        "instance_id": "one",
-                        "model_name_or_path": "a",
-                        "response": {"completed": True},
-                        "expect_response": {"completed": True},
-                        "tool_calls": [],
-                        "expect_tool_calls": [],
-                    }
-                )
-                + "\n"
-                + json.dumps(
-                    {
-                        "instance_id": "two",
-                        "model_name_or_path": "b",
-                        "response": {"completed": True},
-                        "expect_response": {"completed": True},
-                        "tool_calls": [],
-                        "expect_tool_calls": [],
-                    }
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-
-            with self.assertRaisesRegex(SystemExit, "exactly one vessel"):
-                custom_eval_harness_main(
-                    [
-                        "--candidate-records",
-                        str(records_path),
-                        "--report-dir",
-                        str(root / "reports"),
-                        "--run-id",
-                        "run",
-                    ]
-                )
+def _write_task_directory(root: Path) -> Path:
+    tasks_dir = root / "evals"
+    task_dir = tasks_dir / "hello-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "instruction.md").write_text("Print a greeting.\n", encoding="utf-8")
+    (task_dir / "Dockerfile").write_text("FROM alpine:3.20\n", encoding="utf-8")
+    return tasks_dir
 
 
-class _CustomTaskAgent:
-    def run_task(
-        self,
-        *,
-        instance,
-        task,
-        prompt,
-        env,
-        cwd,
-        transcript_path,
-    ):
-        return AgentTaskResult(
-            exit_code=0,
-            response=json.dumps(dict(task.expect_response or {"completed": True})),
-            tool_calls=(),
-            transcript_path=transcript_path,
-            metrics=Metrics(tokens=1, duration_seconds=0.1),
-        )
-
-
-def _write_config(root: Path, config: str = CONFIG) -> Path:
+def _write_config(root: Path) -> Path:
     config_path = root / "regatta.toml"
-    config_path.write_text(config, encoding="utf-8")
+    config_path.write_text(CUSTOM_EVAL_CONFIG, encoding="utf-8")
     return config_path
 
 
-def _write_completed_attempt(
-    *,
-    logbook_dir: Path,
-    vessel_name: str,
-    response: dict[str, object],
-    tool_calls: tuple[str, ...],
-) -> None:
-    result = AgentTaskResult(
-        exit_code=0,
-        response=json.dumps(response),
-        tool_calls=tool_calls,
-        transcript_path=logbook_dir / "transcripts" / vessel_name / "custom-1.json",
-        metrics=Metrics(tokens=1, duration_seconds=0.1),
-    )
-    _write_task_attempt(logbook_dir=logbook_dir, vessel_name=vessel_name, result=result)
+class TaskDirectoryDigestTests(unittest.TestCase):
+    def test_digest_is_stable_for_identical_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tasks_dir = _write_task_directory(Path(temp_dir))
+
+            first = task_directory_digest(tasks_dir)
+            second = task_directory_digest(tasks_dir)
+
+        self.assertEqual(first, second)
+        self.assertTrue(first.startswith("sha256:"))
+
+    def test_digest_changes_when_file_content_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tasks_dir = _write_task_directory(Path(temp_dir))
+            before = task_directory_digest(tasks_dir)
+
+            (tasks_dir / "hello-task" / "instruction.md").write_text(
+                "Print a different greeting.\n", encoding="utf-8"
+            )
+
+            self.assertNotEqual(before, task_directory_digest(tasks_dir))
+
+    def test_digest_changes_when_a_file_is_renamed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tasks_dir = _write_task_directory(Path(temp_dir))
+            before = task_directory_digest(tasks_dir)
+
+            source = tasks_dir / "hello-task" / "instruction.md"
+            source.rename(tasks_dir / "hello-task" / "task.md")
+
+            self.assertNotEqual(before, task_directory_digest(tasks_dir))
+
+    def test_rejects_a_missing_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ConfigError, "not found"):
+                task_directory_digest(Path(temp_dir) / "missing")
+
+    def test_rejects_an_empty_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            empty = Path(temp_dir) / "empty"
+            empty.mkdir()
+            with self.assertRaisesRegex(ConfigError, "empty"):
+                task_directory_digest(empty)
 
 
-def _write_preflight(*, logbook_dir: Path, vessel_name: str) -> None:
-    write_preflight_artifact(
-        logbook_dir=logbook_dir,
-        comparison_name="local-custom",
-        vessel_name=vessel_name,
-        status="passed",
-        regatta_name="local-custom-eval-smoke",
-    )
+class CustomEvalConfigTests(unittest.TestCase):
+    def test_resolves_relative_dataset_path_against_config_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_task_directory(root)
+            config_path = _write_config(root)
+
+            regatta = load_regatta(config_path)
+
+        adapter = regatta.course.adapter
+        assert adapter is not None
+        self.assertEqual(adapter.dataset, str((root / "evals").resolve()))
+        self.assertEqual(adapter.split, "v1")
+
+    def test_keeps_absolute_dataset_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = _write_task_directory(root)
+            config_path = root / "regatta.toml"
+            config_path.write_text(
+                CUSTOM_EVAL_CONFIG.replace(
+                    'dataset = "evals"', f'dataset = "{tasks_dir}"'
+                ),
+                encoding="utf-8",
+            )
+
+            regatta = load_regatta(config_path)
+
+        adapter = regatta.course.adapter
+        assert adapter is not None
+        self.assertEqual(adapter.dataset, str(tasks_dir.resolve()))
+
+    def test_rejects_non_harbor_harness(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_task_directory(root)
+            config_path = root / "regatta.toml"
+            config_path.write_text(
+                CUSTOM_EVAL_CONFIG.replace(
+                    'harness = "harbor"', 'harness = "docker"', 1
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ConfigError, "course.adapter.harness must be one of: harbor"
+            ):
+                load_regatta(config_path)
 
 
-def _write_task_attempt(*, logbook_dir: Path, vessel_name: str, result) -> None:
-    path = (
-        logbook_dir / "task-attempts" / "local-custom" / vessel_name / "custom-1.json"
-    )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "schema": "yacht.task-attempt.v1",
-                "regatta": "local-custom-eval-smoke",
-                "course": "local-custom-eval",
-                "comparison": "local-custom",
-                "vessel": vessel_name,
-                "model": "mock",
-                "rigging": [],
-                "runtime": "local-agent",
-                "status": "completed",
-                "task": {
-                    "id": "custom-1",
-                    "title": "Complete custom task",
-                    "difficulty": 1,
-                    "expect_response": {
-                        "completed": True,
-                        "quality": "accepted",
-                    },
-                    "expect_tool_calls": ["local-smoke"],
+class CustomEvalHandoffTests(unittest.TestCase):
+    def test_handoff_records_the_task_directory_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = _write_task_directory(root)
+            config_path = _write_config(root)
+            logbook_dir = root / "logbook"
+
+            handoff = write_course_handoff(config_path, logbook_dir)
+
+            adapter = handoff["adapter"]
+            self.assertEqual(adapter["kind"], "custom-eval")
+            self.assertEqual(adapter["dataset"], str(tasks_dir.resolve()))
+            self.assertEqual(
+                adapter["content_digest"], task_directory_digest(tasks_dir)
+            )
+
+    def test_handoff_fails_when_the_task_directory_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = _write_config(root)
+            logbook_dir = root / "logbook"
+
+            with self.assertRaisesRegex(ConfigError, "not found"):
+                write_course_handoff(config_path, logbook_dir)
+
+
+class CustomEvalJobTests(unittest.TestCase):
+    def test_job_dataset_carries_the_path_and_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = _write_task_directory(root)
+            config_path = _write_config(root)
+            regatta = load_regatta(config_path)
+
+            job = render_terminal_bench_job(
+                regatta=regatta, vessel_name="claude-baseline"
+            )
+
+            self.assertEqual(
+                job["dataset"],
+                {
+                    "path": str(tasks_dir.resolve()),
+                    "digest": task_directory_digest(tasks_dir),
                 },
-                "runtime_context": {
-                    "backend": "host-nix",
-                    "harness": "local-smoke",
-                    "agent": "local-smoke",
-                    "temp_home": "/tmp/home",
-                    "workspace_path": "/tmp/workspace",
-                    "command_prefix": ["nix", "develop", "path:.", "--command"],
-                    "command": ["local-agent"],
-                    "cleanup_paths": ["/tmp/home"],
-                },
-                "prompt": "Complete custom task",
-                "agent": {
-                    "exit_code": result.exit_code,
-                    "response": result.response,
-                    "tool_calls": list(result.tool_calls),
-                    "transcript_path": str(result.transcript_path),
-                },
-                "metrics": {
-                    "tokens": result.metrics.tokens,
-                    "duration_seconds": result.metrics.duration_seconds,
-                },
-                "secret_refs": [],
+            )
+            self.assertEqual(job["tasks"], ["hello-task"])
+
+
+class CustomEvalHarnessTests(unittest.TestCase):
+    def _job(self, tasks_dir: Path) -> dict:
+        return {
+            "schema": "yacht.terminal-bench-job.v1",
+            "dataset": {
+                "path": str(tasks_dir),
+                "digest": task_directory_digest(tasks_dir),
             },
-            indent=2,
-            sort_keys=True,
+            "tasks": ["hello-task"],
+            "agent": {
+                "name": "claude-code",
+                "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
+                "version": "2.1.211",
+                "model": "claude-haiku-4-5",
+                "env": {},
+                "mcp_servers": [],
+                "rigging_steps": [],
+            },
+            "launcher_image": "yacht/harbor-launcher:harbor-0.20.0",
+            "secret_env": ["ANTHROPIC_API_KEY"],
+            "vessel": "claude-baseline",
+        }
+
+    def test_harbor_run_config_uses_the_path_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = _write_task_directory(root)
+
+            config = harbor_run_config(self._job(tasks_dir), trials_dir=root / "trials")
+
+            self.assertEqual(
+                config["datasets"],
+                [{"path": str(tasks_dir), "task_names": ["hello-task"]}],
+            )
+
+    def test_harbor_command_mounts_the_task_directory_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = _write_task_directory(root)
+            trials_dir = root / "trials"
+
+            command = harbor_command(
+                trials_dir / "harbor-run-config.json",
+                trials_dir=trials_dir,
+                secret_env=["ANTHROPIC_API_KEY"],
+                tasks_path=tasks_dir,
+            )
+
+            self.assertIn(f"{tasks_dir}:{tasks_dir}:ro", command)
+
+    def test_run_rejects_a_changed_task_directory(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = _write_task_directory(root)
+            job = self._job(tasks_dir)
+            job_path = root / "job.json"
+            job_path.write_text(json.dumps(job), encoding="utf-8")
+            roster_path = root / "roster.jsonl"
+            roster_path.write_text(
+                json.dumps({"instance_id": "hello-task"}) + "\n",
+                encoding="utf-8",
+            )
+
+            (tasks_dir / "hello-task" / "instruction.md").write_text(
+                "Changed after planning.\n", encoding="utf-8"
+            )
+
+            with self.assertRaisesRegex(ConfigError, "content digest"):
+                run_terminal_bench_job(
+                    job_path=job_path,
+                    roster_path=roster_path,
+                    trials_dir=root / "trials",
+                    report_dir=root / "report",
+                    run_id="run-1",
+                    vessel_name="claude-baseline",
+                    command_runner=lambda argv, cwd: 0,
+                )
+
+    def test_run_rejects_a_path_dataset_without_a_digest(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = _write_task_directory(root)
+            job = self._job(tasks_dir)
+            del job["dataset"]["digest"]
+            job_path = root / "job.json"
+            job_path.write_text(json.dumps(job), encoding="utf-8")
+            roster_path = root / "roster.jsonl"
+            roster_path.write_text(
+                json.dumps({"instance_id": "hello-task"}) + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ConfigError, "content digest"):
+                run_terminal_bench_job(
+                    job_path=job_path,
+                    roster_path=roster_path,
+                    trials_dir=root / "trials",
+                    report_dir=root / "report",
+                    run_id="run-1",
+                    vessel_name="claude-baseline",
+                    command_runner=lambda argv, cwd: 0,
+                )
+
+
+class CustomEvalPipelineArtifactTests(unittest.TestCase):
+    def test_pipeline_artifacts_preserve_the_content_digest(self) -> None:
+        from yacht.preflight import CommandResult
+        from yacht.workflows.benchmark_execution_plan import (
+            write_benchmark_execution_plan,
         )
-        + "\n",
-        encoding="utf-8",
-    )
+        from yacht.workflows.benchmark_grading_collection import (
+            collect_benchmark_grading_reports,
+        )
+        from yacht.workflows.benchmark_launch import write_benchmark_launch_result
+        from yacht.workflows.benchmark_launcher_handoff import (
+            write_benchmark_launcher_handoff,
+        )
 
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = _write_task_directory(root)
+            config_path = _write_config(root)
+            logbook_dir = root / "logbook"
+            digest = task_directory_digest(tasks_dir)
 
-def _read_jsonl(path: Path) -> list[dict[str, object]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+            write_course_handoff(config_path, logbook_dir)
+            plan = write_benchmark_execution_plan(logbook_dir)
+            launcher = write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
+            launch = write_benchmark_launch_result(
+                logbook_dir=logbook_dir,
+                command_runner=lambda argv, cwd: CommandResult(
+                    exit_code=0, stdout="", stderr=""
+                ),
+            )
+            collection = collect_benchmark_grading_reports(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+            )
+
+            for document in (plan, launcher, launch, collection):
+                self.assertEqual(document["adapter"]["kind"], "custom-eval")
+                self.assertEqual(document["adapter"]["content_digest"], digest)
 
 
 if __name__ == "__main__":

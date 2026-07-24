@@ -45,7 +45,7 @@ def load_regatta(config_path: Path) -> Regatta:
     except SchemaValidationError as error:
         raise ConfigError(str(error)) from error
 
-    adapter = _parse_course_adapter(raw["course"])
+    adapter = _parse_course_adapter(raw["course"], config_path.parent)
     course = Course(
         name=str(raw["course"]["name"]),
         tasks=_parse_course_tasks(raw["course"], adapter),
@@ -261,20 +261,33 @@ def _parse_preflight_config(raw: dict[str, Any]) -> PreflightConfig:
     )
 
 
-def _parse_course_adapter(raw_course: dict[str, Any]) -> CourseAdapter | None:
+def _parse_course_adapter(
+    raw_course: dict[str, Any],
+    config_dir: Path,
+) -> CourseAdapter | None:
     if "adapter" not in raw_course:
         return None
 
     adapter = raw_course["adapter"]
     return CourseAdapter(
         kind=str(adapter["kind"]),
-        dataset=str(adapter["dataset"]),
+        dataset=_adapter_dataset(adapter, config_dir),
         split=str(adapter["split"]),
         harness=str(adapter["harness"]),
         instance_ids=tuple(str(item) for item in adapter.get("instance_ids", ())),
         start_date=(str(adapter["start_date"]) if "start_date" in adapter else None),
         end_date=str(adapter["end_date"]) if "end_date" in adapter else None,
     )
+
+
+def _adapter_dataset(adapter: dict[str, Any], config_dir: Path) -> str:
+    dataset = str(adapter["dataset"])
+    if str(adapter.get("kind")) != "custom-eval":
+        return dataset
+    path = Path(dataset)
+    if not path.is_absolute():
+        path = config_dir / path
+    return str(path.resolve())
 
 
 def _parse_course_tasks(
