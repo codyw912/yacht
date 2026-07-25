@@ -12,7 +12,6 @@ from yacht.workflows.benchmark_grading_collection import (
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.workflows.benchmark_launcher_handoff import (
     BENCHMARK_LAUNCHER_HANDOFF_PATH,
-    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
 )
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
@@ -47,14 +46,12 @@ def write_real_benchmark_runbook(
     logbook_dir: Path,
     workspace_path: Path,
     max_workers: int = 1,
-    python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
 ) -> dict[str, Any]:
     runbook = build_real_benchmark_runbook(
         config_path=config_path,
         logbook_dir=logbook_dir,
         workspace_path=workspace_path,
         max_workers=max_workers,
-        python_executable=python_executable,
     )
     _write_json(logbook_dir / REAL_BENCHMARK_RUNBOOK_PATH, runbook)
     return runbook
@@ -130,7 +127,6 @@ def build_real_benchmark_runbook(
     logbook_dir: Path,
     workspace_path: Path,
     max_workers: int,
-    python_executable: str,
 ) -> dict[str, Any]:
     if max_workers < 1:
         raise ConfigError("max_workers must be an integer >= 1")
@@ -152,7 +148,6 @@ def build_real_benchmark_runbook(
             logbook_dir=logbook_dir,
             workspace_path=workspace_path,
             max_workers=max_workers,
-            python_executable=python_executable,
             secret_placeholders=secret_placeholders,
             artifacts=artifacts,
             inspection_target=inspection_target,
@@ -214,22 +209,17 @@ def _steps(
     logbook_dir: Path,
     workspace_path: Path,
     max_workers: int,
-    python_executable: str,
     secret_placeholders: list[dict[str, str]],
     artifacts: dict[str, Any],
     inspection_target: dict[str, str],
 ) -> list[dict[str, Any]]:
     secrets = " ".join(placeholder["argument"] for placeholder in secret_placeholders)
     secret_suffix = f" {secrets}" if secrets else ""
-    python_suffix = ""
-    if python_executable != DEFAULT_SWEBENCH_PYTHON_EXECUTABLE:
-        python_suffix = f" --python-executable {_quote_text(python_executable)}"
     benchmark_eval_command = (
         "uv run yacht run "
         f"{_quote(config_path)} --logbook {_quote(logbook_dir)} "
         f"--workspace {_quote(workspace_path)}{secret_suffix} "
         f"--max-workers {max_workers}"
-        f"{python_suffix}"
     )
     return [
         {

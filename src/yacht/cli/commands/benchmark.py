@@ -15,9 +15,6 @@ from yacht.workflows.benchmark_grading_collection import (
     collect_benchmark_grading_reports,
 )
 from yacht.workflows.benchmark_launch import write_benchmark_launch_result
-from yacht.workflows.benchmark_launcher_handoff import (
-    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
-)
 from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.workflows.readiness_gate import evaluate_readiness_gate
 
@@ -127,11 +124,6 @@ def register(subcommands: argparse._SubParsersAction) -> None:
         default=1,
         help="SWE-bench --max_workers value to include in generated commands.",
     )
-    benchmark_launcher_parser.add_argument(
-        "--python-executable",
-        default=DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
-        help="Python executable prefix to include in generated SWE-bench commands.",
-    )
     benchmark_launcher_parser.set_defaults(handler=_benchmark_launcher)
 
     benchmark_launch_parser = subcommands.add_parser(
@@ -226,7 +218,6 @@ def _benchmark_launcher(args: argparse.Namespace) -> int:
         launcher_handoff = write_benchmark_launcher_handoff(
             logbook_dir=args.logbook,
             max_workers=args.max_workers,
-            python_executable=args.python_executable,
         )
     except ConfigError as error:
         print(f"error: invalid regatta config: {error}", file=sys.stderr)

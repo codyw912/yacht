@@ -279,7 +279,6 @@ class LiveCodeBenchAdapterTests(unittest.TestCase):
             run_id="run-1",
             vessel_name="v1",
             max_workers=1,
-            python_command=["ignored"],
         )
 
         self.assertEqual(

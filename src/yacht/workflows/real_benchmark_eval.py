@@ -23,7 +23,6 @@ from yacht.workflows.benchmark_launch import (
 )
 from yacht.workflows.benchmark_launcher_handoff import (
     BENCHMARK_LAUNCHER_HANDOFF_PATH,
-    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
     write_benchmark_launcher_handoff,
 )
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
@@ -57,7 +56,6 @@ def run_real_benchmark_eval(
     agent_name: str,
     benchmark_command_runner: CommandRunner | None = None,
     max_workers: int = 1,
-    python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
@@ -268,7 +266,6 @@ def run_real_benchmark_eval(
     launcher_handoff = write_benchmark_launcher_handoff(
         logbook_dir=logbook_dir,
         max_workers=max_workers,
-        python_executable=python_executable,
     )
     _progress(progress, "benchmark launch: running native harness")
     benchmark_launch = write_benchmark_launch_result(

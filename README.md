@@ -81,9 +81,10 @@ Prerequisites:
 - Docker installed, running, and usable by the current user
 - network access for the first `uv` dependency sync, SWE-bench metadata, and
   Docker image build
-- no manual SWE-bench install: uv resolves the `swebench` harness on demand
-  for native benchmark launches, and `yacht doctor` performs and verifies the
-  first resolution
+- no manual SWE-bench install: grading runs in the pinned
+  `yacht/swebench-runner` container image (`docker build -t
+  yacht/swebench-runner:swebench-4.1.0 containers/swebench-runner`), and
+  `yacht doctor` verifies the image is present
 - an Anthropic API key exported as `ANTHROPIC_API_KEY`
 - the repo-local Pi runtime image built with the command below
 

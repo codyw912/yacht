@@ -133,6 +133,6 @@ A course PR (or slice series) is complete when it has:
 | Shape | yacht-run | native rollout | yacht-run | native rollout |
 | Dataset pin | HF dataset + split | registry version → git commits | HF release + date window | content digest of local task directory |
 | Candidate records | unified-diff patches | task roster | solution code | task roster |
-| Native evaluator | `swebench` Docker harness | Harbor in `containers/harbor-launcher` | `lcb_runner` in `containers/lcb-runner` | Harbor in `containers/harbor-launcher` |
+| Native evaluator | `swebench` in `containers/swebench-runner` | Harbor in `containers/harbor-launcher` | `lcb_runner` in `containers/lcb-runner` | Harbor in `containers/harbor-launcher` |
 | External contract absorbed | patch/prediction format | whole-trial containers, agent installation | whole-window output assertion (padding) | user-authored task/verifier trust |
 | Attempt evidence | harness-run attempts | synthesized from trials | harness-run attempts | synthesized from trials |

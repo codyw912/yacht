@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import shutil
 import subprocess
 import sys
@@ -12,9 +11,7 @@ from typing import Any, Callable, Mapping
 from yacht.config.loader import load_regatta
 from yacht.domain.model import ConfigError
 from yacht.preflight.execution import CommandResult
-from yacht.workflows.benchmark_launcher_handoff import (
-    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
-)
+from yacht.courses.swe_bench.harness import SWEBENCH_RUNNER_IMAGE
 
 CommandRunner = Callable[[tuple[str, ...]], CommandResult]
 WhichResolver = Callable[[str], str | None]
@@ -131,27 +128,22 @@ def _logbook_writable_check(logbook_dir: Path) -> dict[str, Any]:
 
 
 def _swebench_check(runner: CommandRunner) -> dict[str, Any]:
-    argv = (
-        *shlex.split(DEFAULT_SWEBENCH_PYTHON_EXECUTABLE),
-        "-c",
-        "import swebench",
-    )
+    argv = ("docker", "image", "inspect", SWEBENCH_RUNNER_IMAGE)
     result = runner(argv)
     if result.exit_code != 0:
         return _check(
             "swebench-harness",
             "failed",
-            f"uv could not resolve swebench ({DEFAULT_SWEBENCH_PYTHON_EXECUTABLE})",
+            f"pinned swe-bench runner image not found: {SWEBENCH_RUNNER_IMAGE}",
             hint=(
-                "no manual install is needed: uv fetches swebench on demand, "
-                "but the first resolution requires network access; re-run "
-                "with network or use --skip-swebench"
+                "build it with: docker build -t "
+                f"{SWEBENCH_RUNNER_IMAGE} containers/swebench-runner"
             ),
         )
     return _check(
         "swebench-harness",
         "passed",
-        "swebench resolves on demand via uv (cached after first run)",
+        f"pinned runner image present: {SWEBENCH_RUNNER_IMAGE}",
     )
 
 

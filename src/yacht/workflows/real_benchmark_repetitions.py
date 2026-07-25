@@ -9,9 +9,6 @@ from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.reports.benchmark_aggregate import build_benchmark_aggregate
 from yacht.reports.benchmark_aggregate import render_benchmark_aggregate_document
 from yacht.workflows.benchmark_launch import CommandRunner
-from yacht.workflows.benchmark_launcher_handoff import (
-    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
-)
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.next_steps import command_step
 from yacht.preflight.runner import AgentPromptRunnerFactory
@@ -43,7 +40,6 @@ def run_real_benchmark_repetitions(
     task_agent: TaskAgent | None = None,
     benchmark_command_runner: CommandRunner | None = None,
     max_workers: int = 1,
-    python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
     eval_runner: EvalRunner | None = None,
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
@@ -72,7 +68,6 @@ def run_real_benchmark_repetitions(
             task_agent=task_agent,
             benchmark_command_runner=benchmark_command_runner,
             max_workers=max_workers,
-            python_executable=python_executable,
             progress=progress,
         )
 
@@ -153,7 +148,6 @@ def _real_benchmark_eval_runner(
     task_agent: TaskAgent,
     benchmark_command_runner: CommandRunner | None,
     max_workers: int,
-    python_executable: str,
     progress: ProgressReporter | None,
 ) -> EvalRunner:
     def run(child_logbook: Path) -> dict[str, Any]:
@@ -167,7 +161,6 @@ def _real_benchmark_eval_runner(
             agent_name=agent_name,
             benchmark_command_runner=benchmark_command_runner,
             max_workers=max_workers,
-            python_executable=python_executable,
             progress=progress,
         )
 

@@ -12,9 +12,6 @@ from yacht.domain.model import ConfigError, run_regatta
 from yacht.harnesses.registry import agent_prompt_runner_factory
 from yacht.harnesses.registry import task_agent
 from yacht.preflight.runner import parse_secret_values
-from yacht.workflows.benchmark_launcher_handoff import (
-    DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
-)
 from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
 from yacht.workflows.real_benchmark_repetitions import run_real_benchmark_repetitions
 from yacht.workflows.real_benchmark_runbook import write_real_benchmark_runbook
@@ -65,11 +62,6 @@ def register(subcommands: argparse._SubParsersAction) -> None:
         type=int,
         default=1,
         help="SWE-bench --max_workers value for generated native launch commands.",
-    )
-    run_parser.add_argument(
-        "--python-executable",
-        default=DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
-        help="Python executable prefix to include in generated SWE-bench commands.",
     )
     run_parser.add_argument(
         "--format",
@@ -162,7 +154,6 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             logbook_dir=args.logbook,
             workspace_path=args.workspace,
             max_workers=args.max_workers,
-            python_executable=args.python_executable,
         )
         summary = run_real_benchmark_eval(
             config_path=args.config,
@@ -173,7 +164,6 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             task_agent=task_agent(agent_name),
             agent_name=agent_name,
             max_workers=args.max_workers,
-            python_executable=args.python_executable,
             progress=output.stderr_progress,
         )
     except ConfigError as error:
@@ -199,7 +189,6 @@ def _run_benchmark_repetitions(args: argparse.Namespace) -> int:
             agent_prompt_runner_factory=agent_prompt_runner_factory(agent_name),
             task_agent=task_agent(agent_name),
             max_workers=args.max_workers,
-            python_executable=args.python_executable,
             progress=output.stderr_progress,
         )
     except ConfigError as error:

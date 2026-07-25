@@ -25,7 +25,6 @@ class BenchmarkLaunchTests(unittest.TestCase):
             logbook_dir = _prepared_ready_logbook(Path(temp_dir))
             write_benchmark_launcher_handoff(
                 logbook_dir=logbook_dir,
-                python_executable="python",
             )
             calls = []
 

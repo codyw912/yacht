@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shlex
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +24,6 @@ from yacht.courses.artifacts import vessel_artifact_dir
 
 
 BENCHMARK_LAUNCHER_HANDOFF_PATH = Path("benchmark-launcher-handoff.json")
-DEFAULT_SWEBENCH_PYTHON_EXECUTABLE = "uv run --with swebench python"
 
 
 def native_report_path_from_launcher_handoff(
@@ -79,7 +77,7 @@ def native_report_path_from_launcher_handoff(
             "benchmark launcher handoff does not include a launch command for "
             f"vessel {vessel_name}; pass --input explicitly"
         )
-    run_id = _command_option_value(command, "--run_id", vessel_name)
+    run_id = _command_option_value(command, "--run-id", vessel_name)
     adapter = evaluator_adapter(str(launcher_handoff["adapter"]["kind"]))
     native_report_path = Path(
         str(vessel["native_report_dir"])
@@ -98,20 +96,15 @@ def write_benchmark_launcher_handoff(
     *,
     logbook_dir: Path,
     max_workers: int = 1,
-    python_executable: str = DEFAULT_SWEBENCH_PYTHON_EXECUTABLE,
 ) -> dict[str, Any]:
     if max_workers < 1:
         raise ConfigError("max_workers must be an integer >= 1")
-    python_command = shlex.split(python_executable)
-    if not python_command:
-        raise ConfigError("python_executable must be non-empty")
 
     handoff = _load_handoff(logbook_dir)
     launcher_handoff = _build_launcher_handoff(
         logbook_dir=logbook_dir,
         handoff=handoff,
         max_workers=max_workers,
-        python_command=python_command,
     )
     validate_benchmark_launcher_handoff_document(launcher_handoff)
     _write_json(logbook_dir / BENCHMARK_LAUNCHER_HANDOFF_PATH, launcher_handoff)
@@ -140,7 +133,6 @@ def _build_launcher_handoff(
     logbook_dir: Path,
     handoff: dict[str, Any],
     max_workers: int,
-    python_command: list[str],
 ) -> dict[str, Any]:
     comparisons = [
         _comparison_to_json(
@@ -148,7 +140,6 @@ def _build_launcher_handoff(
             handoff=handoff,
             comparison=comparison,
             max_workers=max_workers,
-            python_command=python_command,
         )
         for comparison in handoff["comparisons"]
     ]
@@ -172,7 +163,6 @@ def _comparison_to_json(
     handoff: dict[str, Any],
     comparison: dict[str, Any],
     max_workers: int,
-    python_command: list[str],
 ) -> dict[str, Any]:
     vessels = [
         _vessel_to_json(
@@ -181,7 +171,6 @@ def _comparison_to_json(
             comparison_name=str(comparison["name"]),
             vessel_name=str(vessel_name),
             max_workers=max_workers,
-            python_command=python_command,
         )
         for vessel_name in comparison["vessels"]
     ]
@@ -200,7 +189,6 @@ def _vessel_to_json(
     comparison_name: str,
     vessel_name: str,
     max_workers: int,
-    python_command: list[str],
 ) -> dict[str, Any]:
     candidate_path = candidate_patches_path(
         logbook_dir=logbook_dir,
@@ -275,7 +263,6 @@ def _vessel_to_json(
             run_id=run_id,
             vessel_name=vessel_name,
             max_workers=max_workers,
-            python_command=python_command,
         )
         vessel["command"] = command
         vessel["command_preview"] = command_preview(command)
