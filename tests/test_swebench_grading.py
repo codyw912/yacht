@@ -245,7 +245,6 @@ class SweBenchGradingTests(unittest.TestCase):
             )
             launcher_handoff = write_benchmark_launcher_handoff(
                 logbook_dir=logbook_dir,
-                python_executable="uv run python",
             )
             native_report_path = _expected_launcher_native_report_path(
                 launcher_handoff,
@@ -416,11 +415,134 @@ def _expected_launcher_native_report_path(
         for vessel in comparison["vessels"]:
             if vessel["name"] == vessel_name:
                 command = vessel["command"]
-                run_id = command[command.index("--run_id") + 1]
+                run_id = command[command.index("--run-id") + 1]
                 return (
                     Path(vessel["native_report_dir"]) / f"{vessel_name}.{run_id}.json"
                 )
     raise AssertionError(f"missing vessel {vessel_name}")
+
+
+class SweBenchRunnerHarnessTests(unittest.TestCase):
+    def test_evaluator_command_runs_the_pinned_container(self) -> None:
+        from yacht.courses.swe_bench.harness import (
+            HF_CACHE_DIR,
+            SWEBENCH_RUNNER_IMAGE,
+            evaluator_command,
+        )
+
+        command = evaluator_command(
+            predictions_path=Path("/tmp/vessels/pi/candidate-patches.jsonl"),
+            report_dir=Path("/tmp/native-report"),
+            dataset="princeton-nlp/SWE-bench_Lite",
+            split="test",
+            run_id="run-1",
+            max_workers=2,
+            instance_ids=["django__django-11099"],
+        )
+
+        self.assertEqual(command[:3], ["docker", "run", "--rm"])
+        self.assertIn("/var/run/docker.sock:/var/run/docker.sock", command)
+        self.assertIn("/tmp/vessels/pi:/tmp/vessels/pi", command)
+        self.assertIn("/tmp/native-report:/tmp/native-report", command)
+        self.assertIn(f"{HF_CACHE_DIR}:{HF_CACHE_DIR}", command)
+        self.assertIn(f"HF_HOME={HF_CACHE_DIR}", command)
+        self.assertIn(SWEBENCH_RUNNER_IMAGE, command)
+        module_index = command.index("swebench.harness.run_evaluation")
+        self.assertEqual(command[module_index - 2 : module_index], ["python", "-m"])
+        self.assertIn("--instance_ids", command)
+        self.assertIn("django__django-11099", command)
+
+    def test_run_requires_the_predictions_file(self) -> None:
+        from yacht.courses.swe_bench.harness import run_swe_bench_evaluation
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with self.assertRaisesRegex(ConfigError, "predictions file not found"):
+                run_swe_bench_evaluation(
+                    predictions_path=root / "missing.jsonl",
+                    report_dir=root / "report",
+                    dataset="princeton-nlp/SWE-bench_Lite",
+                    split="test",
+                    run_id="run-1",
+                    vessel_name="pi-baseline",
+                    max_workers=1,
+                    instance_ids=["django__django-11099"],
+                    command_runner=lambda argv, cwd: 0,
+                )
+
+    def test_run_surfaces_evaluation_failure(self) -> None:
+        from yacht.courses.swe_bench.harness import run_swe_bench_evaluation
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            predictions = root / "candidate-patches.jsonl"
+            predictions.write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(ConfigError, "exit code 3"):
+                run_swe_bench_evaluation(
+                    predictions_path=predictions,
+                    report_dir=root / "report",
+                    dataset="princeton-nlp/SWE-bench_Lite",
+                    split="test",
+                    run_id="run-1",
+                    vessel_name="pi-baseline",
+                    max_workers=1,
+                    instance_ids=["django__django-11099"],
+                    command_runner=lambda argv, cwd: 3,
+                )
+
+    def test_run_requires_the_native_report_after_success(self) -> None:
+        from yacht.courses.swe_bench.harness import run_swe_bench_evaluation
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            predictions = root / "candidate-patches.jsonl"
+            predictions.write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(ConfigError, "native report is missing"):
+                run_swe_bench_evaluation(
+                    predictions_path=predictions,
+                    report_dir=root / "report",
+                    dataset="princeton-nlp/SWE-bench_Lite",
+                    split="test",
+                    run_id="run-1",
+                    vessel_name="pi-baseline",
+                    max_workers=1,
+                    instance_ids=["django__django-11099"],
+                    command_runner=lambda argv, cwd: 0,
+                )
+
+    def test_run_reports_completion_when_the_report_exists(self) -> None:
+        from yacht.courses.swe_bench.harness import run_swe_bench_evaluation
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            predictions = root / "candidate-patches.jsonl"
+            predictions.write_text("{}\n", encoding="utf-8")
+            report_dir = root / "report"
+
+            def runner(argv, cwd):
+                report_dir.mkdir(parents=True, exist_ok=True)
+                (report_dir / "pi-baseline.run-1.json").write_text(
+                    "{}", encoding="utf-8"
+                )
+                return 0
+
+            summary = run_swe_bench_evaluation(
+                predictions_path=predictions,
+                report_dir=report_dir,
+                dataset="princeton-nlp/SWE-bench_Lite",
+                split="test",
+                run_id="run-1",
+                vessel_name="pi-baseline",
+                max_workers=1,
+                instance_ids=["django__django-11099"],
+                command_runner=runner,
+            )
+
+        self.assertEqual(summary["status"], "complete")
+        self.assertEqual(
+            summary["native_report_path"],
+            str(report_dir / "pi-baseline.run-1.json"),
+        )
 
 
 if __name__ == "__main__":

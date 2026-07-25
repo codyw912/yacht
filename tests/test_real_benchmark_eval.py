@@ -263,7 +263,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             command = launcher_handoff["comparisons"][0]["vessels"][0]["command"]
             self.assertEqual(
                 command[:5],
-                ["uv", "run", "--with", "swebench", "python"],
+                ["uv", "run", "python", "-m", "yacht.courses.swe_bench.harness"],
             )
 
     def test_real_benchmark_eval_command_prints_json_when_requested(self) -> None:
@@ -582,8 +582,8 @@ def _without_task_workspace_materialization(workspace_path: Path):
 
 
 def _write_native_report(argv: list[str]) -> None:
-    report_dir = Path(argv[argv.index("--report_dir") + 1])
-    run_id = argv[argv.index("--run_id") + 1]
+    report_dir = Path(argv[argv.index("--report-dir") + 1])
+    run_id = argv[argv.index("--run-id") + 1]
     vessel_name = run_id.split("__")[-1]
     report_path = report_dir / f"{vessel_name}.{run_id}.json"
     report_path.write_text(

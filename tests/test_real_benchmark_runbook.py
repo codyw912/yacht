@@ -220,30 +220,6 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
             self.assertEqual(runbook["schema"], "yacht.real-benchmark-runbook.v1")
             self.assertEqual(runbook["regatta"], "pi-fff-comparison")
 
-    def test_real_benchmark_runbook_keeps_custom_python_executable_override(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config_path = root / "regatta.toml"
-            workspace_path = root / "workspace"
-            logbook_dir = root / "logbook"
-            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
-            workspace_path.mkdir()
-
-            runbook = write_real_benchmark_runbook(
-                config_path=config_path,
-                logbook_dir=logbook_dir,
-                workspace_path=workspace_path,
-                max_workers=1,
-                python_executable="custom python",
-            )
-            commands = {step["name"]: step["command"] for step in runbook["steps"]}
-            self.assertIn(
-                "--python-executable 'custom python'",
-                commands["run"],
-            )
-
     def test_real_benchmark_runbook_lists_small_task_set_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

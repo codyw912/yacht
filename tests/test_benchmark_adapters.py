@@ -147,7 +147,6 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
             run_id="run-1",
             vessel_name="tb-vessel",
             max_workers=1,
-            python_command=["ignored"],
         )
 
         self.assertEqual(
@@ -189,7 +188,6 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
             run_id="run-1",
             vessel_name="custom-vessel",
             max_workers=1,
-            python_command=["ignored"],
         )
 
         self.assertEqual(
@@ -234,7 +232,6 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
             run_id="run-1",
             vessel_name="pi-baseline",
             max_workers=2,
-            python_command=["uv", "run", "python"],
         )
 
         self.assertEqual(
@@ -244,20 +241,22 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
                 "run",
                 "python",
                 "-m",
-                "swebench.harness.run_evaluation",
-                "--dataset_name",
+                "yacht.courses.swe_bench.harness",
+                "--predictions",
+                "/tmp/candidate-patches.jsonl",
+                "--report-dir",
+                "/tmp/native-report",
+                "--dataset",
                 "princeton-nlp/SWE-bench_Lite",
                 "--split",
                 "test",
-                "--predictions_path",
-                "/tmp/candidate-patches.jsonl",
-                "--max_workers",
-                "2",
-                "--run_id",
+                "--run-id",
                 "run-1",
-                "--report_dir",
-                "/tmp/native-report",
-                "--instance_ids",
+                "--vessel",
+                "pi-baseline",
+                "--max-workers",
+                "2",
+                "--instance-ids",
                 "django__django-11099",
                 "django__django-11179",
             ],

@@ -64,7 +64,6 @@ class EvaluatorAdapterInterface(Protocol):
         run_id: str,
         vessel_name: str,
         max_workers: int,
-        python_command: list[str],
     ) -> list[str]: ...
 
     def native_report_filename(self, *, vessel_name: str, run_id: str) -> str: ...
@@ -152,7 +151,6 @@ class BenchmarkAdapterFacade:
         run_id: str,
         vessel_name: str,
         max_workers: int,
-        python_command: list[str],
     ) -> list[str]:
         return self.evaluator.launcher_command(
             course_adapter=course_adapter,
@@ -162,7 +160,6 @@ class BenchmarkAdapterFacade:
             run_id=run_id,
             vessel_name=vessel_name,
             max_workers=max_workers,
-            python_command=python_command,
         )
 
     def native_report_filename(self, *, vessel_name: str, run_id: str) -> str:
@@ -323,25 +320,28 @@ class SweBenchEvaluatorAdapter:
         run_id: str,
         vessel_name: str,
         max_workers: int,
-        python_command: list[str],
     ) -> list[str]:
         return [
-            *python_command,
+            "uv",
+            "run",
+            "python",
             "-m",
-            "swebench.harness.run_evaluation",
-            "--dataset_name",
+            "yacht.courses.swe_bench.harness",
+            "--predictions",
+            str(candidate_path),
+            "--report-dir",
+            str(native_report_dir),
+            "--dataset",
             str(course_adapter["dataset"]),
             "--split",
             str(course_adapter["split"]),
-            "--predictions_path",
-            str(candidate_path),
-            "--max_workers",
-            str(max_workers),
-            "--run_id",
+            "--run-id",
             run_id,
-            "--report_dir",
-            str(native_report_dir),
-            "--instance_ids",
+            "--vessel",
+            vessel_name,
+            "--max-workers",
+            str(max_workers),
+            "--instance-ids",
             *[str(task["id"]) for task in tasks],
         ]
 
@@ -463,7 +463,6 @@ class TerminalBenchEvaluatorAdapter:
         run_id: str,
         vessel_name: str,
         max_workers: int,
-        python_command: list[str],
     ) -> list[str]:
         from yacht.courses.terminal_bench.job import TERMINAL_BENCH_JOB_FILENAME
 
@@ -611,7 +610,6 @@ class LiveCodeBenchEvaluatorAdapter:
         run_id: str,
         vessel_name: str,
         max_workers: int,
-        python_command: list[str],
     ) -> list[str]:
         from yacht.courses.livecodebench.predictions_from_attempts import (
             LCB_WINDOW_FILENAME,

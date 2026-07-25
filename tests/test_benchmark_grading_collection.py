@@ -27,7 +27,6 @@ class BenchmarkGradingCollectionTests(unittest.TestCase):
             logbook_dir = _prepared_ready_logbook(root)
             write_benchmark_launcher_handoff(
                 logbook_dir=logbook_dir,
-                python_executable="python",
             )
             launch_result = write_benchmark_launch_result(
                 logbook_dir=logbook_dir,
@@ -213,7 +212,7 @@ def _write_native_report(
         for vessel in comparison["vessels"]:
             if vessel["name"] == vessel_name:
                 command = vessel["command"]
-                run_id = command[command.index("--run_id") + 1]
+                run_id = command[command.index("--run-id") + 1]
                 native_report_path = (
                     Path(vessel["native_report_dir"]) / f"{vessel_name}.{run_id}.json"
                 )

@@ -206,9 +206,10 @@ uv run yacht internals grading-report examples/pi-fff-provisioning.toml --from-l
 
 The native benchmark harness owns task containers, test execution, and
 grading. YACHT owns the handoff, gates, launch records, normalized grading
-artifacts, and scorecards. `benchmark-launcher` and `yacht run` use
-`uv run --with swebench python` by default for SWE-bench launches; pass
-`--python-executable` only when using a different managed harness environment.
+artifacts, and scorecards. SWE-bench grading runs in the pinned
+`yacht/swebench-runner` container image (build it with
+`docker build -t yacht/swebench-runner:swebench-4.1.0 containers/swebench-runner`);
+the harness never runs directly on the host.
 
 Scorecards and aggregates:
 

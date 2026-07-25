@@ -33,7 +33,6 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             handoff = write_benchmark_launcher_handoff(
                 logbook_dir=logbook_dir,
                 max_workers=2,
-                python_executable="uv run python",
             )
 
             self.assertEqual(handoff["schema"], "yacht.benchmark-launcher-handoff.v1")
@@ -56,37 +55,40 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
                     "run",
                     "python",
                     "-m",
-                    "swebench.harness.run_evaluation",
-                    "--dataset_name",
-                    "princeton-nlp/SWE-bench_Lite",
-                    "--split",
-                    "test",
-                    "--predictions_path",
+                    "yacht.courses.swe_bench.harness",
+                    "--predictions",
                     str(
                         logbook_dir
                         / "course-handoff/swe-bench/vessels/pi-baseline/candidate-patches.jsonl"
                     ),
-                    "--max_workers",
-                    "2",
-                    "--run_id",
-                    "pi-fff-comparison__pi-vs-pi-fff__pi-baseline",
-                    "--report_dir",
+                    "--report-dir",
                     str(
                         logbook_dir
                         / "course-handoff/swe-bench/vessels/pi-baseline/native-report"
                     ),
-                    "--instance_ids",
+                    "--dataset",
+                    "princeton-nlp/SWE-bench_Lite",
+                    "--split",
+                    "test",
+                    "--run-id",
+                    "pi-fff-comparison__pi-vs-pi-fff__pi-baseline",
+                    "--vessel",
+                    "pi-baseline",
+                    "--max-workers",
+                    "2",
+                    "--instance-ids",
                     "django__django-11099",
                 ],
             )
             self.assertEqual(
                 vessel["command_preview"],
-                "uv run python -m swebench.harness.run_evaluation "
-                "--dataset_name princeton-nlp/SWE-bench_Lite --split test "
-                f"--predictions_path {logbook_dir}/course-handoff/swe-bench/vessels/pi-baseline/candidate-patches.jsonl "
-                "--max_workers 2 --run_id pi-fff-comparison__pi-vs-pi-fff__pi-baseline "
-                f"--report_dir {logbook_dir}/course-handoff/swe-bench/vessels/pi-baseline/native-report "
-                "--instance_ids django__django-11099",
+                "uv run python -m yacht.courses.swe_bench.harness "
+                f"--predictions {logbook_dir}/course-handoff/swe-bench/vessels/pi-baseline/candidate-patches.jsonl "
+                f"--report-dir {logbook_dir}/course-handoff/swe-bench/vessels/pi-baseline/native-report "
+                "--dataset princeton-nlp/SWE-bench_Lite --split test "
+                "--run-id pi-fff-comparison__pi-vs-pi-fff__pi-baseline "
+                "--vessel pi-baseline --max-workers 2 "
+                "--instance-ids django__django-11099",
             )
             self.assertEqual(
                 vessel["expected_yacht_grading_report_path"],
@@ -136,11 +138,10 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
 
             launcher = write_benchmark_launcher_handoff(
                 logbook_dir=logbook_dir,
-                python_executable="uv run python",
             )
 
             command = launcher["comparisons"][0]["vessels"][0]["command"]
-            instance_ids_index = command.index("--instance_ids")
+            instance_ids_index = command.index("--instance-ids")
             self.assertEqual(
                 command[instance_ids_index + 1 :],
                 ["django__django-11099", "django__django-11179"],
@@ -285,9 +286,9 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             self.assertEqual(payload["schema"], "yacht.benchmark-launcher-handoff.v1")
             self.assertEqual(payload["status"], "ready-to-launch")
             command = payload["comparisons"][0]["vessels"][0]["command"]
-            self.assertEqual(command[:4], ["uv", "run", "--with", "swebench"])
-            self.assertEqual(command[4], "python")
-            self.assertIn("--max_workers", command)
+            self.assertEqual(command[:3], ["uv", "run", "python"])
+            self.assertIn("yacht.courses.swe_bench.harness", command)
+            self.assertIn("--max-workers", command)
             self.assertIn("3", command)
             self.assertTrue((logbook_dir / "benchmark-launcher-handoff.json").is_file())
 
