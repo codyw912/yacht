@@ -473,13 +473,19 @@ def _decision_summary_row(
         baseline_name=baseline_name,
         challenger_name=challenger_name,
     )
+    confound = (
+        " [outcome-confounded]"
+        if float(delta.get("resolution_rate_delta", 0.0)) != 0.0
+        and usage_delta is not None
+        else ""
+    )
     return " | ".join(
         [
             str(comparison["name"]),
             _resolution_decision(delta, comparison.get("statistics")),
-            _usage_decision(usage_delta, "tokens", "tokens"),
-            _usage_decision(usage_delta, "cost", "cost"),
-            _usage_decision(usage_delta, "duration", "duration"),
+            _usage_decision(usage_delta, "tokens", "tokens") + confound,
+            _usage_decision(usage_delta, "cost", "cost") + confound,
+            _usage_decision(usage_delta, "duration", "duration") + confound,
         ]
     )
 
@@ -756,6 +762,22 @@ def _usage_lines(
             task_id,
         )
     )
+    lines.extend(
+        [
+            "",
+            "Efficiency by vessel (usage per resolved task):",
+            "comparison | vessel | resolved | tokens/resolution | cost/resolution",
+        ]
+    )
+    lines.extend(
+        _efficiency_row(comparison, vessel, benchmark_scorecard)
+        for comparison, vessel in _usage_vessels(
+            scorecard,
+            benchmark_scorecard,
+            vessel_name,
+            task_id,
+        )
+    )
     task_rows = _task_usage_rows(
         scorecard,
         benchmark_scorecard,
@@ -793,6 +815,24 @@ def _usage_markdown_lines(
     ]
     lines.extend(
         f"| {_usage_row(comparison, vessel)} |"
+        for comparison, vessel in _usage_vessels(
+            scorecard,
+            benchmark_scorecard,
+            vessel_name,
+            task_id,
+        )
+    )
+    lines.extend(
+        [
+            "",
+            "## Efficiency by vessel (usage per resolved task)",
+            "",
+            "| Comparison | Vessel | Resolved | Tokens/resolution | Cost/resolution |",
+            "| --- | --- | ---: | ---: | ---: |",
+        ]
+    )
+    lines.extend(
+        f"| {_efficiency_row(comparison, vessel, benchmark_scorecard)} |"
         for comparison, vessel in _usage_vessels(
             scorecard,
             benchmark_scorecard,
@@ -894,6 +934,39 @@ def _usage_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
         f"{_cost(vessel['total_cost'])} | "
         f"{_duration(vessel['total_duration_seconds'])}"
     )
+
+
+def _efficiency_row(
+    comparison: dict[str, Any],
+    vessel: dict[str, Any],
+    benchmark_scorecard: dict[str, Any],
+) -> str:
+    resolved = _resolved_instances(
+        benchmark_scorecard,
+        str(comparison["name"]),
+        str(vessel["name"]),
+    )
+    if resolved:
+        tokens = f"{int(vessel['total_tokens']) / resolved:.1f}"
+        cost = _cost(float(vessel["total_cost"]) / resolved)
+    else:
+        tokens = "n/a (0 resolved)"
+        cost = "n/a (0 resolved)"
+    return f"{comparison['name']} | {vessel['name']} | {resolved} | {tokens} | {cost}"
+
+
+def _resolved_instances(
+    benchmark_scorecard: dict[str, Any],
+    comparison_name: str,
+    vessel_name: str,
+) -> int:
+    for comparison, vessel in _vessels(benchmark_scorecard):
+        if (
+            str(comparison["name"]) == comparison_name
+            and str(vessel["name"]) == vessel_name
+        ):
+            return int(vessel.get("resolved_instances", 0))
+    return 0
 
 
 def _task_usage_rows(

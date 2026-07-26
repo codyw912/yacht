@@ -121,6 +121,8 @@ class BenchmarkAggregateTests(unittest.TestCase):
                     "cost_delta": 0.0022,
                     "duration_seconds_delta": 2.2,
                     "tool_calls_delta": 2,
+                    "tokens_per_resolution_delta": 100.0,
+                    "cost_per_resolution_delta": 0.0001,
                 },
             )
             self.assertEqual(
@@ -200,6 +202,22 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "total_cost": 0.002,
                         "total_duration_seconds": 20.0,
                         "total_tool_calls": 6,
+                        "tokens_per_resolution": 2000.0,
+                        "cost_per_resolution": 0.002,
+                        "usage_by_run_outcome": {
+                            "fully_resolved_runs": {
+                                "runs": 1,
+                                "tokens_mean": 1000.0,
+                                "cost_mean": 0.001,
+                                "duration_seconds_mean": 10.0,
+                            },
+                            "unresolved_runs": {
+                                "runs": 1,
+                                "tokens_mean": 1000.0,
+                                "cost_mean": 0.001,
+                                "duration_seconds_mean": 10.0,
+                            },
+                        },
                         "statistics": {
                             "resolution_rate": {
                                 "runs": 2,
@@ -251,6 +269,16 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "total_cost": 0.0042,
                         "total_duration_seconds": 22.2,
                         "total_tool_calls": 8,
+                        "tokens_per_resolution": 2100.0,
+                        "cost_per_resolution": 0.0021,
+                        "usage_by_run_outcome": {
+                            "fully_resolved_runs": {
+                                "runs": 2,
+                                "tokens_mean": 2100.0,
+                                "cost_mean": 0.0021,
+                                "duration_seconds_mean": 11.1,
+                            },
+                        },
                         "statistics": {
                             "resolution_rate": {
                                 "runs": 2,
@@ -394,9 +422,23 @@ class BenchmarkAggregateTests(unittest.TestCase):
             self.assertIn(
                 (
                     "pi-vs-pi-fff | resolution better (+1 resolved, +0.500 rate) | "
-                    "tokens worse (+2200) | cost worse (+0.002200) | "
-                    "duration worse (+2.200s)"
+                    "tokens worse (+2200) [outcome-confounded] | "
+                    "cost worse (+0.002200) [outcome-confounded] | "
+                    "duration worse (+2.200s) [outcome-confounded]"
                 ),
+                report,
+            )
+            self.assertIn("raw usage deltas are outcome-confounded", report)
+            self.assertIn(
+                "Efficiency by vessel (usage per resolved task):",
+                report,
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-baseline | 1 | 2000.0 | 0.002000",
+                report,
+            )
+            self.assertIn(
+                "Usage by run outcome (diagnostic",
                 report,
             )
             self.assertIn("Aggregate deltas:", report)

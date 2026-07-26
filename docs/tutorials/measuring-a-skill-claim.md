@@ -77,9 +77,18 @@ skill-vs-baseline | difference (CI +0.354..+1.046) | not distinguishable (CI -85
   the evidence earns.
 - **The non-findings are graded too.** The skill's token, cost, and
   duration deltas are all `not distinguishable` — their intervals
-  straddle zero. The skill probably costs slightly more per run, but
-  ten runs cannot separate that from noise, and the report says so
-  instead of presenting the raw averages as findings.
+  straddle zero — and the report marks them `[outcome-confounded]`
+  besides: failed runs typically stop earlier and spend less, so when
+  resolution rates differ, raw usage deltas mix the treatment's cost
+  with the outcome's cost. The diagnostic split makes it concrete —
+  baseline failures averaged 95.6k tokens, baseline successes 124.6k,
+  skill successes 126.1k. Success costs what success costs; the skill
+  did not make it more expensive.
+- **Efficiency is the decision metric.** Cost per resolved task,
+  computed from totals with no conditioning: baseline $0.0579,
+  with-skill $0.0205. The skill looks ~3% more expensive per run and
+  is ~3x cheaper per unit of delivered work. The report's
+  "Efficiency by vessel" section carries this number.
 - **The baseline's 30% is the realistic part.** The agent sometimes
   infers the registry convention from the existing code. The skill's
   value is turning *sometimes* into *always* — which is exactly what

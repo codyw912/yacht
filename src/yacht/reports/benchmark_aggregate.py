@@ -201,6 +201,9 @@ def _aggregate_vessel(
         "total_cost": round(cost, 6),
         "total_duration_seconds": round(duration, 3),
         "total_tool_calls": tool_calls,
+        "tokens_per_resolution": (round(tokens / resolved, 1) if resolved else None),
+        "cost_per_resolution": round(cost / resolved, 6) if resolved else None,
+        "usage_by_run_outcome": _usage_by_run_outcome(run_vessels),
         "statistics": _vessel_statistics(run_vessels),
     }
     provenance = collapse_provenance(run_provenances)
@@ -231,7 +234,75 @@ def _aggregate_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "tool_calls_delta": int(challenger["total_tool_calls"])
         - int(baseline["total_tool_calls"]),
+        "cost_per_resolution_delta": _efficiency_delta(
+            baseline.get("cost_per_resolution"),
+            challenger.get("cost_per_resolution"),
+            6,
+        ),
+        "tokens_per_resolution_delta": _efficiency_delta(
+            baseline.get("tokens_per_resolution"),
+            challenger.get("tokens_per_resolution"),
+            1,
+        ),
     }
+
+
+def _efficiency_delta(
+    baseline: float | None,
+    challenger: float | None,
+    digits: int,
+) -> float | None:
+    if baseline is None or challenger is None:
+        return None
+    return round(float(challenger) - float(baseline), digits)
+
+
+def _usage_by_run_outcome(
+    run_vessels: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Diagnostic split of per-run usage by run outcome.
+
+    Comparing usage conditioned on outcome selects on a post-treatment
+    variable, so these means explain raw usage deltas rather than grade
+    them: failed runs typically stop earlier and spend less.
+    """
+    outcomes: dict[str, Any] = {}
+    for label, selector in (
+        (
+            "fully_resolved_runs",
+            lambda v: (
+                v["submitted_instances"] > 0
+                and v["resolved_instances"] == v["submitted_instances"]
+            ),
+        ),
+        (
+            "unresolved_runs",
+            lambda v: (
+                v["submitted_instances"] > 0
+                and v["resolved_instances"] < v["submitted_instances"]
+            ),
+        ),
+    ):
+        selected = [
+            vessel
+            for vessel in run_vessels
+            if vessel["status"] == "measured"
+            and (vessel["tokens"] or vessel["cost"] or vessel["duration_seconds"])
+            and selector(vessel)
+        ]
+        if not selected:
+            continue
+        count = len(selected)
+        outcomes[label] = {
+            "runs": count,
+            "tokens_mean": round(sum(int(v["tokens"]) for v in selected) / count, 1),
+            "cost_mean": round(sum(float(v["cost"]) for v in selected) / count, 6),
+            "duration_seconds_mean": round(
+                sum(float(v["duration_seconds"]) for v in selected) / count,
+                3,
+            ),
+        }
+    return outcomes
 
 
 def _aggregate_runs(
@@ -538,6 +609,32 @@ def _render_text(aggregate: dict[str, Any]) -> str:
     lines.extend(
         _delta_evidence_row(comparison) for comparison in aggregate["comparisons"]
     )
+    confound_note = _usage_confound_note(aggregate)
+    if confound_note:
+        lines.append(confound_note)
+    lines.extend(
+        [
+            "",
+            "Efficiency by vessel (usage per resolved task):",
+            "comparison | vessel | resolved | tokens/resolution | cost/resolution",
+        ]
+    )
+    for comparison in aggregate["comparisons"]:
+        lines.extend(
+            _efficiency_row(comparison, vessel) for vessel in comparison["vessels"]
+        )
+    outcome_rows = _usage_by_outcome_rows(aggregate)
+    if outcome_rows:
+        lines.extend(
+            [
+                "",
+                "Usage by run outcome (diagnostic; failed runs typically "
+                "stop earlier):",
+                "comparison | vessel | outcome | runs | tokens_mean | "
+                "cost_mean | duration_mean",
+            ]
+        )
+        lines.extend(outcome_rows)
     lines.extend(
         [
             "",
@@ -681,6 +778,39 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
         f"| {_delta_evidence_row(comparison)} |"
         for comparison in aggregate["comparisons"]
     )
+    confound_note = _usage_confound_note(aggregate)
+    if confound_note:
+        lines.extend(["", f"*{confound_note}*"])
+    lines.extend(
+        [
+            "",
+            "## Efficiency by vessel (usage per resolved task)",
+            "",
+            "| Comparison | Vessel | Resolved | Tokens/resolution | Cost/resolution |",
+            "| --- | --- | ---: | ---: | ---: |",
+        ]
+    )
+    for comparison in aggregate["comparisons"]:
+        lines.extend(
+            f"| {_efficiency_row(comparison, vessel)} |"
+            for vessel in comparison["vessels"]
+        )
+    outcome_rows = _usage_by_outcome_rows(aggregate)
+    if outcome_rows:
+        lines.extend(
+            [
+                "",
+                "## Usage by run outcome (diagnostic)",
+                "",
+                "Failed runs typically stop earlier; these means explain raw "
+                "usage deltas rather than grade them.",
+                "",
+                "| Comparison | Vessel | Outcome | Runs | Tokens mean | "
+                "Cost mean | Duration mean |",
+                "| --- | --- | --- | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        lines.extend(f"| {row} |" for row in outcome_rows)
     lines.extend(
         [
             "",
@@ -721,13 +851,19 @@ def _provenance_rows(aggregate: dict[str, Any]) -> list[str]:
 
 def _decision_summary_row(comparison: dict[str, Any]) -> str:
     delta = comparison["delta"]
+    confound = (
+        " [outcome-confounded]"
+        if float(delta.get("resolution_rate_delta", 0.0)) != 0.0
+        else ""
+    )
     return " | ".join(
         [
             str(comparison["name"]),
             _resolution_decision(delta),
-            _resource_decision("tokens", int(delta["tokens_delta"])),
-            _resource_decision("cost", float(delta["cost_delta"])),
-            _resource_decision("duration", float(delta["duration_seconds_delta"])),
+            _resource_decision("tokens", int(delta["tokens_delta"])) + confound,
+            _resource_decision("cost", float(delta["cost_delta"])) + confound,
+            _resource_decision("duration", float(delta["duration_seconds_delta"]))
+            + confound,
         ]
     )
 
@@ -907,6 +1043,66 @@ def _run_vessel_row(
         f"{_duration(vessel['duration_seconds'])} | "
         f"{vessel['tool_calls']} | "
         f"{run['logbook']}"
+    )
+
+
+def _efficiency_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
+    resolved = int(vessel["resolved_instances"])
+    if resolved:
+        tokens = f"{int(vessel['total_tokens']) / resolved:.1f}"
+        cost = _cost(float(vessel["total_cost"]) / resolved)
+    else:
+        tokens = "n/a (0 resolved)"
+        cost = "n/a (0 resolved)"
+    return f"{comparison['name']} | {vessel['name']} | {resolved} | {tokens} | {cost}"
+
+
+def _usage_by_outcome_rows(aggregate: dict[str, Any]) -> list[str]:
+    labels = {
+        "fully_resolved_runs": "resolved",
+        "unresolved_runs": "unresolved",
+    }
+    rows = []
+    for comparison in aggregate["comparisons"]:
+        for vessel in comparison["vessels"]:
+            outcomes = vessel.get("usage_by_run_outcome")
+            if outcomes is None:
+                run_vessels = [
+                    run_vessel
+                    for run in comparison.get("runs", [])
+                    for run_vessel in run.get("vessels", [])
+                    if run_vessel.get("name") == vessel["name"]
+                ]
+                outcomes = _usage_by_run_outcome(run_vessels)
+            for key, label in labels.items():
+                outcome = outcomes.get(key)
+                if outcome is None:
+                    continue
+                rows.append(
+                    f"{comparison['name']} | "
+                    f"{vessel['name']} | "
+                    f"{label} | "
+                    f"{outcome['runs']} | "
+                    f"{outcome['tokens_mean']} | "
+                    f"{_cost(outcome['cost_mean'])} | "
+                    f"{_duration(outcome['duration_seconds_mean'])}"
+                )
+    return rows
+
+
+def _usage_confound_note(aggregate: dict[str, Any]) -> str | None:
+    confounded = [
+        str(comparison["name"])
+        for comparison in aggregate["comparisons"]
+        if float(comparison["delta"].get("resolution_rate_delta", 0.0)) != 0.0
+    ]
+    if not confounded:
+        return None
+    return (
+        "note: resolution rates differ for "
+        + ", ".join(confounded)
+        + " — raw usage deltas are outcome-confounded (failed runs "
+        "typically stop earlier); compare cost/resolution below."
     )
 
 
