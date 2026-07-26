@@ -7,6 +7,7 @@ from typing import Any
 
 from yacht.courses.terminal_bench.harness import (
     HARBOR_JOB_NAME,
+    _declared_artifact_path,
     harbor_command,
     harbor_run_config,
 )
@@ -45,6 +46,7 @@ def run_terminal_bench_install_only(
         secret_env=[str(name) for name in job.get("secret_env", [])],
         launcher_image=str(job["launcher_image"]),
         tasks_path=tasks_path,
+        artifact_path=_declared_artifact_path(job),
     )
     command.append("--install-only")
 

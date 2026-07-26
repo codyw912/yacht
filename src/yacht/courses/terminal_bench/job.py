@@ -37,19 +37,23 @@ def render_terminal_bench_job(
     runtime = _runtime(regatta, vessel)
     riggings = [_rigging(regatta, vessel, name) for name in vessel.rigging]
 
+    agent: dict[str, Any] = {
+        "name": _harness_name(runtime),
+        "import_path": _harbor_agent(regatta, runtime),
+        "version": _harness_version(runtime),
+        "model": str(vessel.model),
+        "env": _agent_env(riggings),
+        "mcp_servers": _mcp_servers(riggings),
+        "rigging_steps": _rigging_steps(riggings),
+    }
+    declaration = _declaration_payload(regatta, runtime)
+    if declaration is not None:
+        agent["declaration"] = declaration
     return {
         "schema": TERMINAL_BENCH_JOB_SCHEMA,
         "dataset": _dataset(regatta.course.adapter),
         "tasks": [str(task.id) for task in regatta.course.tasks],
-        "agent": {
-            "name": _harness_name(runtime),
-            "import_path": _harbor_agent(runtime),
-            "version": _harness_version(runtime),
-            "model": str(vessel.model),
-            "env": _agent_env(riggings),
-            "mcp_servers": _mcp_servers(riggings),
-            "rigging_steps": _rigging_steps(riggings),
-        },
+        "agent": agent,
         "launcher_image": _launcher_image(runtime),
         "secret_env": _secret_env(regatta, runtime, riggings),
         "vessel": vessel.name,
@@ -117,16 +121,52 @@ def _harness_name(runtime: RuntimeRecipe) -> str:
     return harness
 
 
-def _harbor_agent(runtime: RuntimeRecipe) -> str:
+def _harbor_agent(regatta: Regatta, runtime: RuntimeRecipe) -> str:
     harness = _harness_name(runtime)
     agent = HARBOR_AGENT_BY_HARNESS.get(harness)
-    if agent is None:
-        supported = ", ".join(sorted(HARBOR_AGENT_BY_HARNESS))
+    if agent is not None:
+        return agent
+    if harness in regatta.harness_declarations:
+        return "yacht_harbor_agents.agents:YachtDeclared"
+    supported = ", ".join(sorted(HARBOR_AGENT_BY_HARNESS))
+    raise ConfigError(
+        f"terminal-bench does not support harness {harness} yet; "
+        f"supported harnesses: {supported}, or a harness declared in the "
+        "config"
+    )
+
+
+def _declaration_payload(
+    regatta: Regatta,
+    runtime: RuntimeRecipe,
+) -> dict[str, Any] | None:
+    harness = _harness_name(runtime)
+    if harness in HARBOR_AGENT_BY_HARNESS:
+        return None
+    declaration = regatta.harness_declarations.get(harness)
+    if declaration is None:
+        return None
+    if not declaration.command:
         raise ConfigError(
-            f"terminal-bench does not support harness {harness} yet; "
-            f"supported harnesses: {supported}"
+            f"declared harness {harness} must set command to run on a harbor course"
         )
-    return agent
+    if declaration.install is None:
+        raise ConfigError(
+            f"declared harness {harness} must set a pinned install "
+            "(url or path + sha256) to run on a harbor course"
+        )
+    install: dict[str, str] = {"sha256": declaration.install.sha256}
+    if declaration.install.url is not None:
+        install["url"] = declaration.install.url
+    if declaration.install.path is not None:
+        install["path"] = declaration.install.path
+    return {
+        "name": declaration.name,
+        "prompt": declaration.prompt,
+        "evidence": declaration.evidence,
+        "command": list(declaration.command),
+        "install": install,
+    }
 
 
 def _harness_version(runtime: RuntimeRecipe) -> str:

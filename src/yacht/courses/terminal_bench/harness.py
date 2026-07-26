@@ -67,6 +67,7 @@ def run_terminal_bench_job(
     job = _load_job(job_path)
     roster_ids = _load_roster_ids(roster_path)
     tasks_path = _verified_tasks_path(job)
+    artifact_path = _declared_artifact_path(job)
     harbor_config_path = trials_dir / "harbor-run-config.json"
     _write_json(harbor_config_path, harbor_run_config(job, trials_dir=trials_dir))
 
@@ -77,6 +78,7 @@ def run_terminal_bench_job(
         secret_env=[str(name) for name in job.get("secret_env", [])],
         launcher_image=str(job.get("launcher_image", HARBOR_LAUNCHER_IMAGE)),
         tasks_path=tasks_path,
+        artifact_path=artifact_path,
     )
     exit_code = runner(command, trials_dir)
     if exit_code != 0:
@@ -106,6 +108,7 @@ def harbor_command(
     secret_env: list[str],
     launcher_image: str = HARBOR_LAUNCHER_IMAGE,
     tasks_path: Path | None = None,
+    artifact_path: Path | None = None,
 ) -> list[str]:
     command = [
         "docker",
@@ -121,6 +124,8 @@ def harbor_command(
         # surface as missing inside the container under OrbStack's virtiofs.
         # The content-digest check guards task integrity instead.
         command.extend(["-v", f"{tasks_path}:{tasks_path}"])
+    if artifact_path is not None:
+        command.extend(["-v", f"{artifact_path}:{artifact_path}"])
     for name in secret_env:
         command.extend(["-e", name])
     command.extend(
@@ -142,6 +147,8 @@ def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any
     kwargs: dict[str, Any] = {"version": str(agent["version"])}
     if agent.get("rigging_steps"):
         kwargs["rigging_steps"] = list(agent["rigging_steps"])
+    if agent.get("declaration"):
+        kwargs["declaration"] = dict(agent["declaration"])
     agent_config: dict[str, Any] = {
         "import_path": str(agent["import_path"]),
         "model_name": str(agent["model"]),
@@ -195,6 +202,22 @@ def _verified_tasks_path(job: dict[str, Any]) -> Path | None:
             "changed after the job was planned"
         )
     return tasks_path
+
+
+def _declared_artifact_path(job: dict[str, Any]) -> Path | None:
+    declaration = job.get("agent", {}).get("declaration")
+    if not isinstance(declaration, dict):
+        return None
+    install = declaration.get("install")
+    if not isinstance(install, dict):
+        return None
+    path = install.get("path")
+    if not isinstance(path, str) or not path:
+        return None
+    artifact = Path(path)
+    if not artifact.is_file():
+        raise ConfigError(f"declared harness install artifact not found: {artifact}")
+    return artifact
 
 
 def native_report_from_trials(

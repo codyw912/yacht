@@ -12,6 +12,7 @@ from yacht.domain.model import (
     CourseAdapter,
     ExpectationValue,
     HarnessDeclaration,
+    HarnessInstall,
     PreflightCheck,
     PreflightConfig,
     PreflightRecipe,
@@ -73,19 +74,44 @@ def load_regatta(config_path: Path) -> Regatta:
         runtime_recipes=_parse_runtime_recipes(raw),
         rigging_recipes=_parse_rigging_recipes(raw, config_path.parent),
         tool_capabilities=_parse_tool_capabilities(raw),
-        harness_declarations=_parse_harness_declarations(raw),
+        harness_declarations=_parse_harness_declarations(raw, config_path.parent),
     )
 
 
-def _parse_harness_declarations(raw: dict[str, Any]) -> dict[str, HarnessDeclaration]:
+def _parse_harness_declarations(
+    raw: dict[str, Any],
+    config_dir: Path,
+) -> dict[str, HarnessDeclaration]:
     return {
         str(name): HarnessDeclaration(
             name=str(name),
             prompt=str(declaration.get("prompt", "argument")),
             evidence=str(declaration.get("evidence", "stdout")),
+            command=tuple(str(item) for item in declaration.get("command", ())),
+            install=_parse_harness_install(declaration, config_dir),
         )
         for name, declaration in raw.get("harnesses", {}).items()
     }
+
+
+def _parse_harness_install(
+    declaration: dict[str, Any],
+    config_dir: Path,
+) -> HarnessInstall | None:
+    install = declaration.get("install")
+    if not isinstance(install, dict):
+        return None
+    path = install.get("path")
+    if path is not None:
+        resolved = Path(str(path))
+        if not resolved.is_absolute():
+            resolved = config_dir / resolved
+        path = str(resolved.resolve())
+    return HarnessInstall(
+        sha256=str(install["sha256"]),
+        url=str(install["url"]) if "url" in install else None,
+        path=path,
+    )
 
 
 _ARTIFACT_PATH_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
