@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.6.0 - Custom Evals and Full Evaluator Containerization
+
+YACHT 0.6.0 turns the `custom-eval` kind into a real user-authored eval
+system and moves the last native evaluator off the host: every grading
+path now runs in a pinned launcher container.
+
+### Custom evals (ADR 0015)
+
+- The `custom-eval` course now runs evals you write yourself: a local
+  directory of Harbor-format tasks (instruction, environment
+  Dockerfile, verifier) executed through the same pinned launcher,
+  yacht-owned agents, rigging, and install-only preflight as the
+  registry Harbor courses. Tools that generate evals in Harbor format
+  plug in directly; YACHT stays the measurement side.
+- The content hash is the pin: the course handoff records a sha256
+  digest over the task directory's relative paths and file bytes, every
+  pipeline artifact carries it, and the harness recomputes and verifies
+  it before launching — tasks edited between planning and launch fail
+  loudly instead of silently measuring different content. Runs are
+  comparable when their digests match.
+- Harbor trial directories — including the verifier's own trajectory —
+  are preserved in the logbook so reward-hacked verifiers can be
+  audited, not just scored.
+- The previous internal mock `custom-eval` kind, its local harness, and
+  the `local` course harness are removed; the name now means the real
+  course (`harness = "harbor"`, `dataset` = the task directory path,
+  `split` = a user-chosen revision label).
+- Added a working example task (`examples/custom-evals/hello-task`),
+  the `examples/custom-eval-claude-code-versions-smoke.toml` regatta,
+  and a Custom Evals reference page. Validated live end to end,
+  including a real token-spending comparison run and zero-token oracle
+  and install-only runs against the example task.
+
+### SWE-bench grading launcher containerization
+
+- SWE-bench grading runs in the pinned `containers/swebench-runner`
+  image (`swebench==4.1.0` fixed at image build), driving per-instance
+  evaluation containers through the mounted Docker socket — the
+  launcher-image pattern from ADR 0012 now covers all three native
+  evaluators, and no grading executes on the host.
+- The `--python-executable` escape hatch and the floating
+  `uv run --with swebench` resolution are removed; the image pin is the
+  resolution. `yacht doctor` now verifies the runner image is present.
+- Harness logs land inside the logbook's native-report directory
+  instead of scattering on the host.
+
+### Project
+
+- Task-directory mounts into the launcher container are read-write:
+  read-only binds of macOS directories intermittently surface as
+  missing inside containers under OrbStack's virtiofs, and the content
+  digest is what guards task integrity.
+
 ## 0.5.0 - Statistical Verdicts, LiveCodeBench, and Aider Polyglot
 
 YACHT 0.5.0 makes comparison verdicts statistically honest, adds two
