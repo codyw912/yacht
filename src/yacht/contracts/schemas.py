@@ -142,6 +142,7 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
     _validate_preflight_config(document)
     secrets = _validate_secret_references(document)
     _validate_harness_declarations(document)
+    _validate_declared_evidence_backends(document)
     runtime_names = _validate_runtime_recipes(document, secrets)
     tool_names = _validate_tool_capabilities(document)
     rigging_names = _validate_rigging_recipes(document, secrets, tool_names)
@@ -1495,7 +1496,9 @@ def _validate_course_handoff_comparisons(value: Any) -> None:
         )
         if len(vessels) < 2:
             raise SchemaValidationError(
-                f"comparisons[{index}].vessels must contain at least two vessels"
+                f"comparisons[{index}].vessels must contain at least two "
+                "vessels; for a single-setup smoke, list the same "
+                "configuration twice under two vessel names"
             )
         for vessel in vessels:
             _require_non_empty_string(vessel, f"comparisons[{index}].vessels")
@@ -2671,6 +2674,31 @@ def _validate_harness_install(value: Any, path: str) -> None:
         _require_non_empty_string(install.get("path"), f"{path}.path")
 
 
+def _validate_declared_evidence_backends(document: dict[str, Any]) -> None:
+    declarations = _optional_named_table(document, "harnesses")
+    if not declarations:
+        return
+    for runtime_name, runtime_value in _optional_named_table(
+        document, "runtimes"
+    ).items():
+        if not isinstance(runtime_value, dict):
+            continue
+        harness = runtime_value.get("harness")
+        declaration = declarations.get(harness) if isinstance(harness, str) else None
+        if not isinstance(declaration, dict):
+            continue
+        if (
+            runtime_value.get("backend") == "container"
+            and declaration.get("evidence", "stdout") == "file"
+        ):
+            raise SchemaValidationError(
+                f"runtimes.{runtime_name} uses declared harness {harness} "
+                'with evidence = "file", which does not reach container '
+                "runtimes yet (the evidence path cannot cross the container "
+                'boundary); use evidence = "stdout" or a host backend'
+            )
+
+
 def validate_harness_evidence_document(document: Any) -> None:
     evidence = _require_object(document, "harness evidence document")
     if evidence.get("schema") != HARNESS_EVIDENCE_SCHEMA:
@@ -3042,7 +3070,9 @@ def _validate_comparisons(
         )
         if len(vessels) < 2:
             raise SchemaValidationError(
-                f"comparisons[{index}].vessels must contain at least two vessels"
+                f"comparisons[{index}].vessels must contain at least two "
+                "vessels; for a single-setup smoke, list the same "
+                "configuration twice under two vessel names"
             )
         for vessel in vessels:
             _require_non_empty_string(vessel, f"comparisons[{index}].vessels")

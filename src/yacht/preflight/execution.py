@@ -419,8 +419,13 @@ def _execute_agent_prompt_check(
         evidence["response_json"] = response_contract.response_json
     if result.transcript_path is not None:
         evidence["transcript_path"] = str(result.transcript_path)
-    if response_contract.errors:
+    if result.exit_code == 0 and response_contract.errors:
+        # Contract errors only mean something when the launch itself
+        # succeeded; a nonzero exit is the failure, not the (empty)
+        # response's shape.
         evidence["response_contract_errors"] = response_contract.errors
+    if result.exit_code != 0:
+        evidence["failure_reason"] = f"agent prompt launcher exited {result.exit_code}"
     if missing_tool_calls:
         evidence["missing_tool_calls"] = missing_tool_calls
     status = (

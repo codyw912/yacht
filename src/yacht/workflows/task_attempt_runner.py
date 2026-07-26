@@ -226,7 +226,10 @@ def _validate_required_secrets(
             for secret_name in runtime_secrets.required_secret_names(runtime, riggings):
                 if secret_name not in secret_values:
                     raise ConfigError(
-                        f"missing value for required secret {secret_name}"
+                        f"missing value for required secret {secret_name}; "
+                        f"supply it at run time with "
+                        f"--secret {secret_name}=@env:<VAR> or "
+                        f"--secret {secret_name}=<value>"
                     )
 
 

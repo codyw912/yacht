@@ -637,15 +637,45 @@ def _summary_checks(
     status_by_name = {
         str(check["name"]): str(check["status"]) for check in artifact["checks"]
     }
-    return [_summary_check(check, status_by_name) for check in checks]
+    failure_by_name = {
+        str(check["name"]): failure
+        for check in artifact["checks"]
+        if (failure := _check_failure_line(check)) is not None
+    }
+    return [_summary_check(check, status_by_name, failure_by_name) for check in checks]
 
 
 def _summary_check(
     check: PlannedPreflightCheck,
     status_by_name: dict[str, str],
+    failure_by_name: dict[str, str],
 ) -> dict[str, Any]:
     status = status_by_name.get(check.name, "omitted")
-    return check.to_summary_json(status)
+    payload = check.to_summary_json(status)
+    if status == "failed" and check.name in failure_by_name:
+        payload["failure"] = failure_by_name[check.name]
+    return payload
+
+
+def _check_failure_line(check: dict[str, Any]) -> str | None:
+    """One-line cause for a failed check, so readers do not have to dig
+    through the per-vessel evidence artifact to learn what happened."""
+    if str(check.get("status")) != "failed":
+        return None
+    evidence = check.get("evidence")
+    if not isinstance(evidence, dict):
+        return None
+    for key in ("failure_reason", "error"):
+        value = evidence.get(key)
+        if isinstance(value, str) and value:
+            return value
+    stderr = evidence.get("stderr")
+    if isinstance(stderr, str) and stderr.strip():
+        return stderr.strip().splitlines()[-1][:200]
+    exit_code = evidence.get("exit_code")
+    if isinstance(exit_code, int) and exit_code != 0:
+        return f"exited {exit_code}"
+    return None
 
 
 def _comparison_status(

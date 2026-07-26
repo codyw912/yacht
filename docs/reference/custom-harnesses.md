@@ -65,7 +65,11 @@ declared adapters:
 Instead of YACHT parsing your output stream, your harness emits one
 JSON document — `yacht.harness-evidence.v1` — either as the final
 non-empty line of stdout (`evidence = "stdout"`) or written to the path
-YACHT provides in `$YACHT_EVIDENCE_PATH` (`evidence = "file"`):
+YACHT provides in `$YACHT_EVIDENCE_PATH` (`evidence = "file"`).
+`evidence = "file"` currently works on host backends only — the
+evidence path cannot cross the container boundary yet, and config
+validation rejects the combination — so container runtimes use
+`stdout`:
 
 ```json
 {
@@ -104,8 +108,18 @@ The runtime delivers the binary; no new mechanism exists or is needed:
 
 - **Container backend** (recommended): bake the harness into a runtime
   image, pinned by tag. Private registries and locally built images
-  work — YACHT only ever runs the image name you give it.
+  work — YACHT only ever runs the image name you give it. The image
+  must be **entrypoint-neutral**: YACHT appends `runtime.command`
+  directly after the image name, so an `ENTRYPOINT ["yach"]` image
+  would execute `yach yach run ...`.
 - **host-nix backend**: the flake provides the harness on PATH.
+
+Secret values are supplied at run time, never read implicitly:
+`[secrets.x] source = "env" name = "VAR"` declares that the value is
+injected into the runtime under `VAR` — the value itself comes from
+the CLI, e.g. `--secret x=@env:VAR` (read `VAR` from your shell) or
+`--secret x=<literal>`. A declared secret without a `--secret` value
+fails before launch with the flag named in the error.
 
 Agent-prompt preflight (`kind = "agent-prompt"`) runs a real prompt
 through the declared harness before tokens are spent on tasks — the

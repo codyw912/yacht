@@ -50,7 +50,10 @@ class HarborRuntimeResolution:
         for secret_name in self.required_secret_names:
             if secret_name not in secret_values:
                 raise HarborRuntimeResolutionError(
-                    f"missing value for required secret {secret_name}"
+                    f"missing value for required secret {secret_name}; "
+                    f"supply it at run time with "
+                    f"--secret {secret_name}=@env:<VAR> or "
+                    f"--secret {secret_name}=<value>"
                 )
             secret = regatta.secrets[secret_name]
             if secret.source != "env" or secret.name is None:

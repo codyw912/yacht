@@ -564,5 +564,78 @@ vessels = ["yach-baseline", "yach-candidate"]
             self.assertIn(f"{artifact}:{artifact}", command)
 
 
+class DeclaredEvidenceBackendTests(unittest.TestCase):
+    def test_rejects_file_evidence_on_container_runtimes(self) -> None:
+        config = DECLARED_CONFIG.replace(
+            '[runtimes.yach-host]\nbackend = "host-nix"\nflake = "path:."\ncommand = ["yach", "run"]\nharness = "yach"',
+            '[runtimes.yach-host]\nbackend = "container"\nimage = "yach-runtime:0.1.0"\ncommand = ["yach", "run"]\nharness = "yach"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "does not reach container runtimes yet",
+            ):
+                load_regatta(config_path)
+
+    def test_allows_stdout_evidence_on_container_runtimes(self) -> None:
+        config = DECLARED_CONFIG.replace(
+            'evidence = "file"', 'evidence = "stdout"'
+        ).replace(
+            '[runtimes.yach-host]\nbackend = "host-nix"\nflake = "path:."\ncommand = ["yach", "run"]\nharness = "yach"',
+            '[runtimes.yach-host]\nbackend = "container"\nimage = "yach-runtime:0.1.0"\ncommand = ["yach", "run"]\nharness = "yach"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            load_regatta(config_path)
+
+
+class ContainerMountPathTests(unittest.TestCase):
+    def test_relative_instance_root_resolves_to_absolute_mount(self) -> None:
+        import os
+
+        from yacht.runtimes.container import resolve_container_runtime
+        from yacht.domain.model import Course, Regatta, RuntimeRecipe, Vessel
+
+        runtime = RuntimeRecipe(
+            name="c",
+            backend="container",
+            command=("yach", "run"),
+            image="img:1",
+        )
+        regatta = Regatta(
+            name="r",
+            course=Course(name="c", tasks=()),
+            vessels=(Vessel(name="v", model="m", rigging=(), runtime="c"),),
+            runtime_recipes={"c": runtime},
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                resolution = resolve_container_runtime(
+                    regatta=regatta,
+                    vessel=regatta.vessels[0],
+                    instance_root=Path("logbook/runtime/comp/v"),
+                    workspace_path=Path(temp_dir),
+                )
+            finally:
+                os.chdir(cwd)
+
+        mounts = [
+            arg for arg in resolution.command_prefix if arg.startswith("type=bind,")
+        ]
+        for mount in mounts:
+            source = mount.split("source=", 1)[1].split(",", 1)[0]
+            self.assertTrue(
+                Path(source).is_absolute(),
+                f"mount source not absolute: {mount}",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
