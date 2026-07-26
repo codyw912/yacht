@@ -1,0 +1,117 @@
+# Measure a skill claim: does a team-conventions skill actually change
+# what the agent produces?
+#
+# This is an A/B in the shape teams use to evaluate skills: the same
+# pinned Claude Code on the same task, with and without the skill. The
+# task (examples/custom-evals/convention-task) asks for a new tool
+# module "following the team's tool-module conventions" — but the
+# conventions (TOOL_NAME, run(args) -> int, registering in
+# registry.txt) are documented only in the skill. The verifier checks
+# the conventions, so the skill's effect shows up as resolution, not
+# vibes — and yacht grades the difference by statistical evidence
+# instead of reporting a raw delta.
+#
+# A single run of this comparison is an observation, not a conclusion;
+# the report will say so ("insufficient evidence" below the discordant
+# threshold). Repeat it to accumulate evidence:
+#
+#   uv run yacht run examples/custom-eval-skill-ab-smoke.toml \
+#     --logbook /private/tmp/yacht-skill-ab \
+#     --workspace . \
+#     --secret anthropic=@env:ANTHROPIC_API_KEY \
+#     --repetitions 5
+#
+# Requirements: Docker running, uv, ANTHROPIC_API_KEY exported, and the
+# pinned launcher image built:
+#
+#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+
+[regatta]
+name = "custom-eval-skill-ab-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "team-conventions-ab"
+
+[[course.tasks]]
+id = "convention-task"
+title = "Add a tool module following team conventions"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "custom-evals"
+split = "v1"
+harness = "harbor"
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.harbor-claude]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "claude-code"
+harness_version = "2.1.215"
+required_secrets = ["anthropic"]
+
+[runtimes.harbor-claude.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "agent-install", kind = "install-only" },
+]
+
+[tools.team-conventions]
+kind = "agent-skill"
+description = "Team conventions for tool modules, packaged as a Claude Code skill."
+interfaces = ["agent-skill"]
+install_methods = ["config-file"]
+
+# The treatment: a Claude Code skill documenting the team conventions,
+# installed into the task container by rigging. The baseline vessel
+# runs without it.
+[riggings.team-conventions-skill]
+tools = ["team-conventions"]
+instructions = "Consult the team-conventions skill before writing tool modules."
+
+[[riggings.team-conventions-skill.install]]
+method = "config-file"
+target = ".claude/skills/team-conventions/SKILL.md"
+content = """
+---
+name: team-conventions
+description: Team conventions for tool modules in /app/tools. Use when adding or changing a tool module.
+---
+
+# Tool module conventions
+
+Every tool module in `/app/tools` must:
+
+1. Define a module-level `TOOL_NAME` string constant naming the tool.
+2. Define `run(args) -> int` as the entrypoint, returning `0` on
+   success.
+3. Register itself by appending its `TOOL_NAME` as a new line to
+   `/app/tools/registry.txt`.
+
+A module that does not register itself in `registry.txt` will not be
+loaded, even if the code is otherwise correct.
+"""
+
+[[vessels]]
+name = "claude-baseline"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-claude"
+
+[[vessels]]
+name = "claude-with-skill"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-claude"
+rigging = ["team-conventions-skill"]
+
+[[comparisons]]
+name = "skill-vs-baseline"
+course = "team-conventions-ab"
+vessels = ["claude-baseline", "claude-with-skill"]

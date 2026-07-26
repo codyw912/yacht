@@ -151,3 +151,27 @@ docker run --rm \
 The example regatta (`examples/custom-eval-claude-code-versions-smoke.toml`)
 composes all of this: two pinned Claude Code versions on the example
 task, install-only preflight, and the digest pin.
+
+## Measuring a skill claim
+
+The most common custom-eval question is a treatment comparison: does a
+skill (or MCP server, or any rigging) actually change what the agent
+produces? `examples/custom-eval-skill-ab-smoke.toml` is that experiment
+in full: the same pinned Claude Code runs
+`examples/custom-evals/convention-task` with and without a
+team-conventions skill installed by rigging. The task requires
+conventions that are documented only in the skill, so the skill's
+effect surfaces as resolution — measured by the verifier, not judged
+from transcripts.
+
+Two properties make the result trustworthy where a raw pass-rate delta
+is not:
+
+- **The verdict is graded by evidence** (ADR 0013). One run of one task
+  is an observation, and the report says so; run the comparison with
+  `--repetitions` to accumulate discordant outcomes until the sign
+  test can actually distinguish the treatment from noise.
+- **Everything that could vary is pinned**: the harness version, the
+  task content (digest), the skill content (declared in config,
+  applied per-trial in a fresh container). When the delta moves, it is
+  the treatment moving.
