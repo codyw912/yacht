@@ -88,6 +88,7 @@ class LocalSmokeAgentAdapter:
             metrics=Metrics(
                 tokens=_estimated_tokens(prompt, response_text),
                 duration_seconds=0.0,
+                usage_source="estimated",
             ),
         )
 

@@ -26,6 +26,14 @@ TASK_ATTEMPT_SCORECARD_SCHEMA = "yacht.task-attempt-scorecard.v1"
 SMOKE_READINESS_REPORT_SCHEMA = "yacht.smoke-readiness-report.v1"
 REAL_SMOKE_RUNBOOK_SCHEMA = "yacht.real-smoke-runbook.v1"
 REAL_BENCHMARK_RUNBOOK_SCHEMA = "yacht.real-benchmark-runbook.v1"
+HARNESS_EVIDENCE_SCHEMA = "yacht.harness-evidence.v1"
+
+# Kept in sync with yacht.harnesses.registry.supported_harness_names()
+# by a test; imported directly it would create an import cycle.
+BUILT_IN_HARNESS_NAMES = {"claude-code", "local-smoke", "pi"}
+HARNESS_PROMPT_MODES = {"argument", "stdin"}
+HARNESS_EVIDENCE_SOURCES = {"stdout", "file"}
+METRICS_USAGE_SOURCES = {"reported", "estimated"}
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = set(supported_benchmark_adapter_kinds())
@@ -133,6 +141,7 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
     _require_keys(document, ("regatta", "course", "vessels"), "regatta document")
     _validate_preflight_config(document)
     secrets = _validate_secret_references(document)
+    _validate_harness_declarations(document)
     runtime_names = _validate_runtime_recipes(document, secrets)
     tool_names = _validate_tool_capabilities(document)
     rigging_names = _validate_rigging_recipes(document, secrets, tool_names)
@@ -299,6 +308,12 @@ def validate_wake_document(document: dict[str, Any]) -> None:
         or metrics["duration_seconds"] < 0
     ):
         raise SchemaValidationError("metrics.duration_seconds must be a number >= 0")
+    if "usage_source" in metrics:
+        _require_allowed_value(
+            metrics.get("usage_source"),
+            METRICS_USAGE_SOURCES,
+            "metrics.usage_source",
+        )
 
 
 def validate_scorecard_document(document: dict[str, Any]) -> None:
@@ -1423,6 +1438,12 @@ def _validate_task_attempt_metrics(value: Any) -> None:
         or metrics["duration_seconds"] < 0
     ):
         raise SchemaValidationError("metrics.duration_seconds must be a number >= 0")
+    if "usage_source" in metrics:
+        _require_allowed_value(
+            metrics.get("usage_source"),
+            METRICS_USAGE_SOURCES,
+            "metrics.usage_source",
+        )
 
 
 def _validate_course_handoff_tasks(value: Any) -> None:
@@ -2596,6 +2617,80 @@ def _validate_course_adapter_summary(adapter: dict[str, Any], path: str) -> None
     _require_allowed_value(adapter.get("kind"), COURSE_ADAPTER_KINDS, f"{path}.kind")
     for key in ("dataset", "split"):
         _require_non_empty_string(adapter.get(key), f"{path}.{key}")
+
+
+def _validate_harness_declarations(document: dict[str, Any]) -> None:
+    declarations = _optional_named_table(document, "harnesses")
+    for name, declaration_value in declarations.items():
+        path = f"harnesses.{name}"
+        _require_non_empty_string(name, "harnesses key")
+        if name in BUILT_IN_HARNESS_NAMES:
+            raise SchemaValidationError(
+                f"{path} must not shadow the built-in harness {name}"
+            )
+        declaration = _require_object(declaration_value, path)
+        _require_allowed_value(
+            declaration.get("prompt", "argument"),
+            HARNESS_PROMPT_MODES,
+            f"{path}.prompt",
+        )
+        _require_allowed_value(
+            declaration.get("evidence", "stdout"),
+            HARNESS_EVIDENCE_SOURCES,
+            f"{path}.evidence",
+        )
+
+
+def validate_harness_evidence_document(document: Any) -> None:
+    evidence = _require_object(document, "harness evidence document")
+    if evidence.get("schema") != HARNESS_EVIDENCE_SCHEMA:
+        raise SchemaValidationError(
+            f"harness evidence schema must be {HARNESS_EVIDENCE_SCHEMA}"
+        )
+    response = evidence.get("response")
+    if not isinstance(response, str):
+        raise SchemaValidationError("harness evidence response must be a string")
+    usage = _require_object(evidence.get("usage"), "harness evidence usage")
+    for key in ("input_tokens", "output_tokens"):
+        value = usage.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise SchemaValidationError(
+                f"harness evidence usage.{key} must be an integer >= 0"
+            )
+    for key in ("cache_read_tokens", "cache_write_tokens", "total_tokens"):
+        value = usage.get(key)
+        if value is not None and (
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+        ):
+            raise SchemaValidationError(
+                f"harness evidence usage.{key} must be an integer >= 0"
+            )
+    tool_calls = evidence.get("tool_calls")
+    if tool_calls is not None:
+        entries = _require_list(tool_calls, "harness evidence tool_calls")
+        for index, entry_value in enumerate(entries):
+            entry_path = f"harness evidence tool_calls[{index}]"
+            entry = _require_object(entry_value, entry_path)
+            _require_non_empty_string(entry.get("name"), f"{entry_path}.name")
+            count = entry.get("count")
+            if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+                raise SchemaValidationError(
+                    f"{entry_path}.count must be an integer >= 1"
+                )
+    cost = evidence.get("cost")
+    if cost is not None:
+        cost_object = _require_object(cost, "harness evidence cost")
+        total = cost_object.get("total_usd")
+        if not isinstance(total, int | float) or isinstance(total, bool) or total < 0:
+            raise SchemaValidationError(
+                "harness evidence cost.total_usd must be a number >= 0"
+            )
+    model = evidence.get("model")
+    if model is not None:
+        _require_non_empty_string(model, "harness evidence model")
+    extras = evidence.get("extras")
+    if extras is not None:
+        _require_object(extras, "harness evidence extras")
 
 
 def _validate_secret_references(document: dict[str, Any]) -> set[str]:

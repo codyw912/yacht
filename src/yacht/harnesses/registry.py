@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
@@ -17,6 +18,7 @@ from yacht.harnesses.pi import (
 )
 from yacht.preflight import AgentPromptRunner
 from yacht.domain.model import ConfigError
+from yacht.domain.model import HarnessDeclaration
 from yacht.domain.model import RuntimeInstance
 from yacht.domain.model import Task
 from yacht.workflows.task_attempts import AgentTaskResult
@@ -59,11 +61,20 @@ class RegisteredHarnessAdapter:
         return self._task_agent()
 
 
-def harness_adapter(name: str) -> HarnessAdapter:
-    try:
-        return _HARNESS_ADAPTERS[name]
-    except KeyError as error:
-        raise ConfigError(f"unsupported harness adapter {name}") from error
+HarnessDeclarations = Mapping[str, HarnessDeclaration]
+
+
+def harness_adapter(
+    name: str,
+    declarations: HarnessDeclarations | None = None,
+) -> HarnessAdapter:
+    adapter = _HARNESS_ADAPTERS.get(name)
+    if adapter is not None:
+        return adapter
+    declaration = (declarations or {}).get(name)
+    if declaration is not None:
+        return _declared_adapter(declaration)
+    raise ConfigError(f"unsupported harness adapter {name}")
 
 
 def supported_harness_names() -> tuple[str, ...]:
@@ -78,22 +89,45 @@ def supported_task_attempt_names() -> tuple[str, ...]:
     return supported_harness_names()
 
 
-def agent_prompt_runner_factory(name: str) -> AgentPromptRunnerFactory | None:
+def agent_prompt_runner_factory(
+    name: str,
+    declarations: HarnessDeclarations | None = None,
+) -> AgentPromptRunnerFactory | None:
     if name == "none":
         return None
     try:
-        adapter = harness_adapter(name)
+        adapter = harness_adapter(name, declarations)
     except ConfigError as error:
         raise ConfigError(f"unsupported agent preflight adapter {name}") from error
     return adapter.agent_prompt_runner_factory()
 
 
-def task_agent(name: str) -> TaskAgent:
+def task_agent(
+    name: str,
+    declarations: HarnessDeclarations | None = None,
+) -> TaskAgent:
     try:
-        adapter = harness_adapter(name)
+        adapter = harness_adapter(name, declarations)
     except ConfigError as error:
         raise ConfigError(f"unsupported task attempt agent {name}") from error
     return adapter.task_agent()
+
+
+def _declared_adapter(declaration: HarnessDeclaration) -> HarnessAdapter:
+    from yacht.harnesses.declared import DeclaredHarnessAdapter
+
+    def prompt_runner_factory() -> AgentPromptRunnerFactory:
+        adapter = DeclaredHarnessAdapter(declaration)
+        return lambda instance, transcript_dir: adapter.agent_prompt_runner(
+            instance=instance,
+            transcript_dir=transcript_dir,
+        )
+
+    return RegisteredHarnessAdapter(
+        name=declaration.name,
+        _agent_prompt_runner_factory=prompt_runner_factory,
+        _task_agent=lambda: DeclaredHarnessAdapter(declaration),
+    )
 
 
 def _pi_prompt_runner_factory() -> AgentPromptRunnerFactory:

@@ -229,6 +229,7 @@ class SubprocessClaudeCodeTaskLauncher:
                     else _estimated_tokens(request.prompt, result.stdout)
                 ),
                 duration_seconds=duration_seconds,
+                usage_source="reported" if tokens is not None else "estimated",
             ),
             machine_evidence=machine_evidence,
         )
