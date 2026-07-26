@@ -2639,6 +2639,36 @@ def _validate_harness_declarations(document: dict[str, Any]) -> None:
             HARNESS_EVIDENCE_SOURCES,
             f"{path}.evidence",
         )
+        if "command" in declaration:
+            command = _require_list(declaration.get("command"), f"{path}.command")
+            if not command or not all(
+                isinstance(item, str) and item for item in command
+            ):
+                raise SchemaValidationError(
+                    f"{path}.command must contain non-empty strings"
+                )
+        if "install" in declaration:
+            _validate_harness_install(declaration.get("install"), f"{path}.install")
+
+
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _validate_harness_install(value: Any, path: str) -> None:
+    install = _require_object(value, path)
+    sha256 = install.get("sha256")
+    if not isinstance(sha256, str) or _SHA256_HEX.fullmatch(sha256) is None:
+        raise SchemaValidationError(
+            f"{path}.sha256 must be a 64-character lowercase hex digest"
+        )
+    has_url = "url" in install
+    has_path = "path" in install
+    if has_url == has_path:
+        raise SchemaValidationError(f"{path} must set exactly one of url or path")
+    if has_url:
+        _require_non_empty_string(install.get("url"), f"{path}.url")
+    if has_path:
+        _require_non_empty_string(install.get("path"), f"{path}.path")
 
 
 def validate_harness_evidence_document(document: Any) -> None:

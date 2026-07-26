@@ -200,6 +200,15 @@ class HarnessDeclaration:
     name: str
     prompt: str = "argument"
     evidence: str = "stdout"
+    command: tuple[str, ...] = ()
+    install: HarnessInstall | None = None
+
+
+@dataclass(frozen=True)
+class HarnessInstall:
+    sha256: str
+    url: str | None = None
+    path: str | None = None
 
 
 @dataclass(frozen=True)

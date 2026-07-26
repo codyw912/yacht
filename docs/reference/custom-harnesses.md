@@ -97,13 +97,47 @@ through the declared harness before tokens are spent on tasks — the
 cheap way to prove the binary, the evidence emission, and the secrets
 all work.
 
-## Course coverage
+## Harbor-format courses
 
-Declared harnesses drive yacht-run courses today: SWE-bench and
-LiveCodeBench. Native-rollout Harbor courses (Terminal-Bench, Aider
-Polyglot, custom evals) install agents inside task containers from
-YACHT's Harbor agent classes; the generic declared-harness agent that
-extends this to declared harnesses — installation pinned by artifact
-URL/path + sha256 — is the second slice of ADR 0016 and is on the
-roadmap, not an open question. Declarations will not change when it
-lands.
+The same declaration runs native-rollout Harbor courses
+(Terminal-Bench, Aider Polyglot, custom evals) once it adds the two
+fields those courses need — the run command and a pinned install:
+
+```toml
+[harnesses.yach]
+prompt = "argument"
+evidence = "file"
+command = ["yach", "run", "--model", "{model}"]
+
+[harnesses.yach.install]
+path = "dist/yach-linux-arm64"   # or url = "https://..."
+sha256 = "<sha256 of the artifact>"
+
+[runtimes.harbor-yach]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "yach"
+harness_version = "0.1.0"
+```
+
+- YACHT's generic Harbor agent resolves the artifact on the launcher
+  side (local `path`, resolved against the config file, or a `url` it
+  downloads), verifies the sha256, uploads the binary into the task
+  container, and verifies the checksum again in-container before
+  anything runs. Unpinned installs are rejected; the pin is provenance
+  for exactly which harness build ran.
+- `command` is the in-container invocation: the first element maps to
+  the installed binary when it matches the harness name, and `{model}`
+  is substituted with the vessel's model. The prompt follows the
+  declaration's `prompt` mode; evidence follows its `evidence` mode
+  (for `file`, YACHT sets `$YACHT_EVIDENCE_PATH` inside the container).
+- Evidence maps into the Harbor trial result (tokens, cache, cost), so
+  declared-harness trials carry the same usage surface as the built-in
+  agents. A run without valid evidence is a trial error — never an
+  estimate.
+- The artifact should be a static single-file linux build (x86_64 /
+  aarch64 as your task images require): task environments are
+  user-authored images, and glibc is not guaranteed.
+- Install-only preflight covers declared harnesses like built-ins:
+  installation is proven in a real task container before tokens are
+  spent.
