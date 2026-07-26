@@ -23,6 +23,21 @@ Declared names must not shadow built-ins. A harness declaration is
 config-authored code execution, with the same standing as the rest of
 the config (runtime commands always were).
 
+Which config field carries the invocation depends on the course kind,
+and mixing them up is the most common integration mistake:
+
+- **yacht-run courses** (SWE-bench, LiveCodeBench): the runtime's
+  `command` is the invocation — `argv = command_prefix +
+  runtime.command`, plus the prompt per the declaration's `prompt`
+  mode. The declaration's `command` field is ignored here, and there
+  is no `{model}` substitution: write the model flag literally, one
+  runtime per model configuration (the same convention the built-in
+  examples use).
+- **Harbor-format courses**: the declaration's `command` (with
+  `{model}` substitution) is the in-container invocation — the runtime
+  recipe is the harbor launcher and carries no harness argv. See
+  "Harbor-format courses" below.
+
 ## The launch contract
 
 What YACHT does when it runs your harness — uniform across built-in and
