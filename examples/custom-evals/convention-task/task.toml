@@ -1,0 +1,10 @@
+[metadata]
+author = "yacht"
+description = "Skill A/B task: add a tool module following team conventions that are documented only in the team's skill."
+difficulty = "easy"
+
+[verifier]
+timeout_sec = 60.0
+
+[agent]
+timeout_sec = 300.0
