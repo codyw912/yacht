@@ -509,8 +509,21 @@ class BenchmarkScorecardTests(unittest.TestCase):
             )
             self.assertIn(
                 "pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
-                "tokens better (-3141) | cost better (-0.001310) | "
-                "duration better (-2.000s)",
+                "tokens better (-3141) [outcome-confounded] | "
+                "cost better (-0.001310) [outcome-confounded] | "
+                "duration better (-2.000s) [outcome-confounded]",
+                stdout.getvalue(),
+            )
+            self.assertIn(
+                "Efficiency by vessel (usage per resolved task):",
+                stdout.getvalue(),
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-plus-fff | 1 | 6251.0 | 0.004513",
+                stdout.getvalue(),
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-baseline | 0 | n/a (0 resolved) | n/a (0 resolved)",
                 stdout.getvalue(),
             )
             self.assertIn("Agent usage by vessel:", stdout.getvalue())

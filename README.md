@@ -66,12 +66,16 @@ example (10 repetitions, $0.38):
 ```
 skill-vs-baseline | resolution better (+0.700 rate, 95% CI +0.354..+1.046)
                   | evidence-of-difference (sign test p = 0.016)
-tokens / cost / duration: not distinguishable from noise at n=10
+tokens / cost / duration: not distinguishable [outcome-confounded]
+cost per resolved task: baseline 0.0579 | with-skill 0.0205
 ```
 
-The skill's effect is a graded conclusion; the cost effect is honestly
-refused. Every input is pinned (harness version, task content digest,
-skill content), and every attempt leaves re-gradeable artifacts. See
+The skill's effect is a graded conclusion; the raw cost delta is
+honestly refused and flagged as outcome-confounded (failed runs stop
+early and spend less); the efficiency number — ~3x cheaper per resolved
+task — is the one a decision needs. Every input is pinned (harness
+version, task content digest, skill content), and every attempt leaves
+re-gradeable artifacts. See
 [Measuring a Skill Claim](docs/tutorials/measuring-a-skill-claim.md)
 for the walkthrough, and swap in your own tasks and skill to measure
 yours.
