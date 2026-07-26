@@ -55,6 +55,27 @@ See the [Validating a Tool Claim](docs/tutorials/validating-a-tool-claim.md)
 tutorial for the core workflow: turn a tool's claim into a pinned,
 preflighted comparison and read the verdict.
 
+## Does Your Skill Actually Work?
+
+Skills are the fastest-growing way to change what a coding agent does —
+and the least-measured. YACHT runs the experiment properly: the same
+pinned agent on the same tasks, with and without the skill, repeated
+until the evidence supports a verdict. A real run of the bundled
+example (10 repetitions, $0.38):
+
+```
+skill-vs-baseline | resolution better (+0.700 rate, 95% CI +0.354..+1.046)
+                  | evidence-of-difference (sign test p = 0.016)
+tokens / cost / duration: not distinguishable from noise at n=10
+```
+
+The skill's effect is a graded conclusion; the cost effect is honestly
+refused. Every input is pinned (harness version, task content digest,
+skill content), and every attempt leaves re-gradeable artifacts. See
+[Measuring a Skill Claim](docs/tutorials/measuring-a-skill-claim.md)
+for the walkthrough, and swap in your own tasks and skill to measure
+yours.
+
 ## Core Concepts
 
 | Concept | Meaning |
@@ -179,6 +200,7 @@ provider credentials.
 - [Audit-backed plan](docs/project/audit-backed-plan.md)
 - [Codebase structure](docs/project/codebase-structure.md)
 - [Validating a tool claim](docs/tutorials/validating-a-tool-claim.md)
+- [Measuring a skill claim](docs/tutorials/measuring-a-skill-claim.md)
 - [Command reference](docs/reference/commands.md)
 - [Harbor courses: Terminal-Bench and Aider Polyglot](docs/reference/terminal-bench.md)
 - [LiveCodeBench course](docs/reference/livecodebench.md)
