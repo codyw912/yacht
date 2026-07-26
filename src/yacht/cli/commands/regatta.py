@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from yacht.cli import output
+from yacht.config.agent_selection import configured_harness_declarations
 from yacht.config.agent_selection import configured_harness_name
 from yacht.config.loader import load_regatta
 from yacht.domain.model import ConfigError, run_regatta
@@ -125,6 +126,7 @@ def _run_mock_course(args: argparse.Namespace) -> int:
 def _run_smoke(args: argparse.Namespace) -> int:
     try:
         agent_name = configured_harness_name(args.config)
+        harness_declarations = configured_harness_declarations(args.config)
         write_real_smoke_runbook(
             config_path=args.config,
             logbook_dir=args.logbook,
@@ -135,8 +137,10 @@ def _run_smoke(args: argparse.Namespace) -> int:
             logbook_dir=args.logbook,
             workspace_path=args.workspace,
             secret_values=parse_secret_values(args.secret),
-            agent_prompt_runner_factory=agent_prompt_runner_factory(agent_name),
-            task_agent=task_agent(agent_name),
+            agent_prompt_runner_factory=agent_prompt_runner_factory(
+                agent_name, harness_declarations
+            ),
+            task_agent=task_agent(agent_name, harness_declarations),
             agent_name=agent_name,
         )
     except ConfigError as error:
@@ -149,6 +153,7 @@ def _run_smoke(args: argparse.Namespace) -> int:
 def _run_benchmark(args: argparse.Namespace) -> int:
     try:
         agent_name = configured_harness_name(args.config)
+        harness_declarations = configured_harness_declarations(args.config)
         write_real_benchmark_runbook(
             config_path=args.config,
             logbook_dir=args.logbook,
@@ -160,8 +165,10 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             logbook_dir=args.logbook,
             workspace_path=args.workspace,
             secret_values=parse_secret_values(args.secret),
-            agent_prompt_runner_factory=agent_prompt_runner_factory(agent_name),
-            task_agent=task_agent(agent_name),
+            agent_prompt_runner_factory=agent_prompt_runner_factory(
+                agent_name, harness_declarations
+            ),
+            task_agent=task_agent(agent_name, harness_declarations),
             agent_name=agent_name,
             max_workers=args.max_workers,
             progress=output.stderr_progress,
@@ -179,6 +186,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
 def _run_benchmark_repetitions(args: argparse.Namespace) -> int:
     try:
         agent_name = configured_harness_name(args.config)
+        harness_declarations = configured_harness_declarations(args.config)
         summary = run_real_benchmark_repetitions(
             config_path=args.config,
             logbook_dir=args.logbook,
@@ -186,8 +194,10 @@ def _run_benchmark_repetitions(args: argparse.Namespace) -> int:
             secret_values=parse_secret_values(args.secret),
             repetitions=args.repetitions,
             agent_name=agent_name,
-            agent_prompt_runner_factory=agent_prompt_runner_factory(agent_name),
-            task_agent=task_agent(agent_name),
+            agent_prompt_runner_factory=agent_prompt_runner_factory(
+                agent_name, harness_declarations
+            ),
+            task_agent=task_agent(agent_name, harness_declarations),
             max_workers=args.max_workers,
             progress=output.stderr_progress,
         )

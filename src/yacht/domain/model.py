@@ -192,18 +192,30 @@ class Regatta:
     runtime_recipes: dict[str, RuntimeRecipe] = field(default_factory=dict)
     rigging_recipes: dict[str, RiggingRecipe] = field(default_factory=dict)
     tool_capabilities: dict[str, ToolCapability] = field(default_factory=dict)
+    harness_declarations: dict[str, HarnessDeclaration] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class HarnessDeclaration:
+    name: str
+    prompt: str = "argument"
+    evidence: str = "stdout"
 
 
 @dataclass(frozen=True)
 class Metrics:
     tokens: int
     duration_seconds: float
+    usage_source: str | None = None
 
-    def to_json(self) -> dict[str, int | float]:
-        return {
+    def to_json(self) -> dict[str, int | float | str]:
+        payload: dict[str, int | float | str] = {
             "tokens": self.tokens,
             "duration_seconds": self.duration_seconds,
         }
+        if self.usage_source is not None:
+            payload["usage_source"] = self.usage_source
+        return payload
 
 
 @dataclass(frozen=True)

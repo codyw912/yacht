@@ -38,3 +38,7 @@ def configured_harness_name_for_regatta(
 
 def configured_agent_name(config_path: Path) -> str:
     return configured_harness_name(config_path)
+
+
+def configured_harness_declarations(config_path: Path):
+    return load_regatta(config_path).harness_declarations

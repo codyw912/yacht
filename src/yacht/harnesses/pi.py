@@ -210,11 +210,10 @@ class SubprocessPiTaskLauncher:
             response=response,
             tool_calls=tool_calls,
             transcript_path=request.transcript_path,
-            metrics=Metrics(
-                tokens=_tokens_from_machine_evidence(
-                    machine_evidence,
-                )
-                or _estimated_tokens(request.prompt, result.stdout),
+            metrics=_metrics(
+                machine_evidence=machine_evidence,
+                prompt=request.prompt,
+                stdout=result.stdout,
                 duration_seconds=duration_seconds,
             ),
             machine_evidence=machine_evidence,
@@ -442,3 +441,24 @@ def _tokens_from_machine_evidence(machine_evidence: dict[str, Any]) -> int | Non
 
 def _estimated_tokens(prompt: str, output: str) -> int:
     return len(prompt.split()) + len(output.split())
+
+
+def _metrics(
+    *,
+    machine_evidence: dict[str, Any],
+    prompt: str,
+    stdout: str,
+    duration_seconds: float,
+) -> Metrics:
+    reported = _tokens_from_machine_evidence(machine_evidence)
+    if reported is not None:
+        return Metrics(
+            tokens=reported,
+            duration_seconds=duration_seconds,
+            usage_source="reported",
+        )
+    return Metrics(
+        tokens=_estimated_tokens(prompt, stdout),
+        duration_seconds=duration_seconds,
+        usage_source="estimated",
+    )

@@ -11,6 +11,7 @@ from yacht.domain.model import (
     Course,
     CourseAdapter,
     ExpectationValue,
+    HarnessDeclaration,
     PreflightCheck,
     PreflightConfig,
     PreflightRecipe,
@@ -72,7 +73,19 @@ def load_regatta(config_path: Path) -> Regatta:
         runtime_recipes=_parse_runtime_recipes(raw),
         rigging_recipes=_parse_rigging_recipes(raw, config_path.parent),
         tool_capabilities=_parse_tool_capabilities(raw),
+        harness_declarations=_parse_harness_declarations(raw),
     )
+
+
+def _parse_harness_declarations(raw: dict[str, Any]) -> dict[str, HarnessDeclaration]:
+    return {
+        str(name): HarnessDeclaration(
+            name=str(name),
+            prompt=str(declaration.get("prompt", "argument")),
+            evidence=str(declaration.get("evidence", "stdout")),
+        )
+        for name, declaration in raw.get("harnesses", {}).items()
+    }
 
 
 _ARTIFACT_PATH_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")

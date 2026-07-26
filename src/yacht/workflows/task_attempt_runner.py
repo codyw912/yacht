@@ -36,15 +36,17 @@ def run_task_attempts(
     agent_name: str,
     task_agent: TaskAgent | None = None,
 ) -> dict[str, Any]:
-    if agent_name not in TASK_ATTEMPT_AGENTS:
-        raise ConfigError(f"unsupported task attempt agent {agent_name}")
-
     regatta = load_regatta(config_path)
+    if (
+        agent_name not in TASK_ATTEMPT_AGENTS
+        and agent_name not in regatta.harness_declarations
+    ):
+        raise ConfigError(f"unsupported task attempt agent {agent_name}")
     if not regatta.comparisons:
         raise ConfigError("task attempts require at least one comparison")
     _validate_required_secrets(regatta, secret_values)
 
-    agent = task_agent or harness_task_agent(agent_name)
+    agent = task_agent or harness_task_agent(agent_name, regatta.harness_declarations)
     attempts = [
         attempt
         for comparison in regatta.comparisons

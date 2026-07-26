@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from yacht.domain.model import ConfigError
+from yacht.config.agent_selection import configured_harness_declarations
 from yacht.harnesses.registry import supported_task_attempt_names
 from yacht.harnesses.registry import task_agent
 from yacht.preflight.runner import parse_secret_values
@@ -26,8 +27,11 @@ def register(subcommands: argparse._SubParsersAction) -> None:
     task_attempts_parser.add_argument(
         "--agent",
         required=True,
-        choices=supported_task_attempt_names(),
-        help="Task attempt agent adapter to launch.",
+        help=(
+            "Task attempt agent adapter to launch: "
+            f"{', '.join(supported_task_attempt_names())}, or a harness "
+            "declared in the config."
+        ),
     )
     task_attempts_parser.add_argument(
         "--logbook",
@@ -63,6 +67,12 @@ def register(subcommands: argparse._SubParsersAction) -> None:
     task_attempt_scorecard_parser.set_defaults(handler=_task_attempt_scorecard)
 
 
+def _declarations(args: argparse.Namespace):
+    if args.agent in supported_task_attempt_names():
+        return None
+    return configured_harness_declarations(args.config)
+
+
 def _task_attempts(args: argparse.Namespace) -> int:
     try:
         summary = run_task_attempts(
@@ -71,7 +81,7 @@ def _task_attempts(args: argparse.Namespace) -> int:
             workspace_path=args.workspace,
             secret_values=parse_secret_values(args.secret),
             agent_name=args.agent,
-            task_agent=task_agent(args.agent),
+            task_agent=task_agent(args.agent, _declarations(args)),
         )
     except ConfigError as error:
         print(f"error: invalid regatta config: {error}", file=sys.stderr)

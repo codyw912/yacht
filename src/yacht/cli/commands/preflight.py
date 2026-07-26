@@ -8,6 +8,7 @@ from pathlib import Path
 from yacht.cli import output
 from yacht.domain.model import ConfigError
 from yacht.harnesses.registry import agent_prompt_runner_factory
+from yacht.config.agent_selection import configured_harness_declarations
 from yacht.harnesses.registry import supported_agent_preflight_names
 from yacht.preflight.runner import (
     build_preflight_execution_plan,
@@ -72,9 +73,12 @@ def register(subcommands: argparse._SubParsersAction) -> None:
     )
     preflight_parser.add_argument(
         "--agent-preflight",
-        choices=supported_agent_preflight_names(),
         default="none",
-        help="Opt into agent-prompt preflight checks with the selected adapter.",
+        help=(
+            "Opt into agent-prompt preflight checks with the selected adapter: "
+            f"{', '.join(supported_agent_preflight_names())}, or a harness "
+            "declared in the config."
+        ),
     )
     preflight_parser.add_argument(
         "--dry-run",
@@ -94,6 +98,12 @@ def _preflight_report(args: argparse.Namespace) -> int:
     return output.emit_report(rendered, args.output)
 
 
+def _declarations(args: argparse.Namespace):
+    if args.agent_preflight in supported_agent_preflight_names():
+        return None
+    return configured_harness_declarations(args.config)
+
+
 def _preflight(args: argparse.Namespace) -> int:
     try:
         if args.dry_run:
@@ -111,7 +121,8 @@ def _preflight(args: argparse.Namespace) -> int:
             args.workspace,
             parse_secret_values(args.secret),
             agent_prompt_runner_factory=agent_prompt_runner_factory(
-                args.agent_preflight
+                args.agent_preflight,
+                _declarations(args),
             ),
         )
     except ConfigError as error:

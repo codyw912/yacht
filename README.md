@@ -183,6 +183,7 @@ provider credentials.
 - [Harbor courses: Terminal-Bench and Aider Polyglot](docs/reference/terminal-bench.md)
 - [LiveCodeBench course](docs/reference/livecodebench.md)
 - [Custom evals](docs/reference/custom-evals.md)
+- [Custom harnesses](docs/reference/custom-harnesses.md)
 - [Adding a course](docs/reference/adding-a-course.md)
 - [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)
