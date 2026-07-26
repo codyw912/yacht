@@ -14,6 +14,31 @@ that mine repositories and traces, propose abilities, and emit tasks)
 produce exactly the format this course consumes; YACHT is the runner
 that turns those tasks into evidence-backed comparisons.
 
+## Running generated evals
+
+Eval-generation tooling that emits Harbor tasks plugs in directly. For
+example, LangChain's eval-engineering skill
+([langchain-ai/langchain-skills](https://github.com/langchain-ai/langchain-skills),
+installable with `npx skills add langchain-ai/langchain-skills --skill
+eval-engineering`) inspects an agent repository and optional traces,
+interviews you about what to test, and scaffolds standard Harbor task
+directories under `evals/` via `harbor task init`. Point a custom-eval
+course at that directory and the generated evals run under YACHT's
+pins, digest, statistics, and provenance as-is:
+
+```toml
+[course.adapter]
+kind = "custom-eval"
+dataset = "evals"   # the directory the generation tooling wrote
+split = "v1"
+harness = "harbor"
+```
+
+The division of labor is deliberate: generation tooling decides what to
+test and drafts the tasks; YACHT provides the hermetic reruns, the
+content-digest pin, the evidence-graded comparisons, and the preserved
+verifier trajectories that make the results worth trusting over time.
+
 ## Task directory layout
 
 Each task is a directory in the Harbor task format:
