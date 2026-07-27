@@ -3067,6 +3067,10 @@ def _validate_preflight_recipe(value: Any, path: str) -> None:
                 check.get("expect_tool_calls", []),
                 f"{check_path}.expect_tool_calls",
             )
+            _require_string_list(
+                check.get("expect_response_contains", []),
+                f"{check_path}.expect_response_contains",
+            )
         if kind == "tool-call":
             tool_calls = check.get("expect_tool_calls")
             _require_string_list(tool_calls, f"{check_path}.expect_tool_calls")

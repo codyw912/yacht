@@ -150,7 +150,12 @@ fails before launch with the flag named in the error.
 Agent-prompt preflight (`kind = "agent-prompt"`) runs a real prompt
 through the declared harness before tokens are spent on tasks — the
 cheap way to prove the binary, the evidence emission, and the secrets
-all work.
+all work. Pass criteria are deterministic: launch succeeded, evidence
+valid, declared `expect_tool_calls` present. Response *content* checks
+are opt-in via `expect_response_contains = ["..."]` (all substrings
+must appear); response-shape contract notes are recorded as
+information, never as failures — model phrasing must not flake a
+preflight.
 
 ## Harbor-format courses
 

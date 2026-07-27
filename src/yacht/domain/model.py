@@ -67,6 +67,7 @@ class PreflightCheck:
     env: tuple[str, ...] = ()
     prompt: str | None = None
     expect_tool_calls: tuple[str, ...] = ()
+    expect_response_contains: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

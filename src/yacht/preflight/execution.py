@@ -408,6 +408,9 @@ def _execute_agent_prompt_check(
     missing_tool_calls = [
         name for name in check.expect_tool_calls if name not in result.tool_calls
     ]
+    missing_response_contains = [
+        text for text in check.expect_response_contains if text not in result.response
+    ]
     evidence: dict[str, object] = {
         "prompt": prompt,
         "exit_code": result.exit_code,
@@ -420,19 +423,24 @@ def _execute_agent_prompt_check(
     if result.transcript_path is not None:
         evidence["transcript_path"] = str(result.transcript_path)
     if result.exit_code == 0 and response_contract.errors:
-        # Contract errors only mean something when the launch itself
-        # succeeded; a nonzero exit is the failure, not the (empty)
-        # response's shape.
+        # Informational only (ADR 0016 amendments): response shape is
+        # harness-specific and model-dependent; deterministic pass
+        # criteria are launch + declared expectations. Content checks
+        # are opt-in via expect_response_contains.
         evidence["response_contract_errors"] = response_contract.errors
     if result.exit_code != 0:
         evidence["failure_reason"] = f"agent prompt launcher exited {result.exit_code}"
     if missing_tool_calls:
         evidence["missing_tool_calls"] = missing_tool_calls
+    if check.expect_response_contains:
+        evidence["expected_response_contains"] = list(check.expect_response_contains)
+    if missing_response_contains:
+        evidence["missing_response_contains"] = missing_response_contains
     status = (
         "passed"
         if result.exit_code == 0
         and not missing_tool_calls
-        and not response_contract.errors
+        and not missing_response_contains
         else "failed"
     )
     return {
