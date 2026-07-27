@@ -102,6 +102,32 @@ validation rejects the combination — so container runtimes use
   `reported` or `estimated`. Declared harnesses are always `reported`;
   built-in adapters mark their fallback estimates honestly.)
 
+## Mapping harness-native output (ADR 0017)
+
+Most harnesses should not emit yacht's schema at all: declare a
+mapping from the harness's existing machine-readable output instead,
+and the wire format above becomes YACHT's internal normal form.
+
+```toml
+[harnesses.yach.evidence_map]
+response = "response.text"
+input_tokens = "usage.input_tokens"
+output_tokens = "usage.output_tokens"
+tool_calls = "tools.calls"          # [{name, count}] or [names]
+model = "model"                     # optional
+cost_usd = "usage.cost.total"       # optional
+usage_reported = "usage.reported"   # optional boolean
+```
+
+Paths are dotted key lookups into the parsed JSON (same transports:
+final stdout line or the evidence file). `response`, `input_tokens`,
+and `output_tokens` are required; a missing or wrong-typed mapped path
+fails the attempt loudly — no estimates. `usage_reported = false`
+surfaces as `usage_source: "unreported"` in metrics, so honest zeros
+from a provider that reported nothing never masquerade as
+measurements. Emitting `yacht.harness-evidence.v1` directly remains
+valid (it is the identity mapping).
+
 ## Provisioning the harness binary
 
 The runtime delivers the binary; no new mechanism exists or is needed:

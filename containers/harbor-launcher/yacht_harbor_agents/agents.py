@@ -190,7 +190,7 @@ class YachtDeclared(BaseInstalledAgent):
                 json.dumps(payload, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
-        return declared_support.validate_evidence(payload)
+        return declared_support.normalize_evidence(self._declaration, payload)
 
     def populate_context_post_run(self, context) -> None:
         if self._evidence is None:

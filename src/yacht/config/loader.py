@@ -89,6 +89,10 @@ def _parse_harness_declarations(
             evidence=str(declaration.get("evidence", "stdout")),
             command=tuple(str(item) for item in declaration.get("command", ())),
             install=_parse_harness_install(declaration, config_dir),
+            evidence_map={
+                str(key): str(value)
+                for key, value in declaration.get("evidence_map", {}).items()
+            },
         )
         for name, declaration in raw.get("harnesses", {}).items()
     }

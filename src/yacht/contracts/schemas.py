@@ -33,7 +33,7 @@ HARNESS_EVIDENCE_SCHEMA = "yacht.harness-evidence.v1"
 BUILT_IN_HARNESS_NAMES = {"claude-code", "local-smoke", "pi"}
 HARNESS_PROMPT_MODES = {"argument", "stdin"}
 HARNESS_EVIDENCE_SOURCES = {"stdout", "file"}
-METRICS_USAGE_SOURCES = {"reported", "estimated"}
+METRICS_USAGE_SOURCES = {"reported", "estimated", "unreported"}
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = set(supported_benchmark_adapter_kinds())
@@ -2652,6 +2652,10 @@ def _validate_harness_declarations(document: dict[str, Any]) -> None:
                 )
         if "install" in declaration:
             _validate_harness_install(declaration.get("install"), f"{path}.install")
+        if "evidence_map" in declaration:
+            _validate_evidence_map(
+                declaration.get("evidence_map"), f"{path}.evidence_map"
+            )
 
 
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
@@ -2699,6 +2703,28 @@ def _validate_declared_evidence_backends(document: dict[str, Any]) -> None:
             )
 
 
+_EVIDENCE_MAP_REQUIRED = ("response", "input_tokens", "output_tokens")
+_EVIDENCE_MAP_ALLOWED = set(_EVIDENCE_MAP_REQUIRED) | {
+    "tool_calls",
+    "model",
+    "cost_usd",
+    "usage_reported",
+}
+
+
+def _validate_evidence_map(value: Any, path: str) -> None:
+    mapping = _require_object(value, path)
+    for key in _EVIDENCE_MAP_REQUIRED:
+        _require_non_empty_string(mapping.get(key), f"{path}.{key}")
+    for key, mapped in mapping.items():
+        if key not in _EVIDENCE_MAP_ALLOWED:
+            allowed = ", ".join(sorted(_EVIDENCE_MAP_ALLOWED))
+            raise SchemaValidationError(
+                f"{path}.{key} is not a mappable evidence field; allowed: {allowed}"
+            )
+        _require_non_empty_string(mapped, f"{path}.{key}")
+
+
 def validate_harness_evidence_document(document: Any) -> None:
     evidence = _require_object(document, "harness evidence document")
     if evidence.get("schema") != HARNESS_EVIDENCE_SCHEMA:
@@ -2715,6 +2741,9 @@ def validate_harness_evidence_document(document: Any) -> None:
             raise SchemaValidationError(
                 f"harness evidence usage.{key} must be an integer >= 0"
             )
+    reported = usage.get("reported")
+    if reported is not None and not isinstance(reported, bool):
+        raise SchemaValidationError("harness evidence usage.reported must be a boolean")
     for key in ("cache_read_tokens", "cache_write_tokens", "total_tokens"):
         value = usage.get(key)
         if value is not None and (

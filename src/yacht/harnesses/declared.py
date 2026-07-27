@@ -16,6 +16,7 @@ from yacht.contracts.schemas import (
     SchemaValidationError,
     validate_harness_evidence_document,
 )
+from yacht.harnesses.evidence_map import map_native_evidence
 from yacht.domain.model import (
     HarnessDeclaration,
     Metrics,
@@ -115,7 +116,7 @@ class DeclaredHarnessAdapter:
             metrics=Metrics(
                 tokens=outcome.tokens,
                 duration_seconds=outcome.duration_seconds,
-                usage_source="reported" if outcome.evidence else None,
+                usage_source=_usage_source(outcome.evidence),
             ),
             machine_evidence=outcome.machine_evidence,
         )
@@ -217,8 +218,18 @@ class DeclaredHarnessAdapter:
             if not lines:
                 return None
             payload = json.loads(lines[-1])
+        if self._declaration.evidence_map:
+            payload = map_native_evidence(self._declaration.evidence_map, payload)
         validate_harness_evidence_document(payload)
         return payload
+
+
+def _usage_source(evidence: dict[str, Any]) -> str | None:
+    if not evidence:
+        return None
+    if evidence.get("usage", {}).get("reported") is False:
+        return "unreported"
+    return "reported"
 
 
 @dataclass(frozen=True)

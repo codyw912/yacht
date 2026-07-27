@@ -115,3 +115,82 @@ def context_fields(evidence: dict[str, Any]) -> dict[str, int | float | None]:
         else 0,
         "cost_usd": cost_usd,
     }
+
+
+def normalize_evidence(declaration: dict[str, Any], payload: Any) -> dict[str, Any]:
+    """Apply the declaration's evidence_map (if any), then validate.
+
+    Twin of yacht.harnesses.evidence_map.map_native_evidence; keep
+    semantics aligned.
+    """
+    mapping = declaration.get("evidence_map")
+    if isinstance(mapping, dict) and mapping:
+        payload = _map_native(mapping, payload)
+    return validate_evidence(payload)
+
+
+def _map_native(mapping: dict[str, Any], payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise DeclaredAgentError("harness native output must be a JSON object")
+    response = _mapped(payload, str(mapping["response"]), "response")
+    if not isinstance(response, str):
+        raise DeclaredAgentError("mapped response must be a string")
+    usage: dict[str, Any] = {}
+    for key in ("input_tokens", "output_tokens"):
+        value = _mapped(payload, str(mapping[key]), key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise DeclaredAgentError(f"mapped {key} must be an integer >= 0")
+        usage[key] = value
+    document: dict[str, Any] = {
+        "schema": EVIDENCE_SCHEMA,
+        "response": response,
+        "usage": usage,
+    }
+    if "usage_reported" in mapping:
+        reported = _mapped(payload, str(mapping["usage_reported"]), "usage_reported")
+        if not isinstance(reported, bool):
+            raise DeclaredAgentError("mapped usage_reported must be a boolean")
+        usage["reported"] = reported
+    if "tool_calls" in mapping:
+        value = _mapped(payload, str(mapping["tool_calls"]), "tool_calls")
+        if not isinstance(value, list):
+            raise DeclaredAgentError("mapped tool_calls must be a list")
+        calls = []
+        for entry in value:
+            if isinstance(entry, str) and entry:
+                calls.append({"name": entry, "count": 1})
+            elif (
+                isinstance(entry, dict)
+                and isinstance(entry.get("name"), str)
+                and isinstance(entry.get("count"), int)
+                and not isinstance(entry.get("count"), bool)
+                and entry["count"] >= 1
+            ):
+                calls.append({"name": entry["name"], "count": entry["count"]})
+            else:
+                raise DeclaredAgentError(
+                    "mapped tool_calls entries must be names or {name, count}"
+                )
+        document["tool_calls"] = calls
+    if "model" in mapping:
+        model = _mapped(payload, str(mapping["model"]), "model")
+        if not isinstance(model, str) or not model:
+            raise DeclaredAgentError("mapped model must be a non-empty string")
+        document["model"] = model
+    if "cost_usd" in mapping:
+        cost = _mapped(payload, str(mapping["cost_usd"]), "cost_usd")
+        if not isinstance(cost, int | float) or isinstance(cost, bool) or cost < 0:
+            raise DeclaredAgentError("mapped cost_usd must be a number >= 0")
+        document["cost"] = {"total_usd": float(cost)}
+    return document
+
+
+def _mapped(payload: dict[str, Any], path: str, field: str) -> Any:
+    node: Any = payload
+    for part in path.split("."):
+        if not isinstance(node, dict) or part not in node:
+            raise DeclaredAgentError(
+                f"harness native output is missing mapped {field} path {path}"
+            )
+        node = node[part]
+    return node

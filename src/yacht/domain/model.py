@@ -202,6 +202,7 @@ class HarnessDeclaration:
     evidence: str = "stdout"
     command: tuple[str, ...] = ()
     install: HarnessInstall | None = None
+    evidence_map: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
