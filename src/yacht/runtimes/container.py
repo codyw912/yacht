@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -49,7 +50,10 @@ class ContainerRuntimeResolution:
         for secret_name in self.required_secret_names:
             if secret_name not in secret_values:
                 raise ContainerRuntimeResolutionError(
-                    f"missing value for required secret {secret_name}"
+                    f"missing value for required secret {secret_name}; "
+                    f"supply it at run time with "
+                    f"--secret {secret_name}=@env:<VAR> or "
+                    f"--secret {secret_name}=<value>"
                 )
             secret = regatta.secrets[secret_name]
             env.update(_secret_to_env(secret_name, secret, secret_values[secret_name]))
@@ -200,11 +204,21 @@ def _command_prefix(
             required_secret_names=required_secret_names,
         ),
         "--mount",
-        f"type=bind,source={workspace_path},target={runtime.container_workspace}",
+        f"type=bind,source={_mount_source(workspace_path)},"
+        f"target={runtime.container_workspace}",
         "--mount",
-        f"type=bind,source={temp_home},target={runtime.container_home}",
+        f"type=bind,source={_mount_source(temp_home)},target={runtime.container_home}",
         runtime.image,
     )
+
+
+def _mount_source(value: Path | str) -> str:
+    # Docker rejects relative bind-mount sources; absolutize real paths
+    # (without resolving symlinks, which would rewrite e.g. macOS /var)
+    # and leave template placeholders (e.g. "{trial_home}") untouched.
+    if isinstance(value, Path):
+        return os.path.abspath(value)
+    return str(value)
 
 
 def container_command_prefix_template(runtime: RuntimeRecipe) -> list[str]:

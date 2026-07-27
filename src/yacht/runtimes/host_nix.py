@@ -49,7 +49,10 @@ class HostNixRuntimeResolution:
         for secret_name in self.required_secret_names:
             if secret_name not in secret_values:
                 raise HostNixRuntimeResolutionError(
-                    f"missing value for required secret {secret_name}"
+                    f"missing value for required secret {secret_name}; "
+                    f"supply it at run time with "
+                    f"--secret {secret_name}=@env:<VAR> or "
+                    f"--secret {secret_name}=<value>"
                 )
             secret = regatta.secrets[secret_name]
             env.update(_secret_to_env(secret_name, secret, secret_values[secret_name]))
