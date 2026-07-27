@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.7.0 - Custom Harnesses and Honest Usage
+
+YACHT 0.7.0 opens the harness side to configuration: harnesses YACHT
+does not ship are declared in config, measured through a mapped
+evidence contract, and run on every course kind — validated end to end
+by the first outside integration (yach, a Rust coding harness). Usage
+reporting also gets honest about outcome confounding.
+
+### Custom harnesses (ADR 0016, amended by ADR 0017)
+
+- A `[harnesses.<name>]` table declares a harness: prompt passing
+  (argument or stdin), evidence transport (stdout or file), and — for
+  Harbor-format courses — the in-container `command` (with `{model}`
+  substitution) and a pinned `install` (url or path + sha256, verified
+  launcher-side and again in-container). Runtimes reference declared
+  names exactly like built-ins; install-only preflight covers them.
+- Evidence is extracted by declared field-mapping over the harness's
+  existing machine-readable output (`evidence_map`, ADR 0017): dotted
+  paths onto response, usage, tool calls (with counts), model, and
+  cost. `yacht.harness-evidence.v1` remains valid as the identity
+  mapping and becomes YACHT's internal normal form. Missing mapped
+  fields fail loudly — the custom path never estimates.
+- All attempt metrics carry `usage_source` (`reported`, `estimated`,
+  or `unreported`): built-in adapters mark their fallback estimates,
+  and provider-unreported usage (honest zeros) is labeled instead of
+  masquerading as a measurement.
+- Agent-prompt preflight is deterministic: launch + declared
+  expectations decide the outcome, response-shape notes are
+  informational, and content assertions are opt-in via
+  `expect_response_contains`.
+- A contract page (`docs/reference/custom-harnesses.md`) documents the
+  launch semantics, the evidence contract and mapping, provisioning,
+  and per-course-kind invocation. First-contact fixes from the live
+  integration: container bind mounts absolutize relative logbook
+  paths, missing-secret errors name the `--secret` fix, preflight
+  summaries surface a one-line failure cause, and file-mode evidence
+  on container runtimes is rejected with a clear message.
+
+### Measuring skill claims
+
+- `examples/custom-eval-skill-ab-smoke.toml` and the
+  [Measuring a Skill Claim](docs/tutorials/measuring-a-skill-claim.md)
+  walkthrough: the same pinned Claude Code with and without a skill on
+  a convention task, repeated until the sign test can speak. The
+  bundled real run: +0.700 resolution rate (95% CI +0.354..+1.046,
+  evidence-of-difference, p = 0.016), with token/cost deltas honestly
+  not distinguishable.
+- Usage deltas are flagged `[outcome-confounded]` whenever resolution
+  rates differ (failed runs stop earlier and spend less), reports gain
+  "Efficiency by vessel" (tokens and cost per resolved task — the
+  decision metric) and a usage-by-run-outcome diagnostic. In the real
+  skill A/B, a skill that looked 3% more expensive per run is ~3x
+  cheaper per resolved task.
+
+### Project
+
+- The custom-evals reference documents running generated evals
+  (Harbor-format tasks from eval-generation tooling) directly under
+  the `custom-eval` course.
+- Recorded-baseline comparisons are proposed in ADR 0018 (not yet
+  implemented).
+
 ## 0.6.0 - Custom Evals and Full Evaluator Containerization
 
 YACHT 0.6.0 turns the `custom-eval` kind into a real user-authored eval
