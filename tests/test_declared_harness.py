@@ -719,5 +719,44 @@ class EvidenceMapTests(unittest.TestCase):
         self.assertEqual(result.metrics.tokens, 0)
 
 
+class AgentPromptDeterminismTests(unittest.TestCase):
+    def _check(self, **kwargs):
+        from yacht.preflight.execution import (
+            AgentPromptResult,
+            EffectiveCheck,
+            _execute_agent_prompt_check,
+        )
+        from yacht.domain.model import PreflightCheck
+
+        check = EffectiveCheck(
+            check=PreflightCheck(name="c", kind="agent-prompt", prompt="p", **kwargs),
+            required=True,
+            origin="runtime",
+            origin_name="r",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            instance = _instance(root, root / "unused.sh")
+            return _execute_agent_prompt_check(
+                check,
+                instance,
+                lambda prompt, env, cwd: AgentPromptResult(
+                    exit_code=0, response="ready to sail", tool_calls=()
+                ),
+            )
+
+    def test_non_json_response_passes_by_default(self) -> None:
+        result = self._check()
+        self.assertEqual(result["status"], "passed")
+        self.assertIn("response_contract_errors", result["evidence"])
+
+    def test_expect_response_contains_is_enforced(self) -> None:
+        result = self._check(expect_response_contains=("ready",))
+        self.assertEqual(result["status"], "passed")
+        failing = self._check(expect_response_contains=("anchored",))
+        self.assertEqual(failing["status"], "failed")
+        self.assertEqual(failing["evidence"]["missing_response_contains"], ["anchored"])
+
+
 if __name__ == "__main__":
     unittest.main()

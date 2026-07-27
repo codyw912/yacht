@@ -553,4 +553,7 @@ def _parse_preflight_check(raw: dict[str, Any]) -> PreflightCheck:
         env=tuple(str(item) for item in raw.get("env", ())),
         prompt=str(raw["prompt"]) if "prompt" in raw else None,
         expect_tool_calls=tuple(str(item) for item in raw.get("expect_tool_calls", ())),
+        expect_response_contains=tuple(
+            str(item) for item in raw.get("expect_response_contains", ())
+        ),
     )
