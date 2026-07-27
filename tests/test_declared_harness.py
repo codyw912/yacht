@@ -637,5 +637,87 @@ class ContainerMountPathTests(unittest.TestCase):
             )
 
 
+NATIVE_OUTPUT = {
+    "response": {"text": "done"},
+    "usage": {"in": 120, "out": 30, "reported": True},
+    "tools": ["read_file", {"name": "bash", "count": 3}],
+    "model": "m-1",
+}
+
+EVIDENCE_MAP = {
+    "response": "response.text",
+    "input_tokens": "usage.in",
+    "output_tokens": "usage.out",
+    "tool_calls": "tools",
+    "model": "model",
+    "usage_reported": "usage.reported",
+}
+
+
+class EvidenceMapTests(unittest.TestCase):
+    def test_maps_native_output_to_normal_form(self) -> None:
+        from yacht.harnesses.evidence_map import map_native_evidence
+
+        document = map_native_evidence(EVIDENCE_MAP, NATIVE_OUTPUT)
+
+        self.assertEqual(document["response"], "done")
+        self.assertEqual(document["usage"]["input_tokens"], 120)
+        self.assertEqual(document["usage"]["reported"], True)
+        self.assertEqual(
+            document["tool_calls"],
+            [{"name": "read_file", "count": 1}, {"name": "bash", "count": 3}],
+        )
+        validate_harness_evidence_document(document)
+
+    def test_missing_mapped_path_fails_loudly(self) -> None:
+        from yacht.harnesses.evidence_map import map_native_evidence
+
+        with self.assertRaisesRegex(SchemaValidationError, "missing mapped"):
+            map_native_evidence(EVIDENCE_MAP, {"response": {"text": "x"}})
+
+    def test_harbor_twin_matches(self) -> None:
+        document = declared_support.normalize_evidence(
+            {"evidence_map": EVIDENCE_MAP}, NATIVE_OUTPUT
+        )
+        self.assertEqual(document["usage"]["output_tokens"], 30)
+
+    def test_config_rejects_unknown_map_keys(self) -> None:
+        config = DECLARED_CONFIG.replace(
+            "[harnesses.yach]",
+            "[harnesses.yach.evidence_map]\n"
+            'response = "r"\ninput_tokens = "i"\noutput_tokens = "o"\n'
+            'sponsor = "x"\n\n[harnesses.yach]',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+            with self.assertRaisesRegex(ConfigError, "not a mappable evidence field"):
+                load_regatta(config_path)
+
+    def test_adapter_marks_unreported_usage(self) -> None:
+        import json as json_module
+
+        native = dict(NATIVE_OUTPUT)
+        native["usage"] = {"in": 0, "out": 0, "reported": False}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            script = _write_harness_script(
+                root, f"echo '{json_module.dumps(native)}'\n"
+            )
+            adapter = DeclaredHarnessAdapter(
+                HarnessDeclaration(name="fake", evidence_map=EVIDENCE_MAP)
+            )
+            result = adapter.run_task(
+                instance=_instance(root, script),
+                task=_task(),
+                prompt="p",
+                env={"PATH": "/usr/bin:/bin"},
+                cwd=root / "workspace",
+                transcript_path=root / "t" / "task-1.json",
+            )
+        self.assertEqual(result.metrics.usage_source, "unreported")
+        self.assertEqual(result.metrics.tokens, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

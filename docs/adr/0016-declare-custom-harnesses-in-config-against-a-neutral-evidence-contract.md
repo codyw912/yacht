@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted; evidence emission amended by ADR 0017 (harnesses no
+longer need to emit the wire format — declared field-mapping over
+harness-native output is the primary custom path).
 
 ## Context
 

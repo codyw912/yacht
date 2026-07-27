@@ -160,13 +160,16 @@ def _declaration_payload(
         install["url"] = declaration.install.url
     if declaration.install.path is not None:
         install["path"] = declaration.install.path
-    return {
+    payload = {
         "name": declaration.name,
         "prompt": declaration.prompt,
         "evidence": declaration.evidence,
         "command": list(declaration.command),
         "install": install,
     }
+    if declaration.evidence_map:
+        payload["evidence_map"] = dict(declaration.evidence_map)
+    return payload
 
 
 def _harness_version(runtime: RuntimeRecipe) -> str:
