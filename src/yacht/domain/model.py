@@ -82,6 +82,31 @@ class PreflightConfig:
 
 
 @dataclass(frozen=True)
+class ExportAttribution:
+    """Who ran an eval and how they relate to what they measured.
+
+    These are facts about the publisher, not about the run, so yacht
+    cannot observe them — they are declared or the export refuses.
+    """
+
+    source_organization_name: str
+    evaluator_relationship: str
+    source_organization_url: str | None = None
+    source_name: str | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "source_organization_name": self.source_organization_name,
+            "evaluator_relationship": self.evaluator_relationship,
+        }
+        if self.source_organization_url is not None:
+            payload["source_organization_url"] = self.source_organization_url
+        if self.source_name is not None:
+            payload["source_name"] = self.source_name
+        return payload
+
+
+@dataclass(frozen=True)
 class BaselineReference:
     logbook: Path
     vessel: str
@@ -201,6 +226,7 @@ class Regatta:
     rigging_recipes: dict[str, RiggingRecipe] = field(default_factory=dict)
     tool_capabilities: dict[str, ToolCapability] = field(default_factory=dict)
     harness_declarations: dict[str, HarnessDeclaration] = field(default_factory=dict)
+    export: ExportAttribution | None = None
 
 
 @dataclass(frozen=True)

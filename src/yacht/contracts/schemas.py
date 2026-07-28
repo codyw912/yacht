@@ -34,6 +34,20 @@ BUILT_IN_HARNESS_NAMES = {"claude-code", "local-smoke", "pi"}
 HARNESS_PROMPT_MODES = {"argument", "stdin"}
 HARNESS_EVIDENCE_SOURCES = {"stdout", "file"}
 METRICS_USAGE_SOURCES = {"reported", "estimated", "unreported"}
+EVALUATOR_RELATIONSHIPS = {
+    "first_party",
+    "third_party",
+    "collaborative",
+    "other",
+}
+# Pinned external contract (ADR 0020): a schema bump is a deliberate
+# change with a visible diff, never silent divergence.
+EVERY_EVAL_EVER_SCHEMA_VERSION = "0.2.2"
+EVERY_EVAL_EVER_INSTANCE_SCHEMA_VERSION = "instance_level_eval_0.2.2"
+EVERY_EVAL_EVER_SOURCE_TYPES = {"documentation", "evaluation_run"}
+EVERY_EVAL_EVER_SCORE_TYPES = {"binary", "continuous", "levels"}
+EVERY_EVAL_EVER_INTERACTION_TYPES = {"single_turn", "multi_turn", "agentic"}
+EVERY_EVAL_EVER_DATASET_SOURCE_TYPES = {"url", "hf_dataset", "other"}
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = set(supported_benchmark_adapter_kinds())
@@ -274,6 +288,333 @@ def validate_regatta_document(document: dict[str, Any]) -> None:
                         f"{rigging_name}"
                     )
     _validate_comparisons(document, course_name, vessel_names)
+    if "export" in document:
+        _validate_export_attribution(document["export"], "export")
+
+
+def validate_every_eval_ever_document(document: dict[str, Any]) -> None:
+    """Validate an export against the pinned Every Eval Ever schema.
+
+    Hand-rolled in the house style so the export carries no runtime
+    dependency on the external project; the pinned version constant is
+    what ties this to their contract.
+    """
+    _require_object(document, "every eval ever")
+    _require_keys(
+        document,
+        (
+            "schema_version",
+            "evaluation_id",
+            "retrieved_timestamp",
+            "source_metadata",
+            "eval_library",
+            "model_info",
+            "evaluation_results",
+        ),
+        "every eval ever",
+    )
+    if document["schema_version"] != EVERY_EVAL_EVER_SCHEMA_VERSION:
+        raise SchemaValidationError(
+            "schema_version must be " + EVERY_EVAL_EVER_SCHEMA_VERSION
+        )
+    for key in ("evaluation_id", "retrieved_timestamp"):
+        _require_non_empty_string(document[key], key)
+    if "evaluation_timestamp" in document:
+        _require_non_empty_string(
+            document["evaluation_timestamp"],
+            "evaluation_timestamp",
+        )
+
+    source_metadata = _require_object(document["source_metadata"], "source_metadata")
+    _require_keys(
+        source_metadata,
+        ("source_type", "source_organization_name", "evaluator_relationship"),
+        "source_metadata",
+    )
+    _require_allowed_value(
+        source_metadata["source_type"],
+        EVERY_EVAL_EVER_SOURCE_TYPES,
+        "source_metadata.source_type",
+    )
+    _require_non_empty_string(
+        source_metadata["source_organization_name"],
+        "source_metadata.source_organization_name",
+    )
+    _require_allowed_value(
+        source_metadata["evaluator_relationship"],
+        EVALUATOR_RELATIONSHIPS,
+        "source_metadata.evaluator_relationship",
+    )
+
+    eval_library = _require_object(document["eval_library"], "eval_library")
+    _require_keys(eval_library, ("name", "version"), "eval_library")
+    for key in ("name", "version"):
+        _require_non_empty_string(eval_library[key], f"eval_library.{key}")
+
+    model_info = _require_object(document["model_info"], "model_info")
+    _require_keys(model_info, ("name", "id"), "model_info")
+    for key in ("name", "id"):
+        _require_non_empty_string(model_info[key], f"model_info.{key}")
+    if "additional_details" in model_info:
+        _require_string_mapping(
+            model_info["additional_details"],
+            "model_info.additional_details",
+        )
+
+    results = _require_list(document["evaluation_results"], "evaluation_results")
+    if not results:
+        raise SchemaValidationError(
+            "evaluation_results must contain at least one result"
+        )
+    for index, result_value in enumerate(results):
+        _validate_every_eval_ever_result(result_value, f"evaluation_results[{index}]")
+    if "detailed_evaluation_results" in document:
+        _validate_every_eval_ever_detailed(
+            document["detailed_evaluation_results"],
+            "detailed_evaluation_results",
+        )
+
+
+def _validate_every_eval_ever_result(value: Any, path: str) -> None:
+    result = _require_object(value, path)
+    _require_keys(
+        result,
+        ("evaluation_name", "source_data", "metric_config", "score_details"),
+        path,
+    )
+    _require_non_empty_string(result["evaluation_name"], f"{path}.evaluation_name")
+
+    source_data = _require_object(result["source_data"], f"{path}.source_data")
+    _require_keys(source_data, ("dataset_name", "source_type"), f"{path}.source_data")
+    _require_non_empty_string(
+        source_data["dataset_name"],
+        f"{path}.source_data.dataset_name",
+    )
+    _require_allowed_value(
+        source_data["source_type"],
+        EVERY_EVAL_EVER_DATASET_SOURCE_TYPES,
+        f"{path}.source_data.source_type",
+    )
+    if source_data["source_type"] == "url":
+        _require_non_empty_string(source_data.get("url"), f"{path}.source_data.url")
+    if "additional_details" in source_data:
+        _require_string_mapping(
+            source_data["additional_details"],
+            f"{path}.source_data.additional_details",
+        )
+
+    metric_config = _require_object(result["metric_config"], f"{path}.metric_config")
+    _require_keys(metric_config, ("lower_is_better",), f"{path}.metric_config")
+    if not isinstance(metric_config["lower_is_better"], bool):
+        raise SchemaValidationError(
+            f"{path}.metric_config.lower_is_better must be a boolean"
+        )
+    if "score_type" in metric_config:
+        _require_allowed_value(
+            metric_config["score_type"],
+            EVERY_EVAL_EVER_SCORE_TYPES,
+            f"{path}.metric_config.score_type",
+        )
+
+    score_details = _require_object(result["score_details"], f"{path}.score_details")
+    _require_keys(score_details, ("score",), f"{path}.score_details")
+    score = score_details["score"]
+    if not isinstance(score, int | float) or isinstance(score, bool):
+        raise SchemaValidationError(f"{path}.score_details.score must be a number")
+    if "details" in score_details:
+        _require_string_mapping(
+            score_details["details"],
+            f"{path}.score_details.details",
+        )
+    if "uncertainty" in score_details:
+        _validate_every_eval_ever_uncertainty(
+            score_details["uncertainty"],
+            f"{path}.score_details.uncertainty",
+        )
+    if "additional_details" in result:
+        _require_string_mapping(
+            result["additional_details"],
+            f"{path}.additional_details",
+        )
+
+
+def _validate_every_eval_ever_uncertainty(value: Any, path: str) -> None:
+    uncertainty = _require_object(value, path)
+    interval = uncertainty.get("confidence_interval")
+    if interval is not None:
+        interval_object = _require_object(interval, f"{path}.confidence_interval")
+        for key in ("lower", "upper"):
+            bound = interval_object.get(key)
+            if not isinstance(bound, int | float) or isinstance(bound, bool):
+                raise SchemaValidationError(
+                    f"{path}.confidence_interval.{key} must be a number"
+                )
+        level = interval_object.get("confidence_level")
+        if level is not None and (
+            not isinstance(level, int | float)
+            or isinstance(level, bool)
+            or not 0.0 <= float(level) <= 1.0
+        ):
+            raise SchemaValidationError(
+                f"{path}.confidence_interval.confidence_level must be between 0 and 1"
+            )
+    standard_error = uncertainty.get("standard_error")
+    if standard_error is not None:
+        error_object = _require_object(standard_error, f"{path}.standard_error")
+        _require_keys(error_object, ("value",), f"{path}.standard_error")
+
+
+def _validate_every_eval_ever_detailed(value: Any, path: str) -> None:
+    detailed = _require_object(value, path)
+    for key in ("format", "file_path"):
+        if key in detailed:
+            _require_non_empty_string(detailed[key], f"{path}.{key}")
+    if "total_rows" in detailed:
+        _require_non_negative_int(detailed["total_rows"], f"{path}.total_rows")
+    if "checksum" in detailed:
+        _require_non_empty_string(detailed["checksum"], f"{path}.checksum")
+
+
+def validate_every_eval_ever_instance_row(row: dict[str, Any]) -> None:
+    _require_object(row, "every eval ever instance")
+    _require_keys(
+        row,
+        (
+            "schema_version",
+            "evaluation_id",
+            "model_id",
+            "evaluation_name",
+            "sample_id",
+            "interaction_type",
+            "input",
+            "answer_attribution",
+            "evaluation",
+        ),
+        "every eval ever instance",
+    )
+    if row["schema_version"] != EVERY_EVAL_EVER_INSTANCE_SCHEMA_VERSION:
+        raise SchemaValidationError(
+            "schema_version must be " + EVERY_EVAL_EVER_INSTANCE_SCHEMA_VERSION
+        )
+    for key in ("evaluation_id", "model_id", "evaluation_name", "sample_id"):
+        _require_non_empty_string(row[key], key)
+    _require_allowed_value(
+        row["interaction_type"],
+        EVERY_EVAL_EVER_INTERACTION_TYPES,
+        "interaction_type",
+    )
+    input_object = _require_object(row["input"], "input")
+    _require_keys(input_object, ("raw", "reference"), "input")
+    if not isinstance(input_object["raw"], str):
+        raise SchemaValidationError("input.raw must be a string")
+    _require_string_list(input_object["reference"], "input.reference")
+
+    attributions = _require_list(row["answer_attribution"], "answer_attribution")
+    if not attributions:
+        raise SchemaValidationError(
+            "answer_attribution must contain at least one entry"
+        )
+    for index, attribution_value in enumerate(attributions):
+        attribution_path = f"answer_attribution[{index}]"
+        attribution = _require_object(attribution_value, attribution_path)
+        _require_keys(
+            attribution,
+            (
+                "turn_idx",
+                "source",
+                "extracted_value",
+                "extraction_method",
+                "is_terminal",
+            ),
+            attribution_path,
+        )
+        _require_non_negative_int(
+            attribution["turn_idx"],
+            f"{attribution_path}.turn_idx",
+        )
+        for key in ("source", "extracted_value", "extraction_method"):
+            _require_non_empty_string(
+                attribution[key],
+                f"{attribution_path}.{key}",
+            )
+        if not isinstance(attribution["is_terminal"], bool):
+            raise SchemaValidationError(
+                f"{attribution_path}.is_terminal must be a boolean"
+            )
+
+    # Agentic and multi-turn rows carry a transcript instead of a single
+    # output; single-turn rows are the other way round.
+    if row["interaction_type"] in {"agentic", "multi_turn"}:
+        messages = _require_list(row.get("messages"), "messages")
+        if not messages:
+            raise SchemaValidationError(
+                "messages must contain at least one turn for "
+                f"{row['interaction_type']} rows"
+            )
+        for index, message_value in enumerate(messages):
+            message_path = f"messages[{index}]"
+            message = _require_object(message_value, message_path)
+            _require_keys(message, ("turn_idx", "role"), message_path)
+            _require_non_negative_int(
+                message["turn_idx"],
+                f"{message_path}.turn_idx",
+            )
+            _require_non_empty_string(message["role"], f"{message_path}.role")
+            content = message.get("content")
+            if content is not None and not isinstance(content, str):
+                raise SchemaValidationError(
+                    f"{message_path}.content must be a string or null"
+                )
+        if row.get("output") is not None:
+            raise SchemaValidationError(
+                f"output must be null for {row['interaction_type']} rows"
+            )
+    elif row.get("output") is None:
+        raise SchemaValidationError("output is required for single_turn rows")
+
+    evaluation = _require_object(row["evaluation"], "evaluation")
+    _require_keys(evaluation, ("score", "is_correct"), "evaluation")
+    if not isinstance(evaluation["score"], int | float) or isinstance(
+        evaluation["score"], bool
+    ):
+        raise SchemaValidationError("evaluation.score must be a number")
+    if not isinstance(evaluation["is_correct"], bool):
+        raise SchemaValidationError("evaluation.is_correct must be a boolean")
+    if "tool_calls_count" in evaluation:
+        _require_non_negative_int(
+            evaluation["tool_calls_count"],
+            "evaluation.tool_calls_count",
+        )
+    if "token_usage" in row:
+        usage = _require_object(row["token_usage"], "token_usage")
+        _require_keys(
+            usage,
+            ("input_tokens", "output_tokens", "total_tokens"),
+            "token_usage",
+        )
+        for key in ("input_tokens", "output_tokens", "total_tokens"):
+            _require_non_negative_int(usage[key], f"token_usage.{key}")
+
+
+def _validate_export_attribution(value: Any, path: str) -> None:
+    export = _require_object(value, path)
+    _require_keys(
+        export,
+        ("source_organization_name", "evaluator_relationship"),
+        path,
+    )
+    _require_non_empty_string(
+        export.get("source_organization_name"),
+        f"{path}.source_organization_name",
+    )
+    _require_allowed_value(
+        export.get("evaluator_relationship"),
+        EVALUATOR_RELATIONSHIPS,
+        f"{path}.evaluator_relationship",
+    )
+    for key in ("source_organization_url", "source_name"):
+        if key in export:
+            _require_non_empty_string(export.get(key), f"{path}.{key}")
 
 
 def validate_wake_document(document: dict[str, Any]) -> None:
@@ -578,6 +919,8 @@ def validate_course_handoff_document(document: dict[str, Any]) -> None:
     _validate_course_handoff_comparisons(document["comparisons"])
     _validate_expected_course_handoff_outputs(document["expected_outputs"])
     _validate_course_handoff_grading(document["grading"])
+    if "export" in document:
+        _validate_export_attribution(document["export"], "export")
 
 
 def validate_benchmark_scorecard_document(document: dict[str, Any]) -> None:

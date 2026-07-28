@@ -59,9 +59,13 @@ def register(subcommands: argparse._SubParsersAction) -> None:
     )
     report_parser.add_argument(
         "--format",
-        choices=("text", "markdown", "html"),
+        choices=("text", "markdown", "html", "every-eval-ever"),
         default="text",
-        help="Output format for the rendered report.",
+        help=(
+            "Output format for the rendered report. every-eval-ever writes "
+            "one Every Eval Ever aggregate JSON and instance JSONL per "
+            "vessel into the --output directory."
+        ),
     )
     report_parser.add_argument(
         "--vessel",
@@ -95,6 +99,8 @@ def _status(args: argparse.Namespace) -> int:
 def _report(args: argparse.Namespace) -> int:
     try:
         logbook_dir = _resolve_logbook(args.logbook)
+        if args.format == "every-eval-ever":
+            return _every_eval_ever_report(logbook_dir, args.output)
         if _run_kind(logbook_dir) == "smoke":
             if args.vessel or args.task:
                 raise ConfigError(
@@ -119,6 +125,36 @@ def _report(args: argparse.Namespace) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return output.emit_report(report, args.output)
+
+
+def _every_eval_ever_report(logbook_dir: Path, output_dir: Path | None) -> int:
+    from time import time
+
+    from yacht.reports.every_eval_ever import write_every_eval_ever_export
+
+    if output_dir is None:
+        print(
+            "error: --format every-eval-ever writes a file per vessel; pass "
+            "--output <directory>",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        manifest = write_every_eval_ever_export(
+            logbook_dir=logbook_dir,
+            output_dir=output_dir,
+            retrieved_timestamp=f"{time():.6f}",
+        )
+    except ConfigError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    for export in manifest["exports"]:
+        print(
+            f"{export['comparison']}/{export['vessel']}: "
+            f"{export['aggregate_path']} "
+            f"({export['instance_rows']} instance rows)"
+        )
+    return 0
 
 
 def _resolve_logbook(logbook_arg: Path | None) -> Path:
