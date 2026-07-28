@@ -43,6 +43,8 @@ def build_course_handoff(config_path: Path) -> dict[str, Any]:
         "expected_outputs": _expected_outputs(regatta.course.adapter),
         "grading": _grading_to_json(regatta.course.adapter),
     }
+    if regatta.export is not None:
+        handoff["export"] = regatta.export.to_json()
     validate_course_handoff_document(handoff)
     return handoff
 

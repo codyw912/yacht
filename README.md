@@ -211,6 +211,7 @@ provider credentials.
 - [Custom evals](docs/reference/custom-evals.md)
 - [Custom harnesses](docs/reference/custom-harnesses.md)
 - [Recorded baselines](docs/reference/recorded-baselines.md)
+- [Every Eval Ever export](docs/reference/every-eval-ever-export.md)
 - [Adding a course](docs/reference/adding-a-course.md)
 - [Release checklist](docs/reference/release.md)
 - [Schema contract](docs/reference/schemas.md)

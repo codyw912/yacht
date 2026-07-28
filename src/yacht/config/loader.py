@@ -8,6 +8,7 @@ from typing import Any
 from yacht.domain.model import (
     BaselineReference,
     Comparison,
+    ExportAttribution,
     ConfigError,
     Course,
     CourseAdapter,
@@ -76,6 +77,23 @@ def load_regatta(config_path: Path) -> Regatta:
         rigging_recipes=_parse_rigging_recipes(raw, config_path.parent),
         tool_capabilities=_parse_tool_capabilities(raw),
         harness_declarations=_parse_harness_declarations(raw, config_path.parent),
+        export=_parse_export(raw),
+    )
+
+
+def _parse_export(raw: dict[str, Any]) -> ExportAttribution | None:
+    export = raw.get("export")
+    if not isinstance(export, dict):
+        return None
+    return ExportAttribution(
+        source_organization_name=str(export["source_organization_name"]),
+        evaluator_relationship=str(export["evaluator_relationship"]),
+        source_organization_url=(
+            str(export["source_organization_url"])
+            if "source_organization_url" in export
+            else None
+        ),
+        source_name=str(export["source_name"]) if "source_name" in export else None,
     )
 
 
