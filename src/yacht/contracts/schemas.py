@@ -2070,6 +2070,84 @@ def _validate_benchmark_scorecard_statistics(value: Any, path: str) -> None:
     for key in ("discordant_baseline_only_ids", "discordant_challenger_only_ids"):
         if key in paired:
             _require_string_list(paired.get(key), f"{path}.statistics.paired.{key}")
+    if "repetition_guidance" in statistics:
+        _validate_repetition_guidance(
+            statistics["repetition_guidance"],
+            f"{path}.statistics.repetition_guidance",
+        )
+
+
+def _validate_repetition_guidance(value: Any, path: str) -> None:
+    guidance = _require_object(value, path)
+    _require_keys(
+        guidance,
+        (
+            "power_target",
+            "significance_level",
+            "observed_discordance_rate",
+            "shared_tasks_per_run",
+            "plans",
+            "applies_to",
+        ),
+        path,
+    )
+    for key in ("power_target", "significance_level", "observed_discordance_rate"):
+        rate = guidance.get(key)
+        if (
+            not isinstance(rate, (int, float))
+            or isinstance(rate, bool)
+            or not 0.0 <= float(rate) <= 1.0
+        ):
+            raise SchemaValidationError(f"{path}.{key} must be between 0 and 1")
+    _require_non_negative_int(
+        guidance.get("shared_tasks_per_run"),
+        f"{path}.shared_tasks_per_run",
+    )
+    _require_non_empty_string(guidance.get("applies_to"), f"{path}.applies_to")
+    if "observed_discordance_rate_interval" in guidance:
+        _validate_rate_interval(
+            guidance["observed_discordance_rate_interval"],
+            f"{path}.observed_discordance_rate_interval",
+        )
+    plans = _require_list(guidance["plans"], f"{path}.plans")
+    if not plans:
+        raise SchemaValidationError(f"{path}.plans must contain at least one plan")
+    for index, plan_value in enumerate(plans):
+        plan_path = f"{path}.plans[{index}]"
+        plan = _require_object(plan_value, plan_path)
+        _require_keys(
+            plan,
+            ("assumed_favored_fraction", "discordant_pairs_needed"),
+            plan_path,
+        )
+        fraction = plan.get("assumed_favored_fraction")
+        if (
+            not isinstance(fraction, (int, float))
+            or isinstance(fraction, bool)
+            or not 0.0 <= float(fraction) <= 1.0
+        ):
+            raise SchemaValidationError(
+                f"{plan_path}.assumed_favored_fraction must be between 0 and 1"
+            )
+        pairs_needed = plan.get("discordant_pairs_needed")
+        if pairs_needed is not None:
+            _require_non_negative_int(
+                pairs_needed,
+                f"{plan_path}.discordant_pairs_needed",
+            )
+        if plan.get("repetitions") is not None:
+            _require_non_negative_int(plan["repetitions"], f"{plan_path}.repetitions")
+        if "repetitions_range" in plan:
+            bounds = _require_object(
+                plan["repetitions_range"],
+                f"{plan_path}.repetitions_range",
+            )
+            for key in ("low", "high"):
+                if bounds.get(key) is not None:
+                    _require_non_negative_int(
+                        bounds[key],
+                        f"{plan_path}.repetitions_range.{key}",
+                    )
 
 
 def _validate_rate_interval(value: Any, path: str) -> None:

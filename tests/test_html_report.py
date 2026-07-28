@@ -634,3 +634,55 @@ class DecisionMetricsParityTests(unittest.TestCase):
 
         self.assertIn('<th class="num"><code>newtool</code></th>', html)
         self.assertIn("th code { text-transform: none;", html)
+
+    def test_repetition_budget_renders_with_optional_stopping_warning(self) -> None:
+        scorecard = _scorecard(resolved_delta=1, rate_delta=0.5)
+        scorecard["comparisons"][0]["statistics"] = {
+            "confidence_level": 0.95,
+            "paired": {"grade": "insufficient-evidence", "p_value": 1.0},
+            "repetition_guidance": {
+                "power_target": 0.8,
+                "significance_level": 0.05,
+                "observed_discordance_rate": 0.7,
+                "shared_tasks_per_run": 10,
+                "applies_to": "a fresh run committed to in advance",
+                "plans": [
+                    {
+                        "assumed_favored_fraction": 0.9,
+                        "discordant_pairs_needed": 12,
+                        "repetitions": 2,
+                        "repetitions_range": {"low": 2, "high": 4},
+                    },
+                    {
+                        "assumed_favored_fraction": 0.55,
+                        "discordant_pairs_needed": None,
+                    },
+                ],
+            },
+        }
+
+        html = render_benchmark_html(
+            scorecard=scorecard,
+            task_attempt_scorecard=None,
+            logbook_dir=Path("logbook"),
+        )
+
+        self.assertIn("Repetition budget", html)
+        self.assertIn("challenger wins 90% of discordant pairs", html)
+        self.assertIn("optional stopping", html)
+        self.assertIn("unreachable", html)
+
+    def test_no_repetition_budget_when_evidence_was_found(self) -> None:
+        scorecard = _scorecard(resolved_delta=1, rate_delta=0.5)
+        scorecard["comparisons"][0]["statistics"] = {
+            "confidence_level": 0.95,
+            "paired": {"grade": "evidence-of-difference", "p_value": 0.01},
+        }
+
+        html = render_benchmark_html(
+            scorecard=scorecard,
+            task_attempt_scorecard=None,
+            logbook_dir=Path("logbook"),
+        )
+
+        self.assertNotIn("Repetition budget", html)

@@ -16,6 +16,14 @@ CONFIDENCE_LEVEL = 0.95
 SIGNIFICANCE_LEVEL = 0.05
 _Z_95 = 1.959963984540054
 
+# Planning defaults (ADR 0021). Power is fixed for the same reason the
+# confidence level is: one default keeps published artifacts comparable.
+# The assumed split is the dial that actually matters, so it is reported
+# as a range rather than chosen for the user.
+POWER_TARGET = 0.8
+PLANNING_SPLITS = (0.9, 0.8, 0.7)
+_MAX_PLANNING_PAIRS = 400
+
 GRADE_INSUFFICIENT = "insufficient-evidence"
 GRADE_NOT_DISTINGUISHABLE = "not-distinguishable"
 GRADE_EVIDENCE = "evidence-of-difference"
@@ -116,6 +124,115 @@ def sign_test_grade(discordant_a: int, discordant_b: int) -> dict[str, Any]:
     if p_value >= SIGNIFICANCE_LEVEL:
         return {"grade": GRADE_NOT_DISTINGUISHABLE, "p_value": p_value}
     return {"grade": GRADE_EVIDENCE, "p_value": p_value}
+
+
+def sign_test_power(discordant_pairs: int, favored_fraction: float) -> float:
+    """Probability the exact sign test reaches significance.
+
+    Assumes each discordant pair favors the challenger independently
+    with probability `favored_fraction`. Summed exactly over the
+    rejection region, so no normal approximation creeps into planning
+    numbers that are already assumption-heavy.
+    """
+    if discordant_pairs <= 0:
+        return 0.0
+    if not 0.0 <= favored_fraction <= 1.0:
+        raise ValueError("favored_fraction must be between 0 and 1")
+    total = discordant_pairs
+    power = 0.0
+    for favored in range(total + 1):
+        if sign_test_p_value(total - favored, favored) < SIGNIFICANCE_LEVEL:
+            power += (
+                math.comb(total, favored)
+                * favored_fraction**favored
+                * (1.0 - favored_fraction) ** (total - favored)
+            )
+    return min(1.0, power)
+
+
+def min_discordant_for_power(
+    favored_fraction: float,
+    power_target: float = POWER_TARGET,
+) -> int | None:
+    """Smallest discordant-pair count reaching the target power.
+
+    None when no count up to the planning ceiling reaches it — a real
+    answer for assumed splits close to a coin flip, where the honest
+    statement is that this design cannot get there.
+    """
+    for pairs in range(min_significant_discordant(), _MAX_PLANNING_PAIRS + 1):
+        if sign_test_power(pairs, favored_fraction) >= power_target:
+            return pairs
+    return None
+
+
+def repetition_budget(
+    *,
+    discordant_pairs: int,
+    shared_tasks: int,
+    power_target: float = POWER_TARGET,
+    splits: tuple[float, ...] = PLANNING_SPLITS,
+) -> dict[str, Any] | None:
+    """Plan a fresh run: pairs needed for power, and repetitions to get them.
+
+    Repetition counts scale the pair requirement by this run's observed
+    discordance rate, which is itself an estimate — so the rate's Wilson
+    interval brackets the answer instead of a single point estimate
+    standing in for knowledge nobody has yet.
+    """
+    if shared_tasks <= 0:
+        return None
+    rate = discordant_pairs / shared_tasks
+    rate_interval = wilson_interval(discordant_pairs, shared_tasks)
+    plans = []
+    for split in splits:
+        pairs_needed = min_discordant_for_power(split, power_target)
+        plan: dict[str, Any] = {
+            "assumed_favored_fraction": split,
+            "discordant_pairs_needed": pairs_needed,
+        }
+        if pairs_needed is not None:
+            plan["repetitions"] = _repetitions_for(pairs_needed, rate, shared_tasks)
+            if rate_interval is not None:
+                plan["repetitions_range"] = {
+                    "low": _repetitions_for(
+                        pairs_needed,
+                        rate_interval["high"],
+                        shared_tasks,
+                    ),
+                    "high": _repetitions_for(
+                        pairs_needed,
+                        rate_interval["low"],
+                        shared_tasks,
+                    ),
+                }
+        plans.append(plan)
+    guidance: dict[str, Any] = {
+        "power_target": power_target,
+        "significance_level": SIGNIFICANCE_LEVEL,
+        "observed_discordance_rate": rate,
+        "shared_tasks_per_run": shared_tasks,
+        "plans": plans,
+        # The budget sizes a new run. Extending this one and re-testing
+        # is optional stopping, and its p-value would not mean 0.05.
+        "applies_to": "a fresh run committed to in advance",
+    }
+    if rate_interval is not None:
+        guidance["observed_discordance_rate_interval"] = rate_interval
+    return guidance
+
+
+def _repetitions_for(
+    pairs_needed: int,
+    rate: float,
+    shared_tasks: int,
+) -> int | None:
+    """Repetitions expected to yield the required pairs, or None when the
+    rate estimate cannot bound it (a rate of zero implies never)."""
+    expected_per_run = rate * shared_tasks
+    if expected_per_run <= 0:
+        return None
+    return math.ceil(pairs_needed / expected_per_run)
 
 
 def t_interval(values: list[float]) -> dict[str, float] | None:

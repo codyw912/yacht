@@ -186,6 +186,7 @@ def _render_scorecard(
         _artifact_line(logbook_dir),
     ]
     lines.extend(_filter_lines(vessel_name, task_id))
+    lines.extend(_repetition_budget_lines(scorecard))
     lines.extend(_notable_delta_lines(scorecard, task_attempt_scorecard))
     lines.extend(
         [
@@ -252,6 +253,7 @@ def _render_scorecard_markdown(
         "",
         *_decision_summary_markdown_lines(scorecard, task_attempt_scorecard),
         *_filter_markdown_lines(vessel_name, task_id),
+        *_repetition_budget_markdown_lines(scorecard),
         "",
         "## Notable deltas",
         "",
@@ -378,6 +380,86 @@ def _filter_parts(vessel_name: str | None, task_id: str | None) -> list[str]:
     if task_id is not None:
         parts.append(f"task={task_id}")
     return parts
+
+
+OPTIONAL_STOPPING_WARNING = (
+    "Budget a fresh run at one of these sizes and commit to it. Adding "
+    "repetitions to this comparison and re-testing until it crosses p<0.05 "
+    "is optional stopping: the p-value would no longer mean 0.05."
+)
+
+
+def _repetition_budget_lines(scorecard: dict[str, Any]) -> list[str]:
+    plans = _repetition_budget_plans(scorecard)
+    if not plans:
+        return []
+    lines = [
+        "",
+        "Repetition budget (80% power, no difference demonstrated yet):",
+        "comparison | assumed split | discordant pairs needed | repetitions",
+    ]
+    lines.extend(plans)
+    lines.extend(["", OPTIONAL_STOPPING_WARNING])
+    return lines
+
+
+def _repetition_budget_markdown_lines(scorecard: dict[str, Any]) -> list[str]:
+    plans = _repetition_budget_plans(scorecard)
+    if not plans:
+        return []
+    return [
+        "",
+        "## Repetition budget",
+        "",
+        "80% power, for comparisons where no difference was demonstrated.",
+        "",
+        "| Comparison | Assumed split | Discordant pairs needed | Repetitions |",
+        "| --- | --- | ---: | ---: |",
+        *[f"| {plan} |" for plan in plans],
+        "",
+        f"_{OPTIONAL_STOPPING_WARNING}_",
+    ]
+
+
+def _repetition_budget_plans(scorecard: dict[str, Any]) -> list[str]:
+    rows = []
+    for comparison in scorecard["comparisons"]:
+        statistics = comparison.get("statistics")
+        if not isinstance(statistics, dict):
+            continue
+        guidance = statistics.get("repetition_guidance")
+        if not isinstance(guidance, dict):
+            continue
+        for plan in guidance.get("plans", []):
+            rows.append(
+                f"{comparison['name']} | "
+                f"challenger wins {float(plan['assumed_favored_fraction']):.0%} "
+                "of discordant | "
+                f"{_planned_pairs(plan)} | {_planned_repetitions(plan)}"
+            )
+    return rows
+
+
+def _planned_pairs(plan: dict[str, Any]) -> str:
+    pairs = plan.get("discordant_pairs_needed")
+    if pairs is None:
+        return "unreachable at this effect size"
+    return str(pairs)
+
+
+def _planned_repetitions(plan: dict[str, Any]) -> str:
+    repetitions = plan.get("repetitions")
+    if repetitions is None:
+        return "not estimable (no discordant tasks observed)"
+    bounds = plan.get("repetitions_range")
+    if not isinstance(bounds, dict):
+        return str(repetitions)
+    low = bounds.get("low")
+    high = bounds.get("high")
+    if low is None and high is None:
+        return str(repetitions)
+    high_label = "unbounded" if high is None else str(high)
+    return f"{repetitions} ({low}–{high_label} across rate uncertainty)"
 
 
 def _notable_delta_lines(
@@ -560,6 +642,10 @@ def _resolution_evidence(statistics: dict[str, Any] | None) -> str | None:
             "insufficient evidence: observation only "
             f"({discordant} discordant task(s), need >={minimum})"
         )
+    return _graded_evidence(grade, paired)
+
+
+def _graded_evidence(grade: Any, paired: dict[str, Any]) -> str | None:
     p_value = float(paired.get("p_value", 1.0))
     if grade == "not-distinguishable":
         return f"not distinguishable from noise (p={p_value:.3f})"
