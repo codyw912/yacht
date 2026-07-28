@@ -55,6 +55,7 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 table { border-collapse: collapse; width: 100%; margin: 0.5rem 0 1rem; }
 th, td { text-align: left; padding: 0.42rem 0.7rem; border-bottom: 1px solid var(--line); }
 th { color: var(--muted); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em; }
+th code { text-transform: none; letter-spacing: 0; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .ok { color: var(--good); font-weight: 600; }
 .fail { color: var(--bad); font-weight: 600; }
@@ -395,7 +396,7 @@ def _comparison_sections(
                 "finish travel together.</p>"
             )
             sections.append(delivery_table)
-        usage_chart = _usage_chart(attempt_comparison)
+        usage_chart = _usage_chart(comparison, attempt_comparison)
         if usage_chart:
             sections.append("<h2>Usage</h2>")
             if _outcome_confounded(comparison):
@@ -611,8 +612,12 @@ def _delivery_table(attempt_comparison: dict[str, Any] | None) -> str:
     )
 
 
-def _usage_chart(attempt_comparison: dict[str, Any]) -> str:
-    vessels = attempt_comparison.get("vessels", [])
+def _usage_chart(
+    comparison: dict[str, Any],
+    attempt_comparison: dict[str, Any],
+) -> str:
+    vessels = _recorded_usage_vessels(comparison, attempt_comparison)
+    vessels.extend(attempt_comparison.get("vessels", []))
     if not vessels:
         return ""
     metrics = (
@@ -647,6 +652,27 @@ def _usage_chart(attempt_comparison: dict[str, Any]) -> str:
     )
 
 
+def _recorded_usage_vessels(
+    comparison: dict[str, Any],
+    attempt_comparison: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Chart entries for recorded baseline vessels, whose usage lives in
+    the scorecard's baseline_source rather than this run's attempts."""
+    attempt_names = {
+        str(vessel.get("name")) for vessel in attempt_comparison.get("vessels", [])
+    }
+    entries = []
+    for vessel in comparison.get("vessels", []):
+        name = str(vessel.get("name"))
+        if vessel.get("status") != "recorded" or name in attempt_names:
+            continue
+        usage = vessel.get("baseline_source", {}).get("usage")
+        if not isinstance(usage, dict):
+            continue
+        entries.append({"name": name, **usage})
+    return entries
+
+
 def _tool_call_table(attempt_comparison: dict[str, Any]) -> str:
     vessels = attempt_comparison.get("vessels", [])
     tools = sorted(
@@ -654,7 +680,7 @@ def _tool_call_table(attempt_comparison: dict[str, Any]) -> str:
     )
     if not tools:
         return ""
-    header = "".join(f'<th class="num">{_e(tool)}</th>' for tool in tools)
+    header = "".join(f'<th class="num"><code>{_e(tool)}</code></th>' for tool in tools)
     rows = [f"<table><tr><th>Vessel</th>{header}</tr>"]
     for vessel in vessels:
         counts = vessel.get("tool_call_counts") or {}
