@@ -415,6 +415,10 @@ def _notable_delta_row(
     recorded_note = _recorded_baseline_note(comparison)
     if recorded_note is not None:
         versus = f"{versus} [{recorded_note}]"
+    delivery = comparison.get("delivery")
+    if isinstance(delivery, dict) and delivery.get("status") != "delivered":
+        status = str(delivery.get("status")).replace("-", " ")
+        versus = f"{versus} [treatment {status}]"
     parts = [
         versus,
         f"resolved {_signed_int(delta['resolved_instances_delta'])}",
@@ -446,7 +450,7 @@ def _decision_summary_lines(
     lines = [
         "",
         "Decision summary:",
-        "comparison | resolution | tokens | cost | duration",
+        "comparison | resolution | tokens | cost | duration | delivery",
     ]
     lines.extend(
         _decision_summary_row(comparison, task_attempt_scorecard)
@@ -492,8 +496,26 @@ def _decision_summary_row(
             _usage_decision(usage_delta, "tokens", "tokens") + confound,
             _usage_decision(usage_delta, "cost", "cost") + confound,
             _usage_decision(usage_delta, "duration", "duration") + confound,
+            _delivery_decision(comparison.get("delivery")),
         ]
     )
+
+
+def _delivery_decision(delivery: dict[str, Any] | None) -> str:
+    if not isinstance(delivery, dict):
+        return "delivery -"
+    status = str(delivery.get("status"))
+    rates = ", ".join(
+        f"{tool.get('tool')} {tool.get('invoked_attempts', '?')}/"
+        f"{tool.get('measured_attempts')}"
+        for tool in delivery.get("tools", ())
+        if tool.get("status") == "measured"
+    )
+    if status == "delivered":
+        return f"delivered ({rates})"
+    if status == "not-delivered":
+        return f"NOT DELIVERED ({rates})" if rates else "NOT DELIVERED"
+    return "delivery unmeasured"
 
 
 def _resolution_decision(

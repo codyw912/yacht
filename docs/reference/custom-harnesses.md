@@ -94,7 +94,11 @@ validation rejects the combination — so container runtimes use
 - `schema`, `response`, and `usage.input_tokens`/`usage.output_tokens`
   are required; `tool_calls` (with per-tool counts), `cost`, `model`,
   and `extras` are optional but feed reports and provenance when
-  present.
+  present. Emitting `tool_calls` also opts the harness into
+  skill-invocation delivery measurement (ADR 0019): the names are
+  matched against each installed tool's expected calls, and delivery
+  rates appear in the scorecards. A harness that omits `tool_calls`
+  is reported as delivery-unmeasured, never guessed.
 - **The custom path never estimates.** A run that exits 0 without valid
   evidence fails loudly — a declared harness that does not emit the
   contract is a broken integration, not a degraded measurement. (For

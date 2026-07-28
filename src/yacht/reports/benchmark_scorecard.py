@@ -14,6 +14,7 @@ from yacht.reports.statistics import (
     wilson_interval,
 )
 from yacht.domain.model import BaselineReference, ConfigError
+from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 from yacht.workflows.baseline import BaselineRecord, load_baseline_record
 from yacht.contracts.schemas import (
     BENCHMARK_SCORECARD_SCHEMA,
@@ -35,6 +36,7 @@ def write_benchmark_scorecard(logbook_dir: Path) -> dict[str, Any]:
         gradings,
         preflight_report,
         recorded_by_comparison,
+        _tool_invocations_by_vessel(logbook_dir),
     )
     scorecard["next_steps"] = _next_steps(logbook_dir, scorecard["comparisons"])
     validate_benchmark_scorecard_document(scorecard)
@@ -100,6 +102,7 @@ def _build_scorecard(
     gradings: list[dict[str, Any]],
     preflight_report: dict[str, Any],
     recorded_by_comparison: dict[str, dict[str, Any]],
+    invocations_by_vessel: dict[tuple[str, str], list[dict[str, Any]]],
 ) -> dict[str, Any]:
     measured_by_vessel = _measured_by_vessel(gradings)
     preflight_by_vessel = _preflight_by_comparison_and_vessel(preflight_report)
@@ -109,6 +112,7 @@ def _build_scorecard(
             measured_by_vessel,
             preflight_by_vessel,
             recorded_by_comparison.get(str(comparison["name"])),
+            invocations_by_vessel,
         )
         for comparison in handoff["comparisons"]
     ]
@@ -304,6 +308,7 @@ def _comparison_to_json(
     measured_by_vessel: dict[str, dict[str, Any]],
     preflight_by_vessel: dict[tuple[str, str], dict[str, Any]],
     recorded_vessel: dict[str, Any] | None,
+    invocations_by_vessel: dict[tuple[str, str], list[dict[str, Any]]],
 ) -> dict[str, Any]:
     comparison_name = str(comparison["name"])
     vessels = [
@@ -327,7 +332,67 @@ def _comparison_to_json(
     statistics = _comparison_statistics(vessels)
     if statistics is not None:
         payload["statistics"] = statistics
+    delivery = _delivery_block(comparison_name, vessels, invocations_by_vessel)
+    if delivery is not None:
+        payload["delivery"] = delivery
     return payload
+
+
+def _tool_invocations_by_vessel(
+    logbook_dir: Path,
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    scorecard_path = logbook_dir / TASK_ATTEMPT_SCORECARD_PATH
+    if not scorecard_path.exists():
+        return {}
+    scorecard = _load_json_object(scorecard_path, "task attempt scorecard")
+    return {
+        (str(comparison.get("name")), str(vessel.get("name"))): list(
+            vessel.get("tool_invocations", ())
+        )
+        for comparison in scorecard.get("comparisons", ())
+        for vessel in comparison.get("vessels", ())
+    }
+
+
+def _delivery_block(
+    comparison_name: str,
+    vessels: list[dict[str, Any]],
+    invocations_by_vessel: dict[tuple[str, str], list[dict[str, Any]]],
+) -> dict[str, Any] | None:
+    """Whether the challenger's treatment tools were observed to fire.
+
+    Definite negative evidence outranks a measurement gap: a measured
+    tool that never fired makes the comparison not-delivered even if
+    another tool went unmeasured."""
+    if len(vessels) < 2:
+        return None
+    baseline_name = str(vessels[0]["name"])
+    challenger_name = str(vessels[1]["name"])
+    baseline_tools = {
+        str(entry.get("tool"))
+        for entry in invocations_by_vessel.get((comparison_name, baseline_name), ())
+    }
+    treatment = [
+        entry
+        for entry in invocations_by_vessel.get((comparison_name, challenger_name), ())
+        if str(entry.get("tool")) not in baseline_tools
+    ]
+    if not treatment:
+        return None
+    if any(
+        entry.get("status") == "measured" and int(entry.get("invoked_attempts", 0)) == 0
+        for entry in treatment
+    ):
+        status = "not-delivered"
+    elif any(entry.get("status") == "unmeasured" for entry in treatment):
+        status = "unmeasured"
+    else:
+        status = "delivered"
+    return {
+        "vessel": challenger_name,
+        "status": status,
+        "tools": treatment,
+    }
 
 
 def _vessel_score(

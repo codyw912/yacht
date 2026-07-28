@@ -11,6 +11,7 @@ from yacht.contracts.schemas import (
     validate_task_attempt_document,
     validate_task_attempt_scorecard_document,
 )
+from yacht.reports.statistics import wilson_interval
 from yacht.workflows.provenance import collapse_provenance
 
 
@@ -117,7 +118,73 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
     }
     if provenance is not None:
         payload["provenance"] = provenance
+    tool_invocations = _tool_invocations(attempts)
+    if tool_invocations:
+        payload["tool_invocations"] = tool_invocations
     return payload
+
+
+def _tool_invocations(attempts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Delivery rates for the vessel's expected tools. Only attempts with
+    preserved trajectory evidence count toward the denominators — an
+    unmeasured attempt says nothing about whether the tool fired."""
+    expectations: dict[str, dict[str, Any]] = {}
+    for attempt in attempts:
+        for expectation in attempt.get("tool_expectations", ()):
+            expectations.setdefault(str(expectation["tool"]), expectation)
+    measured = [
+        attempt for attempt in attempts if "tool_call_evidence" in attempt["agent"]
+    ]
+    entries = []
+    for tool, expectation in expectations.items():
+        expected_calls = [str(call) for call in expectation["expected_calls"]]
+        entry: dict[str, Any] = {
+            "tool": tool,
+            "kind": str(expectation["kind"]),
+            "expected_calls": expected_calls,
+            "attempts": len(attempts),
+            "measured_attempts": len(measured),
+        }
+        if not measured:
+            entry["status"] = "unmeasured"
+            entries.append(entry)
+            continue
+        invoked = [attempt for attempt in measured if _invoked(attempt, expected_calls)]
+        completed = [
+            attempt for attempt in measured if attempt["status"] == "completed"
+        ]
+        invoked_completed = [
+            attempt for attempt in completed if _invoked(attempt, expected_calls)
+        ]
+        entry.update(
+            {
+                "status": "measured",
+                "invoked_attempts": len(invoked),
+                "invocation_rate": len(invoked) / len(measured),
+                "invocation_interval": wilson_interval(len(invoked), len(measured)),
+            }
+        )
+        if completed:
+            entry.update(
+                {
+                    "completed_attempts": len(completed),
+                    "invoked_completed_attempts": len(invoked_completed),
+                    "completed_invocation_rate": (
+                        len(invoked_completed) / len(completed)
+                    ),
+                    "completed_invocation_interval": wilson_interval(
+                        len(invoked_completed),
+                        len(completed),
+                    ),
+                }
+            )
+        entries.append(entry)
+    return entries
+
+
+def _invoked(attempt: dict[str, Any], expected_calls: list[str]) -> bool:
+    observed = set(attempt["agent"]["tool_calls"])
+    return any(call in observed for call in expected_calls)
 
 
 def _top_level_summary(comparisons: list[dict[str, Any]]) -> dict[str, Any]:

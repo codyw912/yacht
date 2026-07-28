@@ -11,6 +11,7 @@ from yacht.reports.statistics import (
     GRADE_INSUFFICIENT,
     interval_grade,
     t_interval,
+    wilson_interval,
 )
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
@@ -166,6 +167,7 @@ def _aggregate_vessel(
     duration = 0.0
     tool_calls = 0
     run_provenances = []
+    invocation_totals: dict[str, dict[str, Any]] = {}
     for run in runs:
         vessel = _vessel_by_name(
             _comparison_by_name(run["scorecard"], comparison_name),
@@ -188,6 +190,10 @@ def _aggregate_vessel(
             duration += float(usage_vessel["total_duration_seconds"])
             tool_calls += int(usage_vessel["tool_call_count"])
             run_provenances.append(usage_vessel.get("provenance"))
+            _accumulate_tool_invocations(
+                invocation_totals,
+                usage_vessel.get("tool_invocations", ()),
+            )
     run_vessels = [_run_vessel(comparison_name, vessel_name, run) for run in runs]
     payload = {
         "name": vessel_name,
@@ -210,7 +216,78 @@ def _aggregate_vessel(
     provenance = collapse_provenance(run_provenances)
     if provenance is not None:
         payload["provenance"] = provenance
+    tool_invocations = _finalized_tool_invocations(invocation_totals)
+    if tool_invocations:
+        payload["tool_invocations"] = tool_invocations
     return payload
+
+
+def _accumulate_tool_invocations(
+    totals: dict[str, dict[str, Any]],
+    entries: Any,
+) -> None:
+    if not isinstance(entries, list):
+        return
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        tool = str(entry.get("tool"))
+        total = totals.setdefault(
+            tool,
+            {
+                "tool": tool,
+                "kind": str(entry.get("kind")),
+                "expected_calls": list(entry.get("expected_calls", ())),
+                "attempts": 0,
+                "measured_attempts": 0,
+                "invoked_attempts": 0,
+                "completed_attempts": 0,
+                "invoked_completed_attempts": 0,
+            },
+        )
+        for key in (
+            "attempts",
+            "measured_attempts",
+            "invoked_attempts",
+            "completed_attempts",
+            "invoked_completed_attempts",
+        ):
+            value = entry.get(key)
+            if isinstance(value, int) and not isinstance(value, bool):
+                total[key] += value
+
+
+def _finalized_tool_invocations(
+    totals: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    entries = []
+    for total in totals.values():
+        entry = dict(total)
+        measured = int(entry["measured_attempts"])
+        if measured == 0:
+            entry["status"] = "unmeasured"
+            entry.pop("invoked_attempts")
+            entry.pop("completed_attempts")
+            entry.pop("invoked_completed_attempts")
+            entries.append(entry)
+            continue
+        invoked = int(entry["invoked_attempts"])
+        entry["status"] = "measured"
+        entry["invocation_rate"] = invoked / measured
+        entry["invocation_interval"] = wilson_interval(invoked, measured)
+        completed = int(entry["completed_attempts"])
+        if completed:
+            invoked_completed = int(entry["invoked_completed_attempts"])
+            entry["completed_invocation_rate"] = invoked_completed / completed
+            entry["completed_invocation_interval"] = wilson_interval(
+                invoked_completed,
+                completed,
+            )
+        else:
+            entry.pop("completed_attempts")
+            entry.pop("invoked_completed_attempts")
+        entries.append(entry)
+    return entries
 
 
 def _aggregate_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:

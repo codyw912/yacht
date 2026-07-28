@@ -1,18 +1,29 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from yacht import __version__
 from yacht.config.loader import load_regatta
-from yacht.contracts.schemas import TASK_ATTEMPT_SCHEMA, validate_task_attempt_document
+from yacht.contracts.schemas import (
+    TASK_ATTEMPT_SCHEMA,
+    SchemaValidationError,
+    validate_harness_evidence_document,
+    validate_task_attempt_document,
+)
+from yacht.harnesses.claude_code import (
+    SESSION_TRANSCRIPT_EVIDENCE,
+    tool_calls_from_session_transcript,
+)
 from yacht.courses.terminal_bench.harness import HARBOR_JOB_NAME
 from yacht.domain.model import (
     Comparison,
     ConfigError,
     Regatta,
+    RiggingRecipe,
     RuntimeRecipe,
     SecretReference,
     Task,
@@ -103,7 +114,7 @@ def _attempt_from_trial(
         and trial.get("reward") is not None
     )
     trial_dir = _trial_dir(trial, native_report_path)
-    return {
+    artifact = {
         "schema": TASK_ATTEMPT_SCHEMA,
         "regatta": regatta.name,
         "course": regatta.course.name,
@@ -130,6 +141,10 @@ def _attempt_from_trial(
         "metrics": _metrics(trial),
         "secret_refs": _secret_refs(regatta, vessel, runtime),
     }
+    tool_expectations = _tool_expectations(regatta, vessel)
+    if tool_expectations:
+        artifact["tool_expectations"] = tool_expectations
+    return artifact
 
 
 def _provenance(
@@ -163,13 +178,149 @@ def _agent_to_json(
     trial_dir: str,
     completed: bool,
 ) -> dict[str, Any]:
-    return {
+    tool_calls, evidence_source = _observed_tool_calls(Path(trial_dir))
+    payload = {
         "exit_code": 0 if completed else 1,
         "response": "",
-        "tool_calls": [],
+        "tool_calls": tool_calls,
         "transcript_path": trial_dir,
         "machine_evidence": _machine_evidence(trial),
     }
+    if evidence_source is not None:
+        payload["tool_call_evidence"] = evidence_source
+    return payload
+
+
+_SKILL_INSTALL_TARGET = re.compile(r"^\.claude/skills/([^/]+)/SKILL\.md$")
+_FRONTMATTER_NAME = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
+
+
+def _tool_expectations(regatta: Regatta, vessel: Vessel) -> list[dict[str, Any]]:
+    """Expected invocation markers for the vessel's installed tools,
+    derived rather than configured where possible: a skill's marker
+    comes from the SKILL.md it installs, an extension's from its
+    declared expected_tool_calls. Tools that declare nothing yield no
+    expectation — an unmeasurable claim is omitted, not invented."""
+    expectations: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for rigging_name in vessel.rigging:
+        rigging = regatta.rigging_recipes.get(rigging_name)
+        if rigging is None:
+            continue
+        installed_skills = _installed_skill_names(rigging)
+        for tool_name in rigging.tools:
+            if tool_name in seen:
+                continue
+            capability = regatta.tool_capabilities.get(tool_name)
+            if capability is None:
+                continue
+            expected_calls: list[str] = []
+            if capability.kind == "agent-skill":
+                skill = _skill_for_tool(tool_name, installed_skills)
+                expected_calls = [f"Skill:{skill}"]
+            elif (
+                capability.kind == "agent-extension" and capability.expected_tool_calls
+            ):
+                expected_calls = list(capability.expected_tool_calls)
+            if not expected_calls:
+                continue
+            seen.add(tool_name)
+            expectations.append(
+                {
+                    "tool": tool_name,
+                    "kind": capability.kind,
+                    "expected_calls": expected_calls,
+                }
+            )
+    return expectations
+
+
+def _installed_skill_names(rigging: RiggingRecipe) -> list[str]:
+    names = []
+    for step in rigging.install:
+        if step.method != "config-file":
+            continue
+        match = _SKILL_INSTALL_TARGET.match(step.target)
+        if match is None:
+            continue
+        names.append(_skill_name_from_content(step.content) or match.group(1))
+    return list(dict.fromkeys(names))
+
+
+def _skill_name_from_content(content: str | None) -> str | None:
+    """The skill name Claude Code invokes by is the SKILL.md frontmatter
+    name, not the tool's config name — read it from the installed
+    content when present."""
+    if content is None or not content.lstrip().startswith("---"):
+        return None
+    body = content.lstrip().removeprefix("---")
+    frontmatter = body.split("---", 1)[0]
+    match = _FRONTMATTER_NAME.search(frontmatter)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def _skill_for_tool(tool_name: str, installed_skills: list[str]) -> str:
+    if tool_name in installed_skills:
+        return tool_name
+    if len(installed_skills) == 1:
+        return installed_skills[0]
+    return tool_name
+
+
+def _observed_tool_calls(trial_dir: Path) -> tuple[list[str], str | None]:
+    """Observed tool calls from the trial's preserved evidence, with the
+    source that measured them. (calls=[], source=None) means unmeasured —
+    no preserved trajectory said anything, which is different from a
+    trajectory that shows no tool was called."""
+    evidence_calls = _harness_evidence_tool_calls(
+        trial_dir / "agent" / "harness-evidence.json"
+    )
+    if evidence_calls is not None:
+        return evidence_calls, "harness-evidence"
+    session_calls = _session_tool_calls(trial_dir / "agent" / "sessions")
+    if session_calls is not None:
+        return session_calls, SESSION_TRANSCRIPT_EVIDENCE
+    return [], None
+
+
+def _harness_evidence_tool_calls(evidence_path: Path) -> list[str] | None:
+    if not evidence_path.is_file():
+        return None
+    try:
+        payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+        validate_harness_evidence_document(payload)
+    except (OSError, json.JSONDecodeError, SchemaValidationError):
+        return None
+    if "tool_calls" not in payload:
+        return None
+    names = [
+        str(entry["name"])
+        for entry in payload["tool_calls"]
+        if isinstance(entry, dict) and entry.get("name")
+    ]
+    return list(dict.fromkeys(names))
+
+
+def _session_tool_calls(sessions_dir: Path) -> list[str] | None:
+    if not sessions_dir.is_dir():
+        return None
+    observed: list[str] = []
+    measured = False
+    for transcript_path in sorted(sessions_dir.rglob("*.jsonl")):
+        try:
+            text = transcript_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        tool_calls = tool_calls_from_session_transcript(text)
+        if tool_calls is None:
+            continue
+        measured = True
+        observed.extend(tool_calls)
+    if not measured:
+        return None
+    return list(dict.fromkeys(observed))
 
 
 def _machine_evidence(trial: dict[str, Any] | None) -> dict[str, Any]:
