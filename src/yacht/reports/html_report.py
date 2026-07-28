@@ -51,6 +51,7 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
   vertical-align: middle; margin-left: 0.5rem;
 }
 .badge.good { background: var(--good-bg); color: var(--good); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
 table { border-collapse: collapse; width: 100%; margin: 0.5rem 0 1rem; }
 th, td { text-align: left; padding: 0.42rem 0.7rem; border-bottom: 1px solid var(--line); }
 th { color: var(--muted); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em; }
@@ -255,15 +256,24 @@ def _legacy_variance_badge(delta_stats: dict[str, Any], run_count: int) -> str:
 
 
 def _aggregate_vessel_table(comparison: dict[str, Any]) -> str:
+    show_delivery = any(
+        vessel.get("tool_invocations") for vessel in comparison["vessels"]
+    )
+    delivery_header = '<th class="num">Delivery</th>' if show_delivery else ""
     rows = [
         '<table><tr><th>Vessel</th><th class="num">Measured runs</th>'
         '<th class="num">Resolved</th><th class="num">Rate mean &plusmn; stdev'
         '</th><th class="num">Tokens mean &plusmn; stdev</th>'
         '<th class="num">Cost mean &plusmn; stdev</th>'
-        '<th class="num">Duration mean &plusmn; stdev</th></tr>'
+        f'<th class="num">Duration mean &plusmn; stdev</th>{delivery_header}</tr>'
     ]
     for vessel in comparison["vessels"]:
         stats = vessel.get("statistics", {})
+        delivery_cell = (
+            f'<td class="num">{_aggregate_delivery_cell(vessel)}</td>'
+            if show_delivery
+            else ""
+        )
         rows.append(
             f"<tr><td><code>{_e(str(vessel['name']))}</code></td>"
             f'<td class="num">{vessel["measured_runs"]}/{vessel["runs"]}</td>'
@@ -274,10 +284,28 @@ def _aggregate_vessel_table(comparison: dict[str, Any]) -> str:
             f'<td class="num">{_mean_stdev(stats.get("tokens"), "{:,.0f}")}</td>'
             f'<td class="num">{_mean_stdev(stats.get("cost"), "{:.4f}")}</td>'
             f'<td class="num">{_mean_stdev(stats.get("duration_seconds"), "{:.1f}")}'
-            "</td></tr>"
+            f"</td>{delivery_cell}</tr>"
         )
     rows.append("</table>")
     return "".join(rows)
+
+
+def _aggregate_delivery_cell(vessel: dict[str, Any]) -> str:
+    entries = vessel.get("tool_invocations")
+    if not entries:
+        return '<span class="muted">-</span>'
+    parts = []
+    for entry in entries:
+        tool = _e(str(entry.get("tool")))
+        if entry.get("status") != "measured":
+            parts.append(f"{tool}: unmeasured")
+            continue
+        parts.append(
+            f"{tool}: {entry.get('invoked_attempts')}"
+            f"/{entry.get('measured_attempts')}"
+            f" ({_rate(entry.get('invocation_rate'))})"
+        )
+    return "<br>".join(parts)
 
 
 def _aggregate_runs_table(comparison: dict[str, Any]) -> str:
@@ -356,9 +384,26 @@ def _comparison_sections(
     sections.append(_verdict_card(comparison))
     sections.append(_vessel_table(comparison, attempt_comparison))
     if attempt_comparison is not None:
+        delivery_table = _delivery_table(attempt_comparison)
+        if delivery_table:
+            sections.append("<h2>Skill delivery</h2>")
+            sections.append(
+                '<p class="muted">Whether each installed skill or extension was '
+                "observed to fire, from preserved trial transcripts. Rates over "
+                "all measured attempts and over completed attempts separately — "
+                "a gap between the two means failing to fire and failing to "
+                "finish travel together.</p>"
+            )
+            sections.append(delivery_table)
         usage_chart = _usage_chart(attempt_comparison)
         if usage_chart:
             sections.append("<h2>Usage</h2>")
+            if _outcome_confounded(comparison):
+                sections.append(
+                    '<p class="muted">Outcome-confounded: resolution differs '
+                    "between vessels, so usage deltas partly reflect doing "
+                    "different amounts of successful work.</p>"
+                )
             sections.append(usage_chart)
         tool_table = _tool_call_table(attempt_comparison)
         if tool_table:
@@ -392,14 +437,17 @@ def _verdict_card(comparison: dict[str, Any]) -> str:
         kind, headline = "regressed", f"{challenger} resolved {-resolved_delta} fewer"
     else:
         kind, headline = "tied", f"{challenger} tied with {baseline} on resolution"
-    submitted = _max_submitted(comparison)
-    badge = ""
-    if submitted < 5:
-        badge = (
-            '<span class="badge">small sample: '
-            f"{submitted} task{'s' if submitted != 1 else ''}, single run"
-            "</span>"
-        )
+    badge = _evidence_badge(comparison)
+    if not badge:
+        submitted = _max_submitted(comparison)
+        if submitted < 5:
+            badge = (
+                '<span class="badge">small sample: '
+                f"{submitted} task{'s' if submitted != 1 else ''}, single run"
+                "</span>"
+            )
+    badge += _recorded_baseline_badge(comparison)
+    badge += _delivery_badge(comparison.get("delivery"))
     detail = (
         f"Baseline <code>{_e(baseline)}</code> vs challenger "
         f"<code>{_e(challenger)}</code> &middot; resolution rate delta "
@@ -412,6 +460,66 @@ def _verdict_card(comparison: dict[str, Any]) -> str:
     )
 
 
+def _evidence_badge(comparison: dict[str, Any]) -> str:
+    statistics = comparison.get("statistics")
+    if not isinstance(statistics, dict):
+        return ""
+    paired = statistics.get("paired")
+    if not isinstance(paired, dict):
+        return ""
+    grade = paired.get("grade")
+    if grade == "evidence-of-difference":
+        return (
+            '<span class="badge good">evidence of difference '
+            f"(p={float(paired.get('p_value', 1.0)):.3f})</span>"
+        )
+    if grade == "not-distinguishable":
+        return (
+            '<span class="badge">not distinguishable from noise '
+            f"(p={float(paired.get('p_value', 1.0)):.3f})</span>"
+        )
+    if grade == "insufficient-evidence":
+        discordant = int(paired.get("discordant_baseline_only", 0)) + int(
+            paired.get("discordant_challenger_only", 0)
+        )
+        minimum = paired.get("min_significant_discordant")
+        return (
+            '<span class="badge">insufficient evidence: observation only '
+            f"({discordant} discordant, need &ge;{_e(str(minimum))})</span>"
+        )
+    return ""
+
+
+def _recorded_baseline_badge(comparison: dict[str, Any]) -> str:
+    recorded = _recorded_vessel(comparison)
+    if recorded is None:
+        return ""
+    run_date = recorded.get("baseline_source", {}).get("run_date")
+    if isinstance(run_date, str) and run_date:
+        label = f"recorded baseline from {run_date[:10]}"
+    else:
+        label = "recorded baseline, run date unknown"
+    return f'<span class="badge">{_e(label)}</span>'
+
+
+def _recorded_vessel(comparison: dict[str, Any]) -> dict[str, Any] | None:
+    for vessel in comparison.get("vessels", []):
+        if vessel.get("status") == "recorded":
+            return vessel
+    return None
+
+
+def _delivery_badge(delivery: Any) -> str:
+    if not isinstance(delivery, dict):
+        return ""
+    status = str(delivery.get("status"))
+    if status == "delivered":
+        return '<span class="badge good">treatment delivered</span>'
+    if status == "not-delivered":
+        return '<span class="badge bad">treatment NOT delivered</span>'
+    return '<span class="badge">treatment delivery unmeasured</span>'
+
+
 def _vessel_table(
     comparison: dict[str, Any],
     attempt_comparison: dict[str, Any] | None,
@@ -420,26 +528,87 @@ def _vessel_table(
     rows = [
         '<table><tr><th>Vessel</th><th>Preflight</th><th class="num">Resolved'
         '</th><th class="num">Rate</th><th class="num">Tokens</th>'
-        '<th class="num">Cost</th><th class="num">Duration</th></tr>'
+        '<th class="num">Cost</th><th class="num">Duration</th>'
+        '<th class="num">Tokens/res</th><th class="num">Cost/res</th>'
+        "<th>Usage source</th></tr>"
     ]
     for vessel in comparison["vessels"]:
         name = str(vessel["name"])
-        preflight = str(vessel.get("preflight_status", "unknown"))
-        preflight_class = "ok" if preflight == "passed" else "fail"
-        vessel_usage = usage.get(name, {})
+        if vessel.get("status") == "recorded":
+            preflight_cell = '<span class="muted">recorded</span>'
+            vessel_usage = vessel.get("baseline_source", {}).get("usage", {})
+            usage_sources = "-"
+        else:
+            preflight = str(vessel.get("preflight_status", "unknown"))
+            preflight_class = "ok" if preflight == "passed" else "fail"
+            preflight_cell = f'<span class="{preflight_class}">{_e(preflight)}</span>'
+            vessel_usage = usage.get(name, {})
+            usage_sources = ", ".join(vessel_usage.get("usage_sources", [])) or "-"
+        resolved = int(vessel.get("resolved_instances") or 0)
+        tokens = vessel_usage.get("total_tokens")
+        cost = vessel_usage.get("total_cost")
         rows.append(
             f"<tr><td><code>{_e(name)}</code></td>"
-            f'<td><span class="{preflight_class}">{_e(preflight)}</span></td>'
+            f"<td>{preflight_cell}</td>"
             f'<td class="num">{vessel.get("resolved_instances", "-")}'
             f"/{vessel.get('submitted_instances', '-')}</td>"
             f'<td class="num">{_rate(vessel.get("resolution_rate"))}</td>'
-            f'<td class="num">{_num(vessel_usage.get("total_tokens"))}</td>'
-            f'<td class="num">{_cost(vessel_usage.get("total_cost"))}</td>'
+            f'<td class="num">{_num(tokens)}</td>'
+            f'<td class="num">{_cost(cost)}</td>'
             f'<td class="num">{_seconds(vessel_usage.get("total_duration_seconds"))}'
-            "</td></tr>"
+            "</td>"
+            f'<td class="num">{_per_resolution(tokens, resolved, _num)}</td>'
+            f'<td class="num">{_per_resolution(cost, resolved, _cost)}</td>'
+            f"<td>{_e(usage_sources)}</td></tr>"
         )
     rows.append("</table>")
     return "".join(rows)
+
+
+def _per_resolution(total: Any, resolved: int, fmt: Any) -> str:
+    if total is None or resolved <= 0:
+        return "-"
+    return str(fmt(float(total) / resolved))
+
+
+def _delivery_table(attempt_comparison: dict[str, Any] | None) -> str:
+    vessels = _attempt_vessels(attempt_comparison)
+    rows = []
+    for name, vessel in vessels.items():
+        for entry in vessel.get("tool_invocations", []):
+            if entry.get("status") == "measured":
+                interval = entry.get("invocation_interval") or {}
+                measured_cell = (
+                    f"{entry.get('invoked_attempts')}/{entry.get('measured_attempts')}"
+                    f" ({_rate(entry.get('invocation_rate'))},"
+                    f" 95% CI {_rate(interval.get('low'))}"
+                    f"&hellip;{_rate(interval.get('high'))})"
+                )
+                completed_cell = (
+                    f"{entry.get('invoked_completed_attempts')}"
+                    f"/{entry.get('completed_attempts')}"
+                    if "completed_attempts" in entry
+                    else "-"
+                )
+            else:
+                measured_cell = '<span class="muted">unmeasured</span>'
+                completed_cell = "-"
+            rows.append(
+                f"<tr><td><code>{_e(name)}</code></td>"
+                f"<td><code>{_e(str(entry.get('tool')))}</code></td>"
+                f"<td>{_e(str(entry.get('kind')))}</td>"
+                f"<td><code>{_e(', '.join(entry.get('expected_calls', [])))}"
+                "</code></td>"
+                f'<td class="num">{measured_cell}</td>'
+                f'<td class="num">{completed_cell}</td></tr>'
+            )
+    if not rows:
+        return ""
+    return (
+        "<table><tr><th>Vessel</th><th>Tool</th><th>Kind</th>"
+        '<th>Expected calls</th><th class="num">Invoked/measured</th>'
+        '<th class="num">Invoked/completed</th></tr>' + "".join(rows) + "</table>"
+    )
 
 
 def _usage_chart(attempt_comparison: dict[str, Any]) -> str:
@@ -566,6 +735,13 @@ def _attempt_vessels(
         for vessel in attempt_comparison.get("vessels", [])
         if isinstance(vessel, dict)
     }
+
+
+def _outcome_confounded(comparison: dict[str, Any]) -> bool:
+    delta = comparison.get("delta")
+    if not isinstance(delta, dict):
+        return False
+    return float(delta.get("resolution_rate_delta", 0.0)) != 0.0
 
 
 def _max_submitted(comparison: dict[str, Any]) -> int:

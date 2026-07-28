@@ -121,6 +121,15 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
     tool_invocations = _tool_invocations(attempts)
     if tool_invocations:
         payload["tool_invocations"] = tool_invocations
+    usage_sources = sorted(
+        {
+            str(attempt["metrics"]["usage_source"])
+            for attempt in attempts
+            if "usage_source" in attempt["metrics"]
+        }
+    )
+    if usage_sources:
+        payload["usage_sources"] = usage_sources
     return payload
 
 

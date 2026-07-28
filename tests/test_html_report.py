@@ -461,3 +461,130 @@ class HtmlReportCommandTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _invocation(*, invoked: int = 1, status: str = "measured") -> dict:
+    entry = {
+        "tool": "team-conventions",
+        "kind": "agent-skill",
+        "expected_calls": ["Skill:team-conventions"],
+        "attempts": 1,
+        "measured_attempts": 1 if status == "measured" else 0,
+        "status": status,
+    }
+    if status == "measured":
+        entry.update(
+            {
+                "invoked_attempts": invoked,
+                "invocation_rate": float(invoked),
+                "invocation_interval": {"low": 0.2, "high": 1.0},
+                "completed_attempts": 1,
+                "invoked_completed_attempts": invoked,
+                "completed_invocation_rate": float(invoked),
+                "completed_invocation_interval": {"low": 0.2, "high": 1.0},
+            }
+        )
+    return entry
+
+
+class DecisionMetricsParityTests(unittest.TestCase):
+    def test_evidence_grade_renders_as_badge(self) -> None:
+        scorecard = _scorecard(resolved_delta=1, rate_delta=1.0)
+        scorecard["comparisons"][0]["statistics"] = {
+            "confidence_level": 0.95,
+            "paired": {
+                "grade": "insufficient-evidence",
+                "discordant_baseline_only": 0,
+                "discordant_challenger_only": 1,
+                "min_significant_discordant": 6,
+                "p_value": 1.0,
+                "shared_tasks": 1,
+            },
+        }
+
+        html = render_benchmark_html(
+            scorecard=scorecard,
+            task_attempt_scorecard=None,
+            logbook_dir=Path("logbook"),
+        )
+
+        self.assertIn("insufficient evidence: observation only", html)
+
+    def test_recorded_baseline_renders_badge_and_stored_usage(self) -> None:
+        scorecard = _scorecard()
+        recorded = scorecard["comparisons"][0]["vessels"][0]
+        recorded["status"] = "recorded"
+        for key in (
+            "preflight_status",
+            "preflight_reason",
+            "preflight_artifact_path",
+            "eligible_for_benchmark",
+        ):
+            recorded.pop(key)
+        recorded["baseline_source"] = {
+            "logbook": "/tmp/recorded",
+            "vessel": "pi-baseline",
+            "run_date": "2026-07-26T20:08:37Z",
+            "usage": {"total_tokens": 92153, "total_cost": 0.022},
+        }
+
+        html = render_benchmark_html(
+            scorecard=scorecard,
+            task_attempt_scorecard=None,
+            logbook_dir=Path("logbook"),
+        )
+
+        self.assertIn("recorded baseline from 2026-07-26", html)
+        self.assertIn('<span class="muted">recorded</span>', html)
+        self.assertIn("92,153", html)
+
+    def test_delivery_badge_table_and_confound_note_render(self) -> None:
+        scorecard = _scorecard(resolved_delta=1, rate_delta=0.5)
+        scorecard["comparisons"][0]["delivery"] = {
+            "vessel": "pi-plus-tool",
+            "status": "delivered",
+            "tools": [_invocation()],
+        }
+        attempts = _attempts()
+        attempts["comparisons"][0]["vessels"][1]["tool_invocations"] = [_invocation()]
+        attempts["comparisons"][0]["vessels"][1]["usage_sources"] = ["reported"]
+
+        html = render_benchmark_html(
+            scorecard=scorecard,
+            task_attempt_scorecard=attempts,
+            logbook_dir=Path("logbook"),
+        )
+
+        self.assertIn("treatment delivered", html)
+        self.assertIn("Skill delivery", html)
+        self.assertIn("Skill:team-conventions", html)
+        self.assertIn("Outcome-confounded", html)
+        self.assertIn("Tokens/res", html)
+        self.assertIn("reported", html)
+
+    def test_not_delivered_renders_bad_badge(self) -> None:
+        scorecard = _scorecard(resolved_delta=1, rate_delta=0.5)
+        scorecard["comparisons"][0]["delivery"] = {
+            "vessel": "pi-plus-tool",
+            "status": "not-delivered",
+            "tools": [_invocation(invoked=0)],
+        }
+
+        html = render_benchmark_html(
+            scorecard=scorecard,
+            task_attempt_scorecard=None,
+            logbook_dir=Path("logbook"),
+        )
+
+        self.assertIn('<span class="badge bad">treatment NOT delivered</span>', html)
+
+    def test_aggregate_vessel_table_renders_delivery_column(self) -> None:
+        aggregate = _aggregate(mean=1.0, stdev=0.0)
+        aggregate["comparisons"][0]["vessels"][1]["tool_invocations"] = [
+            _invocation(invoked=1)
+        ]
+
+        html = render_benchmark_aggregate_html(aggregate)
+
+        self.assertIn("Delivery", html)
+        self.assertIn("team-conventions: 1/1", html)
