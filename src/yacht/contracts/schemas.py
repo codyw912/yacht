@@ -1200,6 +1200,17 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
             vessel.get("tool_invocations"),
             f"{path}.tool_invocations",
         )
+    if "usage_sources" in vessel:
+        usage_sources = _require_list(
+            vessel.get("usage_sources"),
+            f"{path}.usage_sources",
+        )
+        for source in usage_sources:
+            _require_allowed_value(
+                source,
+                METRICS_USAGE_SOURCES,
+                f"{path}.usage_sources",
+            )
     _require_string_list(vessel.get("artifact_paths"), f"{path}.artifact_paths")
 
 
