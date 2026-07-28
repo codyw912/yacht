@@ -171,9 +171,10 @@ def _aggregate_vessel(
             _comparison_by_name(run["scorecard"], comparison_name),
             vessel_name,
         )
-        if vessel["eligible_for_benchmark"]:
+        recorded = vessel["status"] == "recorded"
+        if vessel.get("eligible_for_benchmark", recorded):
             eligible_runs += 1
-        if vessel["status"] == "measured":
+        if vessel["status"] == "measured" or recorded:
             measured_runs += 1
             submitted += int(vessel["submitted_instances"])
             resolved += int(vessel["resolved_instances"])

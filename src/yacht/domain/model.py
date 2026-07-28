@@ -82,10 +82,17 @@ class PreflightConfig:
 
 
 @dataclass(frozen=True)
+class BaselineReference:
+    logbook: Path
+    vessel: str
+
+
+@dataclass(frozen=True)
 class Comparison:
     name: str
     course: str
     vessels: tuple[str, ...]
+    baseline: BaselineReference | None = None
 
 
 @dataclass(frozen=True)

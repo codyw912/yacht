@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from yacht.courses.registry import course_adapter
-from yacht.domain.model import ConfigError, load_regatta
+from yacht.domain.model import ConfigError, Regatta, load_regatta
+from yacht.workflows.baseline import (
+    load_baseline_record,
+    verify_baseline_comparability,
+)
 from yacht.logbook.index import write_run_index
 from yacht.workflows.benchmark_grading_collection import (
     BENCHMARK_GRADING_COLLECTION_PATH,
@@ -67,6 +71,42 @@ def run_real_benchmark_eval(
     )
     _progress(progress, "course handoff: writing")
     course_handoff = write_course_handoff(config_path, logbook_dir)
+    if any(comparison.baseline is not None for comparison in regatta.comparisons):
+        _progress(progress, "recorded baselines: verifying comparability")
+        try:
+            _verify_recorded_baselines(regatta, course_handoff)
+        except ConfigError as error:
+            _progress(
+                progress,
+                "real benchmark eval blocked: recorded baseline not comparable",
+            )
+            return _write_summary(
+                logbook_dir,
+                _blocked_summary(
+                    regatta=regatta.name,
+                    course=regatta.course.name,
+                    course_handoff=course_handoff,
+                    agent_name=agent_name,
+                    surfaces=surfaces,
+                    failed_stage="baseline-verification",
+                    error=str(error),
+                    skipped=[
+                        "preflight",
+                        "task-attempts",
+                        "predictions-from-attempts",
+                        "runtime-instances",
+                        "benchmark-plan",
+                        "benchmark-launcher",
+                        "benchmark-launch",
+                        "benchmark-collect-grading",
+                        "benchmark-scorecard",
+                    ],
+                    logbook_dir=logbook_dir,
+                    next_steps=_baseline_failure_next_steps(str(error)),
+                ),
+                config_path=config_path,
+                comparisons=regatta.comparisons,
+            )
     _progress(progress, "preflight: running")
     preflight = run_preflight(
         config_path,
@@ -400,12 +440,12 @@ def _blocked_summary(
     regatta: str,
     course: str,
     course_handoff: dict[str, Any],
-    preflight: dict[str, Any],
-    preflight_evidence_report: dict[str, Any],
     agent_name: str,
     surfaces: dict[str, Any],
     skipped: list[str],
     logbook_dir: Path,
+    preflight: dict[str, Any] | None = None,
+    preflight_evidence_report: dict[str, Any] | None = None,
     summary_counts: dict[str, Any] | None = None,
     blocked_preflight: dict[str, Any] | None = None,
     attempts: dict[str, Any] | None = None,
@@ -428,11 +468,13 @@ def _blocked_summary(
         "agent": agent_name,
         "surfaces": surfaces,
         "course_handoff": course_handoff,
-        "preflight": preflight,
-        "preflight_evidence_report": preflight_evidence_report,
         "skipped": skipped,
         "artifacts": _artifacts(logbook_dir),
     }
+    if preflight is not None:
+        summary["preflight"] = preflight
+    if preflight_evidence_report is not None:
+        summary["preflight_evidence_report"] = preflight_evidence_report
     if summary_counts is not None:
         summary["summary"] = summary_counts
     if failed_stage is not None:
@@ -572,6 +614,47 @@ def _preflight_failure_next_steps(
                 "<regatta.toml>",
                 "--logbook",
                 str(logbook_dir),
+                "--workspace",
+                ".",
+            ],
+        ),
+    ]
+
+
+def _verify_recorded_baselines(
+    regatta: Regatta,
+    course_handoff: dict[str, Any],
+) -> None:
+    for comparison in regatta.comparisons:
+        if comparison.baseline is None:
+            continue
+        record = load_baseline_record(comparison.baseline)
+        verify_baseline_comparability(
+            regatta=regatta,
+            comparison=comparison,
+            current_handoff=course_handoff,
+            record=record,
+        )
+
+
+def _baseline_failure_next_steps(error: str) -> list[dict[str, object]]:
+    return [
+        command_step(
+            label="Rerun after resolving the baseline drift",
+            reason=(
+                f"The recorded baseline is not comparable to this config: {error}. "
+                "Either restore the config the baseline was recorded under, or "
+                "re-record the baseline by running the full comparison once "
+                "without comparisons.baseline."
+            ),
+            command=[
+                "uv",
+                "run",
+                "yacht",
+                "run",
+                "<regatta.toml>",
+                "--logbook",
+                "<new-logbook>",
                 "--workspace",
                 ".",
             ],

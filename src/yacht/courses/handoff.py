@@ -83,11 +83,17 @@ def _task_to_json(task: Task) -> dict[str, Any]:
 
 
 def _comparison_to_json(comparison: Comparison) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "name": comparison.name,
         "course": comparison.course,
         "vessels": list(comparison.vessels),
     }
+    if comparison.baseline is not None:
+        payload["baseline"] = {
+            "logbook": str(comparison.baseline.logbook),
+            "vessel": comparison.baseline.vessel,
+        }
+    return payload
 
 
 def _expected_outputs(adapter: CourseAdapter) -> dict[str, str]:

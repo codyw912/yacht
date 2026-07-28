@@ -13,7 +13,8 @@ from yacht.reports.statistics import (
     paired_resolution_statistics,
     wilson_interval,
 )
-from yacht.domain.model import ConfigError
+from yacht.domain.model import BaselineReference, ConfigError
+from yacht.workflows.baseline import BaselineRecord, load_baseline_record
 from yacht.contracts.schemas import (
     BENCHMARK_SCORECARD_SCHEMA,
     validate_benchmark_scorecard_document,
@@ -28,7 +29,13 @@ def write_benchmark_scorecard(logbook_dir: Path) -> dict[str, Any]:
     handoff = _load_handoff(logbook_dir)
     gradings = _load_gradings(logbook_dir, handoff)
     preflight_report = build_preflight_evidence_report(logbook_dir)
-    scorecard = _build_scorecard(handoff, gradings, preflight_report)
+    recorded_by_comparison = _recorded_baseline_vessels(handoff)
+    scorecard = _build_scorecard(
+        handoff,
+        gradings,
+        preflight_report,
+        recorded_by_comparison,
+    )
     scorecard["next_steps"] = _next_steps(logbook_dir, scorecard["comparisons"])
     validate_benchmark_scorecard_document(scorecard)
     _write_json(logbook_dir / BENCHMARK_SCORECARD_PATH, scorecard)
@@ -92,11 +99,17 @@ def _build_scorecard(
     handoff: dict[str, Any],
     gradings: list[dict[str, Any]],
     preflight_report: dict[str, Any],
+    recorded_by_comparison: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     measured_by_vessel = _measured_by_vessel(gradings)
     preflight_by_vessel = _preflight_by_comparison_and_vessel(preflight_report)
     comparisons = [
-        _comparison_to_json(comparison, measured_by_vessel, preflight_by_vessel)
+        _comparison_to_json(
+            comparison,
+            measured_by_vessel,
+            preflight_by_vessel,
+            recorded_by_comparison.get(str(comparison["name"])),
+        )
         for comparison in handoff["comparisons"]
     ]
     scorecard = {
@@ -125,28 +138,97 @@ def _measured_by_vessel(
             raise ConfigError(
                 f"multiple validated grading reports found for vessel {vessel_name}"
             )
-        native_report = grading["native_report"]
-        submitted_ids = set(native_report["submitted_ids"])
-        measured[vessel_name] = {
-            "status": "measured",
-            "submitted_instances": int(grading["submitted_instances"]),
-            "resolved_instances": int(grading["resolved_instances"]),
-            "resolution_rate": float(grading["resolution_rate"]),
-            "resolved_ids": [
-                instance_id
-                for instance_id in native_report["resolved_ids"]
-                if instance_id in submitted_ids
-            ],
-            "unresolved_ids": [
-                instance_id
-                for instance_id in native_report["unresolved_ids"]
-                if instance_id in submitted_ids
-            ],
-        }
-        task_diagnostics = _task_diagnostics(native_report, submitted_ids)
-        if task_diagnostics:
-            measured[vessel_name]["task_diagnostics"] = task_diagnostics
+        measured[vessel_name] = _measured_entry(grading)
     return measured
+
+
+def _measured_entry(grading: dict[str, Any]) -> dict[str, Any]:
+    native_report = grading["native_report"]
+    submitted_ids = set(native_report["submitted_ids"])
+    entry = {
+        "status": "measured",
+        "submitted_instances": int(grading["submitted_instances"]),
+        "resolved_instances": int(grading["resolved_instances"]),
+        "resolution_rate": float(grading["resolution_rate"]),
+        "resolved_ids": [
+            instance_id
+            for instance_id in native_report["resolved_ids"]
+            if instance_id in submitted_ids
+        ],
+        "unresolved_ids": [
+            instance_id
+            for instance_id in native_report["unresolved_ids"]
+            if instance_id in submitted_ids
+        ],
+    }
+    task_diagnostics = _task_diagnostics(native_report, submitted_ids)
+    if task_diagnostics:
+        entry["task_diagnostics"] = task_diagnostics
+    return entry
+
+
+def _recorded_baseline_vessels(
+    handoff: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Recorded vessel entries, keyed by comparison name, rebuilt from the
+    referenced baseline logbooks. The eval pipeline verified comparability
+    before anything ran; this stage only rehydrates the stored outcomes."""
+    adapter = evaluator_adapter(str(handoff["adapter"]["kind"]))
+    entries: dict[str, dict[str, Any]] = {}
+    for comparison in handoff["comparisons"]:
+        baseline = comparison.get("baseline")
+        if not isinstance(baseline, dict):
+            continue
+        record = load_baseline_record(
+            BaselineReference(
+                logbook=Path(str(baseline["logbook"])),
+                vessel=str(baseline["vessel"]),
+            )
+        )
+        if not record.grading_report_path.exists():
+            raise ConfigError(
+                "recorded baseline grading report not found: "
+                f"{record.grading_report_path}"
+            )
+        grading = _load_grading(
+            record.grading_report_path,
+            expected_schema=adapter.grading_schema,
+        )
+        entries[str(comparison["name"])] = {
+            "name": record.reference.vessel,
+            **_measured_entry(grading),
+            "status": "recorded",
+            "baseline_source": _baseline_source(record),
+        }
+    return entries
+
+
+def _baseline_source(record: BaselineRecord) -> dict[str, Any]:
+    source: dict[str, Any] = {
+        "logbook": str(record.reference.logbook),
+        "vessel": record.reference.vessel,
+    }
+    if record.run_date is not None:
+        source["run_date"] = record.run_date
+    vessel_scorecard = record.vessel_scorecard
+    if vessel_scorecard is None:
+        return source
+    provenance = vessel_scorecard.get("provenance")
+    if isinstance(provenance, dict):
+        source["provenance"] = provenance
+    usage = {
+        key: vessel_scorecard[key]
+        for key in (
+            "total_tokens",
+            "total_cost",
+            "total_duration_seconds",
+            "tool_call_count",
+        )
+        if isinstance(vessel_scorecard.get(key), int | float)
+    }
+    if usage:
+        source["usage"] = usage
+    return source
 
 
 def _preflight_by_comparison_and_vessel(
@@ -221,6 +303,7 @@ def _comparison_to_json(
     comparison: dict[str, Any],
     measured_by_vessel: dict[str, dict[str, Any]],
     preflight_by_vessel: dict[tuple[str, str], dict[str, Any]],
+    recorded_vessel: dict[str, Any] | None,
 ) -> dict[str, Any]:
     comparison_name = str(comparison["name"])
     vessels = [
@@ -232,6 +315,8 @@ def _comparison_to_json(
         )
         for vessel_name in comparison["vessels"]
     ]
+    if recorded_vessel is not None:
+        vessels.insert(0, recorded_vessel)
     payload = {
         "name": comparison_name,
         "course": str(comparison["course"]),
@@ -278,13 +363,14 @@ def _vessel_score(
 
 
 def _comparison_summary(vessels: list[dict[str, Any]]) -> dict[str, int]:
-    return {
+    live = [vessel for vessel in vessels if vessel["status"] != "recorded"]
+    summary = {
         "total_vessels": len(vessels),
         "eligible_vessels": sum(
-            1 for vessel in vessels if vessel["eligible_for_benchmark"]
+            1 for vessel in live if vessel["eligible_for_benchmark"]
         ),
         "blocked_vessels": sum(
-            1 for vessel in vessels if not vessel["eligible_for_benchmark"]
+            1 for vessel in live if not vessel["eligible_for_benchmark"]
         ),
         "measured_vessels": sum(
             1 for vessel in vessels if vessel["status"] == "measured"
@@ -293,12 +379,22 @@ def _comparison_summary(vessels: list[dict[str, Any]]) -> dict[str, int]:
             1 for vessel in vessels if vessel["status"] == "missing"
         ),
     }
+    recorded = len(vessels) - len(live)
+    if recorded:
+        summary["recorded_vessels"] = recorded
+    return summary
+
+
+MEASURED_STATUSES = {"measured", "recorded"}
 
 
 def _comparison_statistics(vessels: list[dict[str, Any]]) -> dict[str, Any] | None:
     baseline = vessels[0]
     challenger = vessels[1]
-    if baseline["status"] != "measured" or challenger["status"] != "measured":
+    if (
+        baseline["status"] not in MEASURED_STATUSES
+        or challenger["status"] not in MEASURED_STATUSES
+    ):
         return None
     statistics: dict[str, Any] = {
         "confidence_level": CONFIDENCE_LEVEL,
@@ -344,13 +440,19 @@ def _scorecard_summary(comparisons: list[dict[str, Any]]) -> dict[str, int]:
         "measured_vessels",
         "missing_result_vessels",
     )
-    return {
+    summary = {
         "total_comparisons": len(comparisons),
         **{
             key: sum(comparison["summary"][key] for comparison in comparisons)
             for key in summary_keys
         },
     }
+    recorded = sum(
+        comparison["summary"].get("recorded_vessels", 0) for comparison in comparisons
+    )
+    if recorded:
+        summary["recorded_vessels"] = recorded
+    return summary
 
 
 def _scorecard_status(comparisons: list[dict[str, Any]]) -> str:
@@ -359,7 +461,7 @@ def _scorecard_status(comparisons: list[dict[str, Any]]) -> str:
         for comparison in comparisons
         for vessel in comparison["vessels"]
     ]
-    if all(status == "measured" for status in statuses):
+    if all(status in MEASURED_STATUSES for status in statuses):
         return "complete"
     if any(status == "measured" for status in statuses):
         return "partial"

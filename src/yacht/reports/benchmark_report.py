@@ -411,8 +411,12 @@ def _notable_delta_row(
     delta = comparison["delta"]
     baseline_name = str(delta["baseline_vessel"])
     challenger_name = str(delta["challenger_vessel"])
+    versus = f"{comparison['name']}: {challenger_name} vs {baseline_name}"
+    recorded_note = _recorded_baseline_note(comparison)
+    if recorded_note is not None:
+        versus = f"{versus} [{recorded_note}]"
     parts = [
-        f"{comparison['name']}: {challenger_name} vs {baseline_name}",
+        versus,
         f"resolved {_signed_int(delta['resolved_instances_delta'])}",
         f"rate {_signed_float(delta['resolution_rate_delta'])}",
     ]
@@ -421,6 +425,7 @@ def _notable_delta_row(
         comparison_name=str(comparison["name"]),
         baseline_name=baseline_name,
         challenger_name=challenger_name,
+        recorded_usage=_recorded_baseline_usage(comparison),
     )
     if usage_delta is not None:
         parts.extend(
@@ -472,6 +477,7 @@ def _decision_summary_row(
         comparison_name=str(comparison["name"]),
         baseline_name=baseline_name,
         challenger_name=challenger_name,
+        recorded_usage=_recorded_baseline_usage(comparison),
     )
     confound = (
         " [outcome-confounded]"
@@ -571,6 +577,7 @@ def _usage_delta(
     comparison_name: str,
     baseline_name: str,
     challenger_name: str,
+    recorded_usage: dict[str, Any] | None = None,
 ) -> dict[str, int | float] | None:
     if task_attempt_scorecard is None:
         return None
@@ -581,6 +588,8 @@ def _usage_delta(
     }
     baseline = usage.get((comparison_name, baseline_name))
     challenger = usage.get((comparison_name, challenger_name))
+    if baseline is None:
+        baseline = recorded_usage
     if baseline is None or challenger is None:
         return None
     return {
@@ -644,9 +653,45 @@ def _signed_duration(value: float) -> str:
 def _preflight_reasons(comparison: dict[str, Any]) -> str:
     counts: dict[str, int] = {}
     for vessel in comparison["vessels"]:
-        reason = str(vessel["preflight_reason"])
+        reason = str(vessel.get("preflight_reason", "recorded-baseline"))
         counts[reason] = counts.get(reason, 0) + 1
     return ", ".join(f"{reason}:{count}" for reason, count in counts.items())
+
+
+def _recorded_baseline_vessel(comparison: dict[str, Any]) -> dict[str, Any] | None:
+    for vessel in comparison["vessels"]:
+        if vessel.get("status") == "recorded":
+            return vessel
+    return None
+
+
+def _recorded_baseline_note(comparison: dict[str, Any]) -> str | None:
+    vessel = _recorded_baseline_vessel(comparison)
+    if vessel is None:
+        return None
+    source = vessel.get("baseline_source", {})
+    run_date = source.get("run_date")
+    if isinstance(run_date, str) and run_date:
+        return f"recorded baseline from {run_date[:10]}"
+    return "recorded baseline, run date unknown"
+
+
+def _recorded_baseline_usage(comparison: dict[str, Any]) -> dict[str, Any] | None:
+    vessel = _recorded_baseline_vessel(comparison)
+    if vessel is None:
+        return None
+    usage = vessel.get("baseline_source", {}).get("usage")
+    if not isinstance(usage, dict):
+        return None
+    required = (
+        "total_tokens",
+        "total_cost",
+        "total_duration_seconds",
+        "tool_call_count",
+    )
+    if not all(isinstance(usage.get(key), int | float) for key in required):
+        return None
+    return usage
 
 
 def _outcome_lines(
@@ -736,7 +781,7 @@ def _outcome_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
         f"{vessel['submitted_instances']} | "
         f"{vessel['resolved_instances']} | "
         f"{_rate(vessel['resolution_rate'])} | "
-        f"{vessel['preflight_reason']}"
+        f"{vessel.get('preflight_reason', 'recorded-baseline')}"
     )
 
 
@@ -1302,7 +1347,12 @@ def _artifact_drilldown_rows(
                 comparison_name=comparison_name,
                 vessel_name=filtered_vessel_name,
                 artifacts={
-                    "preflight": str(vessel["preflight_artifact_path"]),
+                    "preflight": str(
+                        vessel.get(
+                            "preflight_artifact_path",
+                            "- (recorded baseline; preflight not run)",
+                        )
+                    ),
                     "attempts": _attempt_artifact(
                         attempts_by_vessel,
                         comparison_name,

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.domain.model import (
+    BaselineReference,
     Comparison,
     ConfigError,
     Course,
@@ -62,7 +63,7 @@ def load_regatta(config_path: Path) -> Regatta:
         )
         for vessel in raw["vessels"]
     )
-    comparisons = _parse_comparisons(raw, course.name)
+    comparisons = _parse_comparisons(raw, course.name, config_path.parent)
     _validate_artifact_path_names(course, vessels, comparisons)
     return Regatta(
         name=str(raw["regatta"]["name"]),
@@ -388,14 +389,35 @@ def _default_swe_bench_task(instance_id: str) -> Task:
     )
 
 
-def _parse_comparisons(raw: dict[str, Any], course_name: str) -> tuple[Comparison, ...]:
+def _parse_comparisons(
+    raw: dict[str, Any],
+    course_name: str,
+    config_dir: Path,
+) -> tuple[Comparison, ...]:
     return tuple(
         Comparison(
             name=str(comparison["name"]),
             course=str(comparison.get("course", course_name)),
             vessels=tuple(str(item) for item in comparison["vessels"]),
+            baseline=_parse_baseline(comparison, config_dir),
         )
         for comparison in raw.get("comparisons", ())
+    )
+
+
+def _parse_baseline(
+    comparison: dict[str, Any],
+    config_dir: Path,
+) -> BaselineReference | None:
+    baseline = comparison.get("baseline")
+    if not isinstance(baseline, dict):
+        return None
+    logbook = Path(str(baseline["logbook"]))
+    if not logbook.is_absolute():
+        logbook = config_dir / logbook
+    return BaselineReference(
+        logbook=logbook.resolve(),
+        vessel=str(baseline["vessel"]),
     )
 
 
