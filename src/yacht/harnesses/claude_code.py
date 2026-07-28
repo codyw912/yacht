@@ -382,8 +382,38 @@ def _tool_calls_from_events(events: list[dict[str, Any]]) -> tuple[str, ...]:
                 continue
             name = item.get("name")
             if isinstance(name, str) and name:
-                tool_calls.append(name)
+                tool_calls.append(_qualified_tool_call(name, item.get("input")))
     return tuple(dict.fromkeys(tool_calls))
+
+
+def _qualified_tool_call(name: str, tool_input: Any) -> str:
+    """A Skill invocation carries the skill's name in its input; record
+    it as Skill:<name> so a skill firing is observable by name."""
+    if name != "Skill" or not isinstance(tool_input, dict):
+        return name
+    skill = tool_input.get("skill")
+    if isinstance(skill, str) and skill:
+        return f"Skill:{skill}"
+    return name
+
+
+SESSION_TRANSCRIPT_EVIDENCE = "claude-code-session-transcript"
+
+
+def tool_calls_from_session_transcript(text: str) -> tuple[str, ...] | None:
+    """Observed tool calls from a preserved Claude Code session JSONL.
+
+    Returns None when the text is not recognizable session JSONL — an
+    unrecognized transcript degrades to unmeasured, never to a wrong
+    count. An empty tuple means the transcript was recognized and no
+    tool was called.
+    """
+    events = _jsonl_events(text)
+    if not events:
+        return None
+    if not all(isinstance(event.get("type"), str) for event in events):
+        return None
+    return _tool_calls_from_events(events)
 
 
 def _tool_calls_from_machine_evidence(

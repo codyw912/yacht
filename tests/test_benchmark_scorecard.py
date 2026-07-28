@@ -354,9 +354,9 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "Usage: unavailable (missing task-attempt-scorecard.json)",
                         "",
                         "Decision summary:",
-                        "comparison | resolution | tokens | cost | duration",
+                        "comparison | resolution | tokens | cost | duration | delivery",
                         "pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
-                        "tokens unavailable | cost unavailable | duration unavailable",
+                        "tokens unavailable | cost unavailable | duration unavailable | delivery -",
                         f"Artifacts: logbook={logbook_dir} | "
                         f"scorecard={logbook_dir / 'benchmark-scorecard.json'} | "
                         f"attempts={logbook_dir / 'task-attempt-scorecard.json'} | "
@@ -444,7 +444,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "## Decision summary",
                         "",
                         "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
-                        "tokens unavailable | cost unavailable | duration unavailable",
+                        "tokens unavailable | cost unavailable | duration unavailable | delivery -",
                         "",
                         "## Notable deltas",
                         "",
@@ -859,7 +859,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "## Decision summary",
                         "",
                         "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
-                        "tokens unavailable | cost unavailable | duration unavailable",
+                        "tokens unavailable | cost unavailable | duration unavailable | delivery -",
                         "",
                         "## Notable deltas",
                         "",

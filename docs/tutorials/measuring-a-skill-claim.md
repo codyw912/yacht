@@ -94,6 +94,31 @@ skill-vs-baseline | difference (CI +0.354..+1.046) | not distinguishable (CI -85
   value is turning *sometimes* into *always* — which is exactly what
   the discordant count measures.
 
+## Was the skill actually invoked?
+
+A skill only has an effect if the agent consults it, and outcomes alone
+cannot tell "the skill is useless" apart from "the skill never fired"
+(ADR 0019). yacht reads the answer from the trial transcripts Harbor
+already preserves: each attempt records its observed tool calls (a
+Claude Code skill invocation appears as `Skill:<name>`), the
+task-attempt scorecard reports the delivery rate per tool — invocations
+over attempts, with a Wilson interval, over all attempts and over
+completed attempts separately — and the report's decision summary
+carries a delivery column:
+
+```
+comparison | resolution | ... | delivery
+skill-vs-baseline | resolution better (...) | ... | delivered (team-conventions 10/10)
+```
+
+A comparison whose treatment skill never fired is labeled
+`NOT DELIVERED` — whatever the resolution delta says, it cannot be
+attributed to the skill. The two denominators are both worth reading:
+a skill that fires in every completed attempt but rarely overall is
+telling you that failing to fire and failing to finish travel
+together. Attempts with no preserved trajectory evidence are labeled
+unmeasured rather than counted either way.
+
 ## Why this beats a pass-rate delta
 
 - Provenance pins the causality: identical harness version, model, and

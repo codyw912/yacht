@@ -819,6 +819,28 @@ def validate_task_attempt_document(document: dict[str, Any]) -> None:
     _validate_task_attempt_agent(document["agent"])
     _validate_task_attempt_metrics(document["metrics"])
     _validate_redacted_secret_refs(document["secret_refs"], "secret_refs")
+    if "tool_expectations" in document:
+        _validate_tool_expectations(document["tool_expectations"])
+
+
+def _validate_tool_expectations(value: Any) -> None:
+    expectations = _require_list(value, "tool_expectations")
+    for index, expectation_value in enumerate(expectations):
+        path = f"tool_expectations[{index}]"
+        expectation = _require_object(expectation_value, path)
+        _require_keys(expectation, ("tool", "kind", "expected_calls"), path)
+        _require_non_empty_string(expectation.get("tool"), f"{path}.tool")
+        _require_non_empty_string(expectation.get("kind"), f"{path}.kind")
+        expected_calls = _require_list(
+            expectation.get("expected_calls"),
+            f"{path}.expected_calls",
+        )
+        if not expected_calls:
+            raise SchemaValidationError(
+                f"{path}.expected_calls must contain at least one call"
+            )
+        for call in expected_calls:
+            _require_non_empty_string(call, f"{path}.expected_calls")
 
 
 def validate_task_attempt_scorecard_document(document: dict[str, Any]) -> None:
@@ -1173,7 +1195,69 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
             vessel.get("tool_call_counts"),
             f"{path}.tool_call_counts",
         )
+    if "tool_invocations" in vessel:
+        _validate_tool_invocations(
+            vessel.get("tool_invocations"),
+            f"{path}.tool_invocations",
+        )
     _require_string_list(vessel.get("artifact_paths"), f"{path}.artifact_paths")
+
+
+def _validate_tool_invocations(value: Any, path: str) -> None:
+    entries = _require_list(value, path)
+    for index, entry_value in enumerate(entries):
+        entry_path = f"{path}[{index}]"
+        entry = _require_object(entry_value, entry_path)
+        _require_keys(
+            entry,
+            (
+                "tool",
+                "kind",
+                "expected_calls",
+                "status",
+                "attempts",
+                "measured_attempts",
+            ),
+            entry_path,
+        )
+        _require_non_empty_string(entry.get("tool"), f"{entry_path}.tool")
+        _require_non_empty_string(entry.get("kind"), f"{entry_path}.kind")
+        _require_string_list(
+            entry.get("expected_calls"),
+            f"{entry_path}.expected_calls",
+        )
+        _require_allowed_value(
+            entry.get("status"),
+            {"measured", "unmeasured"},
+            f"{entry_path}.status",
+        )
+        for key in ("attempts", "measured_attempts"):
+            _require_non_negative_int(entry.get(key), f"{entry_path}.{key}")
+        if entry.get("status") == "unmeasured":
+            continue
+        _require_non_negative_int(
+            entry.get("invoked_attempts"),
+            f"{entry_path}.invoked_attempts",
+        )
+        _require_non_negative_number(
+            entry.get("invocation_rate"),
+            f"{entry_path}.invocation_rate",
+        )
+        _validate_rate_interval(
+            entry.get("invocation_interval"),
+            f"{entry_path}.invocation_interval",
+        )
+        if "completed_attempts" in entry:
+            for key in ("completed_attempts", "invoked_completed_attempts"):
+                _require_non_negative_int(entry.get(key), f"{entry_path}.{key}")
+            _require_non_negative_number(
+                entry.get("completed_invocation_rate"),
+                f"{entry_path}.completed_invocation_rate",
+            )
+            _validate_rate_interval(
+                entry.get("completed_invocation_interval"),
+                f"{entry_path}.completed_invocation_interval",
+            )
 
 
 def _validate_task_attempt_scorecard_summary(value: Any, path: str) -> None:
@@ -1387,6 +1471,11 @@ def _validate_task_attempt_agent(value: Any) -> None:
         raise SchemaValidationError("agent.response must be a string")
     _require_string_list(agent.get("tool_calls"), "agent.tool_calls")
     _require_non_empty_string(agent.get("transcript_path"), "agent.transcript_path")
+    if "tool_call_evidence" in agent:
+        _require_non_empty_string(
+            agent.get("tool_call_evidence"),
+            "agent.tool_call_evidence",
+        )
     if "machine_evidence" in agent:
         _validate_task_attempt_machine_evidence(agent["machine_evidence"])
 
@@ -1671,6 +1760,11 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
                 comparison["statistics"],
                 comparison_path,
             )
+        if "delivery" in comparison:
+            _validate_benchmark_scorecard_delivery(
+                comparison["delivery"],
+                comparison_path,
+            )
         vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
         if len(vessels) < 2:
             raise SchemaValidationError(
@@ -1756,6 +1850,18 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
             vessels,
             comparison_path,
         )
+
+
+def _validate_benchmark_scorecard_delivery(value: Any, path: str) -> None:
+    delivery = _require_object(value, f"{path}.delivery")
+    _require_keys(delivery, ("vessel", "status", "tools"), f"{path}.delivery")
+    _require_non_empty_string(delivery.get("vessel"), f"{path}.delivery.vessel")
+    _require_allowed_value(
+        delivery.get("status"),
+        {"delivered", "not-delivered", "unmeasured"},
+        f"{path}.delivery.status",
+    )
+    _validate_tool_invocations(delivery.get("tools"), f"{path}.delivery.tools")
 
 
 def _validate_benchmark_scorecard_baseline_source(value: Any, path: str) -> None:
