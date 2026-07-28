@@ -73,7 +73,7 @@ PREFLIGHT_EVIDENCE_REPORT_VESSEL_STATUSES = {
     "unsupported-rigging-capability",
 }
 BENCHMARK_SCORECARD_STATUSES = {"complete", "partial", "empty"}
-BENCHMARK_SCORECARD_VESSEL_STATUSES = {"measured", "missing"}
+BENCHMARK_SCORECARD_VESSEL_STATUSES = {"measured", "missing", "recorded"}
 BENCHMARK_SCORECARD_SUMMARY_KEYS = (
     "total_vessels",
     "eligible_vessels",
@@ -1494,12 +1494,31 @@ def _validate_course_handoff_comparisons(value: Any) -> None:
             comparison.get("vessels"),
             f"comparisons[{index}].vessels",
         )
-        if len(vessels) < 2:
-            raise SchemaValidationError(
-                f"comparisons[{index}].vessels must contain at least two "
-                "vessels; for a single-setup smoke, list the same "
-                "configuration twice under two vessel names"
+        baseline = comparison.get("baseline")
+        if baseline is None:
+            if len(vessels) < 2:
+                raise SchemaValidationError(
+                    f"comparisons[{index}].vessels must contain at least two "
+                    "vessels; to compare one live vessel against a stored "
+                    "run, reference it with comparisons.baseline"
+                )
+        else:
+            baseline_path = f"comparisons[{index}].baseline"
+            baseline_object = _require_object(baseline, baseline_path)
+            _require_keys(baseline_object, ("logbook", "vessel"), baseline_path)
+            _require_non_empty_string(
+                baseline_object.get("logbook"),
+                f"{baseline_path}.logbook",
             )
+            _require_non_empty_string(
+                baseline_object.get("vessel"),
+                f"{baseline_path}.vessel",
+            )
+            if len(vessels) != 1:
+                raise SchemaValidationError(
+                    f"comparisons[{index}].vessels must contain exactly one "
+                    "live vessel when comparisons.baseline is set"
+                )
         for vessel in vessels:
             _require_non_empty_string(vessel, f"comparisons[{index}].vessels")
 
@@ -1668,10 +1687,6 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
                     "submitted_instances",
                     "resolved_instances",
                     "resolution_rate",
-                    "eligible_for_benchmark",
-                    "preflight_status",
-                    "preflight_reason",
-                    "preflight_artifact_path",
                 ),
                 vessel_path,
             )
@@ -1700,6 +1715,22 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
                     vessel["task_diagnostics"],
                     f"{vessel_path}.task_diagnostics",
                 )
+            if vessel.get("status") == "recorded":
+                _validate_benchmark_scorecard_baseline_source(
+                    vessel.get("baseline_source"),
+                    f"{vessel_path}.baseline_source",
+                )
+                continue
+            _require_keys(
+                vessel,
+                (
+                    "eligible_for_benchmark",
+                    "preflight_status",
+                    "preflight_reason",
+                    "preflight_artifact_path",
+                ),
+                vessel_path,
+            )
             if not isinstance(vessel.get("eligible_for_benchmark"), bool):
                 raise SchemaValidationError(
                     f"{vessel_path}.eligible_for_benchmark must be a boolean"
@@ -1725,6 +1756,25 @@ def _validate_benchmark_scorecard_comparisons(value: Any) -> None:
             vessels,
             comparison_path,
         )
+
+
+def _validate_benchmark_scorecard_baseline_source(value: Any, path: str) -> None:
+    baseline_source = _require_object(value, path)
+    _require_keys(baseline_source, ("logbook", "vessel"), path)
+    _require_non_empty_string(baseline_source.get("logbook"), f"{path}.logbook")
+    _require_non_empty_string(baseline_source.get("vessel"), f"{path}.vessel")
+    if "run_date" in baseline_source:
+        _require_non_empty_string(
+            baseline_source["run_date"],
+            f"{path}.run_date",
+        )
+    if "provenance" in baseline_source:
+        _require_object(baseline_source["provenance"], f"{path}.provenance")
+    if "usage" in baseline_source:
+        usage = _require_object(baseline_source["usage"], f"{path}.usage")
+        for key, usage_value in usage.items():
+            if not isinstance(usage_value, int | float) or usage_value < 0:
+                raise SchemaValidationError(f"{path}.usage.{key} must be a number >= 0")
 
 
 def _validate_benchmark_scorecard_task_diagnostics(value: Any, path: str) -> None:
@@ -1834,13 +1884,14 @@ def _validate_benchmark_scorecard_summary_matches_vessels(
     vessels: list[Any],
     path: str,
 ) -> None:
+    live = [vessel for vessel in vessels if vessel["status"] != "recorded"]
     expected = {
         "total_vessels": len(vessels),
         "eligible_vessels": sum(
-            1 for vessel in vessels if vessel["eligible_for_benchmark"]
+            1 for vessel in live if vessel["eligible_for_benchmark"]
         ),
         "blocked_vessels": sum(
-            1 for vessel in vessels if not vessel["eligible_for_benchmark"]
+            1 for vessel in live if not vessel["eligible_for_benchmark"]
         ),
         "measured_vessels": sum(
             1 for vessel in vessels if vessel["status"] == "measured"
@@ -1849,6 +1900,9 @@ def _validate_benchmark_scorecard_summary_matches_vessels(
             1 for vessel in vessels if vessel["status"] == "missing"
         ),
     }
+    recorded = len(vessels) - len(live)
+    if recorded:
+        expected["recorded_vessels"] = recorded
     _validate_benchmark_scorecard_summary_matches_expected(
         summary,
         expected,
@@ -3101,18 +3155,57 @@ def _validate_comparisons(
             comparison.get("vessels"),
             f"comparisons[{index}].vessels",
         )
-        if len(vessels) < 2:
-            raise SchemaValidationError(
-                f"comparisons[{index}].vessels must contain at least two "
-                "vessels; for a single-setup smoke, list the same "
-                "configuration twice under two vessel names"
-            )
+        baseline = comparison.get("baseline")
+        if baseline is None:
+            if len(vessels) < 2:
+                raise SchemaValidationError(
+                    f"comparisons[{index}].vessels must contain at least two "
+                    "vessels; to compare one live vessel against a stored "
+                    "run, reference it with comparisons.baseline"
+                )
+        else:
+            if len(vessels) != 1:
+                raise SchemaValidationError(
+                    f"comparisons[{index}].vessels must contain exactly one "
+                    "live vessel when comparisons.baseline is set"
+                )
         for vessel in vessels:
             _require_non_empty_string(vessel, f"comparisons[{index}].vessels")
             if vessel not in vessel_names:
                 raise SchemaValidationError(
                     f"comparisons[{index}].vessels references undefined vessel {vessel}"
                 )
+        if baseline is not None:
+            _validate_comparison_baseline(
+                baseline,
+                vessels,
+                vessel_names,
+                f"comparisons[{index}].baseline",
+            )
+
+
+def _validate_comparison_baseline(
+    baseline: Any,
+    vessels: list[Any],
+    vessel_names: set[str],
+    path: str,
+) -> None:
+    baseline_object = _require_object(baseline, path)
+    _require_keys(baseline_object, ("logbook", "vessel"), path)
+    _require_non_empty_string(baseline_object.get("logbook"), f"{path}.logbook")
+    baseline_vessel = baseline_object.get("vessel")
+    _require_non_empty_string(baseline_vessel, f"{path}.vessel")
+    if baseline_vessel not in vessel_names:
+        raise SchemaValidationError(
+            f"{path}.vessel references undefined vessel {baseline_vessel}; "
+            "the baseline vessel must be declared so its recorded provenance "
+            "can be checked against the config"
+        )
+    if baseline_vessel in vessels:
+        raise SchemaValidationError(
+            f"{path}.vessel must differ from the live vessel; declare the "
+            "recorded configuration under its own vessel name"
+        )
 
 
 def _optional_named_table(document: dict[str, Any], key: str) -> dict[str, Any]:
