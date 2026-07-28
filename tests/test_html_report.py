@@ -588,3 +588,49 @@ class DecisionMetricsParityTests(unittest.TestCase):
 
         self.assertIn("Delivery", html)
         self.assertIn("team-conventions: 1/1", html)
+
+    def test_recorded_baseline_usage_feeds_usage_chart(self) -> None:
+        scorecard = _scorecard()
+        recorded = scorecard["comparisons"][0]["vessels"][0]
+        recorded["status"] = "recorded"
+        for key in (
+            "preflight_status",
+            "preflight_reason",
+            "preflight_artifact_path",
+            "eligible_for_benchmark",
+        ):
+            recorded.pop(key)
+        recorded["baseline_source"] = {
+            "logbook": "/tmp/recorded",
+            "vessel": "pi-baseline",
+            "usage": {
+                "total_tokens": 92153,
+                "total_cost": 0.022,
+                "total_duration_seconds": 52.4,
+                "tool_call_count": 3,
+            },
+        }
+        attempts = _attempts()
+        attempts["comparisons"][0]["vessels"] = attempts["comparisons"][0]["vessels"][
+            1:
+        ]
+
+        html = render_benchmark_html(
+            scorecard=scorecard,
+            task_attempt_scorecard=attempts,
+            logbook_dir=Path("logbook"),
+        )
+
+        chart = html[html.index("<svg") : html.index("</svg>")]
+        self.assertIn("pi-baseline", chart)
+        self.assertIn("92,153", chart)
+
+    def test_tool_call_headers_keep_qualified_names_lowercase(self) -> None:
+        html = render_benchmark_html(
+            scorecard=_scorecard(),
+            task_attempt_scorecard=_attempts(),
+            logbook_dir=Path("logbook"),
+        )
+
+        self.assertIn('<th class="num"><code>newtool</code></th>', html)
+        self.assertIn("th code { text-transform: none;", html)
