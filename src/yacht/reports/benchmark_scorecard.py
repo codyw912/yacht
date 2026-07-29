@@ -10,7 +10,9 @@ from yacht.reports.next_steps import command_step
 from yacht.reports.preflight_evidence import build_preflight_evidence_report
 from yacht.reports.statistics import (
     CONFIDENCE_LEVEL,
+    GRADE_EVIDENCE,
     paired_resolution_statistics,
+    repetition_budget,
     wilson_interval,
 )
 from yacht.domain.model import BaselineReference, ConfigError
@@ -481,7 +483,28 @@ def _comparison_statistics(vessels: list[dict[str, Any]]) -> dict[str, Any] | No
             challenger_unresolved_ids=list(challenger.get("unresolved_ids", [])),
         ),
     }
+    guidance = _repetition_guidance(statistics["paired"])
+    if guidance is not None:
+        statistics["repetition_guidance"] = guidance
     return statistics
+
+
+def _repetition_guidance(paired: dict[str, Any]) -> dict[str, Any] | None:
+    """Budget guidance, only where a difference was not demonstrated.
+
+    A comparison that already found evidence does not need a bigger
+    next run, and attaching a budget to it would read as an invitation
+    to keep going until the number improves.
+    """
+    if paired.get("grade") == GRADE_EVIDENCE:
+        return None
+    discordant = int(paired.get("discordant_baseline_only", 0)) + int(
+        paired.get("discordant_challenger_only", 0)
+    )
+    return repetition_budget(
+        discordant_pairs=discordant,
+        shared_tasks=int(paired.get("shared_tasks", 0)),
+    )
 
 
 def _comparison_delta(vessels: list[dict[str, Any]]) -> dict[str, int | float | str]:

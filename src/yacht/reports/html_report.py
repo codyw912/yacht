@@ -414,11 +414,68 @@ def _comparison_sections(
                 "used, not just installed.</p>"
             )
             sections.append(tool_table)
+    budget_table = _repetition_budget_table(comparison)
+    if budget_table:
+        sections.append("<h2>Repetition budget</h2>")
+        sections.append(
+            '<p class="muted">No difference was demonstrated. These are sizes '
+            "for a fresh run at 80% power — pick an assumed effect size and "
+            "commit to that budget in advance. Adding repetitions here and "
+            "re-testing until p&lt;0.05 is optional stopping, and the p-value "
+            "would no longer mean 0.05.</p>"
+        )
+        sections.append(budget_table)
     task_table = _task_outcomes(comparison)
     if task_table:
         sections.append("<h2>Task outcomes</h2>")
         sections.append(task_table)
     return sections
+
+
+def _repetition_budget_table(comparison: dict[str, Any]) -> str:
+    statistics = comparison.get("statistics")
+    if not isinstance(statistics, dict):
+        return ""
+    guidance = statistics.get("repetition_guidance")
+    if not isinstance(guidance, dict):
+        return ""
+    rows = []
+    for plan in guidance.get("plans", []):
+        pairs = plan.get("discordant_pairs_needed")
+        pairs_cell = (
+            '<span class="muted">unreachable</span>' if pairs is None else str(pairs)
+        )
+        rows.append(
+            f"<tr><td>challenger wins "
+            f"{float(plan['assumed_favored_fraction']):.0%} of discordant pairs"
+            f'</td><td class="num">{pairs_cell}</td>'
+            f'<td class="num">{_planned_repetitions_cell(plan)}</td></tr>'
+        )
+    if not rows:
+        return ""
+    rate = float(guidance.get("observed_discordance_rate", 0.0))
+    return (
+        "<table><tr><th>Assumed effect size</th>"
+        '<th class="num">Discordant pairs needed</th>'
+        f'<th class="num">Repetitions</th></tr>{"".join(rows)}</table>'
+        f'<p class="muted">Repetition counts scale the pair requirement by '
+        f"the observed discordance rate ({rate:.2f} per task), which is "
+        "itself an estimate; the range spans its 95% interval.</p>"
+    )
+
+
+def _planned_repetitions_cell(plan: dict[str, Any]) -> str:
+    repetitions = plan.get("repetitions")
+    if repetitions is None:
+        return '<span class="muted">not estimable</span>'
+    bounds = plan.get("repetitions_range")
+    if not isinstance(bounds, dict):
+        return str(repetitions)
+    high = bounds.get("high")
+    high_label = "unbounded" if high is None else str(high)
+    return (
+        f'{repetitions} <span class="muted">({bounds.get("low")}–{high_label})</span>'
+    )
 
 
 def _verdict_card(comparison: dict[str, Any]) -> str:

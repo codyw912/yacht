@@ -58,6 +58,16 @@ repetition contributes at most one discordant pair — 5 repetitions
 cannot escape "insufficient evidence" no matter how well the skill
 performs.
 
+Six is the floor, not a budget. Reports print a **repetition budget**
+(ADR 0021) that turns the floor into a number to commit to: for 80%
+power you need 12 discordant pairs if the skill wins 90% of them, 20 at
+80%, and 49 at 70% — scaled into repetitions by the discordance rate
+your run observed. Pick an assumed effect size, budget that many
+repetitions in advance, and run them. What the report will not tell you
+to do is add repetitions to a finished comparison and re-test until it
+crosses p<0.05: that is optional stopping, and it inflates the
+false-positive rate well past the 5% the p-value claims.
+
 ## Read the verdict
 
 The real run produced:
@@ -134,5 +144,5 @@ To measure your own skill: replace the task directory with tasks that
 exercise what your skill claims to improve (write the oracle solution
 and validate it at zero token cost first — see the
 [custom evals reference](../reference/custom-evals.md)), put your skill
-content in the rigging step, and pick a repetition count that gives the
-sign test a chance.
+content in the rigging step, and take the repetition count from the
+budget the report prints rather than guessing.

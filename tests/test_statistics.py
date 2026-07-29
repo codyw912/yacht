@@ -4,11 +4,15 @@ from yacht.reports.statistics import (
     GRADE_EVIDENCE,
     GRADE_INSUFFICIENT,
     GRADE_NOT_DISTINGUISHABLE,
+    POWER_TARGET,
     interval_grade,
+    min_discordant_for_power,
     min_significant_discordant,
     paired_resolution_statistics,
+    repetition_budget,
     sign_test_grade,
     sign_test_p_value,
+    sign_test_power,
     t_interval,
     wilson_interval,
 )
@@ -123,3 +127,54 @@ class PairedResolutionStatisticsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RepetitionBudgetTests(unittest.TestCase):
+    def test_power_rises_with_more_discordant_pairs(self) -> None:
+        self.assertEqual(sign_test_power(0, 0.9), 0.0)
+        low = sign_test_power(6, 0.9)
+        high = sign_test_power(20, 0.9)
+        self.assertGreater(high, low)
+        self.assertLessEqual(high, 1.0)
+
+    def test_a_coin_flip_effect_never_reaches_power(self) -> None:
+        # At q=0.5 the alternative is the null; power stays at alpha.
+        self.assertLess(sign_test_power(30, 0.5), 0.1)
+        self.assertIsNone(min_discordant_for_power(0.5))
+
+    def test_pairs_needed_grows_as_the_assumed_effect_shrinks(self) -> None:
+        strong = min_discordant_for_power(0.9)
+        moderate = min_discordant_for_power(0.8)
+        weak = min_discordant_for_power(0.7)
+        assert strong is not None and moderate is not None and weak is not None
+        self.assertLess(strong, moderate)
+        self.assertLess(moderate, weak)
+        self.assertGreaterEqual(strong, min_significant_discordant())
+        self.assertGreaterEqual(sign_test_power(strong, 0.9), POWER_TARGET)
+
+    def test_budget_scales_repetitions_by_the_observed_rate(self) -> None:
+        budget = repetition_budget(discordant_pairs=7, shared_tasks=10)
+
+        assert budget is not None
+        self.assertEqual(budget["power_target"], POWER_TARGET)
+        self.assertEqual(budget["observed_discordance_rate"], 0.7)
+        self.assertIn("fresh run", budget["applies_to"])
+        plan = budget["plans"][0]
+        self.assertEqual(plan["assumed_favored_fraction"], 0.9)
+        # 12 pairs at 7 discordant per repetition.
+        self.assertEqual(plan["discordant_pairs_needed"], 12)
+        self.assertEqual(plan["repetitions"], 2)
+        bounds = plan["repetitions_range"]
+        self.assertLessEqual(bounds["low"], plan["repetitions"])
+        self.assertGreaterEqual(bounds["high"], plan["repetitions"])
+
+    def test_budget_is_not_estimable_without_discordant_tasks(self) -> None:
+        budget = repetition_budget(discordant_pairs=0, shared_tasks=8)
+
+        assert budget is not None
+        self.assertEqual(budget["observed_discordance_rate"], 0.0)
+        for plan in budget["plans"]:
+            self.assertIsNone(plan["repetitions"])
+
+    def test_budget_needs_shared_tasks(self) -> None:
+        self.assertIsNone(repetition_budget(discordant_pairs=0, shared_tasks=0))

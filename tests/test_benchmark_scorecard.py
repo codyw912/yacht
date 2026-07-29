@@ -8,7 +8,7 @@ from pathlib import Path
 
 from tests.preflight_artifacts import write_preflight_artifact
 from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
-from yacht.reports.statistics import wilson_interval
+from yacht.reports.statistics import repetition_budget, wilson_interval
 from yacht.cli import main
 from yacht.domain.model import ConfigError
 from yacht.courses.swe_bench.grading import write_swe_bench_grading_report
@@ -168,6 +168,10 @@ class BenchmarkScorecardTests(unittest.TestCase):
                                 "p_value": 1.0,
                                 "min_significant_discordant": 6,
                             },
+                            "repetition_guidance": repetition_budget(
+                                discordant_pairs=1,
+                                shared_tasks=1,
+                            ),
                         },
                         "vessels": [
                             {
@@ -364,6 +368,17 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "grading="
                         f"{logbook_dir / 'benchmark-grading-collection.json'}",
                         "",
+                        "Repetition budget (80% power, no difference demonstrated yet):",
+                        "comparison | assumed split | discordant pairs needed | repetitions",
+                        "pi-vs-pi-fff | challenger wins 90% of discordant | 12 | "
+                        "12 (12\u201359 across rate uncertainty)",
+                        "pi-vs-pi-fff | challenger wins 80% of discordant | 20 | "
+                        "20 (20\u201397 across rate uncertainty)",
+                        "pi-vs-pi-fff | challenger wins 70% of discordant | 49 | "
+                        "49 (49\u2013238 across rate uncertainty)",
+                        "",
+                        "Budget a fresh run at one of these sizes and commit to it. Adding repetitions to this comparison and re-testing until it crosses p<0.05 is optional stopping: the p-value would no longer mean 0.05.",
+                        "",
                         "Notable deltas:",
                         "pi-vs-pi-fff: pi-plus-fff vs pi-baseline | resolved +1 | "
                         "rate +1.000",
@@ -445,6 +460,21 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "",
                         "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
                         "tokens unavailable | cost unavailable | duration unavailable | delivery -",
+                        "",
+                        "## Repetition budget",
+                        "",
+                        "80% power, for comparisons where no difference was demonstrated.",
+                        "",
+                        "| Comparison | Assumed split | Discordant pairs needed | Repetitions |",
+                        "| --- | --- | ---: | ---: |",
+                        "| pi-vs-pi-fff | challenger wins 90% of discordant | 12 | "
+                        "12 (12\u201359 across rate uncertainty) |",
+                        "| pi-vs-pi-fff | challenger wins 80% of discordant | 20 | "
+                        "20 (20\u201397 across rate uncertainty) |",
+                        "| pi-vs-pi-fff | challenger wins 70% of discordant | 49 | "
+                        "49 (49\u2013238 across rate uncertainty) |",
+                        "",
+                        "_Budget a fresh run at one of these sizes and commit to it. Adding repetitions to this comparison and re-testing until it crosses p<0.05 is optional stopping: the p-value would no longer mean 0.05._",
                         "",
                         "## Notable deltas",
                         "",
@@ -860,6 +890,21 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "",
                         "- pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
                         "tokens unavailable | cost unavailable | duration unavailable | delivery -",
+                        "",
+                        "## Repetition budget",
+                        "",
+                        "80% power, for comparisons where no difference was demonstrated.",
+                        "",
+                        "| Comparison | Assumed split | Discordant pairs needed | Repetitions |",
+                        "| --- | --- | ---: | ---: |",
+                        "| pi-vs-pi-fff | challenger wins 90% of discordant | 12 | "
+                        "12 (12\u201359 across rate uncertainty) |",
+                        "| pi-vs-pi-fff | challenger wins 80% of discordant | 20 | "
+                        "20 (20\u201397 across rate uncertainty) |",
+                        "| pi-vs-pi-fff | challenger wins 70% of discordant | 49 | "
+                        "49 (49\u2013238 across rate uncertainty) |",
+                        "",
+                        "_Budget a fresh run at one of these sizes and commit to it. Adding repetitions to this comparison and re-testing until it crosses p<0.05 is optional stopping: the p-value would no longer mean 0.05._",
                         "",
                         "## Notable deltas",
                         "",
