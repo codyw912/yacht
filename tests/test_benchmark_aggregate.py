@@ -155,7 +155,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "min": 1100,
                         "max": 1100,
                         "interval": {"mean": 1100.0, "low": 1100.0, "high": 1100.0},
-                        "grade": "evidence-of-difference",
+                        "grade": "insufficient-evidence",
                     },
                     "cost_delta": {
                         "runs": 2,
@@ -164,7 +164,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "min": 0.0011,
                         "max": 0.0011,
                         "interval": {"mean": 0.0011, "low": 0.0011, "high": 0.0011},
-                        "grade": "evidence-of-difference",
+                        "grade": "insufficient-evidence",
                     },
                     "duration_seconds_delta": {
                         "runs": 2,
@@ -173,7 +173,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "min": 1.1,
                         "max": 1.1,
                         "interval": {"mean": 1.1, "low": 1.1, "high": 1.1},
-                        "grade": "evidence-of-difference",
+                        "grade": "insufficient-evidence",
                     },
                     "tool_calls_delta": {
                         "runs": 2,
@@ -182,7 +182,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "min": 1,
                         "max": 1,
                         "interval": {"mean": 1.0, "low": 1.0, "high": 1.0},
-                        "grade": "evidence-of-difference",
+                        "grade": "insufficient-evidence",
                     },
                 },
             )
@@ -881,3 +881,93 @@ def _remove_stdev(statistics: dict[str, object]) -> None:
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnmeasuredRunTests(unittest.TestCase):
+    def test_a_missing_vessel_is_not_counted_as_a_zero_percent_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _write_logbook(root / "run-1", baseline_resolved=1, fff_resolved=1)
+            second = _write_logbook(root / "run-2", baseline_resolved=1, fff_resolved=1)
+            crashed = _write_logbook(
+                root / "run-3", baseline_resolved=1, fff_resolved=1
+            )
+            _make_vessel_missing(crashed, "pi-plus-fff")
+
+            aggregate = build_benchmark_aggregate([first, second, crashed])
+
+            challenger = _vessel(aggregate, "pi-plus-fff")
+            rate = challenger["statistics"]["resolution_rate"]
+            # The vessel resolved 1/1 in both runs that produced a result;
+            # the crashed run is an absence, not an observation of zero.
+            self.assertEqual(rate["runs"], 2)
+            self.assertEqual(rate["mean"], 1.0)
+            self.assertEqual(rate["min"], 1.0)
+
+    def test_deltas_skip_runs_where_a_side_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _write_logbook(root / "run-1", baseline_resolved=0, fff_resolved=1)
+            crashed = _write_logbook(
+                root / "run-2", baseline_resolved=0, fff_resolved=1
+            )
+            _make_vessel_missing(crashed, "pi-plus-fff")
+
+            aggregate = build_benchmark_aggregate([first, crashed])
+
+            stats = aggregate["comparisons"][0]["delta_statistics"]
+            # Only one run has both sides; a delta needs a pair.
+            self.assertEqual(stats["resolution_rate_delta"]["runs"], 1)
+
+    def test_no_pairable_run_yields_no_delta_sample(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = _write_logbook(root / "run-1", baseline_resolved=1, fff_resolved=1)
+            second = _write_logbook(root / "run-2", baseline_resolved=1, fff_resolved=1)
+            _make_vessel_missing(first, "pi-plus-fff")
+            _make_vessel_missing(second, "pi-plus-fff")
+
+            aggregate = build_benchmark_aggregate([first, second])
+
+            stats = aggregate["comparisons"][0]["delta_statistics"]
+            rate = stats["resolution_rate_delta"]
+            # Nothing was pairable, so there is no sample at all — not a
+            # sample of fabricated zeros.
+            self.assertEqual(rate["runs"], 0)
+            self.assertEqual(rate["grade"], "insufficient-evidence")
+            self.assertEqual(stats["challenger_vessel"], "pi-plus-fff")
+
+
+def _make_vessel_missing(logbook_dir: Path, vessel_name: str) -> None:
+    path = logbook_dir / "benchmark-scorecard.json"
+    scorecard = json.loads(path.read_text(encoding="utf-8"))
+    comparison = scorecard["comparisons"][0]
+    for vessel in comparison["vessels"]:
+        if vessel["name"] == vessel_name:
+            vessel["status"] = "missing"
+            vessel["submitted_instances"] = 0
+            vessel["resolved_instances"] = 0
+            vessel["resolution_rate"] = 0.0
+            vessel["resolved_ids"] = []
+            vessel["unresolved_ids"] = []
+    comparison["summary"]["measured_vessels"] = 1
+    comparison["summary"]["missing_result_vessels"] = 1
+    scorecard["summary"]["measured_vessels"] = 1
+    scorecard["summary"]["missing_result_vessels"] = 1
+    scorecard["status"] = "partial"
+    baseline, challenger = comparison["vessels"]
+    comparison["delta"]["resolved_instances_delta"] = (
+        challenger["resolved_instances"] - baseline["resolved_instances"]
+    )
+    comparison["delta"]["resolution_rate_delta"] = (
+        challenger["resolution_rate"] - baseline["resolution_rate"]
+    )
+    path.write_text(json.dumps(scorecard) + "\n", encoding="utf-8")
+
+
+def _vessel(aggregate: dict, name: str) -> dict:
+    return next(
+        vessel
+        for vessel in aggregate["comparisons"][0]["vessels"]
+        if vessel["name"] == name
+    )

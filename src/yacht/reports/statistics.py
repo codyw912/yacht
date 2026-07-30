@@ -259,6 +259,12 @@ def t_interval(values: list[float]) -> dict[str, float] | None:
 def interval_grade(interval: dict[str, float] | None) -> str:
     if interval is None:
         return GRADE_INSUFFICIENT
+    if interval["high"] <= interval["low"]:
+        # Identical observations give zero sample variance, which leaves
+        # the true variance unknown rather than known to be zero. A
+        # zero-width interval has no coverage, so "excludes zero" cannot
+        # earn a verdict from it.
+        return GRADE_INSUFFICIENT
     if interval["low"] <= 0.0 <= interval["high"]:
         return GRADE_NOT_DISTINGUISHABLE
     return GRADE_EVIDENCE

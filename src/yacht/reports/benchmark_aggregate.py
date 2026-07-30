@@ -405,30 +405,52 @@ def _aggregate_runs(
     return run_summaries
 
 
+MEASURED_RUN_STATUSES = frozenset({"measured", "recorded"})
+
+
+def _measured(vessel: dict[str, Any]) -> bool:
+    """A run that produced no result for this vessel is an absence.
+
+    Its zeroed payload is a placeholder, not an observation, so letting
+    it into a sample would count a crashed run as a 0% run and deflate
+    the variance every interval is built from.
+    """
+    return str(vessel["status"]) in MEASURED_RUN_STATUSES
+
+
 def _vessel_statistics(run_vessels: list[dict[str, Any]]) -> dict[str, Any]:
+    measured = [vessel for vessel in run_vessels if _measured(vessel)]
     return {
         "resolution_rate": _stats(
-            [float(vessel["resolution_rate"]) for vessel in run_vessels],
+            [float(vessel["resolution_rate"]) for vessel in measured],
             digits=3,
         ),
-        "tokens": _stats([int(vessel["tokens"]) for vessel in run_vessels]),
+        "tokens": _stats([int(vessel["tokens"]) for vessel in measured]),
         "cost": _stats(
-            [float(vessel["cost"]) for vessel in run_vessels],
+            [float(vessel["cost"]) for vessel in measured],
             digits=6,
         ),
         "duration_seconds": _stats(
-            [float(vessel["duration_seconds"]) for vessel in run_vessels],
+            [float(vessel["duration_seconds"]) for vessel in measured],
             digits=3,
         ),
-        "tool_calls": _stats([int(vessel["tool_calls"]) for vessel in run_vessels]),
+        "tool_calls": _stats([int(vessel["tool_calls"]) for vessel in measured]),
     }
 
 
 def _delta_statistics(run_summaries: list[dict[str, Any]]) -> dict[str, Any]:
-    deltas = [run["delta"] for run in run_summaries]
+    # A delta needs both sides; a run missing either has no pair to give.
+    # The vessel names come from any run, but only pairable runs may
+    # contribute observations — otherwise an absence becomes a zero.
+    named = run_summaries[0]["delta"]
+    deltas = [
+        run["delta"]
+        for run in run_summaries
+        if all(_measured(vessel) for vessel in run["vessels"])
+    ]
     return {
-        "baseline_vessel": deltas[0]["baseline_vessel"],
-        "challenger_vessel": deltas[0]["challenger_vessel"],
+        "baseline_vessel": named["baseline_vessel"],
+        "challenger_vessel": named["challenger_vessel"],
         "resolved_instances_delta": _stats(
             [int(delta["resolved_instances_delta"]) for delta in deltas],
             graded=True,

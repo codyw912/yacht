@@ -125,10 +125,6 @@ class PairedResolutionStatisticsTests(unittest.TestCase):
         self.assertEqual(statistics["p_value"], 1.0)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class RepetitionBudgetTests(unittest.TestCase):
     def test_power_rises_with_more_discordant_pairs(self) -> None:
         self.assertEqual(sign_test_power(0, 0.9), 0.0)
@@ -178,3 +174,29 @@ class RepetitionBudgetTests(unittest.TestCase):
 
     def test_budget_needs_shared_tasks(self) -> None:
         self.assertIsNone(repetition_budget(discordant_pairs=0, shared_tasks=0))
+
+
+class DegenerateIntervalTests(unittest.TestCase):
+    def test_identical_values_do_not_earn_a_verdict(self) -> None:
+        # Zero sample variance yields a zero-width interval. A 95%
+        # interval of zero width has no coverage, so "excludes zero"
+        # cannot support a finding — we have no variance estimate at all.
+        interval = t_interval([1.0, 1.0])
+
+        self.assertEqual(interval_grade(interval), GRADE_INSUFFICIENT)
+
+    def test_identical_values_across_more_runs_still_earn_nothing(self) -> None:
+        self.assertEqual(
+            interval_grade(t_interval([3.0, 3.0, 3.0])), GRADE_INSUFFICIENT
+        )
+
+    def test_a_genuine_spread_is_still_graded(self) -> None:
+        # Guard against over-correcting: real variance must still grade.
+        wide = t_interval([0.0, 1.0])
+        self.assertEqual(interval_grade(wide), GRADE_NOT_DISTINGUISHABLE)
+        tight = t_interval([5.0, 5.1, 4.9, 5.05])
+        self.assertEqual(interval_grade(tight), GRADE_EVIDENCE)
+
+
+if __name__ == "__main__":
+    unittest.main()
