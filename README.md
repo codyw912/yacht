@@ -103,7 +103,11 @@ yours.
 The nautical vocabulary is part of the project identity, but the artifacts stay
 plain JSON so other tools can consume them.
 
-## First Real Benchmark
+## First Real Run
+
+The quickest way to see YACHT work end to end is the skill A/B: the same
+pinned Claude Code on the same task, with and without a skill, graded by
+evidence. One repetition costs about $0.04.
 
 Prerequisites:
 
@@ -111,16 +115,65 @@ Prerequisites:
 - `uv`
 - Git on `PATH`
 - Docker installed, running, and usable by the current user
-- network access for the first `uv` dependency sync, SWE-bench metadata, and
-  Docker image build
-- no manual SWE-bench install: grading runs in the pinned
-  `yacht/swebench-runner` container image (`docker build -t
-  yacht/swebench-runner:swebench-4.1.0 containers/swebench-runner`), and
-  `yacht doctor` verifies the image is present
+- network access for the first `uv` dependency sync and the image build
 - an Anthropic API key exported as `ANTHROPIC_API_KEY`
-- the repo-local Pi runtime image built with the command below
+- the pinned Harbor launcher image built with the command below
 
-Build the Pi runtime image:
+Build the launcher image:
+
+```sh
+docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+```
+
+Run it:
+
+```sh
+LOGBOOK=/private/tmp/yacht-skill-ab-$(date +%Y%m%d-%H%M%S)
+
+uv run yacht doctor examples/custom-eval-skill-ab-smoke.toml
+
+uv run yacht run examples/custom-eval-skill-ab-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace . \
+  --secret anthropic=@env:ANTHROPIC_API_KEY
+
+uv run yacht status --logbook "$LOGBOOK"
+uv run yacht report --logbook "$LOGBOOK"
+```
+
+Fish shell:
+
+```fish
+set -x LOGBOOK /private/tmp/yacht-skill-ab-(date +%Y%m%d-%H%M%S)
+
+uv run yacht doctor examples/custom-eval-skill-ab-smoke.toml
+
+uv run yacht run examples/custom-eval-skill-ab-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace . \
+  --secret anthropic=@env:ANTHROPIC_API_KEY
+
+uv run yacht status --logbook "$LOGBOOK"
+uv run yacht report --logbook "$LOGBOOK"
+```
+
+One repetition is an observation, not a verdict, and the report says so —
+along with the repetition budget that would settle it. Add
+`--repetitions 10` (about $0.38) for a graded conclusion; the
+[Measuring a Skill Claim](docs/tutorials/measuring-a-skill-claim.md)
+walkthrough reads the result line by line.
+
+## A SWE-bench Comparison
+
+The same shape against a public benchmark, using the containerized Pi
+runtime. This one needs two more images and SWE-bench metadata on first
+run:
+
+- grading runs in the pinned `yacht/swebench-runner` image (`docker build
+  -t yacht/swebench-runner:swebench-4.1.0 containers/swebench-runner`),
+  which `yacht doctor` verifies is present — there is no manual SWE-bench
+  install
+- the repo-local Pi runtime image:
 
 ```sh
 docker build -t yacht/pi-agent-runtime:pi-0.74.0 containers/pi-agent-runtime
@@ -146,22 +199,6 @@ uv run yacht report --logbook "$LOGBOOK" --vessel pi-container-fff
 The default smoke config runs one SWE-bench Lite instance to keep iteration
 cheap. For a slightly broader two-instance check, use
 `examples/container-pi-fff-real-benchmark-small.toml` with the same commands.
-
-Fish shell:
-
-```fish
-set -x LOGBOOK /private/tmp/yacht-real-benchmark-(date +%Y%m%d-%H%M%S)
-
-uv run yacht doctor examples/container-pi-fff-real-benchmark-smoke.toml
-
-uv run yacht run examples/container-pi-fff-real-benchmark-smoke.toml \
-  --logbook "$LOGBOOK" \
-  --workspace . \
-  --secret anthropic=@env:ANTHROPIC_API_KEY
-
-uv run yacht status --logbook "$LOGBOOK"
-uv run yacht report --logbook "$LOGBOOK"
-```
 
 The status report is the first thing to inspect after a run. It shows which
 benchmark artifacts exist, what is missing, and the next recommended command.
