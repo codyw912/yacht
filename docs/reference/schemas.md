@@ -56,7 +56,8 @@ Regatta configs may include:
 
 - `secrets` for explicit env/file secret references without values.
 - `runtimes` for agent runtime recipes such as `container` or `host-nix`;
-  `harness` names the agent adapter, such as `pi`, `codex`, or `claude`.
+  `harness` names the agent adapter — the built-ins are `claude-code`,
+  `pi`, and `local-smoke`, or any name declared under `[harnesses.<name>]`.
 - `tools` for optional custom tool capability metadata; built-in capabilities
   such as `fff` are available without a local declaration.
 - `riggings` for named setup, environment, prompt, tool, or cache changes.

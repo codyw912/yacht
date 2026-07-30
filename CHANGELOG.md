@@ -134,16 +134,16 @@ reporting also gets honest about outcome confounding.
 - `examples/custom-eval-skill-ab-smoke.toml` and the
   [Measuring a Skill Claim](docs/tutorials/measuring-a-skill-claim.md)
   walkthrough: the same pinned Claude Code with and without a skill on
-  a convention task, repeated until the sign test can speak. The
-  bundled real run: +0.700 resolution rate (95% CI +0.354..+1.046,
-  evidence-of-difference, p = 0.016), with token/cost deltas honestly
-  not distinguishable.
+  a convention task, repeated to accumulate discordant outcomes. The
+  bundled real run: baseline resolved 3/10, with-skill 10/10, and all
+  seven discordant repetitions favored the skill, with token and cost
+  deltas honestly not distinguishable.
 - Usage deltas are flagged `[outcome-confounded]` whenever resolution
   rates differ (failed runs stop earlier and spend less), reports gain
   "Efficiency by vessel" (tokens and cost per resolved task — the
   decision metric) and a usage-by-run-outcome diagnostic. In the real
-  skill A/B, a skill that looked 3% more expensive per run is ~3x
-  cheaper per resolved task.
+  skill A/B, a skill that cost ~18% more per run is ~2.8x cheaper per
+  resolved task.
 
 ### Project
 

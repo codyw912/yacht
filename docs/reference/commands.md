@@ -1,8 +1,8 @@
 # Command Reference
 
 This page is a compact map of YACHT's CLI surface. Prefer the README for the
-first real benchmark path. The user-facing surface is six commands: `doctor`,
-`validate`, `run`, `status`, `report`, and the `internals` group of pipeline
+first real benchmark path. The user-facing surface is `doctor`, `validate`,
+`run`, `status`, `report`, `serve`, and the `internals` group of pipeline
 stage commands.
 
 ## doctor

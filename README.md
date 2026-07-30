@@ -67,22 +67,18 @@ preflighted comparison and read the verdict.
 Skills are the fastest-growing way to change what a coding agent does —
 and the least-measured. YACHT runs the experiment properly: the same
 pinned agent on the same tasks, with and without the skill, repeated
-until the evidence supports a verdict. A real run of the bundled
-example (10 repetitions, $0.38):
+until the evidence supports a verdict. In a real run of the bundled
+example (10 repetitions, $0.38) the baseline resolved 3 of 10 and the
+skill 10 of 10. Seven repetitions were discordant — exactly one side
+resolved the task — and all seven favored the skill. Cost per resolved
+task: baseline $0.0579, with-skill $0.0205.
 
-```
-skill-vs-baseline | resolution better (+0.700 rate, 95% CI +0.354..+1.046)
-                  | evidence-of-difference (sign test p = 0.016)
-tokens / cost / duration: not distinguishable [outcome-confounded]
-cost per resolved task: baseline 0.0579 | with-skill 0.0205
-```
-
-The skill's effect is a graded conclusion; the raw cost delta is
-honestly refused and flagged as outcome-confounded (failed runs stop
-early and spend less); the efficiency number — ~3x cheaper per resolved
-task — is the one a decision needs. Every input is pinned (harness
-version, task content digest, skill content), and every attempt leaves
-re-gradeable artifacts. See
+The raw cost delta is honestly refused and flagged as
+outcome-confounded (failed runs stop early and spend less); the
+efficiency number — ~3x cheaper per resolved task — is the one a
+decision needs. Every input is pinned (harness version, task content
+digest, skill content), and every attempt leaves re-gradeable
+artifacts. See
 [Measuring a Skill Claim](docs/tutorials/measuring-a-skill-claim.md)
 for the walkthrough, and swap in your own tasks and skill to measure
 yours.
