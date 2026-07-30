@@ -42,12 +42,14 @@ verifies the tag matches the project version, builds, and uploads via OIDC.
 No PyPI token is stored anywhere.
 
 ```sh
-git tag v<version> <main commit>
+git tag -a v<version> -m "YACHT <version> - <release title>" <main commit>
 git push origin v<version>
 ```
 
-Tag the merge commit on main whose version matches the tag; the workflow
-fails if they disagree.
+The tag must be annotated: `tag.gpgsign` is on, so a lightweight
+`git tag v<version>` fails with "no tag message?". Tag the merge commit
+on main whose version matches the tag; the workflow fails if they
+disagree.
 
 ## Live Gate
 
