@@ -1,5 +1,96 @@
 # Changelog
 
+## 0.8.0 - Recorded Baselines and Delivery Evidence
+
+YACHT 0.8.0 makes the regression-check loop cheap and the skill claim
+checkable: a comparison can reuse a stored baseline instead of paying to
+re-measure it, and whether the treatment actually fired is now measured
+from the transcripts every run already preserves. Results export to the
+ecosystem's interchange schema, and "run it more" becomes a budget.
+
+### Recorded baselines (ADR 0018)
+
+- A comparison may reference a stored result instead of re-running it:
+  `baseline = { logbook = "<path>", vessel = "<name>" }` alongside a
+  single live vessel. Preflight, attempts, and launch run only for the
+  live vessel; the recorded side is rehydrated from the referenced
+  logbook. Measure the baseline once, then every candidate run costs
+  only the candidate.
+- Comparability is verified before anything runs. The referenced
+  logbook's adapter block (kind, dataset, split, harness, content
+  digest, contest window), task set, recorded configured model, and
+  recorded harness version must match the current config; drift refuses
+  the run with every differing field named, under `failed_stage:
+  "baseline-verification"`.
+- Stored per-task outcomes pair with fresh ones for the sign test
+  unchanged. Scorecards carry the recorded vessel with a
+  `baseline_source` block (source logbook, run date, provenance, usage)
+  and reports label the comparison "recorded baseline from &lt;date&gt;",
+  so a reader always knows one side was not re-run. `--repetitions`
+  re-runs only the live vessel against the same baseline.
+
+### Skill-invocation reliability (ADR 0019)
+
+- Whether a skill fired is now evidence, not inference. Attempts
+  synthesized from Harbor trials extract observed tool calls from the
+  preserved trajectory — a declared harness's mapped `tool_calls`, else
+  the Claude Code session transcript, with skill invocations recorded by
+  name (`Skill:<name>`). Attempts with no preserved trajectory are
+  labeled unmeasured rather than assumed either way.
+- Expected invocations are derived, not configured: `agent-skill` tools
+  from the SKILL.md their rigging installs, `agent-extension` tools from
+  their declared `expected_tool_calls`.
+- The task-attempt scorecard reports delivery rate per tool with Wilson
+  intervals, over all measured attempts and over completed attempts
+  separately — a gap between the two means failing to fire and failing
+  to finish travel together. Comparisons whose treatment never fired are
+  labeled `not-delivered`: the resolution delta, whatever it is, cannot
+  be attributed to the skill. Repetition aggregates pool invocations
+  across runs.
+
+### Every Eval Ever export (ADR 0020)
+
+- `yacht report --format every-eval-ever --output <dir>` writes one
+  aggregate JSON and instance-level JSONL per vessel, pinned to schema
+  0.2.2. Wilson intervals fill `score_details.uncertainty` — the field
+  most contributing sources leave empty.
+- Publisher attribution is declared, never inferred: an `[export]` block
+  supplies the organization and `evaluator_relationship`, and the export
+  refuses rather than guessing. `source_type` is always
+  `evaluation_run`.
+- The schema's unit is (model, benchmark); yacht's is a paired
+  comparison. Each vessel exports as its own document with the pairing —
+  compared-against vessel, deltas, sign-test p-value, evidence grade,
+  delivery status — as context in `additional_details`. A treatment
+  delta is never exported as a score. Recorded baselines export with
+  their own measurement date. Exporting writes files; publishing stays
+  the user's action.
+
+### Repetition budgets (ADR 0021)
+
+- Reports turn "insufficient evidence" into a number to budget: the
+  discordant pairs needed for 80% power and the repetitions expected to
+  produce them, across several assumed effect sizes (12 pairs at a 90%
+  split, 20 at 80%, 49 at 70%), scaled by the observed discordance rate
+  and bracketed by that rate's own interval.
+- Budgets size a fresh, pre-committed run. Reports now warn, next to the
+  temptation, that adding repetitions to a finished comparison and
+  re-testing until it crosses p&lt;0.05 is optional stopping and
+  invalidates the p-value. Group-sequential designs are deliberately out
+  of scope; exact binomial power keeps the stdlib-only constraint.
+
+### Reports and dashboard
+
+- The HTML report and the dashboard reach parity with the terminal
+  report's decision metrics: statistical evidence grades, recorded
+  baseline and treatment-delivery badges, tokens- and cost-per-
+  resolution efficiency columns, usage source, a skill-delivery table,
+  the outcome-confound note, and a per-vessel delivery column on the
+  aggregate page. Recorded-baseline usage is charted alongside live
+  usage.
+- The task-attempt scorecard aggregates per-attempt `usage_source` into
+  a vessel-level `usage_sources` list.
+
 ## 0.7.0 - Custom Harnesses and Honest Usage
 
 YACHT 0.7.0 opens the harness side to configuration: harnesses YACHT
