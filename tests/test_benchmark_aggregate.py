@@ -421,7 +421,8 @@ class BenchmarkAggregateTests(unittest.TestCase):
             self.assertIn("Decision summary:", report)
             self.assertIn(
                 (
-                    "pi-vs-pi-fff | resolution better (+1 resolved, +0.500 rate) | "
+                    "pi-vs-pi-fff | resolution better (+1 resolved, +0.500 rate) "
+                    "[not distinguishable (CI -5.853..+6.853)] | "
                     "tokens worse (+2200) [outcome-confounded] | "
                     "cost worse (+0.002200) [outcome-confounded] | "
                     "duration worse (+2.200s) [outcome-confounded]"
@@ -938,6 +939,15 @@ class UnmeasuredRunTests(unittest.TestCase):
             self.assertEqual(stats["challenger_vessel"], "pi-plus-fff")
 
 
+def _decision_headline(text: str) -> str:
+    """The decision-summary data row, not the column header above it."""
+    return next(
+        line
+        for line in text.splitlines()
+        if "| resolution " in line and not line.startswith("comparison |")
+    )
+
+
 def _make_vessel_missing(logbook_dir: Path, vessel_name: str) -> None:
     path = logbook_dir / "benchmark-scorecard.json"
     scorecard = json.loads(path.read_text(encoding="utf-8"))
@@ -971,3 +981,46 @@ def _vessel(aggregate: dict, name: str) -> dict:
         for vessel in aggregate["comparisons"][0]["vessels"]
         if vessel["name"] == name
     )
+
+
+class AggregateHeadlineGradeTests(unittest.TestCase):
+    def test_single_run_headline_is_qualified_as_insufficient(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            only = _write_logbook(root / "run-1", baseline_resolved=0, fff_resolved=1)
+
+            aggregate = build_benchmark_aggregate([only])
+            text = render_benchmark_aggregate_document(aggregate, "text")
+
+            headline = _decision_headline(text)
+            # The evidence table on the same page says "insufficient (1 run)";
+            # the headline must not assert a bare result beside it.
+            self.assertIn("resolution better", headline)
+            self.assertIn("insufficient", headline)
+
+    def test_graded_difference_is_not_labelled_insufficient(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            # Four runs the challenger wins and one tie: enough spread for
+            # the interval to exclude zero, so this must NOT read as
+            # insufficient. Guards against blanket-qualifying every row.
+            logbooks = [
+                _write_logbook(
+                    root / f"run-{index}", baseline_resolved=0, fff_resolved=1
+                )
+                for index in range(1, 5)
+            ]
+            logbooks.append(
+                _write_logbook(root / "run-5", baseline_resolved=1, fff_resolved=1)
+            )
+
+            aggregate = build_benchmark_aggregate(logbooks)
+            statistics = aggregate["comparisons"][0]["delta_statistics"]
+            self.assertEqual(
+                statistics["resolution_rate_delta"]["grade"],
+                "evidence-of-difference",
+            )
+            text = render_benchmark_aggregate_document(aggregate, "text")
+
+            headline = _decision_headline(text)
+            self.assertNotIn("insufficient", headline)
