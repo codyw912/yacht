@@ -25,31 +25,38 @@ coding-agent evaluation.
 
 YACHT runs real end-to-end benchmark comparisons:
 
-- two real harness adapters: containerized Pi and containerized Claude Code
-- rigging for tools under test: agent extensions, config files, pinned npm
-  packages, and MCP servers rendered into the harness's own configuration
+- harness adapters for containerized Pi and containerized Claude Code, plus
+  harnesses YACHT does not ship: declared in config and measured through a
+  mapped evidence contract over their own machine-readable output
+- rigging for tools under test: agent extensions, skills, config files,
+  pinned npm packages, and MCP servers rendered into the harness's own
+  configuration
 - explicit secret injection, runtime and rigging preflight before tokens are
   spent
-- SWE-bench Lite task context loading, per-task repository checkout, agent
-  task attempts and transcripts, candidate patch extraction, and native
-  SWE-bench Docker grading
-- a Terminal-Bench 2.0 course that delegates rollout and verification to
-  the official Harbor harness: YACHT-owned agents install the pinned
-  harness and rigging inside each task container, orchestrated from a
-  pinned launcher image, with install-only preflight before tokens are
-  spent
-- a LiveCodeBench course graded by the official evaluator in a pinned
-  container, with contest-date windows recorded as contamination
-  provenance
+- five course kinds: SWE-bench Lite (per-task checkout, candidate patch
+  extraction, native Docker grading), Terminal-Bench 2.0 and Aider Polyglot
+  on the Harbor foundation, LiveCodeBench through the official evaluator
+  with contest-date windows recorded as contamination provenance, and
+  `custom-eval` for evals you write yourself as Harbor-format task
+  directories, pinned by a content digest
 - comparison verdicts graded by statistical evidence: Wilson intervals,
   paired sign tests, and t-intervals over repeated runs, with
-  insufficient-evidence verdicts labeled as observations
+  insufficient-evidence verdicts labeled as observations — and a repetition
+  budget that sizes the next run instead of inviting you to extend this one
+- recorded baselines: compare a candidate against a stored run instead of
+  paying to re-measure it, with comparability verified from provenance
+  before anything runs
+- skill and tool invocation measured from preserved trajectories, so a null
+  result can be told apart from a treatment that never fired
 - benchmark scorecards with outcome, token, cost, duration, and tool-use
   metrics, plus run provenance (harness, model, and tool versions resolved
-  from evidence)
-- self-contained HTML reports with verdict banners and variance badges, and
-  a local read-only dashboard (`yacht serve`) that filters and groups runs
-  by provenance
+  from evidence) and honest usage sourcing
+- self-contained HTML reports carrying the evidence grade, efficiency, and
+  delivery, and a local read-only dashboard (`yacht serve`) that filters and
+  groups runs by provenance
+- export to the [Every Eval Ever](https://github.com/evaleval/every_eval_ever)
+  interchange schema, with Wilson intervals filling the uncertainty the
+  ecosystem usually leaves empty
 
 See the [Validating a Tool Claim](docs/tutorials/validating-a-tool-claim.md)
 tutorial for the core workflow: turn a tool's claim into a pinned,
@@ -96,7 +103,11 @@ yours.
 The nautical vocabulary is part of the project identity, but the artifacts stay
 plain JSON so other tools can consume them.
 
-## First Real Benchmark
+## First Real Run
+
+The quickest way to see YACHT work end to end is the skill A/B: the same
+pinned Claude Code on the same task, with and without a skill, graded by
+evidence. One repetition costs about $0.04.
 
 Prerequisites:
 
@@ -104,16 +115,65 @@ Prerequisites:
 - `uv`
 - Git on `PATH`
 - Docker installed, running, and usable by the current user
-- network access for the first `uv` dependency sync, SWE-bench metadata, and
-  Docker image build
-- no manual SWE-bench install: grading runs in the pinned
-  `yacht/swebench-runner` container image (`docker build -t
-  yacht/swebench-runner:swebench-4.1.0 containers/swebench-runner`), and
-  `yacht doctor` verifies the image is present
+- network access for the first `uv` dependency sync and the image build
 - an Anthropic API key exported as `ANTHROPIC_API_KEY`
-- the repo-local Pi runtime image built with the command below
+- the pinned Harbor launcher image built with the command below
 
-Build the Pi runtime image:
+Build the launcher image:
+
+```sh
+docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+```
+
+Run it:
+
+```sh
+LOGBOOK=/private/tmp/yacht-skill-ab-$(date +%Y%m%d-%H%M%S)
+
+uv run yacht doctor examples/custom-eval-skill-ab-smoke.toml
+
+uv run yacht run examples/custom-eval-skill-ab-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace . \
+  --secret anthropic=@env:ANTHROPIC_API_KEY
+
+uv run yacht status --logbook "$LOGBOOK"
+uv run yacht report --logbook "$LOGBOOK"
+```
+
+Fish shell:
+
+```fish
+set -x LOGBOOK /private/tmp/yacht-skill-ab-(date +%Y%m%d-%H%M%S)
+
+uv run yacht doctor examples/custom-eval-skill-ab-smoke.toml
+
+uv run yacht run examples/custom-eval-skill-ab-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace . \
+  --secret anthropic=@env:ANTHROPIC_API_KEY
+
+uv run yacht status --logbook "$LOGBOOK"
+uv run yacht report --logbook "$LOGBOOK"
+```
+
+One repetition is an observation, not a verdict, and the report says so —
+along with the repetition budget that would settle it. Add
+`--repetitions 10` (about $0.38) for a graded conclusion; the
+[Measuring a Skill Claim](docs/tutorials/measuring-a-skill-claim.md)
+walkthrough reads the result line by line.
+
+## A SWE-bench Comparison
+
+The same shape against a public benchmark, using the containerized Pi
+runtime. This one needs two more images and SWE-bench metadata on first
+run:
+
+- grading runs in the pinned `yacht/swebench-runner` image (`docker build
+  -t yacht/swebench-runner:swebench-4.1.0 containers/swebench-runner`),
+  which `yacht doctor` verifies is present — there is no manual SWE-bench
+  install
+- the repo-local Pi runtime image:
 
 ```sh
 docker build -t yacht/pi-agent-runtime:pi-0.74.0 containers/pi-agent-runtime
@@ -139,22 +199,6 @@ uv run yacht report --logbook "$LOGBOOK" --vessel pi-container-fff
 The default smoke config runs one SWE-bench Lite instance to keep iteration
 cheap. For a slightly broader two-instance check, use
 `examples/container-pi-fff-real-benchmark-small.toml` with the same commands.
-
-Fish shell:
-
-```fish
-set -x LOGBOOK /private/tmp/yacht-real-benchmark-(date +%Y%m%d-%H%M%S)
-
-uv run yacht doctor examples/container-pi-fff-real-benchmark-smoke.toml
-
-uv run yacht run examples/container-pi-fff-real-benchmark-smoke.toml \
-  --logbook "$LOGBOOK" \
-  --workspace . \
-  --secret anthropic=@env:ANTHROPIC_API_KEY
-
-uv run yacht status --logbook "$LOGBOOK"
-uv run yacht report --logbook "$LOGBOOK"
-```
 
 The status report is the first thing to inspect after a run. It shows which
 benchmark artifacts exist, what is missing, and the next recommended command.
