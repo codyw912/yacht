@@ -80,11 +80,17 @@ comparison        | resolved                      | tokens                      
 skill-vs-baseline | difference (CI +0.354..+1.046) | not distinguishable (CI -8596..+52092) | not distinguishable (...)
 ```
 
-- **The claim is supported, and graded.** Baseline resolved 3/10;
-  with the skill, 10/10. The rate delta is +0.700 with a 95% CI of
-  [+0.354, +1.046] — grade `evidence-of-difference`. All 7 discordant
-  runs favored the skill (sign test p = 0.016). That is a conclusion
-  the evidence earns.
+- **The claim is supported.** Baseline resolved 3/10; with the skill,
+  10/10. Seven of the ten repetitions were discordant — exactly one
+  side resolved the task — and all seven favored the skill. A sign
+  test over those seven pairs gives p = 0.016, which is a conclusion
+  the evidence earns. Read that figure with one caveat: the repetition
+  aggregate does not yet pool discordant outcomes across runs — it
+  grades per-run deltas with a t-interval instead — so the pooled
+  p-value is computed from the per-run scorecards rather than reported
+  by YACHT. Pooling is the fix in flight; until it lands, each run's
+  own scorecard correctly reads `insufficient-evidence`, because one
+  task cannot supply six discordant pairs.
 - **The non-findings are graded too.** The skill's token, cost, and
   duration deltas are all `not distinguishable` — their intervals
   straddle zero — and the report marks them `[outcome-confounded]`
@@ -96,9 +102,9 @@ skill-vs-baseline | difference (CI +0.354..+1.046) | not distinguishable (CI -85
   did not make it more expensive.
 - **Efficiency is the decision metric.** Cost per resolved task,
   computed from totals with no conditioning: baseline $0.0579,
-  with-skill $0.0205. The skill looks ~3% more expensive per run and
-  is ~3x cheaper per unit of delivered work. The report's
-  "Efficiency by vessel" section carries this number.
+  with-skill $0.0205. The skill costs ~18% more per run ($0.1737 vs
+  $0.2053 in total) and is ~2.8x cheaper per unit of delivered work.
+  The report's "Efficiency by vessel" section carries this number.
 - **The baseline's 30% is the realistic part.** The agent sometimes
   infers the registry convention from the existing code. The skill's
   value is turning *sometimes* into *always* — which is exactly what
@@ -118,8 +124,12 @@ carries a delivery column:
 
 ```
 comparison | resolution | ... | delivery
-skill-vs-baseline | resolution better (...) | ... | delivered (team-conventions 10/10)
+skill-vs-baseline | resolution better (...) | ... | delivered (team-conventions 1/1)
 ```
+
+That column is on the per-run report; the repetition aggregate pools
+invocations into its JSON and HTML vessel table but does not yet carry
+a delivery column in the text or markdown summary.
 
 A comparison whose treatment skill never fired is labeled
 `NOT DELIVERED` — whatever the resolution delta says, it cannot be
