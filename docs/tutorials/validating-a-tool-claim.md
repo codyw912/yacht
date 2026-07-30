@@ -115,12 +115,13 @@ uv run yacht report --format html --output report.html
 ```
 
 The report opens with a verdict banner — improved, regressed, or tied — and
-qualifies it honestly: a small-sample badge when the task count is low, and
-variance badges that say whether the observed delta exceeds run-to-run
-noise. Below that, the tool-call evidence table shows whether the rigged
-vessel actually used the tool during tasks, alongside tokens, cost, and
-duration per vessel — all parsed from the harness's own machine output, not
-from the model's self-report.
+qualifies it honestly: the statistical evidence grade (evidence of
+difference, not distinguishable, or insufficient evidence with the
+discordant count that would settle it), and a small-sample badge when the
+task count is low. Below that, the tool-call evidence table shows whether
+the rigged vessel actually used the tool during tasks, alongside tokens,
+cost, and duration per vessel — all parsed from the harness's own machine
+output, not from the model's self-report.
 
 A claim validated here means: on this course, with this harness and model at
 these pinned versions, the tool changed the outcome by this much, and the

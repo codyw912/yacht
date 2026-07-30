@@ -25,31 +25,38 @@ coding-agent evaluation.
 
 YACHT runs real end-to-end benchmark comparisons:
 
-- two real harness adapters: containerized Pi and containerized Claude Code
-- rigging for tools under test: agent extensions, config files, pinned npm
-  packages, and MCP servers rendered into the harness's own configuration
+- harness adapters for containerized Pi and containerized Claude Code, plus
+  harnesses YACHT does not ship: declared in config and measured through a
+  mapped evidence contract over their own machine-readable output
+- rigging for tools under test: agent extensions, skills, config files,
+  pinned npm packages, and MCP servers rendered into the harness's own
+  configuration
 - explicit secret injection, runtime and rigging preflight before tokens are
   spent
-- SWE-bench Lite task context loading, per-task repository checkout, agent
-  task attempts and transcripts, candidate patch extraction, and native
-  SWE-bench Docker grading
-- a Terminal-Bench 2.0 course that delegates rollout and verification to
-  the official Harbor harness: YACHT-owned agents install the pinned
-  harness and rigging inside each task container, orchestrated from a
-  pinned launcher image, with install-only preflight before tokens are
-  spent
-- a LiveCodeBench course graded by the official evaluator in a pinned
-  container, with contest-date windows recorded as contamination
-  provenance
+- five course kinds: SWE-bench Lite (per-task checkout, candidate patch
+  extraction, native Docker grading), Terminal-Bench 2.0 and Aider Polyglot
+  on the Harbor foundation, LiveCodeBench through the official evaluator
+  with contest-date windows recorded as contamination provenance, and
+  `custom-eval` for evals you write yourself as Harbor-format task
+  directories, pinned by a content digest
 - comparison verdicts graded by statistical evidence: Wilson intervals,
   paired sign tests, and t-intervals over repeated runs, with
-  insufficient-evidence verdicts labeled as observations
+  insufficient-evidence verdicts labeled as observations — and a repetition
+  budget that sizes the next run instead of inviting you to extend this one
+- recorded baselines: compare a candidate against a stored run instead of
+  paying to re-measure it, with comparability verified from provenance
+  before anything runs
+- skill and tool invocation measured from preserved trajectories, so a null
+  result can be told apart from a treatment that never fired
 - benchmark scorecards with outcome, token, cost, duration, and tool-use
   metrics, plus run provenance (harness, model, and tool versions resolved
-  from evidence)
-- self-contained HTML reports with verdict banners and variance badges, and
-  a local read-only dashboard (`yacht serve`) that filters and groups runs
-  by provenance
+  from evidence) and honest usage sourcing
+- self-contained HTML reports carrying the evidence grade, efficiency, and
+  delivery, and a local read-only dashboard (`yacht serve`) that filters and
+  groups runs by provenance
+- export to the [Every Eval Ever](https://github.com/evaleval/every_eval_ever)
+  interchange schema, with Wilson intervals filling the uncertainty the
+  ecosystem usually leaves empty
 
 See the [Validating a Tool Claim](docs/tutorials/validating-a-tool-claim.md)
 tutorial for the core workflow: turn a tool's claim into a pinned,
