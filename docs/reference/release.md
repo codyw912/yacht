@@ -51,6 +51,15 @@ The tag must be annotated: `tag.gpgsign` is on, so a lightweight
 on main whose version matches the tag; the workflow fails if they
 disagree.
 
+After the workflow publishes, create the GitHub release object — the
+tag alone does not appear on the Releases page (v0.8.0 shipped without
+one for three days before anyone noticed):
+
+```sh
+gh release create v<version> --verify-tag --title "YACHT <version>" \
+  --notes-file <file with the CHANGELOG section for this version>
+```
+
 ## Live Gate
 
 Every release is gated on one live, token-spending run. Unit tests cover
