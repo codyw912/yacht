@@ -34,6 +34,8 @@ BUILT_IN_HARNESS_NAMES = {"claude-code", "local-smoke", "pi"}
 HARNESS_PROMPT_MODES = {"argument", "stdin"}
 HARNESS_EVIDENCE_SOURCES = {"stdout", "file"}
 METRICS_USAGE_SOURCES = {"reported", "estimated", "unreported"}
+# Cost is never estimated: a harness either reported it or it is absent.
+COST_SOURCES = {"reported", "unreported"}
 EVALUATOR_RELATIONSHIPS = {
     "first_party",
     "third_party",
@@ -1553,6 +1555,17 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
                 source,
                 METRICS_USAGE_SOURCES,
                 f"{path}.usage_sources",
+            )
+    if "cost_sources" in vessel:
+        cost_sources = _require_list(
+            vessel.get("cost_sources"),
+            f"{path}.cost_sources",
+        )
+        for source in cost_sources:
+            _require_allowed_value(
+                source,
+                COST_SOURCES,
+                f"{path}.cost_sources",
             )
     _require_string_list(vessel.get("artifact_paths"), f"{path}.artifact_paths")
 
