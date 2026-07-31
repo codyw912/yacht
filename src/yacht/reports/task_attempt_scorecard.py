@@ -130,6 +130,9 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
     )
     if usage_sources:
         payload["usage_sources"] = usage_sources
+    payload["cost_sources"] = sorted(
+        {_attempt_cost_source(attempt) for attempt in attempts}
+    )
     return payload
 
 
@@ -266,6 +269,12 @@ def _summary_tool_call_counts(vessels: list[dict[str, Any]]) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
+# Built-in adapters report cost.total; the ADR 0017 mapping path reports
+# cost.total_usd, which is the name the harness-evidence schema requires.
+# Reading only one silently zeroes the other's spend.
+COST_TOTAL_KEYS = ("total", "total_usd")
+
+
 def _attempt_cost(attempt: dict[str, Any]) -> float:
     agent = attempt.get("agent")
     if not isinstance(agent, dict):
@@ -276,10 +285,41 @@ def _attempt_cost(attempt: dict[str, Any]) -> float:
     cost = machine_evidence.get("cost")
     if not isinstance(cost, dict):
         return 0.0
-    total = cost.get("total")
-    if not isinstance(total, int | float) or total < 0:
-        return 0.0
-    return float(total)
+    for key in COST_TOTAL_KEYS:
+        total = cost.get(key)
+        if (
+            isinstance(total, int | float)
+            and not isinstance(total, bool)
+            and total >= 0
+        ):
+            return float(total)
+    return 0.0
+
+
+def _attempt_cost_source(attempt: dict[str, Any]) -> str:
+    """Whether the harness reported a cost at all.
+
+    Tokens already carry usage_source; without the same for cost, a
+    total of 0.0 is indistinguishable from a harness that said nothing.
+    """
+    agent = attempt.get("agent")
+    if not isinstance(agent, dict):
+        return "unreported"
+    machine_evidence = agent.get("machine_evidence")
+    if not isinstance(machine_evidence, dict):
+        return "unreported"
+    cost = machine_evidence.get("cost")
+    if not isinstance(cost, dict):
+        return "unreported"
+    for key in COST_TOTAL_KEYS:
+        total = cost.get(key)
+        if (
+            isinstance(total, int | float)
+            and not isinstance(total, bool)
+            and total >= 0
+        ):
+            return "reported"
+    return "unreported"
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
