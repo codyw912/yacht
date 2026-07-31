@@ -651,12 +651,20 @@ def _delivery_table(attempt_comparison: dict[str, Any] | None) -> str:
             else:
                 measured_cell = '<span class="muted">unmeasured</span>'
                 completed_cell = "-"
+            expected_cell = (
+                f"<code>{_e(', '.join(entry.get('expected_calls', [])))}</code>"
+            )
+            observed_tools = entry.get("observed_tools")
+            if observed_tools:
+                expected_cell += (
+                    '<br><span class="muted">observed: '
+                    f"{_e(', '.join(observed_tools))}</span>"
+                )
             rows.append(
                 f"<tr><td><code>{_e(name)}</code></td>"
                 f"<td><code>{_e(str(entry.get('tool')))}</code></td>"
                 f"<td>{_e(str(entry.get('kind')))}</td>"
-                f"<td><code>{_e(', '.join(entry.get('expected_calls', [])))}"
-                "</code></td>"
+                f"<td>{expected_cell}</td>"
                 f'<td class="num">{measured_cell}</td>'
                 f'<td class="num">{completed_cell}</td></tr>'
             )

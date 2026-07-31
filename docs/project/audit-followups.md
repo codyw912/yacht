@@ -45,14 +45,16 @@ validate on read, summaries are cross-checked against their detail
 rows, and the export and recorded-baseline paths verify their
 cross-artifact references.
 
-## Open: ADR 0022, MCP server delivery
+## Closed: ADR 0022, MCP server delivery
 
-Approved and unimplemented. Derives an MCP server's delivery
-expectation from its `mcp-server` install step and matches observed
-calls on the delimited `mcp__<server>__<tool>` namespace, reporting the
-server as the unit and the observed tool suffixes as description. It
-was deliberately deferred so correctness work would not be mixed with a
-feature.
+Implemented in #283. Each `mcp-server` install step contributes a
+delivery expectation from its own target; observed calls match on the
+delimited `mcp__<server>__<tool>` namespace, the server is the reported
+unit, and the observed tool suffixes travel as `observed_tools`
+description through the task-attempt scorecard, the repetition
+aggregate, and the HTML delivery table. Harnesses that do not namespace
+MCP tools yield no expectation rather than a marker their transcripts
+can never match.
 
 ## Verified clean
 

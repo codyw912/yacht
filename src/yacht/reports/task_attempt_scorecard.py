@@ -170,12 +170,12 @@ def _tool_invocations(attempts: list[dict[str, Any]]) -> list[dict[str, Any]]:
             entry["status"] = "unmeasured"
             entries.append(entry)
             continue
-        invoked = [attempt for attempt in measured if _invoked(attempt, expected_calls)]
+        invoked = [attempt for attempt in measured if _invoked(attempt, expectation)]
         completed = [
             attempt for attempt in measured if attempt["status"] == "completed"
         ]
         invoked_completed = [
-            attempt for attempt in completed if _invoked(attempt, expected_calls)
+            attempt for attempt in completed if _invoked(attempt, expectation)
         ]
         entry.update(
             {
@@ -185,6 +185,9 @@ def _tool_invocations(attempts: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "invocation_interval": wilson_interval(len(invoked), len(measured)),
             }
         )
+        observed_tools = _observed_namespace_tools(measured, expectation)
+        if observed_tools:
+            entry["observed_tools"] = observed_tools
         if completed:
             entry.update(
                 {
@@ -203,9 +206,36 @@ def _tool_invocations(attempts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return entries
 
 
-def _invoked(attempt: dict[str, Any], expected_calls: list[str]) -> bool:
-    observed = set(attempt["agent"]["tool_calls"])
-    return any(call in observed for call in expected_calls)
+def _invoked(attempt: dict[str, Any], expectation: dict[str, Any]) -> bool:
+    observed = [str(call) for call in attempt["agent"]["tool_calls"]]
+    expected_calls = [str(call) for call in expectation["expected_calls"]]
+    if str(expectation.get("kind")) == "mcp-server":
+        # An MCP expectation is a delimited namespace marker
+        # (mcp__<server>__), delivered when any tool under it fired.
+        return any(
+            call.startswith(marker) for call in observed for marker in expected_calls
+        )
+    return any(call in set(observed) for call in expected_calls)
+
+
+def _observed_namespace_tools(
+    measured: list[dict[str, Any]],
+    expectation: dict[str, Any],
+) -> list[str]:
+    """Which of an MCP server's tools actually fired, read back out of
+    the namespace suffixes — coverage detail no one had to predict."""
+    if str(expectation.get("kind")) != "mcp-server":
+        return []
+    markers = [str(call) for call in expectation["expected_calls"]]
+    return sorted(
+        {
+            str(call)[len(marker) :]
+            for attempt in measured
+            for call in attempt["agent"]["tool_calls"]
+            for marker in markers
+            if str(call).startswith(marker)
+        }
+    )
 
 
 def _top_level_summary(comparisons: list[dict[str, Any]]) -> dict[str, Any]:

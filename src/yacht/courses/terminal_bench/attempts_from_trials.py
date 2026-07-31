@@ -16,6 +16,7 @@ from yacht.contracts.schemas import (
 )
 from yacht.harnesses.claude_code import (
     SESSION_TRANSCRIPT_EVIDENCE,
+    mcp_server_namespace,
     tool_calls_from_session_transcript,
 )
 from yacht.courses.terminal_bench.harness import HARBOR_JOB_NAME
@@ -141,7 +142,7 @@ def _attempt_from_trial(
         "metrics": _metrics(trial),
         "secret_refs": _secret_refs(regatta, vessel, runtime),
     }
-    tool_expectations = _tool_expectations(regatta, vessel)
+    tool_expectations = _tool_expectations(regatta, vessel, runtime)
     if tool_expectations:
         artifact["tool_expectations"] = tool_expectations
     return artifact
@@ -194,15 +195,27 @@ def _agent_to_json(
 _SKILL_INSTALL_TARGET = re.compile(r"^\.claude/skills/([^/]+)/SKILL\.md$")
 _FRONTMATTER_NAME = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 
+# The mcp__<server>__ convention belongs to Claude Code's rendering of
+# MCP tools (ADR 0022). Other harnesses get no MCP expectation rather
+# than a marker their transcripts can never match.
+_MCP_NAMESPACED_HARNESSES = {"claude-code"}
 
-def _tool_expectations(regatta: Regatta, vessel: Vessel) -> list[dict[str, Any]]:
+
+def _tool_expectations(
+    regatta: Regatta,
+    vessel: Vessel,
+    runtime: RuntimeRecipe,
+) -> list[dict[str, Any]]:
     """Expected invocation markers for the vessel's installed tools,
     derived rather than configured where possible: a skill's marker
     comes from the SKILL.md it installs, an extension's from its
-    declared expected_tool_calls. Tools that declare nothing yield no
-    expectation — an unmeasurable claim is omitted, not invented."""
+    declared expected_tool_calls, an MCP server's from the tool
+    namespace its install step's target names (ADR 0022). Tools that
+    declare nothing yield no expectation — an unmeasurable claim is
+    omitted, not invented."""
     expectations: list[dict[str, Any]] = []
     seen: set[str] = set()
+    seen_servers: set[str] = set()
     for rigging_name in vessel.rigging:
         rigging = regatta.rigging_recipes.get(rigging_name)
         if rigging is None:
@@ -230,6 +243,22 @@ def _tool_expectations(regatta: Regatta, vessel: Vessel) -> list[dict[str, Any]]
                     "tool": tool_name,
                     "kind": capability.kind,
                     "expected_calls": expected_calls,
+                }
+            )
+        if runtime.harness not in _MCP_NAMESPACED_HARNESSES:
+            continue
+        for step in rigging.install:
+            if step.method != "mcp-server":
+                continue
+            server = str(step.target)
+            if server in seen_servers:
+                continue
+            seen_servers.add(server)
+            expectations.append(
+                {
+                    "tool": server,
+                    "kind": "mcp-server",
+                    "expected_calls": [mcp_server_namespace(server)],
                 }
             )
     return expectations

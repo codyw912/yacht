@@ -324,6 +324,11 @@ def _accumulate_tool_invocations(
                 "invoked_completed_attempts": 0,
             },
         )
+        observed = entry.get("observed_tools")
+        if isinstance(observed, list):
+            merged = set(total.get("observed_tools", ()))
+            merged.update(str(name) for name in observed)
+            total["observed_tools"] = sorted(merged)
         for key in (
             "attempts",
             "measured_attempts",
