@@ -5,6 +5,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from yacht.contracts.schemas import (
+    REAL_BENCHMARK_EVAL_SCHEMA,
+    validate_real_benchmark_eval_document,
+)
 from yacht.courses.registry import course_adapter
 from yacht.domain.model import ConfigError, Regatta, load_regatta
 from yacht.workflows.baseline import (
@@ -728,6 +732,8 @@ def _write_summary(
     config_path: Path,
     comparisons: tuple[Any, ...],
 ) -> dict[str, Any]:
+    summary.setdefault("schema", REAL_BENCHMARK_EVAL_SCHEMA)
+    validate_real_benchmark_eval_document(summary)
     path = logbook_dir / REAL_BENCHMARK_EVAL_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

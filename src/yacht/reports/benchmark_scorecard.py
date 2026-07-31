@@ -20,7 +20,9 @@ from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 from yacht.workflows.baseline import BaselineRecord, load_baseline_record
 from yacht.contracts.schemas import (
     BENCHMARK_SCORECARD_SCHEMA,
+    SchemaValidationError,
     validate_benchmark_scorecard_document,
+    validate_course_grading_report_document,
 )
 from yacht.courses.artifacts import grading_report_path, vessels_artifact_dir
 
@@ -79,6 +81,12 @@ def _load_grading(grading_path: Path, *, expected_schema: str) -> dict[str, Any]
     grading = _load_json_object(grading_path, "validated grading report")
     if grading.get("schema") != expected_schema:
         raise ConfigError("validated grading report has unsupported schema")
+    try:
+        validate_course_grading_report_document(grading)
+    except SchemaValidationError as error:
+        raise ConfigError(
+            f"validated grading report is invalid: {grading_path}: {error}"
+        ) from error
     return grading
 
 

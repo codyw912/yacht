@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
-from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_SCHEMA
 from yacht.reports.benchmark_aggregate import build_benchmark_aggregate
 from yacht.reports.benchmark_aggregate import render_benchmark_aggregate_document
 from yacht.workflows.benchmark_grading_collection import (
@@ -17,6 +16,8 @@ from yacht.reports.html_report import render_benchmark_html
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
     SchemaValidationError,
+    validate_benchmark_aggregate_document,
+    validate_benchmark_grading_collection_document,
     validate_benchmark_scorecard_document,
     validate_task_attempt_document,
     validate_task_attempt_scorecard_document,
@@ -93,11 +94,12 @@ def render_benchmark_report(
 
 def _render_aggregate_report(path: Path, output_format: str) -> str:
     aggregate = _load_json(path, "benchmark aggregate artifact")
-    if aggregate.get("schema") != BENCHMARK_AGGREGATE_SCHEMA:
+    try:
+        validate_benchmark_aggregate_document(aggregate)
+    except SchemaValidationError as error:
         raise ConfigError(
-            "benchmark aggregate artifact is invalid: "
-            f"schema must be {BENCHMARK_AGGREGATE_SCHEMA}"
-        )
+            f"benchmark aggregate artifact is invalid: {path}: {error}"
+        ) from error
     aggregate = _aggregate_with_run_details(aggregate)
     return render_benchmark_aggregate_document(aggregate, output_format)
 
@@ -313,7 +315,14 @@ def _load_grading_collection(logbook_dir: Path) -> dict[str, Any] | None:
     path = logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH
     if not path.exists():
         return None
-    return _load_json(path, "benchmark grading collection artifact")
+    collection = _load_json(path, "benchmark grading collection artifact")
+    try:
+        validate_benchmark_grading_collection_document(collection)
+    except SchemaValidationError as error:
+        raise ConfigError(
+            f"benchmark grading collection artifact is invalid: {path}: {error}"
+        ) from error
+    return collection
 
 
 def _surface_text_lines(logbook_dir: Path) -> list[str]:

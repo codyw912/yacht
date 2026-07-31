@@ -12,6 +12,7 @@ from yacht.courses.artifacts import (
     write_json_artifact,
 )
 from yacht.courses.handoff import build_course_handoff
+from yacht.contracts.schemas import validate_course_grading_report_document
 from yacht.domain.model import ConfigError
 
 
@@ -74,6 +75,7 @@ def write_course_grading_report(
         vessel_name=vessel_name,
         grading_schema=grading_schema,
     )
+    validate_course_grading_report_document(artifact)
     grading_path = grading_report_path(
         logbook_dir=logbook_dir,
         handoff=handoff,

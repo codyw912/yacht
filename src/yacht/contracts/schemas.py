@@ -28,6 +28,19 @@ REAL_SMOKE_RUNBOOK_SCHEMA = "yacht.real-smoke-runbook.v1"
 REAL_BENCHMARK_RUNBOOK_SCHEMA = "yacht.real-benchmark-runbook.v1"
 HARNESS_EVIDENCE_SCHEMA = "yacht.harness-evidence.v1"
 RUN_INDEX_SCHEMA = "yacht.run-index.v1"
+BENCHMARK_GRADING_COLLECTION_SCHEMA = "yacht.benchmark-grading-collection.v1"
+REAL_BENCHMARK_REPETITIONS_SCHEMA = "yacht.real-benchmark-repetitions.v1"
+REAL_BENCHMARK_EVAL_SCHEMA = "yacht.real-benchmark-eval.v1"
+BENCHMARK_AGGREGATE_SCHEMA = "yacht.benchmark-aggregate.v1"
+TERMINAL_BENCH_JOB_SCHEMA = "yacht.terminal-bench-job.v1"
+SWE_BENCH_GRADING_SCHEMA = "yacht.swe-bench-grading.v1"
+TERMINAL_BENCH_GRADING_SCHEMA = "yacht.terminal-bench-grading.v1"
+LIVECODEBENCH_GRADING_SCHEMA = "yacht.livecodebench-grading.v1"
+COURSE_GRADING_SCHEMAS = {
+    SWE_BENCH_GRADING_SCHEMA,
+    TERMINAL_BENCH_GRADING_SCHEMA,
+    LIVECODEBENCH_GRADING_SCHEMA,
+}
 
 # Kept in sync with yacht.harnesses.registry.supported_harness_names()
 # by a test; imported directly it would create an import cycle.
@@ -133,6 +146,21 @@ BENCHMARK_LAUNCHER_HANDOFF_VESSEL_STATUSES = {
 }
 BENCHMARK_LAUNCH_RESULT_STATUSES = {"blocked", "complete", "failed", "partial"}
 RUN_INDEX_RUN_KINDS = {"real-benchmark", "real-smoke"}
+BENCHMARK_GRADING_COLLECTION_STATUSES = {"blocked", "complete", "partial"}
+BENCHMARK_GRADING_COLLECTION_VESSEL_STATUSES = {
+    "collected",
+    "invalid-native-report",
+    "missing-native-report",
+    "skipped",
+}
+REAL_BENCHMARK_REPETITIONS_STATUSES = {"blocked", "complete", "partial"}
+# Kept in sync with yacht.reports.statistics GRADE_* constants by a test;
+# imported directly the contracts module would depend on the reports layer.
+EVIDENCE_GRADES = {
+    "evidence-of-difference",
+    "insufficient-evidence",
+    "not-distinguishable",
+}
 BENCHMARK_LAUNCH_RESULT_VESSEL_STATUSES = {"completed", "failed", "skipped"}
 TASK_ATTEMPT_STATUSES = {"completed", "failed"}
 TASK_ATTEMPT_SCORECARD_STATUSES = {"complete", "partial"}
@@ -978,6 +1006,390 @@ def validate_run_index_document(document: dict[str, Any]) -> None:
         _require_non_empty_string(artifact["path"], f"{artifact_path}.path")
         if not isinstance(artifact["present"], bool):
             raise SchemaValidationError(f"{artifact_path}.present must be a boolean")
+
+
+def validate_benchmark_grading_collection_document(document: dict[str, Any]) -> None:
+    _require_object(document, "grading collection")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "regatta",
+            "course",
+            "adapter",
+            "status",
+            "summary",
+            "next_steps",
+            "comparisons",
+        ),
+        "grading collection",
+    )
+    _require_schema(document, BENCHMARK_GRADING_COLLECTION_SCHEMA, "grading collection")
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], f"grading collection.{key}")
+    _validate_course_adapter_summary(
+        _require_object(document["adapter"], "grading collection.adapter"),
+        "grading collection.adapter",
+    )
+    _require_allowed_value(
+        document["status"],
+        BENCHMARK_GRADING_COLLECTION_STATUSES,
+        "grading collection.status",
+    )
+    summary = _require_object(document["summary"], "grading collection.summary")
+    for key in (
+        "total_vessels",
+        "completed_launches",
+        "collected_reports",
+        "missing_native_reports",
+        "invalid_native_reports",
+        "skipped_vessels",
+    ):
+        _require_keys(summary, (key,), "grading collection.summary")
+        _require_non_negative_int(summary[key], f"grading collection.summary.{key}")
+    _require_list(document["next_steps"], "grading collection.next_steps")
+    comparisons = _require_list(
+        document["comparisons"], "grading collection.comparisons"
+    )
+    for index, comparison_value in enumerate(comparisons):
+        comparison_path = f"grading collection.comparisons[{index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(
+            comparison, ("name", "course", "status", "vessels"), comparison_path
+        )
+        _require_non_empty_string(comparison["name"], f"{comparison_path}.name")
+        _require_non_empty_string(comparison["course"], f"{comparison_path}.course")
+        _require_allowed_value(
+            comparison["status"],
+            BENCHMARK_GRADING_COLLECTION_STATUSES,
+            f"{comparison_path}.status",
+        )
+        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
+        for vessel_index, vessel_value in enumerate(vessels):
+            vessel_path = f"{comparison_path}.vessels[{vessel_index}]"
+            vessel = _require_object(vessel_value, vessel_path)
+            _require_keys(vessel, ("name", "launch_status", "status"), vessel_path)
+            _require_non_empty_string(vessel["name"], f"{vessel_path}.name")
+            _require_non_empty_string(
+                vessel["launch_status"], f"{vessel_path}.launch_status"
+            )
+            _require_allowed_value(
+                vessel["status"],
+                BENCHMARK_GRADING_COLLECTION_VESSEL_STATUSES,
+                f"{vessel_path}.status",
+            )
+            if vessel["status"] == "collected":
+                _require_keys(
+                    vessel,
+                    (
+                        "native_report_path",
+                        "grading_report_path",
+                        "submitted_instances",
+                        "resolved_instances",
+                        "resolution_rate",
+                    ),
+                    vessel_path,
+                )
+                for key in ("native_report_path", "grading_report_path"):
+                    _require_non_empty_string(vessel[key], f"{vessel_path}.{key}")
+                for key in ("submitted_instances", "resolved_instances"):
+                    _require_non_negative_int(vessel[key], f"{vessel_path}.{key}")
+                _require_non_negative_number(
+                    vessel["resolution_rate"], f"{vessel_path}.resolution_rate"
+                )
+
+
+def validate_real_benchmark_repetitions_document(document: dict[str, Any]) -> None:
+    _require_object(document, "repetitions")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "status",
+            "regatta",
+            "course",
+            "surfaces",
+            "summary",
+            "runs",
+            "artifacts",
+            "next_steps",
+        ),
+        "repetitions",
+    )
+    _require_schema(document, REAL_BENCHMARK_REPETITIONS_SCHEMA, "repetitions")
+    _require_allowed_value(
+        document["status"],
+        REAL_BENCHMARK_REPETITIONS_STATUSES,
+        "repetitions.status",
+    )
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], f"repetitions.{key}")
+    _require_object(document["surfaces"], "repetitions.surfaces")
+    summary = _require_object(document["summary"], "repetitions.summary")
+    for key in ("repetitions", "completed_runs", "failed_runs", "aggregate_logbooks"):
+        _require_keys(summary, (key,), "repetitions.summary")
+        _require_non_negative_int(summary[key], f"repetitions.summary.{key}")
+    runs = _require_list(document["runs"], "repetitions.runs")
+    for index, run_value in enumerate(runs):
+        run_path = f"repetitions.runs[{index}]"
+        run = _require_object(run_value, run_path)
+        _require_keys(
+            run,
+            ("index", "logbook", "status", "scorecard_present", "artifacts"),
+            run_path,
+        )
+        _require_non_negative_int(run["index"], f"{run_path}.index")
+        _require_non_empty_string(run["logbook"], f"{run_path}.logbook")
+        _require_non_empty_string(run["status"], f"{run_path}.status")
+        if not isinstance(run["scorecard_present"], bool):
+            raise SchemaValidationError(
+                f"{run_path}.scorecard_present must be a boolean"
+            )
+        _require_string_mapping(run["artifacts"], f"{run_path}.artifacts")
+    _require_string_mapping(document["artifacts"], "repetitions.artifacts")
+    _require_list(document["next_steps"], "repetitions.next_steps")
+    if "agent" in document:
+        _require_non_empty_string(document["agent"], "repetitions.agent")
+    if "aggregate_summary" in document:
+        _require_object(document["aggregate_summary"], "repetitions.aggregate_summary")
+
+
+def validate_benchmark_aggregate_document(document: dict[str, Any]) -> None:
+    _require_object(document, "benchmark aggregate")
+    _require_keys(
+        document,
+        ("schema", "regatta", "course", "run_count", "logbooks", "comparisons"),
+        "benchmark aggregate",
+    )
+    _require_schema(document, BENCHMARK_AGGREGATE_SCHEMA, "benchmark aggregate")
+    for key in ("regatta", "course"):
+        _require_non_empty_string(document[key], f"benchmark aggregate.{key}")
+    run_count = document["run_count"]
+    if not isinstance(run_count, int) or run_count < 1:
+        raise SchemaValidationError(
+            "benchmark aggregate.run_count must be an integer >= 1"
+        )
+    logbooks = _require_list(document["logbooks"], "benchmark aggregate.logbooks")
+    for index, logbook in enumerate(logbooks):
+        _require_non_empty_string(logbook, f"benchmark aggregate.logbooks[{index}]")
+    if len(logbooks) != run_count:
+        raise SchemaValidationError(
+            "benchmark aggregate.run_count must match the number of logbooks"
+        )
+    comparisons = _require_list(
+        document["comparisons"], "benchmark aggregate.comparisons"
+    )
+    for index, comparison_value in enumerate(comparisons):
+        comparison_path = f"benchmark aggregate.comparisons[{index}]"
+        comparison = _require_object(comparison_value, comparison_path)
+        _require_keys(
+            comparison,
+            ("name", "baseline", "challenger", "vessels", "delta"),
+            comparison_path,
+        )
+        for key in ("name", "baseline", "challenger"):
+            _require_non_empty_string(comparison[key], f"{comparison_path}.{key}")
+        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
+        for vessel_index, vessel_value in enumerate(vessels):
+            vessel_path = f"{comparison_path}.vessels[{vessel_index}]"
+            vessel = _require_object(vessel_value, vessel_path)
+            _require_keys(vessel, ("name",), vessel_path)
+            _require_non_empty_string(vessel["name"], f"{vessel_path}.name")
+            for key in (
+                "runs",
+                "eligible_runs",
+                "measured_runs",
+                "submitted_instances",
+                "resolved_instances",
+                "usage_runs",
+                "total_tokens",
+                "total_distinct_tool_uses",
+            ):
+                _require_keys(vessel, (key,), vessel_path)
+                _require_non_negative_int(vessel[key], f"{vessel_path}.{key}")
+            for key in ("resolution_rate", "total_cost", "total_duration_seconds"):
+                _require_keys(vessel, (key,), vessel_path)
+                _require_non_negative_number(vessel[key], f"{vessel_path}.{key}")
+        _require_object(comparison["delta"], f"{comparison_path}.delta")
+        # Per-run details and statistics blocks postdate the aggregate
+        # artifact; older logbooks lack them and the renderer enriches,
+        # so they validate when present.
+        if "runs" in comparison:
+            _require_list(comparison["runs"], f"{comparison_path}.runs")
+        if "delta_statistics" in comparison:
+            _require_object(
+                comparison["delta_statistics"], f"{comparison_path}.delta_statistics"
+            )
+        if "paired_statistics" in comparison:
+            _validate_paired_statistics(
+                comparison["paired_statistics"],
+                f"{comparison_path}.paired_statistics",
+            )
+
+
+def _validate_paired_statistics(value: Any, path: str) -> None:
+    statistics = _require_object(value, path)
+    _require_keys(
+        statistics,
+        (
+            "baseline_vessel",
+            "challenger_vessel",
+            "shared_task_attempts",
+            "concordant_resolved",
+            "concordant_unresolved",
+            "discordant_baseline_only",
+            "discordant_challenger_only",
+            "discordant_by_task",
+            "grade",
+            "p_value",
+        ),
+        path,
+    )
+    for key in ("baseline_vessel", "challenger_vessel"):
+        _require_non_empty_string(statistics[key], f"{path}.{key}")
+    for key in (
+        "shared_task_attempts",
+        "concordant_resolved",
+        "concordant_unresolved",
+        "discordant_baseline_only",
+        "discordant_challenger_only",
+    ):
+        _require_non_negative_int(statistics[key], f"{path}.{key}")
+    tasks = _require_list(
+        statistics["discordant_by_task"], f"{path}.discordant_by_task"
+    )
+    for index, task_value in enumerate(tasks):
+        task_path = f"{path}.discordant_by_task[{index}]"
+        task = _require_object(task_value, task_path)
+        _require_keys(task, ("task", "baseline_only", "challenger_only"), task_path)
+        _require_non_empty_string(task["task"], f"{task_path}.task")
+        for key in ("baseline_only", "challenger_only"):
+            _require_non_negative_int(task[key], f"{task_path}.{key}")
+    _require_allowed_value(statistics["grade"], EVIDENCE_GRADES, f"{path}.grade")
+    p_value = statistics["p_value"]
+    if not isinstance(p_value, int | float) or not 0.0 <= float(p_value) <= 1.0:
+        raise SchemaValidationError(f"{path}.p_value must be a number between 0 and 1")
+
+
+def validate_terminal_bench_job_document(document: dict[str, Any]) -> None:
+    _require_object(document, "terminal-bench job")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "dataset",
+            "tasks",
+            "agent",
+            "launcher_image",
+            "secret_env",
+            "vessel",
+        ),
+        "terminal-bench job",
+    )
+    _require_schema(document, TERMINAL_BENCH_JOB_SCHEMA, "terminal-bench job")
+    dataset = _require_object(document["dataset"], "terminal-bench job.dataset")
+    if "path" in dataset or "digest" in dataset:
+        _require_keys(dataset, ("path", "digest"), "terminal-bench job.dataset")
+        for key in ("path", "digest"):
+            _require_non_empty_string(dataset[key], f"terminal-bench job.dataset.{key}")
+    else:
+        _require_keys(dataset, ("name", "version"), "terminal-bench job.dataset")
+        for key in ("name", "version"):
+            _require_non_empty_string(dataset[key], f"terminal-bench job.dataset.{key}")
+    tasks = _require_list(document["tasks"], "terminal-bench job.tasks")
+    if not tasks:
+        raise SchemaValidationError(
+            "terminal-bench job.tasks must contain at least one task"
+        )
+    for index, task in enumerate(tasks):
+        _require_non_empty_string(task, f"terminal-bench job.tasks[{index}]")
+    agent = _require_object(document["agent"], "terminal-bench job.agent")
+    _require_keys(
+        agent,
+        (
+            "name",
+            "import_path",
+            "version",
+            "model",
+            "env",
+            "mcp_servers",
+            "rigging_steps",
+        ),
+        "terminal-bench job.agent",
+    )
+    for key in ("name", "import_path", "version", "model"):
+        _require_non_empty_string(agent[key], f"terminal-bench job.agent.{key}")
+    _require_string_mapping(agent["env"], "terminal-bench job.agent.env")
+    for key in ("mcp_servers", "rigging_steps"):
+        entries = _require_list(agent[key], f"terminal-bench job.agent.{key}")
+        for index, entry in enumerate(entries):
+            _require_object(entry, f"terminal-bench job.agent.{key}[{index}]")
+    if "declaration" in agent:
+        _require_object(agent["declaration"], "terminal-bench job.agent.declaration")
+    _require_non_empty_string(
+        document["launcher_image"], "terminal-bench job.launcher_image"
+    )
+    secret_env = _require_list(document["secret_env"], "terminal-bench job.secret_env")
+    for index, name in enumerate(secret_env):
+        _require_non_empty_string(name, f"terminal-bench job.secret_env[{index}]")
+    _require_non_empty_string(document["vessel"], "terminal-bench job.vessel")
+
+
+def validate_course_grading_report_document(document: dict[str, Any]) -> None:
+    _require_object(document, "grading report")
+    _require_keys(
+        document,
+        (
+            "schema",
+            "regatta",
+            "course",
+            "adapter",
+            "dataset",
+            "split",
+            "status",
+            "source_report_path",
+            "candidate_patches_path",
+            "submitted_instances",
+            "resolved_instances",
+            "resolution_rate",
+            "native_report",
+        ),
+        "grading report",
+    )
+    _require_allowed_value(
+        document["schema"], COURSE_GRADING_SCHEMAS, "grading report.schema"
+    )
+    for key in (
+        "regatta",
+        "course",
+        "adapter",
+        "dataset",
+        "split",
+        "source_report_path",
+        "candidate_patches_path",
+    ):
+        _require_non_empty_string(document[key], f"grading report.{key}")
+    _require_allowed_value(document["status"], {"validated"}, "grading report.status")
+    for key in ("submitted_instances", "resolved_instances"):
+        _require_non_negative_int(document[key], f"grading report.{key}")
+    _require_non_negative_number(
+        document["resolution_rate"], "grading report.resolution_rate"
+    )
+    _require_object(document["native_report"], "grading report.native_report")
+    if "vessel" in document:
+        _require_non_empty_string(document["vessel"], "grading report.vessel")
+
+
+def validate_real_benchmark_eval_document(document: dict[str, Any]) -> None:
+    _require_object(document, "real benchmark eval")
+    _require_keys(
+        document,
+        ("schema", "status", "regatta", "course"),
+        "real benchmark eval",
+    )
+    _require_schema(document, REAL_BENCHMARK_EVAL_SCHEMA, "real benchmark eval")
+    for key in ("status", "regatta", "course"):
+        _require_non_empty_string(document[key], f"real benchmark eval.{key}")
 
 
 def validate_benchmark_scorecard_document(document: dict[str, Any]) -> None:

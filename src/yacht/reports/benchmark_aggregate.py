@@ -17,7 +17,9 @@ from yacht.reports.statistics import (
 )
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
+    BENCHMARK_AGGREGATE_SCHEMA,
     SchemaValidationError,
+    validate_benchmark_aggregate_document,
     validate_benchmark_scorecard_document,
     validate_task_attempt_scorecard_document,
 )
@@ -34,7 +36,6 @@ from yacht.reports.task_attempt_scorecard import (
 from yacht.workflows.provenance import collapse_provenance
 
 
-BENCHMARK_AGGREGATE_SCHEMA = "yacht.benchmark-aggregate.v1"
 BENCHMARK_AGGREGATE_PATH = Path("benchmark-aggregate.json")
 
 
@@ -48,7 +49,7 @@ def build_benchmark_aggregate(logbook_dirs: list[Path]) -> dict[str, Any]:
         _aggregate_comparison(str(comparison["name"]), runs)
         for comparison in first_scorecard["comparisons"]
     ]
-    return {
+    aggregate = {
         "schema": BENCHMARK_AGGREGATE_SCHEMA,
         "regatta": str(first_scorecard["regatta"]),
         "course": str(first_scorecard["course"]),
@@ -56,6 +57,8 @@ def build_benchmark_aggregate(logbook_dirs: list[Path]) -> dict[str, Any]:
         "logbooks": [str(run["logbook"]) for run in runs],
         "comparisons": comparisons,
     }
+    validate_benchmark_aggregate_document(aggregate)
+    return aggregate
 
 
 def render_benchmark_aggregate(

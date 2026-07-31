@@ -3,10 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from yacht.contracts.schemas import LIVECODEBENCH_GRADING_SCHEMA
 from yacht.courses.grading import write_course_grading_report
-
-
-LIVECODEBENCH_GRADING_SCHEMA = "yacht.livecodebench-grading.v1"
 
 
 def write_livecodebench_grading_report(
