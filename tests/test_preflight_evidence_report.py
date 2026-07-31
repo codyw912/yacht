@@ -9,11 +9,24 @@ from pathlib import Path
 from tests.preflight_artifacts import write_preflight_artifact
 from yacht.cli import main
 from yacht.courses.handoff import write_course_handoff
+from yacht.domain.model import ConfigError
 from yacht.reports.preflight_evidence import render_preflight_evidence_report
 from yacht.reports.preflight_evidence import write_preflight_evidence_report
 
 
 class PreflightEvidenceReportTests(unittest.TestCase):
+    def test_report_rejects_malformed_course_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir(parents=True)
+            (logbook_dir / "course-handoff.json").write_text(
+                json.dumps({"schema": "yacht.course-handoff.v1"}),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ConfigError, "course handoff"):
+                write_preflight_evidence_report(logbook_dir)
+
     def test_report_summarizes_preflight_eligibility(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = _prepared_logbook(Path(temp_dir))

@@ -62,6 +62,7 @@ class StatusCommandTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertIn("error:", stderr.getvalue())
             self.assertIn("run index", stderr.getvalue())
+
     def test_smoke_logbook_renders_smoke_status(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"

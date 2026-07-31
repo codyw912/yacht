@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.courses.registry import evaluator_adapter
-from yacht.courses.handoff import COURSE_HANDOFF_PATH
+from yacht.courses.handoff import load_course_handoff
 from yacht.reports.next_steps import command_step
 from yacht.reports.preflight_evidence import build_preflight_evidence_report
 from yacht.reports.statistics import (
@@ -29,7 +29,7 @@ BENCHMARK_SCORECARD_PATH = Path("benchmark-scorecard.json")
 
 
 def write_benchmark_scorecard(logbook_dir: Path) -> dict[str, Any]:
-    handoff = _load_handoff(logbook_dir)
+    handoff = load_course_handoff(logbook_dir)
     gradings = _load_gradings(logbook_dir, handoff)
     preflight_report = build_preflight_evidence_report(logbook_dir)
     recorded_by_comparison = _recorded_baseline_vessels(handoff)
@@ -44,13 +44,6 @@ def write_benchmark_scorecard(logbook_dir: Path) -> dict[str, Any]:
     validate_benchmark_scorecard_document(scorecard)
     _write_json(logbook_dir / BENCHMARK_SCORECARD_PATH, scorecard)
     return scorecard
-
-
-def _load_handoff(logbook_dir: Path) -> dict[str, Any]:
-    handoff_path = logbook_dir / COURSE_HANDOFF_PATH
-    if not handoff_path.exists():
-        raise ConfigError(f"course handoff artifact not found: {handoff_path}")
-    return _load_json_object(handoff_path, "course handoff artifact")
 
 
 def _load_gradings(logbook_dir: Path, handoff: dict[str, Any]) -> list[dict[str, Any]]:

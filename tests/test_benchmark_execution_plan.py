@@ -23,6 +23,18 @@ from yacht.courses.swe_bench.predictions import write_swe_bench_predictions
 
 
 class BenchmarkExecutionPlanTests(unittest.TestCase):
+    def test_benchmark_execution_plan_rejects_malformed_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir(parents=True)
+            (logbook_dir / "course-handoff.json").write_text(
+                json.dumps({"schema": "yacht.course-handoff.v1"}),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ConfigError, "course handoff"):
+                write_benchmark_execution_plan(logbook_dir)
+
     def test_benchmark_execution_plan_reports_missing_candidate_patches(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"

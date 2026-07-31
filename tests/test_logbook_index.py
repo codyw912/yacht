@@ -75,7 +75,6 @@ class LogbookIndexTests(unittest.TestCase):
                 index,
             )
 
-
     def test_refuses_to_write_an_invalid_run_index(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
