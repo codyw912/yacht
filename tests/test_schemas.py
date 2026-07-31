@@ -239,61 +239,25 @@ class SchemaTests(unittest.TestCase):
         validate_task_attempt_document(document)
 
     def test_task_attempt_scorecard_documents_include_schema_version(self) -> None:
-        document = {
-            "schema": TASK_ATTEMPT_SCORECARD_SCHEMA,
-            "regatta": "local-agent-preflight-smoke",
-            "course": "local-smoke",
-            "status": "complete",
-            "summary": {
-                "total_comparisons": 1,
-                "total_vessels": 2,
-                "total_attempts": 2,
-                "completed_attempts": 2,
-                "failed_attempts": 0,
-                "total_distinct_tool_uses": 1,
-                "attempts_by_tool": {"local-smoke": 1},
-                "total_tokens": 16,
-                "total_cost": 0.00042,
-                "total_duration_seconds": 0.0,
-            },
-            "comparisons": [
-                {
-                    "name": "local-agent-preflight",
-                    "summary": {
-                        "total_vessels": 2,
-                        "total_attempts": 2,
-                        "completed_attempts": 2,
-                        "failed_attempts": 0,
-                        "total_distinct_tool_uses": 1,
-                        "attempts_by_tool": {"local-smoke": 1},
-                        "total_tokens": 16,
-                        "total_cost": 0.00042,
-                        "total_duration_seconds": 0.0,
-                    },
-                    "vessels": [
-                        {
-                            "name": "local-agent-with-tool",
-                            "status": "measured",
-                            "task_attempts": 1,
-                            "completed_attempts": 1,
-                            "failed_attempts": 0,
-                            "success_rate": 1.0,
-                            "harnesses": ["local-smoke"],
-                            "distinct_tool_uses": 1,
-                            "attempts_by_tool": {"local-smoke": 1},
-                            "total_tokens": 8,
-                            "total_cost": 0.00042,
-                            "total_duration_seconds": 0.0,
-                            "artifact_paths": [
-                                "logbook/task-attempts/local-agent-preflight/local-agent-with-tool/local-smoke-1.json"
-                            ],
-                        },
-                    ],
-                }
-            ],
-        }
+        validate_task_attempt_scorecard_document(
+            _valid_task_attempt_scorecard_document()
+        )
 
-        validate_task_attempt_scorecard_document(document)
+    def test_task_attempt_scorecard_rejects_comparison_summary_mismatch(self) -> None:
+        document = _valid_task_attempt_scorecard_document()
+        document["comparisons"][0]["summary"]["total_attempts"] = 3
+
+        with self.assertRaisesRegex(
+            ValueError, "comparisons\\[0\\].summary.total_attempts"
+        ):
+            validate_task_attempt_scorecard_document(document)
+
+    def test_task_attempt_scorecard_rejects_top_level_summary_mismatch(self) -> None:
+        document = _valid_task_attempt_scorecard_document()
+        document["summary"]["total_tokens"] = 99
+
+        with self.assertRaisesRegex(ValueError, "summary.total_tokens"):
+            validate_task_attempt_scorecard_document(document)
 
     def test_task_attempt_scorecard_rejects_invalid_tool_call_counts(self) -> None:
         document = {
@@ -513,60 +477,17 @@ class SchemaTests(unittest.TestCase):
         validate_real_benchmark_runbook_document(document)
 
     def test_benchmark_launch_result_documents_include_schema_version(self) -> None:
-        document = {
-            "schema": BENCHMARK_LAUNCH_RESULT_SCHEMA,
-            "regatta": "pi-fff-comparison",
-            "course": "swe-bench-lite",
-            "adapter": {
-                "kind": "swe-bench",
-                "dataset": "princeton-nlp/SWE-bench_Lite",
-                "split": "test",
-                "harness": "docker",
-            },
-            "status": "complete",
-            "summary": {
-                "total_vessels": 1,
-                "launched_vessels": 1,
-                "completed_launches": 1,
-                "failed_launches": 0,
-                "skipped_vessels": 0,
-            },
-            "comparisons": [
-                {
-                    "name": "pi-vs-pi-fff",
-                    "course": "swe-bench-lite",
-                    "status": "complete",
-                    "vessels": [
-                        {
-                            "name": "pi-baseline",
-                            "status": "completed",
-                            "launcher_status": "ready-to-launch",
-                            "command": [
-                                "python",
-                                "-m",
-                                "swebench.harness.run_evaluation",
-                            ],
-                            "command_preview": (
-                                "python -m swebench.harness.run_evaluation"
-                            ),
-                            "exit_code": 0,
-                            "stdout_path": "logbook/benchmark-launch/stdout.txt",
-                            "stderr_path": "logbook/benchmark-launch/stderr.txt",
-                            "native_report_dir": "logbook/native-report",
-                            "expected_native_report_path": (
-                                "logbook/native-report/pi-baseline.run-id.json"
-                            ),
-                            "expected_yacht_grading_report_path": (
-                                "logbook/course-handoff/swe-bench/vessels/"
-                                "pi-baseline/grading-report.json"
-                            ),
-                        }
-                    ],
-                }
-            ],
-        }
+        validate_benchmark_launch_result_document(
+            _valid_benchmark_launch_result_document()
+        )
 
-        validate_benchmark_launch_result_document(document)
+    def test_launch_result_rejects_summary_that_contradicts_vessels(self) -> None:
+        document = _valid_benchmark_launch_result_document()
+        document["summary"]["completed_launches"] = 0
+        document["summary"]["failed_launches"] = 1
+
+        with self.assertRaisesRegex(ValueError, "summary.completed_launches"):
+            validate_benchmark_launch_result_document(document)
 
     def test_preflight_summary_documents_include_schema_version(self) -> None:
         document = {
@@ -732,6 +653,13 @@ class SchemaTests(unittest.TestCase):
             ValueError,
             "benchmark scorecard.summary.missing_result_vessels",
         ):
+            validate_benchmark_scorecard_document(document)
+
+    def test_benchmark_scorecard_rejects_phantom_recorded_vessels(self) -> None:
+        document = _valid_benchmark_scorecard_document()
+        document["summary"]["recorded_vessels"] = 1
+
+        with self.assertRaisesRegex(ValueError, "recorded_vessels"):
             validate_benchmark_scorecard_document(document)
 
     def test_benchmark_scorecard_rejects_unknown_vessel_status(self) -> None:
@@ -1076,6 +1004,134 @@ def _valid_benchmark_readiness_summary_document() -> dict[str, Any]:
                     "runtime_instances": "runtime-instances.json",
                     "grading_report": "grading-report.json",
                 },
+            }
+        ],
+    }
+
+
+def _valid_benchmark_launch_result_document() -> dict[str, Any]:
+    return {
+        "schema": BENCHMARK_LAUNCH_RESULT_SCHEMA,
+        "regatta": "pi-fff-comparison",
+        "course": "swe-bench-lite",
+        "adapter": {
+            "kind": "swe-bench",
+            "dataset": "princeton-nlp/SWE-bench_Lite",
+            "split": "test",
+            "harness": "docker",
+        },
+        "status": "complete",
+        "summary": {
+            "total_vessels": 1,
+            "launched_vessels": 1,
+            "completed_launches": 1,
+            "failed_launches": 0,
+            "skipped_vessels": 0,
+        },
+        "comparisons": [
+            {
+                "name": "pi-vs-pi-fff",
+                "course": "swe-bench-lite",
+                "status": "complete",
+                "vessels": [
+                    {
+                        "name": "pi-baseline",
+                        "status": "completed",
+                        "launcher_status": "ready-to-launch",
+                        "command": [
+                            "python",
+                            "-m",
+                            "swebench.harness.run_evaluation",
+                        ],
+                        "command_preview": (
+                            "python -m swebench.harness.run_evaluation"
+                        ),
+                        "exit_code": 0,
+                        "stdout_path": "logbook/benchmark-launch/stdout.txt",
+                        "stderr_path": "logbook/benchmark-launch/stderr.txt",
+                        "native_report_dir": "logbook/native-report",
+                        "expected_native_report_path": (
+                            "logbook/native-report/pi-baseline.run-id.json"
+                        ),
+                        "expected_yacht_grading_report_path": (
+                            "logbook/course-handoff/swe-bench/vessels/"
+                            "pi-baseline/grading-report.json"
+                        ),
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def _valid_task_attempt_scorecard_document() -> dict[str, Any]:
+    return {
+        "schema": TASK_ATTEMPT_SCORECARD_SCHEMA,
+        "regatta": "local-agent-preflight-smoke",
+        "course": "local-smoke",
+        "status": "complete",
+        "summary": {
+            "total_comparisons": 1,
+            "total_vessels": 2,
+            "total_attempts": 2,
+            "completed_attempts": 2,
+            "failed_attempts": 0,
+            "total_distinct_tool_uses": 1,
+            "attempts_by_tool": {"local-smoke": 1},
+            "total_tokens": 16,
+            "total_cost": 0.00042,
+            "total_duration_seconds": 0.0,
+        },
+        "comparisons": [
+            {
+                "name": "local-agent-preflight",
+                "summary": {
+                    "total_vessels": 2,
+                    "total_attempts": 2,
+                    "completed_attempts": 2,
+                    "failed_attempts": 0,
+                    "total_distinct_tool_uses": 1,
+                    "attempts_by_tool": {"local-smoke": 1},
+                    "total_tokens": 16,
+                    "total_cost": 0.00042,
+                    "total_duration_seconds": 0.0,
+                },
+                "vessels": [
+                    {
+                        "name": "local-agent-with-tool",
+                        "status": "measured",
+                        "task_attempts": 1,
+                        "completed_attempts": 1,
+                        "failed_attempts": 0,
+                        "success_rate": 1.0,
+                        "harnesses": ["local-smoke"],
+                        "distinct_tool_uses": 1,
+                        "attempts_by_tool": {"local-smoke": 1},
+                        "total_tokens": 8,
+                        "total_cost": 0.00042,
+                        "total_duration_seconds": 0.0,
+                        "artifact_paths": [
+                            "logbook/task-attempts/local-agent-preflight/local-agent-with-tool/local-smoke-1.json"
+                        ],
+                    },
+                    {
+                        "name": "local-agent-baseline",
+                        "status": "measured",
+                        "task_attempts": 1,
+                        "completed_attempts": 1,
+                        "failed_attempts": 0,
+                        "success_rate": 1.0,
+                        "harnesses": ["local-smoke"],
+                        "distinct_tool_uses": 0,
+                        "attempts_by_tool": {},
+                        "total_tokens": 8,
+                        "total_cost": 0.0,
+                        "total_duration_seconds": 0.0,
+                        "artifact_paths": [
+                            "logbook/task-attempts/local-agent-preflight/local-agent-baseline/local-smoke-1.json"
+                        ],
+                    },
+                ],
             }
         ],
     }

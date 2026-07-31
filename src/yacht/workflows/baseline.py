@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.courses.artifacts import grading_report_path, handoff_task_ids
-from yacht.courses.handoff import COURSE_HANDOFF_PATH
+from yacht.courses.handoff import COURSE_HANDOFF_PATH, load_course_handoff
 from yacht.courses.registry import course_adapter_block
 from yacht.domain.model import (
     BaselineReference,
@@ -45,7 +45,7 @@ def load_baseline_record(baseline: BaselineReference) -> BaselineRecord:
         raise ConfigError(
             f"recorded baseline logbook has no course handoff artifact: {handoff_path}"
         )
-    handoff = load_json_object(handoff_path, "recorded baseline course handoff")
+    handoff = load_course_handoff(baseline.logbook)
     return BaselineRecord(
         reference=baseline,
         handoff=handoff,

@@ -9,6 +9,7 @@ from yacht.cli import main
 from yacht.domain.model import ConfigError
 from yacht.reports.every_eval_ever import (
     build_every_eval_ever_export,
+    verify_every_eval_ever_export,
     write_every_eval_ever_export,
 )
 
@@ -201,6 +202,76 @@ class EveryEvalEverExportTests(unittest.TestCase):
                         for row in rows
                     )
                 )
+
+    def test_export_rejects_scorecard_comparison_absent_from_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook = _logbook(Path(temp_dir))
+            scorecard_path = logbook / "benchmark-scorecard.json"
+            scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
+            scorecard["comparisons"][0]["name"] = "renamed-comparison"
+            _write(scorecard_path, scorecard)
+
+            with self.assertRaisesRegex(ConfigError, "renamed-comparison"):
+                build_every_eval_ever_export(
+                    logbook_dir=logbook,
+                    retrieved_timestamp=RETRIEVED,
+                )
+
+    def test_export_rejects_malformed_course_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook = _logbook(Path(temp_dir))
+            handoff_path = logbook / "course-handoff.json"
+            handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+            del handoff["grading"]
+            _write(handoff_path, handoff)
+
+            with self.assertRaisesRegex(ConfigError, "course handoff"):
+                build_every_eval_ever_export(
+                    logbook_dir=logbook,
+                    retrieved_timestamp=RETRIEVED,
+                )
+
+    def test_verify_detects_extra_instance_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook = _logbook(root)
+            output_dir = root / "export"
+            manifest = write_every_eval_ever_export(
+                logbook_dir=logbook,
+                output_dir=output_dir,
+                retrieved_timestamp=RETRIEVED,
+            )
+            export = manifest["exports"][0]
+            instance_path = Path(export["instance_path"])
+            lines = instance_path.read_text(encoding="utf-8").splitlines()
+            instance_path.write_text(
+                "\n".join([*lines, lines[0]]) + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ConfigError, "total_rows"):
+                verify_every_eval_ever_export(Path(export["aggregate_path"]))
+
+    def test_verify_detects_foreign_evaluation_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook = _logbook(root)
+            output_dir = root / "export"
+            manifest = write_every_eval_ever_export(
+                logbook_dir=logbook,
+                output_dir=output_dir,
+                retrieved_timestamp=RETRIEVED,
+            )
+            export = manifest["exports"][0]
+            instance_path = Path(export["instance_path"])
+            lines = instance_path.read_text(encoding="utf-8").splitlines()
+            first = json.loads(lines[0])
+            first["evaluation_id"] = "someone-elses-run"
+            lines[0] = json.dumps(first)
+            instance_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ConfigError, "evaluation_id"):
+                verify_every_eval_ever_export(Path(export["aggregate_path"]))
 
     def test_cli_requires_an_output_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

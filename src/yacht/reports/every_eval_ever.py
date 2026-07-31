@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from yacht.courses.handoff import COURSE_HANDOFF_PATH
+from yacht.courses.handoff import load_course_handoff
 from yacht.domain.model import ConfigError
 from yacht.logbook.index import RUN_INDEX_PATH
 from yacht.logbook.io import load_json_object, write_json
@@ -59,6 +59,7 @@ def write_every_eval_ever_export(
         validate_every_eval_ever_document(document)
         aggregate_path = output_dir / f"{stem}.json"
         write_json(aggregate_path, document)
+        verify_every_eval_ever_export(aggregate_path)
         written.append(
             {
                 "evaluation_id": document["evaluation_id"],
@@ -76,16 +77,82 @@ def write_every_eval_ever_export(
     }
 
 
+def verify_every_eval_ever_export(aggregate_path: Path) -> None:
+    """Cross-check an exported aggregate against its sibling instance JSONL.
+
+    The aggregate references the instance file by name, row count, and
+    checksum; the rows carry the aggregate's evaluation_id. These are the
+    export's foreign keys, and divergence means the pair no longer
+    describes one evaluation.
+    """
+    document = load_json_object(aggregate_path, "every eval ever aggregate")
+    detailed = document.get("detailed_evaluation_results")
+    if not isinstance(detailed, dict):
+        raise ConfigError(
+            "every eval ever aggregate has no detailed_evaluation_results: "
+            f"{aggregate_path}"
+        )
+    instance_path = aggregate_path.parent / str(detailed.get("file_path"))
+    if not instance_path.exists():
+        raise ConfigError(f"every eval ever instance file not found: {instance_path}")
+    lines = instance_path.read_text(encoding="utf-8").splitlines()
+    if len(lines) != detailed.get("total_rows"):
+        raise ConfigError(
+            f"every eval ever total_rows {detailed.get('total_rows')} does not "
+            f"match the {len(lines)} rows in {instance_path}"
+        )
+    evaluation_id = str(document.get("evaluation_id"))
+    for line_number, line in enumerate(lines, 1):
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise ConfigError(
+                f"every eval ever instance line {line_number} is not valid "
+                f"JSON: {error}"
+            ) from error
+        if not isinstance(row, dict) or row.get("evaluation_id") != evaluation_id:
+            raise ConfigError(
+                f"every eval ever instance line {line_number} evaluation_id "
+                f"must be {evaluation_id}"
+            )
+    digest = hashlib.sha256(instance_path.read_bytes()).hexdigest()
+    if digest != detailed.get("checksum"):
+        raise ConfigError(
+            f"every eval ever instance checksum mismatch for {instance_path}"
+        )
+
+
+def _require_scorecard_matches_handoff(
+    handoff: dict[str, Any],
+    scorecard: dict[str, Any],
+) -> None:
+    for key in ("regatta", "course"):
+        if scorecard.get(key) != handoff.get(key):
+            raise ConfigError(
+                f"benchmark scorecard {key} {scorecard.get(key)!r} does not "
+                f"match course handoff {key} {handoff.get(key)!r}"
+            )
+    declared = {str(comparison["name"]) for comparison in handoff["comparisons"]}
+    for comparison in scorecard["comparisons"]:
+        name = str(comparison["name"])
+        if name not in declared:
+            raise ConfigError(
+                f"benchmark scorecard comparison {name!r} is not declared in "
+                "the course handoff"
+            )
+
+
 def build_every_eval_ever_export(
     *,
     logbook_dir: Path,
     retrieved_timestamp: str,
 ) -> list[dict[str, Any]]:
-    handoff = _load(logbook_dir / COURSE_HANDOFF_PATH, "course handoff artifact")
+    handoff = load_course_handoff(logbook_dir)
     scorecard = _load(
         logbook_dir / BENCHMARK_SCORECARD_PATH,
         "benchmark scorecard artifact",
     )
+    _require_scorecard_matches_handoff(handoff, scorecard)
     attribution = handoff.get("export")
     if not isinstance(attribution, dict):
         raise ConfigError(
