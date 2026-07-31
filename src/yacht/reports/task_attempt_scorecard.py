@@ -6,7 +6,9 @@ from typing import Any
 
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
+    LEGACY_FIELD_NAMES,
     TASK_ATTEMPT_SCORECARD_SCHEMA,
+    normalize_task_attempt_scorecard,
     SchemaValidationError,
     validate_task_attempt_document,
     validate_task_attempt_scorecard_document,
@@ -16,6 +18,13 @@ from yacht.workflows.provenance import collapse_provenance
 
 
 TASK_ATTEMPT_SCORECARD_PATH = Path("task-attempt-scorecard.json")
+
+__all__ = [
+    "LEGACY_FIELD_NAMES",
+    "TASK_ATTEMPT_SCORECARD_PATH",
+    "normalize_task_attempt_scorecard",
+    "write_task_attempt_scorecard",
+]
 
 
 def write_task_attempt_scorecard(logbook_dir: Path) -> dict[str, Any]:
@@ -107,10 +116,10 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
         "failed_attempts": failed_attempts,
         "success_rate": completed_attempts / len(attempts),
         "harnesses": _harnesses(attempts),
-        "tool_call_count": sum(
+        "distinct_tool_uses": sum(
             len(attempt["agent"]["tool_calls"]) for attempt in attempts
         ),
-        "tool_call_counts": _tool_call_counts(attempts),
+        "attempts_by_tool": _tool_call_counts(attempts),
         "total_tokens": sum(int(attempt["metrics"]["tokens"]) for attempt in attempts),
         "total_cost": round(sum(_attempt_cost(attempt) for attempt in attempts), 6),
         "total_duration_seconds": round(total_duration, 3),
@@ -216,8 +225,10 @@ def _summary(vessels: list[dict[str, Any]]) -> dict[str, Any]:
             int(vessel["completed_attempts"]) for vessel in vessels
         ),
         "failed_attempts": sum(int(vessel["failed_attempts"]) for vessel in vessels),
-        "total_tool_calls": sum(int(vessel["tool_call_count"]) for vessel in vessels),
-        "tool_call_counts": _summary_tool_call_counts(vessels),
+        "total_distinct_tool_uses": sum(
+            int(vessel["distinct_tool_uses"]) for vessel in vessels
+        ),
+        "attempts_by_tool": _summary_tool_call_counts(vessels),
         "total_tokens": sum(int(vessel["total_tokens"]) for vessel in vessels),
         "total_cost": round(sum(float(vessel["total_cost"]) for vessel in vessels), 6),
         "total_duration_seconds": round(
@@ -264,7 +275,7 @@ def _harnesses(attempts: list[dict[str, Any]]) -> list[str]:
 def _summary_tool_call_counts(vessels: list[dict[str, Any]]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for vessel in vessels:
-        for tool_call, count in vessel["tool_call_counts"].items():
+        for tool_call, count in vessel["attempts_by_tool"].items():
             counts[str(tool_call)] = counts.get(str(tool_call), 0) + int(count)
     return dict(sorted(counts.items()))
 

@@ -25,7 +25,10 @@ from yacht.reports.provenance_format import (
     provenance_model_label,
     provenance_tools_label,
 )
-from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
+from yacht.reports.task_attempt_scorecard import (
+    TASK_ATTEMPT_SCORECARD_PATH,
+    normalize_task_attempt_scorecard,
+)
 from yacht.workflows.provenance import collapse_provenance
 
 
@@ -103,7 +106,7 @@ def _load_attempt_scorecard(logbook_dir: Path) -> dict[str, Any] | None:
         raise ConfigError(
             f"task attempt scorecard artifact is invalid: {path}: {error}"
         ) from error
-    return scorecard
+    return normalize_task_attempt_scorecard(scorecard)
 
 
 def _load_json(path: Path, label: str) -> dict[str, Any]:
@@ -188,7 +191,7 @@ def _aggregate_vessel(
             tokens += int(usage_vessel["total_tokens"])
             cost += float(usage_vessel["total_cost"])
             duration += float(usage_vessel["total_duration_seconds"])
-            tool_calls += int(usage_vessel["tool_call_count"])
+            tool_calls += int(usage_vessel["distinct_tool_uses"])
             run_provenances.append(usage_vessel.get("provenance"))
             _accumulate_tool_invocations(
                 invocation_totals,
@@ -207,7 +210,7 @@ def _aggregate_vessel(
         "total_tokens": tokens,
         "total_cost": round(cost, 6),
         "total_duration_seconds": round(duration, 3),
-        "total_tool_calls": tool_calls,
+        "total_distinct_tool_uses": tool_calls,
         "tokens_per_resolution": (round(tokens / resolved, 1) if resolved else None),
         "cost_per_resolution": round(cost / resolved, 6) if resolved else None,
         "usage_by_run_outcome": _usage_by_run_outcome(run_vessels),
@@ -310,8 +313,8 @@ def _aggregate_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:
             - float(baseline["total_duration_seconds"]),
             3,
         ),
-        "tool_calls_delta": int(challenger["total_tool_calls"])
-        - int(baseline["total_tool_calls"]),
+        "distinct_tool_uses_delta": int(challenger["total_distinct_tool_uses"])
+        - int(baseline["total_distinct_tool_uses"]),
         "cost_per_resolution_delta": _efficiency_delta(
             baseline.get("cost_per_resolution"),
             challenger.get("cost_per_resolution"),
@@ -474,8 +477,8 @@ def _delta_statistics(run_summaries: list[dict[str, Any]]) -> dict[str, Any]:
             digits=3,
             graded=True,
         ),
-        "tool_calls_delta": _stats(
-            [int(delta["tool_calls_delta"]) for delta in deltas],
+        "distinct_tool_uses_delta": _stats(
+            [int(delta["distinct_tool_uses_delta"]) for delta in deltas],
             graded=True,
         ),
     }
@@ -551,7 +554,7 @@ def _run_vessel(
                     float(usage_vessel["total_duration_seconds"]),
                     3,
                 ),
-                "tool_calls": int(usage_vessel["tool_call_count"]),
+                "tool_calls": int(usage_vessel["distinct_tool_uses"]),
             }
         )
     return payload
@@ -573,7 +576,8 @@ def _run_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:
             float(challenger["duration_seconds"]) - float(baseline["duration_seconds"]),
             3,
         ),
-        "tool_calls_delta": int(challenger["tool_calls"]) - int(baseline["tool_calls"]),
+        "distinct_tool_uses_delta": int(challenger["tool_calls"])
+        - int(baseline["tool_calls"]),
     }
 
 
@@ -623,7 +627,7 @@ def _render_text(aggregate: dict[str, Any]) -> str:
             "",
             "Aggregate deltas:",
             "comparison | baseline | challenger | resolved_delta | rate_delta | "
-            "tokens_delta | cost_delta | duration_delta | tool_calls_delta",
+            "tokens_delta | cost_delta | duration_delta | distinct_tool_uses_delta",
         ]
     )
     lines.extend(_delta_row(comparison) for comparison in aggregate["comparisons"])
@@ -632,7 +636,7 @@ def _render_text(aggregate: dict[str, Any]) -> str:
             "",
             "Aggregate usage by vessel:",
             "comparison | vessel | runs | measured | submitted | resolved | rate | "
-            "usage_runs | tokens | cost | duration | tool_calls",
+            "usage_runs | tokens | cost | duration | distinct_tools",
         ]
     )
     for comparison in aggregate["comparisons"]:
@@ -655,7 +659,7 @@ def _render_text(aggregate: dict[str, Any]) -> str:
             "Aggregate statistics by vessel:",
             "comparison | vessel | rate_mean | rate_range | tokens_mean | "
             "tokens_range | cost_mean | cost_range | duration_mean | "
-            "duration_range | tool_calls_mean | tool_calls_range",
+            "duration_range | distinct_tool_uses_mean | distinct_tool_uses_range",
         ]
     )
     for comparison in aggregate["comparisons"]:
@@ -668,7 +672,7 @@ def _render_text(aggregate: dict[str, Any]) -> str:
             "",
             "Aggregate variability by vessel:",
             "comparison | vessel | rate_stdev | tokens_stdev | cost_stdev | "
-            "duration_stdev | tool_calls_stdev",
+            "duration_stdev | distinct_tool_uses_stdev",
         ]
     )
     for comparison in aggregate["comparisons"]:
@@ -682,7 +686,7 @@ def _render_text(aggregate: dict[str, Any]) -> str:
             "Aggregate delta statistics:",
             "comparison | baseline | challenger | rate_mean | rate_range | "
             "tokens_mean | tokens_range | cost_mean | cost_range | "
-            "duration_mean | duration_range | tool_calls_mean | tool_calls_range",
+            "duration_mean | duration_range | distinct_tool_uses_mean | distinct_tool_uses_range",
         ]
     )
     lines.extend(
@@ -693,7 +697,7 @@ def _render_text(aggregate: dict[str, Any]) -> str:
             "",
             "Aggregate delta variability:",
             "comparison | baseline | challenger | resolved_stdev | rate_stdev | "
-            "tokens_stdev | cost_stdev | duration_stdev | tool_calls_stdev",
+            "tokens_stdev | cost_stdev | duration_stdev | distinct_tool_uses_stdev",
         ]
     )
     lines.extend(
@@ -740,7 +744,7 @@ def _render_text(aggregate: dict[str, Any]) -> str:
             "",
             "Aggregate runs by vessel:",
             "comparison | run | vessel | status | submitted | resolved | rate | "
-            "tokens | cost | duration | tool_calls | logbook",
+            "tokens | cost | duration | distinct_tools | logbook",
         ]
     )
     for comparison in aggregate["comparisons"]:
@@ -772,7 +776,7 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             "## Aggregate deltas",
             "",
             "| Comparison | Baseline | Challenger | Resolved delta | Rate delta | "
-            "Tokens delta | Cost delta | Duration delta | Tool calls delta |",
+            "Tokens delta | Cost delta | Duration delta | Distinct tools delta |",
             "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
@@ -785,7 +789,7 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             "## Aggregate usage by vessel",
             "",
             "| Comparison | Vessel | Runs | Measured | Submitted | Resolved | Rate | "
-            "Usage runs | Tokens | Cost | Duration | Tool calls |",
+            "Usage runs | Tokens | Cost | Duration | Distinct tools |",
             "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
@@ -812,7 +816,7 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             "",
             "| Comparison | Vessel | Rate mean | Rate range | Tokens mean | "
             "Tokens range | Cost mean | Cost range | Duration mean | "
-            "Duration range | Tool calls mean | Tool calls range |",
+            "Duration range | Distinct tools mean | Distinct tools range |",
             "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
@@ -827,7 +831,7 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             "## Aggregate variability by vessel",
             "",
             "| Comparison | Vessel | Rate stdev | Tokens stdev | Cost stdev | "
-            "Duration stdev | Tool calls stdev |",
+            "Duration stdev | Distinct tools stdev |",
             "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
@@ -843,7 +847,7 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             "",
             "| Comparison | Baseline | Challenger | Rate mean | Rate range | "
             "Tokens mean | Tokens range | Cost mean | Cost range | "
-            "Duration mean | Duration range | Tool calls mean | Tool calls range |",
+            "Duration mean | Duration range | Distinct tools mean | Distinct tools range |",
             "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
@@ -857,7 +861,7 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             "## Aggregate delta variability",
             "",
             "| Comparison | Baseline | Challenger | Resolved stdev | Rate stdev | "
-            "Tokens stdev | Cost stdev | Duration stdev | Tool calls stdev |",
+            "Tokens stdev | Cost stdev | Duration stdev | Distinct tools stdev |",
             "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
@@ -917,7 +921,7 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
             "## Aggregate runs by vessel",
             "",
             "| Comparison | Run | Vessel | Status | Submitted | Resolved | Rate | "
-            "Tokens | Cost | Duration | Tool calls | Logbook |",
+            "Tokens | Cost | Duration | Distinct tools | Logbook |",
             "| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
         ]
     )
@@ -1025,7 +1029,7 @@ def _delta_row(comparison: dict[str, Any]) -> str:
         f"{_signed_int(delta['tokens_delta'])} | "
         f"{_signed_cost(delta['cost_delta'])} | "
         f"{_signed_duration(delta['duration_seconds_delta'])} | "
-        f"{_signed_int(delta['tool_calls_delta'])}"
+        f"{_signed_int(delta['distinct_tool_uses_delta'])}"
     )
 
 
@@ -1042,7 +1046,7 @@ def _vessel_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
         f"{vessel['total_tokens']} | "
         f"{_cost(vessel['total_cost'])} | "
         f"{_duration(vessel['total_duration_seconds'])} | "
-        f"{vessel['total_tool_calls']}"
+        f"{vessel['total_distinct_tool_uses']}"
     )
 
 
@@ -1078,8 +1082,8 @@ def _delta_statistics_row(comparison: dict[str, Any]) -> str:
         f"{_stats_signed_cost_range(stats['cost_delta'])} | "
         f"{_stats_signed_duration_mean(stats['duration_seconds_delta'])} | "
         f"{_stats_signed_duration_range(stats['duration_seconds_delta'])} | "
-        f"{_stats_signed_number_mean(stats['tool_calls_delta'])} | "
-        f"{_stats_signed_number_range(stats['tool_calls_delta'])}"
+        f"{_stats_signed_number_mean(stats['distinct_tool_uses_delta'])} | "
+        f"{_stats_signed_number_range(stats['distinct_tool_uses_delta'])}"
     )
 
 
@@ -1107,7 +1111,7 @@ def _delta_variability_row(comparison: dict[str, Any]) -> str:
         f"{_stats_number_stdev(stats['tokens_delta'])} | "
         f"{_stats_cost_stdev(stats['cost_delta'])} | "
         f"{_stats_duration_stdev(stats['duration_seconds_delta'])} | "
-        f"{_stats_number_stdev(stats['tool_calls_delta'])}"
+        f"{_stats_number_stdev(stats['distinct_tool_uses_delta'])}"
     )
 
 

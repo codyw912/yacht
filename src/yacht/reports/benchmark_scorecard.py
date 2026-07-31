@@ -228,7 +228,7 @@ def _baseline_source(record: BaselineRecord) -> dict[str, Any]:
             "total_tokens",
             "total_cost",
             "total_duration_seconds",
-            "tool_call_count",
+            "distinct_tool_uses",
         )
         if isinstance(vessel_scorecard.get(key), int | float)
     }

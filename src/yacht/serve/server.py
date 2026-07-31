@@ -201,7 +201,7 @@ def _attempts_table(entry: LogbookEntry) -> str:
     records = collect_vessel_records([entry])
     rows = [
         "<table><tr><th>Comparison</th><th>Vessel</th><th>Status</th>"
-        '<th class="num">Attempts</th><th class="num">Tool calls</th>'
+        '<th class="num">Attempts</th><th class="num">Distinct tools</th>'
         '<th class="num">Tokens</th><th class="num">Duration</th></tr>'
     ]
     for record in records:
@@ -211,7 +211,7 @@ def _attempts_table(entry: LogbookEntry) -> str:
             f"<td><code>{_e(record.vessel)}</code></td>"
             f'<td class="{status_class}">{_e(record.status)}</td>'
             f'<td class="num">{record.usage["task_attempts"]}</td>'
-            f'<td class="num">{record.usage["tool_call_count"]}</td>'
+            f'<td class="num">{record.usage["distinct_tool_uses"]}</td>'
             f'<td class="num">{record.usage["total_tokens"]}</td>'
             f'<td class="num">{record.usage["total_duration_seconds"]:.3f}s</td>'
             "</tr>"

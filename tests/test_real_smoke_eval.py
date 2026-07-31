@@ -148,7 +148,7 @@ class RealSmokeEvalTests(unittest.TestCase):
             self.assertEqual(rigged["name"], "pi-container-fff")
             self.assertEqual(rigged["expected_tool_calls"], ["fffind"])
             self.assertEqual(rigged["missing_expected_tool_calls"], [])
-            self.assertEqual(rigged["tool_call_counts"], {"fffind": 1})
+            self.assertEqual(rigged["attempts_by_tool"], {"fffind": 1})
             self.assertEqual(
                 summary["report_path"],
                 str(logbook_dir / "smoke-report.txt"),

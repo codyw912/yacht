@@ -1188,7 +1188,48 @@ def _validate_tool_expectations(value: Any) -> None:
             _require_non_empty_string(call, f"{path}.expected_calls")
 
 
+# These fields were named for tool calls but always held distinct-tool
+# counts, because producers deduplicate tool names. Logbooks written
+# before the rename are still read — recorded baselines and repetition
+# aggregates depend on it — so their names are accepted and upgraded.
+LEGACY_FIELD_NAMES = {
+    "tool_call_count": "distinct_tool_uses",
+    "tool_call_counts": "attempts_by_tool",
+    "total_tool_calls": "total_distinct_tool_uses",
+}
+
+
+def normalize_task_attempt_scorecard(document: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite pre-rename field names so readers see one vocabulary."""
+
+    def upgrade(payload: dict[str, Any]) -> dict[str, Any]:
+        upgraded = dict(payload)
+        for legacy, current in LEGACY_FIELD_NAMES.items():
+            if legacy in upgraded and current not in upgraded:
+                upgraded[current] = upgraded.pop(legacy)
+            else:
+                upgraded.pop(legacy, None)
+        return upgraded
+
+    normalized = upgrade(document)
+    if isinstance(normalized.get("summary"), dict):
+        normalized["summary"] = upgrade(normalized["summary"])
+    comparisons = []
+    for comparison in normalized.get("comparisons", []):
+        comparison = upgrade(comparison)
+        if isinstance(comparison.get("summary"), dict):
+            comparison["summary"] = upgrade(comparison["summary"])
+        comparison["vessels"] = [
+            upgrade(vessel) for vessel in comparison.get("vessels", [])
+        ]
+        comparisons.append(comparison)
+    if comparisons:
+        normalized["comparisons"] = comparisons
+    return normalized
+
+
 def validate_task_attempt_scorecard_document(document: dict[str, Any]) -> None:
+    document = normalize_task_attempt_scorecard(document)
     _require_object(document, "task attempt scorecard")
     _require_keys(
         document,
@@ -1423,7 +1464,7 @@ def _validate_smoke_readiness_vessel(value: Any, path: str) -> None:
             "preflight_artifact_path",
             "task_attempt_artifact_paths",
             "agent_prompt_checks",
-            "tool_call_counts",
+            "attempts_by_tool",
             "expected_tool_calls",
             "missing_expected_tool_calls",
             "reasons",
@@ -1451,7 +1492,7 @@ def _validate_smoke_readiness_vessel(value: Any, path: str) -> None:
             agent_prompt_checks.get(key),
             f"{path}.agent_prompt_checks.{key}",
         )
-    _validate_tool_call_counts(vessel["tool_call_counts"], f"{path}.tool_call_counts")
+    _validate_tool_call_counts(vessel["attempts_by_tool"], f"{path}.attempts_by_tool")
     _require_string_list(vessel["expected_tool_calls"], f"{path}.expected_tool_calls")
     _require_string_list(
         vessel["missing_expected_tool_calls"],
@@ -1503,7 +1544,7 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
             "completed_attempts",
             "failed_attempts",
             "success_rate",
-            "tool_call_count",
+            "distinct_tool_uses",
             "total_tokens",
             "total_duration_seconds",
             "artifact_paths",
@@ -1520,7 +1561,7 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
         "task_attempts",
         "completed_attempts",
         "failed_attempts",
-        "tool_call_count",
+        "distinct_tool_uses",
         "total_tokens",
     ):
         _require_non_negative_int(vessel.get(key), f"{path}.{key}")
@@ -1535,10 +1576,10 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
         _require_string_list(vessel.get("harnesses"), f"{path}.harnesses")
     if "total_cost" in vessel:
         _require_non_negative_number(vessel.get("total_cost"), f"{path}.total_cost")
-    if "tool_call_counts" in vessel:
+    if "attempts_by_tool" in vessel:
         _validate_tool_call_counts(
-            vessel.get("tool_call_counts"),
-            f"{path}.tool_call_counts",
+            vessel.get("attempts_by_tool"),
+            f"{path}.attempts_by_tool",
         )
     if "tool_invocations" in vessel:
         _validate_tool_invocations(
@@ -1634,7 +1675,7 @@ def _validate_task_attempt_scorecard_summary(value: Any, path: str) -> None:
         "total_attempts",
         "completed_attempts",
         "failed_attempts",
-        "total_tool_calls",
+        "total_distinct_tool_uses",
         "total_tokens",
     ):
         _require_non_negative_int(summary.get(key), f"{path}.{key}")
@@ -1644,10 +1685,10 @@ def _validate_task_attempt_scorecard_summary(value: Any, path: str) -> None:
     )
     if "total_cost" in summary:
         _require_non_negative_number(summary.get("total_cost"), f"{path}.total_cost")
-    if "tool_call_counts" in summary:
+    if "attempts_by_tool" in summary:
         _validate_tool_call_counts(
-            summary.get("tool_call_counts"),
-            f"{path}.tool_call_counts",
+            summary.get("attempts_by_tool"),
+            f"{path}.attempts_by_tool",
         )
     if "total_comparisons" in summary:
         _require_non_negative_int(

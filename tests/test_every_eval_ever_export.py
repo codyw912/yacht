@@ -349,7 +349,7 @@ def _logbook(
             "completed_attempts": 4,
             "failed_attempts": 0,
             "success_rate": 1.0,
-            "tool_call_count": 2,
+            "distinct_tool_uses": 2,
             "total_tokens": 1000,
             "total_duration_seconds": 30.0,
             "artifact_paths": [],

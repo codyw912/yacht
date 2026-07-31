@@ -527,7 +527,7 @@ class BenchmarkScorecardTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             self.assertIn(
-                "Usage: Attempts: 2 | Failed: 0 | Tool calls: 7 | "
+                "Usage: Attempts: 2 | Failed: 0 | Distinct tools: 7 | "
                 "Tokens: 15643 | Cost: 0.010336 | Duration: 12.500s",
                 stdout.getvalue(),
             )
@@ -1177,8 +1177,8 @@ def _write_task_attempt_scorecard(logbook_dir: Path) -> None:
                     "total_attempts": 2,
                     "completed_attempts": 2,
                     "failed_attempts": 0,
-                    "total_tool_calls": 7,
-                    "tool_call_counts": {
+                    "total_distinct_tool_uses": 7,
+                    "attempts_by_tool": {
                         "bash": 2,
                         "edit": 2,
                         "fffind": 1,
@@ -1196,8 +1196,8 @@ def _write_task_attempt_scorecard(logbook_dir: Path) -> None:
                             "total_attempts": 2,
                             "completed_attempts": 2,
                             "failed_attempts": 0,
-                            "total_tool_calls": 7,
-                            "tool_call_counts": {
+                            "total_distinct_tool_uses": 7,
+                            "attempts_by_tool": {
                                 "bash": 2,
                                 "edit": 2,
                                 "fffind": 1,
@@ -1256,7 +1256,7 @@ def _write_task_attempt_scorecard_with_attempt_artifacts(logbook_dir: Path) -> N
                     _task_attempt_artifact(
                         comparison_name=comparison["name"],
                         vessel_name=vessel["name"],
-                        tool_calls=_expanded_tool_calls(vessel["tool_call_counts"]),
+                        tool_calls=_expanded_tool_calls(vessel["attempts_by_tool"]),
                         tokens=vessel["total_tokens"],
                         cost=vessel["total_cost"],
                         duration=vessel["total_duration_seconds"],
@@ -1285,8 +1285,8 @@ def _task_attempt_vessel(
         "completed_attempts": 1,
         "failed_attempts": 0,
         "success_rate": 1.0,
-        "tool_call_count": sum(tools.values()),
-        "tool_call_counts": tools,
+        "distinct_tool_uses": sum(tools.values()),
+        "attempts_by_tool": tools,
         "total_tokens": tokens,
         "total_cost": cost,
         "total_duration_seconds": duration,

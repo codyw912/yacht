@@ -90,8 +90,8 @@ def _attempts() -> dict:
             "total_tokens": 1800,
             "total_cost": 0.018,
             "total_duration_seconds": 105.0,
-            "total_tool_calls": 7,
-            "tool_call_counts": {"bash": 4, "newtool": 3},
+            "total_distinct_tool_uses": 7,
+            "attempts_by_tool": {"bash": 4, "newtool": 3},
         },
         "comparisons": [
             {
@@ -104,8 +104,8 @@ def _attempts() -> dict:
                     "total_tokens": 1800,
                     "total_cost": 0.018,
                     "total_duration_seconds": 105.0,
-                    "total_tool_calls": 7,
-                    "tool_call_counts": {"bash": 4, "newtool": 3},
+                    "total_distinct_tool_uses": 7,
+                    "attempts_by_tool": {"bash": 4, "newtool": 3},
                 },
                 "vessels": [
                     {
@@ -120,8 +120,8 @@ def _attempts() -> dict:
                         "total_tokens": 1000,
                         "total_cost": 0.01,
                         "total_duration_seconds": 60.0,
-                        "tool_call_count": 2,
-                        "tool_call_counts": {"bash": 2},
+                        "distinct_tool_uses": 2,
+                        "attempts_by_tool": {"bash": 2},
                     },
                     {
                         "name": "pi-plus-tool",
@@ -135,8 +135,8 @@ def _attempts() -> dict:
                         "total_tokens": 800,
                         "total_cost": 0.008,
                         "total_duration_seconds": 45.0,
-                        "tool_call_count": 5,
-                        "tool_call_counts": {"bash": 2, "newtool": 3},
+                        "distinct_tool_uses": 5,
+                        "attempts_by_tool": {"bash": 2, "newtool": 3},
                     },
                 ],
             }
@@ -237,7 +237,7 @@ def _aggregate(
                         "total_tokens": 3000,
                         "total_cost": 0.03,
                         "total_duration_seconds": 180.0,
-                        "total_tool_calls": 6,
+                        "total_distinct_tool_uses": 6,
                         "statistics": {
                             "resolution_rate": {
                                 "runs": run_count,
@@ -607,7 +607,7 @@ class DecisionMetricsParityTests(unittest.TestCase):
                 "total_tokens": 92153,
                 "total_cost": 0.022,
                 "total_duration_seconds": 52.4,
-                "tool_call_count": 3,
+                "distinct_tool_uses": 3,
             },
         }
         attempts = _attempts()

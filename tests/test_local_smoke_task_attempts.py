@@ -116,16 +116,16 @@ class LocalSmokeTaskAttemptTests(unittest.TestCase):
             vessels = {vessel["name"]: vessel for vessel in comparison["vessels"]}
             baseline = vessels["local-baseline"]
             rigged = vessels["local-agent-with-tool"]
-            self.assertEqual(baseline["tool_call_count"], 0)
-            self.assertEqual(baseline["tool_call_counts"], {})
-            self.assertEqual(rigged["tool_call_count"], 1)
-            self.assertEqual(rigged["tool_call_counts"], {"local-smoke": 1})
+            self.assertEqual(baseline["distinct_tool_uses"], 0)
+            self.assertEqual(baseline["attempts_by_tool"], {})
+            self.assertEqual(rigged["distinct_tool_uses"], 1)
+            self.assertEqual(rigged["attempts_by_tool"], {"local-smoke": 1})
             self.assertEqual(
-                comparison["summary"]["tool_call_counts"],
+                comparison["summary"]["attempts_by_tool"],
                 {"local-smoke": 1},
             )
             self.assertEqual(
-                scorecard["summary"]["tool_call_counts"],
+                scorecard["summary"]["attempts_by_tool"],
                 {"local-smoke": 1},
             )
             self.assertEqual(rigged["success_rate"], 1.0)

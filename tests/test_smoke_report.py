@@ -31,7 +31,7 @@ class SmokeReportTests(unittest.TestCase):
                         "Real smoke report: pi-fff-comparison / swe-bench-lite",
                         "Status: ready",
                         "Vessels: 2 | Ready: 2 | Blocked: 0 | Attempts: 2 | "
-                        "Failed: 0 | Tool calls: 2 | Tokens: 100 | Cost: 0.000000",
+                        "Failed: 0 | Distinct tools: 2 | Tokens: 100 | Cost: 0.000000",
                         f"Artifacts: logbook={logbook_dir} | "
                         f"readiness={logbook_dir / 'smoke-readiness-report.json'} | "
                         f"scorecard={logbook_dir / 'task-attempt-scorecard.json'} | "

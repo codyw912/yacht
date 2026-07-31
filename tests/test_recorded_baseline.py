@@ -329,7 +329,7 @@ class RecordedBaselineScorecardTests(unittest.TestCase):
                     "total_tokens": 1200,
                     "total_cost": 0.25,
                     "total_duration_seconds": 30.5,
-                    "tool_call_count": 4,
+                    "distinct_tool_uses": 4,
                 },
             )
             self.assertEqual(
@@ -458,7 +458,7 @@ def _write_baseline_logbook(
                                 "total_tokens": 1200,
                                 "total_cost": 0.25,
                                 "total_duration_seconds": 30.5,
-                                "tool_call_count": 4,
+                                "distinct_tool_uses": 4,
                             }
                         ],
                     }

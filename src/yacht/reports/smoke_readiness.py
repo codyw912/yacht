@@ -13,7 +13,10 @@ from yacht.contracts.schemas import (
     validate_task_attempt_document,
     validate_task_attempt_scorecard_document,
 )
-from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
+from yacht.reports.task_attempt_scorecard import (
+    TASK_ATTEMPT_SCORECARD_PATH,
+    normalize_task_attempt_scorecard,
+)
 
 
 SMOKE_READINESS_REPORT_PATH = Path("smoke-readiness-report.json")
@@ -58,6 +61,7 @@ def _load_scorecard(logbook_dir: Path) -> dict[str, Any]:
         raise ConfigError(
             f"task attempt scorecard artifact is invalid: {error}"
         ) from error
+    scorecard = normalize_task_attempt_scorecard(scorecard)
     return scorecard
 
 
@@ -92,11 +96,11 @@ def _vessel_readiness(
     invalid_attempts = [
         str(path) for path in artifact_paths if not _valid_task_attempt(path)
     ]
-    tool_call_counts = _tool_call_counts(scorecard_vessel)
+    attempts_by_tool = _tool_call_counts(scorecard_vessel)
     expected_tool_calls = _expected_tool_calls(preflight)
     missing_expected_tool_calls = _missing_expected_tool_calls(
         expected_tool_calls,
-        tool_call_counts,
+        attempts_by_tool,
     )
     reasons = _vessel_reasons(
         preflight=preflight,
@@ -113,7 +117,7 @@ def _vessel_readiness(
         "preflight_artifact_path": str(preflight_path),
         "task_attempt_artifact_paths": [str(path) for path in artifact_paths],
         "agent_prompt_checks": _agent_prompt_check_counts(preflight),
-        "tool_call_counts": tool_call_counts,
+        "attempts_by_tool": attempts_by_tool,
         "expected_tool_calls": expected_tool_calls,
         "missing_expected_tool_calls": missing_expected_tool_calls,
         "reasons": reasons,
@@ -198,7 +202,7 @@ def _agent_prompt_check_counts(preflight: dict[str, Any] | None) -> dict[str, in
 
 
 def _tool_call_counts(scorecard_vessel: dict[str, Any]) -> dict[str, int]:
-    counts = scorecard_vessel.get("tool_call_counts", {})
+    counts = scorecard_vessel.get("attempts_by_tool", {})
     if not isinstance(counts, dict):
         return {}
     return {
@@ -226,12 +230,12 @@ def _expected_tool_calls(preflight: dict[str, Any] | None) -> list[str]:
 
 def _missing_expected_tool_calls(
     expected_tool_calls: list[str],
-    tool_call_counts: dict[str, int],
+    attempts_by_tool: dict[str, int],
 ) -> list[str]:
     return [
         tool_call
         for tool_call in expected_tool_calls
-        if tool_call_counts.get(tool_call, 0) <= 0
+        if attempts_by_tool.get(tool_call, 0) <= 0
     ]
 
 

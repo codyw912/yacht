@@ -67,7 +67,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                             "tokens_delta": 1100,
                             "cost_delta": 0.0011,
                             "duration_seconds_delta": 1.1,
-                            "tool_calls_delta": 1,
+                            "distinct_tool_uses_delta": 1,
                         },
                     },
                     {
@@ -105,7 +105,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                             "tokens_delta": 1100,
                             "cost_delta": 0.0011,
                             "duration_seconds_delta": 1.1,
-                            "tool_calls_delta": 1,
+                            "distinct_tool_uses_delta": 1,
                         },
                     },
                 ],
@@ -120,7 +120,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                     "tokens_delta": 2200,
                     "cost_delta": 0.0022,
                     "duration_seconds_delta": 2.2,
-                    "tool_calls_delta": 2,
+                    "distinct_tool_uses_delta": 2,
                     "tokens_per_resolution_delta": 100.0,
                     "cost_per_resolution_delta": 0.0001,
                 },
@@ -175,7 +175,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "interval": {"mean": 1.1, "low": 1.1, "high": 1.1},
                         "grade": "insufficient-evidence",
                     },
-                    "tool_calls_delta": {
+                    "distinct_tool_uses_delta": {
                         "runs": 2,
                         "mean": 1.0,
                         "stdev": 0.0,
@@ -201,7 +201,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "total_tokens": 2000,
                         "total_cost": 0.002,
                         "total_duration_seconds": 20.0,
-                        "total_tool_calls": 6,
+                        "total_distinct_tool_uses": 6,
                         "tokens_per_resolution": 2000.0,
                         "cost_per_resolution": 0.002,
                         "usage_by_run_outcome": {
@@ -268,7 +268,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "total_tokens": 4200,
                         "total_cost": 0.0042,
                         "total_duration_seconds": 22.2,
-                        "total_tool_calls": 8,
+                        "total_distinct_tool_uses": 8,
                         "tokens_per_resolution": 2100.0,
                         "cost_per_resolution": 0.0021,
                         "usage_by_run_outcome": {
@@ -829,8 +829,8 @@ def _task_attempt_vessel(
         "completed_attempts": 1,
         "failed_attempts": 0,
         "success_rate": 1.0,
-        "tool_call_count": tools,
-        "tool_call_counts": {"tool": tools},
+        "distinct_tool_uses": tools,
+        "attempts_by_tool": {"tool": tools},
         "total_tokens": tokens,
         "total_cost": cost,
         "total_duration_seconds": duration,
@@ -861,9 +861,11 @@ def _task_attempt_summary(
         "total_attempts": len(vessels),
         "completed_attempts": len(vessels),
         "failed_attempts": 0,
-        "total_tool_calls": sum(int(vessel["tool_call_count"]) for vessel in vessels),
-        "tool_call_counts": {
-            "tool": sum(int(vessel["tool_call_count"]) for vessel in vessels)
+        "total_distinct_tool_uses": sum(
+            int(vessel["distinct_tool_uses"]) for vessel in vessels
+        ),
+        "attempts_by_tool": {
+            "tool": sum(int(vessel["distinct_tool_uses"]) for vessel in vessels)
         },
         "total_tokens": sum(int(vessel["total_tokens"]) for vessel in vessels),
         "total_cost": sum(float(vessel["total_cost"]) for vessel in vessels),
