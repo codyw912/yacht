@@ -136,8 +136,6 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "stdev": 0.5,
                         "min": 0,
                         "max": 1,
-                        "interval": {"mean": 0.5, "low": -5.853, "high": 6.853},
-                        "grade": "not-distinguishable",
                     },
                     "resolution_rate_delta": {
                         "runs": 2,
@@ -145,8 +143,6 @@ class BenchmarkAggregateTests(unittest.TestCase):
                         "stdev": 0.5,
                         "min": 0.0,
                         "max": 1.0,
-                        "interval": {"mean": 0.5, "low": -5.853, "high": 6.853},
-                        "grade": "not-distinguishable",
                     },
                     "tokens_delta": {
                         "runs": 2,
@@ -422,7 +418,7 @@ class BenchmarkAggregateTests(unittest.TestCase):
             self.assertIn(
                 (
                     "pi-vs-pi-fff | resolution better (+1 resolved, +0.500 rate) "
-                    "[not distinguishable (CI -5.853..+6.853)] | "
+                    "[insufficient (1 discordant, need >=6)] | "
                     "tokens worse (+2200) [outcome-confounded] | "
                     "cost worse (+0.002200) [outcome-confounded] | "
                     "duration worse (+2.200s) [outcome-confounded]"
@@ -937,7 +933,6 @@ class UnmeasuredRunTests(unittest.TestCase):
             # Nothing was pairable, so there is no sample at all — not a
             # sample of fabricated zeros.
             self.assertEqual(rate["runs"], 0)
-            self.assertEqual(rate["grade"], "insufficient-evidence")
             self.assertEqual(stats["challenger_vessel"], "pi-plus-fff")
 
 
@@ -1003,26 +998,94 @@ class AggregateHeadlineGradeTests(unittest.TestCase):
     def test_graded_difference_is_not_labelled_insufficient(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            # Four runs the challenger wins and one tie: enough spread for
-            # the interval to exclude zero, so this must NOT read as
+            # Seven discordant repetitions all favouring the challenger
+            # clear the six the sign test needs, so this must NOT read as
             # insufficient. Guards against blanket-qualifying every row.
             logbooks = [
                 _write_logbook(
                     root / f"run-{index}", baseline_resolved=0, fff_resolved=1
                 )
-                for index in range(1, 5)
+                for index in range(1, 8)
             ]
             logbooks.append(
-                _write_logbook(root / "run-5", baseline_resolved=1, fff_resolved=1)
+                _write_logbook(root / "run-8", baseline_resolved=1, fff_resolved=1)
             )
 
             aggregate = build_benchmark_aggregate(logbooks)
-            statistics = aggregate["comparisons"][0]["delta_statistics"]
             self.assertEqual(
-                statistics["resolution_rate_delta"]["grade"],
+                aggregate["comparisons"][0]["paired_statistics"]["grade"],
                 "evidence-of-difference",
             )
             text = render_benchmark_aggregate_document(aggregate, "text")
 
             headline = _decision_headline(text)
             self.assertNotIn("insufficient", headline)
+
+
+class PooledPairedEvidenceTests(unittest.TestCase):
+    def _skill_ab_shaped(self, root: Path) -> list[Path]:
+        """Seven repetitions the challenger wins, three both resolve —
+        the shape of the bundled skill A/B run."""
+        logbooks = [
+            _write_logbook(root / f"win-{index}", baseline_resolved=0, fff_resolved=1)
+            for index in range(7)
+        ]
+        logbooks.extend(
+            _write_logbook(root / f"tie-{index}", baseline_resolved=1, fff_resolved=1)
+            for index in range(3)
+        )
+        return logbooks
+
+    def test_discordant_outcomes_pool_across_repetitions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            aggregate = build_benchmark_aggregate(self._skill_ab_shaped(Path(temp_dir)))
+
+            paired = aggregate["comparisons"][0]["paired_statistics"]
+            # One task per run, ten runs: ten task-attempt pairs.
+            self.assertEqual(paired["shared_task_attempts"], 10)
+            self.assertEqual(paired["discordant_challenger_only"], 7)
+            self.assertEqual(paired["discordant_baseline_only"], 0)
+            self.assertEqual(paired["concordant_resolved"], 3)
+            self.assertAlmostEqual(paired["p_value"], 0.015625)
+            self.assertEqual(paired["grade"], "evidence-of-difference")
+
+    def test_a_single_repetition_cannot_reach_a_verdict(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            aggregate = build_benchmark_aggregate(
+                [_write_logbook(root / "only", baseline_resolved=0, fff_resolved=1)]
+            )
+
+            paired = aggregate["comparisons"][0]["paired_statistics"]
+            self.assertEqual(paired["discordant_challenger_only"], 1)
+            self.assertEqual(paired["grade"], "insufficient-evidence")
+
+    def test_discordance_is_attributed_to_tasks(self) -> None:
+        # A verdict resting on one flapping task must be visible as such
+        # rather than reading like one earned across many tasks.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            aggregate = build_benchmark_aggregate(self._skill_ab_shaped(Path(temp_dir)))
+
+            paired = aggregate["comparisons"][0]["paired_statistics"]
+            self.assertEqual(
+                paired["discordant_by_task"],
+                [
+                    {
+                        "task": "django__django-11099",
+                        "baseline_only": 0,
+                        "challenger_only": 7,
+                    }
+                ],
+            )
+
+    def test_resolution_deltas_no_longer_carry_a_t_interval_grade(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            aggregate = build_benchmark_aggregate(self._skill_ab_shaped(Path(temp_dir)))
+
+            stats = aggregate["comparisons"][0]["delta_statistics"]
+            # Continuous metrics keep the t-interval; resolution is graded
+            # by the paired test instead (ADR 0023).
+            self.assertIn("grade", stats["tokens_delta"])
+            self.assertNotIn("grade", stats["resolution_rate_delta"])
+            self.assertNotIn("interval", stats["resolution_rate_delta"])
+            self.assertIn("mean", stats["resolution_rate_delta"])

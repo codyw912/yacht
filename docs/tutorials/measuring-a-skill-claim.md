@@ -80,17 +80,20 @@ comparison        | resolved                      | tokens                      
 skill-vs-baseline | difference (CI +0.354..+1.046) | not distinguishable (CI -8596..+52092) | not distinguishable (...)
 ```
 
-- **The claim is supported.** Baseline resolved 3/10; with the skill,
-  10/10. Seven of the ten repetitions were discordant — exactly one
-  side resolved the task — and all seven favored the skill. A sign
-  test over those seven pairs gives p = 0.016, which is a conclusion
-  the evidence earns. Read that figure with one caveat: the repetition
-  aggregate does not yet pool discordant outcomes across runs — it
-  grades per-run deltas with a t-interval instead — so the pooled
-  p-value is computed from the per-run scorecards rather than reported
-  by YACHT. Pooling is the fix in flight; until it lands, each run's
-  own scorecard correctly reads `insufficient-evidence`, because one
-  task cannot supply six discordant pairs.
+- **The claim is supported, and graded.** Baseline resolved 3/10; with
+  the skill, 10/10. Seven of the ten repetitions were discordant —
+  exactly one side resolved the task — and all seven favored the skill,
+  which the pooled sign test grades `evidence-of-difference` at
+  p = 0.016 (ADR 0023). Each individual run still reads
+  `insufficient-evidence`, correctly: one task cannot supply the six
+  discordant pairs the test needs, which is exactly why repetitions
+  pool.
+- **The verdict says which tasks earned it.** Pooling repeated attempts
+  at the same task is only honest if you can see whether the
+  discordance came from many tasks or one flapping one, so the
+  aggregate reports the split. Here all seven came from
+  `convention-task` — unavoidable with a one-task course, and worth
+  knowing before generalizing.
 - **The non-findings are graded too.** The skill's token, cost, and
   duration deltas are all `not distinguishable` — their intervals
   straddle zero — and the report marks them `[outcome-confounded]`

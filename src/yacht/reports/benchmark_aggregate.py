@@ -10,6 +10,8 @@ from yacht.reports.html_report import render_benchmark_aggregate_html
 from yacht.reports.statistics import (
     GRADE_INSUFFICIENT,
     interval_grade,
+    paired_resolution_statistics,
+    sign_test_grade,
     t_interval,
     wilson_interval,
 )
@@ -152,7 +154,78 @@ def _aggregate_comparison(
         "runs": run_summaries,
         "delta": _aggregate_delta(vessels),
         "delta_statistics": _delta_statistics(run_summaries),
+        "paired_statistics": _pooled_paired_statistics(
+            comparison_name,
+            vessel_names,
+            runs,
+        ),
     }
+
+
+def _pooled_paired_statistics(
+    comparison_name: str,
+    vessel_names: list[str],
+    runs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Pool discordant outcomes across repetitions and grade them (ADR 0023).
+
+    The unit of pairing is the task attempt: each repetition of each
+    shared task contributes one pair, so ten repetitions of one task can
+    reach a verdict that one repetition cannot.
+    """
+    baseline_name, challenger_name = vessel_names[0], vessel_names[1]
+    shared = 0
+    concordant_resolved = 0
+    concordant_unresolved = 0
+    baseline_only: dict[str, int] = {}
+    challenger_only: dict[str, int] = {}
+    for run in runs:
+        comparison = _comparison_by_name(run["scorecard"], comparison_name)
+        baseline = _vessel_by_name(comparison, baseline_name)
+        challenger = _vessel_by_name(comparison, challenger_name)
+        if not (_measured(baseline) and _measured(challenger)):
+            continue
+        paired = paired_resolution_statistics(
+            baseline_resolved_ids=list(baseline.get("resolved_ids", [])),
+            baseline_unresolved_ids=list(baseline.get("unresolved_ids", [])),
+            challenger_resolved_ids=list(challenger.get("resolved_ids", [])),
+            challenger_unresolved_ids=list(challenger.get("unresolved_ids", [])),
+        )
+        shared += int(paired["shared_tasks"])
+        concordant_resolved += int(paired["concordant_resolved"])
+        concordant_unresolved += int(paired["concordant_unresolved"])
+        for task in paired["discordant_baseline_only_ids"]:
+            baseline_only[str(task)] = baseline_only.get(str(task), 0) + 1
+        for task in paired["discordant_challenger_only_ids"]:
+            challenger_only[str(task)] = challenger_only.get(str(task), 0) + 1
+
+    statistics: dict[str, Any] = {
+        "baseline_vessel": baseline_name,
+        "challenger_vessel": challenger_name,
+        "shared_task_attempts": shared,
+        "concordant_resolved": concordant_resolved,
+        "concordant_unresolved": concordant_unresolved,
+        "discordant_baseline_only": sum(baseline_only.values()),
+        "discordant_challenger_only": sum(challenger_only.values()),
+        # Pooling repeated attempts at the same task is only honest if a
+        # reader can see whether the discordance came from many tasks or
+        # one flapping one, so the attribution travels with the p-value.
+        "discordant_by_task": [
+            {
+                "task": task,
+                "baseline_only": baseline_only.get(task, 0),
+                "challenger_only": challenger_only.get(task, 0),
+            }
+            for task in sorted(set(baseline_only) | set(challenger_only))
+        ],
+    }
+    statistics.update(
+        sign_test_grade(
+            sum(baseline_only.values()),
+            sum(challenger_only.values()),
+        )
+    )
+    return statistics
 
 
 def _aggregate_vessel(
@@ -456,12 +529,10 @@ def _delta_statistics(run_summaries: list[dict[str, Any]]) -> dict[str, Any]:
         "challenger_vessel": named["challenger_vessel"],
         "resolved_instances_delta": _stats(
             [int(delta["resolved_instances_delta"]) for delta in deltas],
-            graded=True,
         ),
         "resolution_rate_delta": _stats(
             [float(delta["resolution_rate_delta"]) for delta in deltas],
             digits=3,
-            graded=True,
         ),
         "tokens_delta": _stats(
             [int(delta["tokens_delta"]) for delta in deltas],
@@ -706,8 +777,8 @@ def _render_text(aggregate: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "Aggregate delta evidence (95% CI on per-run deltas):",
-            "comparison | resolved | rate | tokens | cost | duration",
+            "Aggregate evidence (paired sign test on resolution; 95% CI on usage):",
+            "comparison | resolution | tokens | cost | duration",
         ]
     )
     lines.extend(
@@ -805,7 +876,7 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
                 "## Provenance by vessel",
                 "",
                 "| Comparison | Vessel | Harness | Model | Tools | Mixed |",
-                "| --- | --- | --- | --- | --- | --- |",
+                "| --- | --- | --- | --- | --- |",
             ]
         )
         lines.extend(f"| {row} |" for row in provenance_rows)
@@ -872,10 +943,10 @@ def _render_markdown(aggregate: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "## Aggregate delta evidence (95% CI on per-run deltas)",
+            "## Aggregate evidence (paired sign test on resolution; 95% CI on usage)",
             "",
-            "| Comparison | Resolved | Rate | Tokens | Cost | Duration |",
-            "| --- | --- | --- | --- | --- | --- |",
+            "| Comparison | Resolution | Tokens | Cost | Duration |",
+            "| --- | --- | --- | --- | --- |",
         ]
     )
     lines.extend(
@@ -963,7 +1034,7 @@ def _decision_summary_row(comparison: dict[str, Any]) -> str:
     return " | ".join(
         [
             str(comparison["name"]),
-            _resolution_decision(delta, comparison.get("delta_statistics")),
+            _resolution_decision(delta, comparison.get("paired_statistics")),
             _resource_decision("tokens", int(delta["tokens_delta"])) + confound,
             _resource_decision("cost", float(delta["cost_delta"])) + confound,
             _resource_decision("duration", float(delta["duration_seconds_delta"]))
@@ -974,7 +1045,7 @@ def _decision_summary_row(comparison: dict[str, Any]) -> str:
 
 def _resolution_decision(
     delta: dict[str, Any],
-    delta_statistics: dict[str, Any] | None = None,
+    paired_statistics: dict[str, Any] | None = None,
 ) -> str:
     resolved_delta = int(delta["resolved_instances_delta"])
     rate_delta = float(delta["resolution_rate_delta"])
@@ -994,10 +1065,8 @@ def _resolution_decision(
     )
     # The headline must not assert a result the evidence table on the
     # same page calls insufficient (ADR 0013).
-    if isinstance(delta_statistics, dict):
-        metric = delta_statistics.get("resolution_rate_delta")
-        if isinstance(metric, dict):
-            decision = f"{decision} [{_evidence_cell(metric)}]"
+    if isinstance(paired_statistics, dict):
+        decision = f"{decision} [{_paired_evidence_cell(paired_statistics)}]"
     return decision
 
 
@@ -1117,14 +1186,32 @@ def _delta_variability_row(comparison: dict[str, Any]) -> str:
 
 def _delta_evidence_row(comparison: dict[str, Any]) -> str:
     stats = comparison["delta_statistics"]
+    # Resolution is graded by the pooled paired test; the t-interval
+    # grades only the continuous per-run quantities (ADR 0023).
+    paired = _paired_evidence_cell(comparison.get("paired_statistics"))
     return (
         f"{comparison['name']} | "
-        f"{_evidence_cell(stats['resolved_instances_delta'])} | "
-        f"{_evidence_cell(stats['resolution_rate_delta'])} | "
+        f"{paired} | "
         f"{_evidence_cell(stats['tokens_delta'])} | "
         f"{_evidence_cell(stats['cost_delta'])} | "
         f"{_evidence_cell(stats['duration_seconds_delta'])}"
     )
+
+
+def _paired_evidence_cell(paired: Any) -> str:
+    if not isinstance(paired, dict):
+        return "insufficient (no paired outcomes)"
+    discordant = int(paired.get("discordant_baseline_only", 0)) + int(
+        paired.get("discordant_challenger_only", 0)
+    )
+    grade = paired.get("grade")
+    if grade == "insufficient-evidence":
+        minimum = paired.get("min_significant_discordant")
+        return f"insufficient ({discordant} discordant, need >={minimum})"
+    p_value = float(paired.get("p_value", 1.0))
+    if grade == "evidence-of-difference":
+        return f"difference (sign test p={p_value:.3f}, {discordant} discordant)"
+    return f"not distinguishable (sign test p={p_value:.3f})"
 
 
 def _evidence_cell(metric: dict[str, Any]) -> str:

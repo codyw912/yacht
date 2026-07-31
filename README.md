@@ -70,8 +70,10 @@ pinned agent on the same tasks, with and without the skill, repeated
 until the evidence supports a verdict. In a real run of the bundled
 example (10 repetitions, $0.38) the baseline resolved 3 of 10 and the
 skill 10 of 10. Seven repetitions were discordant — exactly one side
-resolved the task — and all seven favored the skill. Cost per resolved
-task: baseline $0.0579, with-skill $0.0205.
+resolved the task — and all seven favored the skill: a pooled sign test
+over those pairs grades the difference `evidence-of-difference` at
+p = 0.016. Cost per resolved task: baseline $0.0579, with-skill
+$0.0205.
 
 The raw cost delta is honestly refused and flagged as
 outcome-confounded (failed runs stop early and spend less); the
