@@ -123,6 +123,13 @@ the rigged vessel actually used the tool during tasks, alongside tokens,
 cost, and duration per vessel — all parsed from the harness's own machine
 output, not from the model's self-report.
 
+For an MCP rigging the delivery unit is the server (ADR 0022): the
+`mcp-server` install step's target contributes a namespace expectation
+automatically, any `mcp__<server>__` call in the preserved trajectory
+counts the server as delivered, and the report lists which of its tools
+were actually observed — no per-tool declaration to write or keep
+current.
+
 A claim validated here means: on this course, with this harness and model at
 these pinned versions, the tool changed the outcome by this much, and the
 tool was demonstrably live while it happened. That sentence — with every

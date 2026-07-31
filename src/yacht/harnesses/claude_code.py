@@ -400,6 +400,13 @@ def _qualified_tool_call(name: str, tool_input: Any) -> str:
 SESSION_TRANSCRIPT_EVIDENCE = "claude-code-session-transcript"
 
 
+def mcp_server_namespace(server: str) -> str:
+    """Claude Code surfaces an MCP server's tools as mcp__<server>__<tool>.
+    The trailing delimiter is part of the marker so a server named fff
+    never absorbs calls from one named fff2."""
+    return f"mcp__{server}__"
+
+
 def tool_calls_from_session_transcript(text: str) -> tuple[str, ...] | None:
     """Observed tool calls from a preserved Claude Code session JSONL.
 

@@ -243,6 +243,14 @@ class SchemaTests(unittest.TestCase):
             _valid_task_attempt_scorecard_document()
         )
 
+    def test_task_attempt_scorecard_rejects_invalid_observed_tools(self) -> None:
+        document = _valid_task_attempt_scorecard_document()
+        vessel = document["comparisons"][0]["vessels"][1]
+        vessel["tool_invocations"][0]["observed_tools"] = "fffind"
+
+        with self.assertRaisesRegex(ValueError, "observed_tools"):
+            validate_task_attempt_scorecard_document(document)
+
     def test_task_attempt_scorecard_rejects_comparison_summary_mismatch(self) -> None:
         document = _valid_task_attempt_scorecard_document()
         document["comparisons"][0]["summary"]["total_attempts"] = 3
@@ -1127,6 +1135,20 @@ def _valid_task_attempt_scorecard_document() -> dict[str, Any]:
                         "total_tokens": 8,
                         "total_cost": 0.0,
                         "total_duration_seconds": 0.0,
+                        "tool_invocations": [
+                            {
+                                "tool": "fff",
+                                "kind": "mcp-server",
+                                "expected_calls": ["mcp__fff__"],
+                                "status": "measured",
+                                "attempts": 1,
+                                "measured_attempts": 1,
+                                "invoked_attempts": 1,
+                                "invocation_rate": 1.0,
+                                "invocation_interval": {"low": 0.2, "high": 1.0},
+                                "observed_tools": ["fffind"],
+                            }
+                        ],
                         "artifact_paths": [
                             "logbook/task-attempts/local-agent-preflight/local-agent-baseline/local-smoke-1.json"
                         ],

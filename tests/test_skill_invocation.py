@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from yacht.config.loader import load_regatta
@@ -15,6 +16,7 @@ from yacht.reports.task_attempt_scorecard import write_task_attempt_scorecard
 
 
 EXAMPLE_CONFIG = Path("examples/custom-eval-skill-ab-smoke.toml")
+MCP_EXAMPLE_CONFIG = Path("examples/container-claude-code-mcp-real-task-smoke.toml")
 
 SESSION_EVENTS = [
     {"type": "user", "message": {"content": "do the task"}},
@@ -129,8 +131,9 @@ class ToolExpectationTests(unittest.TestCase):
         vessel = next(
             vessel for vessel in regatta.vessels if vessel.name == "claude-with-skill"
         )
+        runtime = regatta.runtime_recipes[vessel.runtime]
 
-        expectations = _tool_expectations(regatta, vessel)
+        expectations = _tool_expectations(regatta, vessel, runtime)
 
         self.assertEqual(
             expectations,
@@ -148,8 +151,42 @@ class ToolExpectationTests(unittest.TestCase):
         vessel = next(
             vessel for vessel in regatta.vessels if vessel.name == "claude-baseline"
         )
+        runtime = regatta.runtime_recipes[vessel.runtime]
 
-        self.assertEqual(_tool_expectations(regatta, vessel), [])
+        self.assertEqual(_tool_expectations(regatta, vessel, runtime), [])
+
+    def test_mcp_expectation_derives_namespace_from_install_step(self) -> None:
+        regatta = load_regatta(MCP_EXAMPLE_CONFIG)
+        vessel = next(
+            vessel
+            for vessel in regatta.vessels
+            if vessel.name == "claude-code-container-fff-mcp"
+        )
+        runtime = regatta.runtime_recipes[vessel.runtime]
+
+        expectations = _tool_expectations(regatta, vessel, runtime)
+
+        self.assertEqual(
+            expectations,
+            [
+                {
+                    "tool": "fff",
+                    "kind": "mcp-server",
+                    "expected_calls": ["mcp__fff__"],
+                }
+            ],
+        )
+
+    def test_mcp_expectation_omitted_for_unnamespaced_harness(self) -> None:
+        regatta = load_regatta(MCP_EXAMPLE_CONFIG)
+        vessel = next(
+            vessel
+            for vessel in regatta.vessels
+            if vessel.name == "claude-code-container-fff-mcp"
+        )
+        runtime = replace(regatta.runtime_recipes[vessel.runtime], harness="pi")
+
+        self.assertEqual(_tool_expectations(regatta, vessel, runtime), [])
 
 
 class DeliveryMetricsTests(unittest.TestCase):
@@ -190,6 +227,42 @@ class DeliveryMetricsTests(unittest.TestCase):
             self.assertEqual(invocation["completed_attempts"], 1)
             self.assertEqual(invocation["invoked_completed_attempts"], 1)
             self.assertEqual(invocation["completed_invocation_rate"], 1.0)
+
+    def test_mcp_delivery_matches_delimited_namespace(self) -> None:
+        mcp_expectation = [
+            {
+                "tool": "fff",
+                "kind": "mcp-server",
+                "expected_calls": ["mcp__fff__"],
+            }
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir)
+            _write_attempt(
+                logbook_dir,
+                task_id="task-1",
+                status="completed",
+                tool_calls=["mcp__fff__fffind", "mcp__fff__ffgrep", "Write"],
+                measured=True,
+                expectations=mcp_expectation,
+            )
+            _write_attempt(
+                logbook_dir,
+                task_id="task-2",
+                status="completed",
+                tool_calls=["mcp__fff2__search"],
+                measured=True,
+                expectations=mcp_expectation,
+            )
+
+            scorecard = write_task_attempt_scorecard(logbook_dir)
+
+            vessel = scorecard["comparisons"][0]["vessels"][0]
+            (invocation,) = vessel["tool_invocations"]
+            self.assertEqual(invocation["kind"], "mcp-server")
+            self.assertEqual(invocation["measured_attempts"], 2)
+            self.assertEqual(invocation["invoked_attempts"], 1)
+            self.assertEqual(invocation["observed_tools"], ["fffind", "ffgrep"])
 
     def test_scorecard_reports_unmeasured_when_no_attempt_has_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -275,6 +348,60 @@ class DeliveryBlockTests(unittest.TestCase):
         )
 
 
+class AggregateInvocationTests(unittest.TestCase):
+    def test_aggregate_unions_observed_mcp_tools_across_runs(self) -> None:
+        from yacht.reports.benchmark_aggregate import (
+            _accumulate_tool_invocations,
+            _finalized_tool_invocations,
+        )
+
+        totals: dict[str, dict[str, object]] = {}
+        _accumulate_tool_invocations(totals, [_mcp_run_entry(["fffind"])])
+        _accumulate_tool_invocations(totals, [_mcp_run_entry(["ffgrep"])])
+
+        (entry,) = _finalized_tool_invocations(totals)
+
+        self.assertEqual(entry["observed_tools"], ["fffind", "ffgrep"])
+        self.assertEqual(entry["invoked_attempts"], 2)
+
+
+class DeliveryTableTests(unittest.TestCase):
+    def test_html_delivery_table_lists_observed_mcp_tools(self) -> None:
+        from yacht.reports.html_report import _delivery_table
+
+        table = _delivery_table(
+            {
+                "vessels": [
+                    {
+                        "name": "candidate",
+                        "tool_invocations": [_mcp_run_entry(["fffind", "ffgrep"])],
+                    }
+                ]
+            }
+        )
+
+        self.assertIn("observed: fffind, ffgrep", table)
+
+
+def _mcp_run_entry(observed_tools: list[str]) -> dict[str, object]:
+    return {
+        "tool": "fff",
+        "kind": "mcp-server",
+        "expected_calls": ["mcp__fff__"],
+        "status": "measured",
+        "attempts": 1,
+        "measured_attempts": 1,
+        "invoked_attempts": 1,
+        "invocation_rate": 1.0,
+        "invocation_interval": {"low": 0.2, "high": 1.0},
+        "completed_attempts": 1,
+        "invoked_completed_attempts": 1,
+        "completed_invocation_rate": 1.0,
+        "completed_invocation_interval": {"low": 0.2, "high": 1.0},
+        "observed_tools": observed_tools,
+    }
+
+
 def _invocation_entry(*, invoked_attempts: int) -> dict[str, object]:
     return {
         "tool": "team-conventions",
@@ -300,6 +427,7 @@ def _write_attempt(
     status: str,
     tool_calls: list[str],
     measured: bool,
+    expectations: list[dict[str, object]] | None = None,
 ) -> None:
     agent: dict[str, object] = {
         "exit_code": 0 if status == "completed" else 1,
@@ -333,7 +461,9 @@ def _write_attempt(
         "agent": agent,
         "metrics": {"tokens": 100, "duration_seconds": 1.0},
         "secret_refs": [],
-        "tool_expectations": [
+        "tool_expectations": expectations
+        if expectations is not None
+        else [
             {
                 "tool": "team-conventions",
                 "kind": "agent-skill",

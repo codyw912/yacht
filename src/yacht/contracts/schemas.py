@@ -2184,6 +2184,11 @@ def _validate_tool_invocations(value: Any, path: str) -> None:
         )
         for key in ("attempts", "measured_attempts"):
             _require_non_negative_int(entry.get(key), f"{entry_path}.{key}")
+        if "observed_tools" in entry:
+            _require_string_list(
+                entry.get("observed_tools"),
+                f"{entry_path}.observed_tools",
+            )
         if entry.get("status") == "unmeasured":
             continue
         _require_non_negative_int(
