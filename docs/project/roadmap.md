@@ -8,7 +8,9 @@ against controlled baselines across public benchmarks and custom evals. Work
 that expands harnesses, rigging, runtime trust, course selection, and evaluator
 adapters should take priority over polishing a single Pi+fff smoke path.
 
-For the current audit-backed implementation backlog, see
+For the current implementation backlog, see
+[Audit follow-ups](audit-followups.md). The earlier architecture-cleanup
+backlog is kept in
 [Next phase opportunities](next-phase-opportunities.md).
 
 ## 1. Generalized Benchmark Surface
