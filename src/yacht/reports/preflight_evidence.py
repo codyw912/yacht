@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from yacht.courses.handoff import COURSE_HANDOFF_PATH
+from yacht.courses.handoff import load_course_handoff
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
     PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
@@ -37,27 +37,10 @@ def render_preflight_evidence_report(
 
 
 def build_preflight_evidence_report(logbook_dir: Path) -> dict[str, Any]:
-    handoff = _load_handoff(logbook_dir)
+    handoff = load_course_handoff(logbook_dir)
     report = _build_report(logbook_dir, handoff)
     validate_preflight_evidence_report_document(report)
     return report
-
-
-def _load_handoff(logbook_dir: Path) -> dict[str, Any]:
-    handoff_path = logbook_dir / COURSE_HANDOFF_PATH
-    if not handoff_path.exists():
-        raise ConfigError(f"course handoff artifact not found: {handoff_path}")
-    return _load_json_object(handoff_path, "course handoff artifact")
-
-
-def _load_json_object(path: Path, label: str) -> dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise ConfigError(f"{label} is not valid JSON: {error}") from error
-    if not isinstance(payload, dict):
-        raise ConfigError(f"{label} must be a JSON object")
-    return payload
 
 
 def _build_report(logbook_dir: Path, handoff: dict[str, Any]) -> dict[str, Any]:

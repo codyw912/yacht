@@ -7,7 +7,7 @@ from yacht.config.loader import load_regatta
 from yacht.courses.registry import course_adapter
 from yacht.courses.registry import course_adapter_to_json
 from yacht.courses.registry import evaluator_adapter
-from yacht.logbook.io import write_json
+from yacht.logbook.io import load_json_object, write_json
 from yacht.domain.model import (
     Comparison,
     ConfigError,
@@ -16,11 +16,24 @@ from yacht.domain.model import (
 )
 from yacht.contracts.schemas import (
     COURSE_HANDOFF_SCHEMA,
+    SchemaValidationError,
     validate_course_handoff_document,
 )
 
 
 COURSE_HANDOFF_PATH = Path("course-handoff.json")
+
+
+def load_course_handoff(logbook_dir: Path) -> dict[str, Any]:
+    handoff_path = logbook_dir / COURSE_HANDOFF_PATH
+    if not handoff_path.exists():
+        raise ConfigError(f"course handoff artifact not found: {handoff_path}")
+    handoff = load_json_object(handoff_path, "course handoff artifact")
+    try:
+        validate_course_handoff_document(handoff)
+    except SchemaValidationError as error:
+        raise ConfigError(f"course handoff artifact {handoff_path}: {error}") from error
+    return handoff
 
 
 def build_course_handoff(config_path: Path) -> dict[str, Any]:

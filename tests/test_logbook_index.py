@@ -75,6 +75,25 @@ class LogbookIndexTests(unittest.TestCase):
                 index,
             )
 
+    def test_refuses_to_write_an_invalid_run_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook_dir = root / "logbook"
+
+            with self.assertRaisesRegex(ValueError, "regatta"):
+                write_run_index(
+                    logbook_dir=logbook_dir,
+                    config_path=root / "regatta.toml",
+                    run_kind="real-benchmark",
+                    status="complete",
+                    regatta="",
+                    course="demo-course",
+                    comparisons=(),
+                    artifacts={},
+                )
+
+            self.assertFalse((logbook_dir / RUN_INDEX_PATH).exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,6 +30,9 @@ def _write_benchmark_logbook(logbook_dir: Path) -> None:
             "schema": "yacht.run-index.v1",
             "run_kind": "real-benchmark",
             "status": "complete",
+            "updated_at": "2026-07-31T00:00:00Z",
+            "config_path": str(logbook_dir.parent / "regatta.toml"),
+            "logbook": str(logbook_dir),
             "regatta": "example",
             "course": "swe-bench-lite",
             "comparisons": [],
@@ -38,7 +41,28 @@ def _write_benchmark_logbook(logbook_dir: Path) -> None:
     )
 
 
+def _write_malformed_benchmark_logbook(logbook_dir: Path) -> None:
+    write_json(
+        logbook_dir / "run-index.json",
+        {"schema": "yacht.run-index.v1", "run_kind": "real-benchmark"},
+    )
+
+
 class StatusCommandTests(unittest.TestCase):
+    def test_malformed_run_index_reports_error_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            _write_malformed_benchmark_logbook(logbook_dir)
+            stdout = StringIO()
+            stderr = StringIO()
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(["status", "--logbook", str(logbook_dir)])
+
+            self.assertEqual(exit_code, 1)
+            self.assertIn("error:", stderr.getvalue())
+            self.assertIn("run index", stderr.getvalue())
+
     def test_smoke_logbook_renders_smoke_status(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"

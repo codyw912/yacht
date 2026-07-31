@@ -42,6 +42,18 @@ BASELINE_NATIVE_REPORT = {
 
 
 class BenchmarkScorecardTests(unittest.TestCase):
+    def test_scorecard_rejects_malformed_course_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir(parents=True)
+            (logbook_dir / "course-handoff.json").write_text(
+                json.dumps({"schema": "yacht.course-handoff.v1"}),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ConfigError, "course handoff"):
+                write_benchmark_scorecard(logbook_dir)
+
     def test_write_benchmark_scorecard_summarizes_validated_grading_artifacts(
         self,
     ) -> None:

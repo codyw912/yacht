@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from yacht.contracts.schemas import SchemaValidationError, validate_run_index_document
+from yacht.domain.model import ConfigError
 from yacht.logbook.index import RUN_INDEX_PATH
 from yacht.logbook.io import load_json_object
 from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
@@ -54,6 +56,10 @@ def _build_indexed_benchmark_status(
     index_path: Path,
 ) -> dict[str, Any]:
     run_index = load_json_object(index_path, "run index artifact")
+    try:
+        validate_run_index_document(run_index)
+    except SchemaValidationError as error:
+        raise ConfigError(f"run index artifact {index_path}: {error}") from error
     artifacts = _indexed_artifacts(run_index)
     return {
         "schema": "yacht.benchmark-status.v1",

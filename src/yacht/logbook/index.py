@@ -5,11 +5,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from yacht.contracts.schemas import RUN_INDEX_SCHEMA, validate_run_index_document
 from yacht.logbook.io import write_json
 
 
 RUN_INDEX_PATH = Path("run-index.json")
-RUN_INDEX_SCHEMA = "yacht.run-index.v1"
 
 
 def read_run_kind(logbook_dir: Path) -> str | None:
@@ -59,7 +59,7 @@ def build_run_index(
     comparisons: Sequence[Any],
     artifacts: Mapping[str, str | Path],
 ) -> dict[str, Any]:
-    return {
+    index = {
         "schema": RUN_INDEX_SCHEMA,
         "run_kind": run_kind,
         "status": status,
@@ -74,6 +74,8 @@ def build_run_index(
             for name, path in artifacts.items()
         },
     }
+    validate_run_index_document(index)
+    return index
 
 
 def _comparison_to_json(comparison: Any) -> dict[str, Any]:

@@ -7,7 +7,7 @@ from typing import Any
 from yacht.courses.registry import command_preview
 from yacht.courses.registry import course_adapter_block
 from yacht.courses.registry import evaluator_adapter
-from yacht.courses.handoff import COURSE_HANDOFF_PATH
+from yacht.courses.handoff import load_course_handoff
 from yacht.preflight.gate import PreflightGate, preflight_gate
 from yacht.domain.model import ConfigError
 from yacht.runtimes.snapshot_gate import RuntimeSnapshotGate, runtime_snapshot_gate
@@ -100,7 +100,7 @@ def write_benchmark_launcher_handoff(
     if max_workers < 1:
         raise ConfigError("max_workers must be an integer >= 1")
 
-    handoff = _load_handoff(logbook_dir)
+    handoff = load_course_handoff(logbook_dir)
     launcher_handoff = _build_launcher_handoff(
         logbook_dir=logbook_dir,
         handoff=handoff,
@@ -109,13 +109,6 @@ def write_benchmark_launcher_handoff(
     validate_benchmark_launcher_handoff_document(launcher_handoff)
     _write_json(logbook_dir / BENCHMARK_LAUNCHER_HANDOFF_PATH, launcher_handoff)
     return launcher_handoff
-
-
-def _load_handoff(logbook_dir: Path) -> dict[str, Any]:
-    handoff_path = logbook_dir / COURSE_HANDOFF_PATH
-    if not handoff_path.exists():
-        raise ConfigError(f"course handoff artifact not found: {handoff_path}")
-    return _load_json_object(handoff_path, "course handoff artifact")
 
 
 def _load_json_object(path: Path, label: str) -> dict[str, Any]:
