@@ -18,9 +18,12 @@ from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
 from yacht.domain.model import ConfigError, load_regatta
 from yacht.reports.surface_metadata import regatta_surfaces_to_json
 from yacht.workflows.task_attempt_runner import TaskAgent
+from yacht.contracts.schemas import (
+    REAL_BENCHMARK_REPETITIONS_SCHEMA,
+    validate_real_benchmark_repetitions_document,
+)
 
 
-REAL_BENCHMARK_REPETITIONS_SCHEMA = "yacht.real-benchmark-repetitions.v1"
 REAL_BENCHMARK_REPETITIONS_PATH = Path("real-benchmark-repetitions.json")
 REPETITION_RUNS_DIR = Path("runs")
 BENCHMARK_REPORT_MARKDOWN_PATH = Path("benchmark-report.md")
@@ -134,6 +137,7 @@ def run_real_benchmark_repetitions(
         runs=runs,
         aggregate=aggregate,
     )
+    validate_real_benchmark_repetitions_document(summary)
     _progress(progress, f"real benchmark repetitions complete: {summary['status']}")
     return _write_json(logbook_dir / REAL_BENCHMARK_REPETITIONS_PATH, summary)
 

@@ -6,7 +6,9 @@ from typing import Any
 
 from yacht.domain.model import ConfigError, run_regatta
 from yacht.contracts.schemas import (
+    BENCHMARK_AGGREGATE_SCHEMA,
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
+    BENCHMARK_GRADING_COLLECTION_SCHEMA,
     BENCHMARK_LAUNCHER_HANDOFF_SCHEMA,
     BENCHMARK_LAUNCH_RESULT_SCHEMA,
     BENCHMARK_READINESS_SUMMARY_SCHEMA,
@@ -15,6 +17,8 @@ from yacht.contracts.schemas import (
     PREFLIGHT_EVIDENCE_REPORT_SCHEMA,
     PREFLIGHT_SCHEMA,
     PREFLIGHT_SUMMARY_SCHEMA,
+    REAL_BENCHMARK_EVAL_SCHEMA,
+    REAL_BENCHMARK_REPETITIONS_SCHEMA,
     REAL_BENCHMARK_RUNBOOK_SCHEMA,
     REAL_SMOKE_RUNBOOK_SCHEMA,
     REGATTA_SCHEMA,
@@ -22,20 +26,28 @@ from yacht.contracts.schemas import (
     RUNTIME_INSTANCES_SCHEMA,
     SCORECARD_SCHEMA,
     SMOKE_READINESS_REPORT_SCHEMA,
+    SWE_BENCH_GRADING_SCHEMA,
     TASK_ATTEMPT_SCORECARD_SCHEMA,
+    TERMINAL_BENCH_JOB_SCHEMA,
     TASK_ATTEMPT_SCHEMA,
     WAKE_SCHEMA,
+    validate_benchmark_aggregate_document,
     validate_benchmark_execution_plan_document,
+    validate_benchmark_grading_collection_document,
     validate_benchmark_launcher_handoff_document,
     validate_benchmark_launch_result_document,
     validate_benchmark_readiness_summary_document,
     validate_benchmark_scorecard_document,
     validate_preflight_document,
     validate_preflight_evidence_report_document,
+    validate_course_grading_report_document,
     validate_preflight_summary_document,
+    validate_real_benchmark_eval_document,
+    validate_real_benchmark_repetitions_document,
     validate_real_benchmark_runbook_document,
     validate_real_smoke_runbook_document,
     validate_run_index_document,
+    validate_terminal_bench_job_document,
     validate_runtime_instances_document,
     validate_scorecard_document,
     validate_smoke_readiness_report_document,
@@ -1067,6 +1079,355 @@ def _valid_benchmark_readiness_summary_document() -> dict[str, Any]:
             }
         ],
     }
+
+
+def _valid_benchmark_grading_collection_document() -> dict[str, Any]:
+    return {
+        "schema": BENCHMARK_GRADING_COLLECTION_SCHEMA,
+        "regatta": "demo",
+        "course": "demo-course",
+        "adapter": {
+            "kind": "swe-bench",
+            "dataset": "princeton-nlp/SWE-bench_Lite",
+            "split": "dev",
+        },
+        "status": "complete",
+        "summary": {
+            "total_vessels": 1,
+            "completed_launches": 1,
+            "collected_reports": 1,
+            "missing_native_reports": 0,
+            "invalid_native_reports": 0,
+            "skipped_vessels": 0,
+        },
+        "next_steps": [],
+        "comparisons": [
+            {
+                "name": "comparison",
+                "course": "demo-course",
+                "status": "complete",
+                "vessels": [
+                    {
+                        "name": "baseline",
+                        "launch_status": "completed",
+                        "status": "collected",
+                        "native_report_path": "/tmp/native-report.json",
+                        "grading_report_path": "/tmp/grading-report.json",
+                        "submitted_instances": 2,
+                        "resolved_instances": 1,
+                        "resolution_rate": 0.5,
+                    }
+                ],
+            }
+        ],
+    }
+
+
+class BenchmarkGradingCollectionSchemaTests(unittest.TestCase):
+    def test_grading_collection_documents_include_schema_version(self) -> None:
+        validate_benchmark_grading_collection_document(
+            _valid_benchmark_grading_collection_document()
+        )
+
+    def test_grading_collection_requires_summary(self) -> None:
+        document = _valid_benchmark_grading_collection_document()
+        del document["summary"]
+
+        with self.assertRaisesRegex(ValueError, "grading collection.summary"):
+            validate_benchmark_grading_collection_document(document)
+
+    def test_grading_collection_rejects_unknown_vessel_status(self) -> None:
+        document = _valid_benchmark_grading_collection_document()
+        document["comparisons"][0]["vessels"][0]["status"] = "graded"
+
+        with self.assertRaisesRegex(ValueError, "vessels\\[0\\].status"):
+            validate_benchmark_grading_collection_document(document)
+
+    def test_grading_collection_requires_report_paths_when_collected(self) -> None:
+        document = _valid_benchmark_grading_collection_document()
+        del document["comparisons"][0]["vessels"][0]["grading_report_path"]
+
+        with self.assertRaisesRegex(ValueError, "grading_report_path"):
+            validate_benchmark_grading_collection_document(document)
+
+
+def _valid_real_benchmark_repetitions_document() -> dict[str, Any]:
+    return {
+        "schema": REAL_BENCHMARK_REPETITIONS_SCHEMA,
+        "status": "complete",
+        "regatta": "demo",
+        "course": "demo-course",
+        "surfaces": {},
+        "summary": {
+            "repetitions": 1,
+            "completed_runs": 1,
+            "failed_runs": 0,
+            "aggregate_logbooks": 1,
+        },
+        "runs": [
+            {
+                "index": 1,
+                "logbook": "/tmp/logbook/runs/run-001",
+                "status": "complete",
+                "scorecard_present": True,
+                "artifacts": {
+                    "real_benchmark_eval": "/tmp/logbook/runs/run-001/real-benchmark-eval.json",
+                    "benchmark_scorecard": "/tmp/logbook/runs/run-001/benchmark-scorecard.json",
+                },
+            }
+        ],
+        "artifacts": {
+            "logbook": "/tmp/logbook",
+            "real_benchmark_repetitions": "/tmp/logbook/real-benchmark-repetitions.json",
+            "benchmark_aggregate": "/tmp/logbook/benchmark-aggregate.json",
+            "benchmark_report_markdown": "/tmp/logbook/benchmark-report.md",
+        },
+        "next_steps": [],
+    }
+
+
+class RealBenchmarkRepetitionsSchemaTests(unittest.TestCase):
+    def test_repetitions_documents_include_schema_version(self) -> None:
+        validate_real_benchmark_repetitions_document(
+            _valid_real_benchmark_repetitions_document()
+        )
+
+    def test_repetitions_rejects_unknown_status(self) -> None:
+        document = _valid_real_benchmark_repetitions_document()
+        document["status"] = "running"
+
+        with self.assertRaisesRegex(ValueError, "status"):
+            validate_real_benchmark_repetitions_document(document)
+
+    def test_repetitions_requires_run_scorecard_presence_flag(self) -> None:
+        document = _valid_real_benchmark_repetitions_document()
+        del document["runs"][0]["scorecard_present"]
+
+        with self.assertRaisesRegex(ValueError, "runs\\[0\\].scorecard_present"):
+            validate_real_benchmark_repetitions_document(document)
+
+
+def _valid_benchmark_aggregate_document() -> dict[str, Any]:
+    return {
+        "schema": BENCHMARK_AGGREGATE_SCHEMA,
+        "regatta": "demo",
+        "course": "demo-course",
+        "run_count": 1,
+        "logbooks": ["/tmp/logbook/runs/run-001"],
+        "comparisons": [
+            {
+                "name": "comparison",
+                "baseline": "baseline",
+                "challenger": "challenger",
+                "vessels": [
+                    {
+                        "name": "baseline",
+                        "runs": 1,
+                        "eligible_runs": 1,
+                        "measured_runs": 1,
+                        "submitted_instances": 2,
+                        "resolved_instances": 1,
+                        "resolution_rate": 0.5,
+                        "usage_runs": 1,
+                        "total_tokens": 1000,
+                        "total_cost": 0.01,
+                        "total_duration_seconds": 12.5,
+                        "total_distinct_tool_uses": 4,
+                    },
+                    {
+                        "name": "challenger",
+                        "runs": 1,
+                        "eligible_runs": 1,
+                        "measured_runs": 1,
+                        "submitted_instances": 2,
+                        "resolved_instances": 2,
+                        "resolution_rate": 1.0,
+                        "usage_runs": 1,
+                        "total_tokens": 900,
+                        "total_cost": 0.009,
+                        "total_duration_seconds": 11.0,
+                        "total_distinct_tool_uses": 5,
+                    },
+                ],
+                "runs": [],
+                "delta": {"resolved_instances_delta": 1},
+                "delta_statistics": {},
+                "paired_statistics": {
+                    "baseline_vessel": "baseline",
+                    "challenger_vessel": "challenger",
+                    "shared_task_attempts": 2,
+                    "concordant_resolved": 1,
+                    "concordant_unresolved": 0,
+                    "discordant_baseline_only": 0,
+                    "discordant_challenger_only": 1,
+                    "discordant_by_task": [
+                        {"task": "task-1", "baseline_only": 0, "challenger_only": 1}
+                    ],
+                    "grade": "insufficient-evidence",
+                    "p_value": 1.0,
+                    "min_significant_discordant": 6,
+                },
+            }
+        ],
+    }
+
+
+class BenchmarkAggregateSchemaTests(unittest.TestCase):
+    def test_aggregate_documents_include_schema_version(self) -> None:
+        validate_benchmark_aggregate_document(_valid_benchmark_aggregate_document())
+
+    def test_aggregate_accepts_pre_statistics_artifacts(self) -> None:
+        document = _valid_benchmark_aggregate_document()
+        del document["comparisons"][0]["paired_statistics"]
+        del document["comparisons"][0]["delta_statistics"]
+
+        validate_benchmark_aggregate_document(document)
+
+    def test_aggregate_rejects_malformed_paired_statistics(self) -> None:
+        document = _valid_benchmark_aggregate_document()
+        del document["comparisons"][0]["paired_statistics"]["p_value"]
+
+        with self.assertRaisesRegex(ValueError, "paired_statistics.*p_value"):
+            validate_benchmark_aggregate_document(document)
+
+    def test_aggregate_rejects_unknown_evidence_grade(self) -> None:
+        document = _valid_benchmark_aggregate_document()
+        document["comparisons"][0]["paired_statistics"]["grade"] = "definitely-better"
+
+        with self.assertRaisesRegex(ValueError, "grade"):
+            validate_benchmark_aggregate_document(document)
+
+    def test_aggregate_requires_run_count_to_match_logbooks(self) -> None:
+        document = _valid_benchmark_aggregate_document()
+        document["run_count"] = 2
+
+        with self.assertRaisesRegex(ValueError, "run_count"):
+            validate_benchmark_aggregate_document(document)
+
+    def test_aggregate_requires_vessel_usage_totals(self) -> None:
+        document = _valid_benchmark_aggregate_document()
+        del document["comparisons"][0]["vessels"][0]["total_tokens"]
+
+        with self.assertRaisesRegex(ValueError, "total_tokens"):
+            validate_benchmark_aggregate_document(document)
+
+    def test_evidence_grades_match_statistics_module(self) -> None:
+        from yacht.contracts.schemas import EVIDENCE_GRADES
+        from yacht.reports.statistics import (
+            GRADE_EVIDENCE,
+            GRADE_INSUFFICIENT,
+            GRADE_NOT_DISTINGUISHABLE,
+        )
+
+        self.assertEqual(
+            EVIDENCE_GRADES,
+            {GRADE_EVIDENCE, GRADE_INSUFFICIENT, GRADE_NOT_DISTINGUISHABLE},
+        )
+
+
+def _valid_terminal_bench_job_document() -> dict[str, Any]:
+    return {
+        "schema": TERMINAL_BENCH_JOB_SCHEMA,
+        "dataset": {"name": "terminal-bench", "version": "2.0"},
+        "tasks": ["task-1"],
+        "agent": {
+            "name": "claude-code",
+            "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
+            "version": "2.1.215",
+            "model": "claude-sonnet-5",
+            "env": {},
+            "mcp_servers": [],
+            "rigging_steps": [],
+        },
+        "launcher_image": "yacht/harbor-launcher:harbor-0.20.0",
+        "secret_env": ["ANTHROPIC_API_KEY"],
+        "vessel": "baseline",
+    }
+
+
+class TerminalBenchJobSchemaTests(unittest.TestCase):
+    def test_job_documents_include_schema_version(self) -> None:
+        validate_terminal_bench_job_document(_valid_terminal_bench_job_document())
+
+    def test_job_accepts_custom_eval_dataset_digest(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        document["dataset"] = {"path": "/tmp/evals", "digest": "sha256:abc123"}
+
+        validate_terminal_bench_job_document(document)
+
+    def test_job_requires_dataset_pin(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        document["dataset"] = {"name": "terminal-bench"}
+
+        with self.assertRaisesRegex(ValueError, "dataset"):
+            validate_terminal_bench_job_document(document)
+
+    def test_job_requires_agent_version(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        del document["agent"]["version"]
+
+        with self.assertRaisesRegex(ValueError, "agent.version"):
+            validate_terminal_bench_job_document(document)
+
+
+def _valid_course_grading_report_document() -> dict[str, Any]:
+    return {
+        "schema": SWE_BENCH_GRADING_SCHEMA,
+        "regatta": "demo",
+        "course": "demo-course",
+        "adapter": "swe-bench",
+        "dataset": "princeton-nlp/SWE-bench_Lite",
+        "split": "dev",
+        "status": "validated",
+        "source_report_path": "/tmp/native-report.json",
+        "candidate_patches_path": "/tmp/candidate-patches.jsonl",
+        "submitted_instances": 2,
+        "resolved_instances": 1,
+        "resolution_rate": 0.5,
+        "native_report": {"schema_version": 2},
+        "vessel": "baseline",
+    }
+
+
+class CourseGradingReportSchemaTests(unittest.TestCase):
+    def test_grading_report_documents_include_schema_version(self) -> None:
+        validate_course_grading_report_document(_valid_course_grading_report_document())
+
+    def test_grading_report_rejects_unknown_schema(self) -> None:
+        document = _valid_course_grading_report_document()
+        document["schema"] = "yacht.aider-grading.v1"
+
+        with self.assertRaisesRegex(ValueError, "schema"):
+            validate_course_grading_report_document(document)
+
+    def test_grading_report_requires_resolution_counts(self) -> None:
+        document = _valid_course_grading_report_document()
+        del document["resolved_instances"]
+
+        with self.assertRaisesRegex(ValueError, "resolved_instances"):
+            validate_course_grading_report_document(document)
+
+
+class RealBenchmarkEvalSchemaTests(unittest.TestCase):
+    def test_eval_summary_documents_include_schema_version(self) -> None:
+        validate_real_benchmark_eval_document(
+            {
+                "schema": REAL_BENCHMARK_EVAL_SCHEMA,
+                "status": "complete",
+                "regatta": "demo",
+                "course": "demo-course",
+            }
+        )
+
+    def test_eval_summary_requires_schema_key(self) -> None:
+        with self.assertRaisesRegex(ValueError, "schema"):
+            validate_real_benchmark_eval_document(
+                {
+                    "status": "complete",
+                    "regatta": "demo",
+                    "course": "demo-course",
+                }
+            )
 
 
 def _valid_run_index_document() -> dict[str, Any]:

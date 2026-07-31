@@ -1385,6 +1385,7 @@ def _write_grading_collection(logbook_dir: Path) -> None:
                     "invalid_native_reports": 0,
                     "skipped_vessels": 0,
                 },
+                "next_steps": [],
                 "comparisons": [
                     {
                         "name": "pi-vs-pi-fff",

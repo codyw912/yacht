@@ -13,13 +13,14 @@ from yacht.workflows.benchmark_launcher_handoff import (
 from yacht.reports.next_steps import command_step
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
+    BENCHMARK_GRADING_COLLECTION_SCHEMA,
     SchemaValidationError,
+    validate_benchmark_grading_collection_document,
     validate_benchmark_launch_result_document,
 )
 
 
 BENCHMARK_GRADING_COLLECTION_PATH = Path("benchmark-grading-collection.json")
-BENCHMARK_GRADING_COLLECTION_SCHEMA = "yacht.benchmark-grading-collection.v1"
 
 
 def collect_benchmark_grading_reports(
@@ -48,6 +49,7 @@ def collect_benchmark_grading_reports(
         "next_steps": _next_steps(logbook_dir, summary),
         "comparisons": comparisons,
     }
+    validate_benchmark_grading_collection_document(collection)
     _write_json(logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH, collection)
     return collection
 

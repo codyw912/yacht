@@ -3,10 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from yacht.contracts.schemas import SWE_BENCH_GRADING_SCHEMA
 from yacht.courses.grading import write_course_grading_report
-
-
-SWE_BENCH_GRADING_SCHEMA = "yacht.swe-bench-grading.v1"
 
 
 def write_swe_bench_grading_report(

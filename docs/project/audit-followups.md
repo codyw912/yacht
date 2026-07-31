@@ -22,6 +22,10 @@ defect is in the suite.
 | `tool_call_count` reported deduplicated distinct tools under a name meaning calls | 12 modules | #277 |
 | Repetitions never pooled paired evidence, so the documented skill A/B p-value was a hand calculation | `reports/benchmark_aggregate.py` | #278 |
 | Documented claims the implementation did not support (sign-test p-value, a cost figure off by 6x, a delivery column the aggregate never emitted, two nonexistent harness names, thirteen stale ADR statuses) | docs | #272 |
+| `run-index.json` had no validator; a malformed index crashed `yacht status` with a raw KeyError traceback | `contracts/schemas.py`, `logbook/index.py`, `reports/benchmark_status.py` | #280 |
+| `course-handoff.json` validated on write only; four consumers indexed it blind | `courses/handoff.py` + consumers | #280 |
+| Six artifacts had schema constants outside `contracts/schemas.py` and no validator (grading collection, repetitions, aggregate incl. `paired_statistics`, terminal-bench job, grading reports); all now validate on write, and the aggregate, grading collection, and grading report readers validate on read | `contracts/schemas.py` + writers/readers | #281 |
+| `real-benchmark-eval.json` carried no `schema` key; now versioned as `yacht.real-benchmark-eval.v1` and validated on write | `workflows/real_benchmark_eval.py` | #281 |
 
 Decisions recorded along the way: ADR 0022 (MCP delivery by tool
 namespace, approved but **not implemented**) and ADR 0023 (pooling
@@ -29,31 +33,14 @@ paired outcomes, implemented in #278).
 
 ## Open: artifact contract integrity
 
-The audit's severe contract findings are untouched. They share one
-shape — artifacts are validated when written and trusted when read —
-and one structural cause: **every schema constant defined outside
-`contracts/schemas.py` has no validator.**
+The audit's contract findings shared one shape — artifacts validated
+when written and trusted when read — with one structural cause: every
+schema constant defined outside `contracts/schemas.py` had no
+validator. Findings (1)–(4) are closed (#280, #281): every persisted
+artifact schema constant now lives in `contracts/schemas.py` with a
+validator, writers validate before writing, and the crash-prone
+readers validate on read. Two findings remain:
 
-1. **`run-index.json` has no validator at all.** `RUN_INDEX_SCHEMA`
-   lives in `logbook/index.py`; nothing validates against it. Its
-   reader in `reports/benchmark_status.py` hard-indexes `run_kind`,
-   `status`, `regatta`, `course`, and `comparisons`, and the CLI
-   catches only `ConfigError`, so a malformed index produces a raw
-   traceback from `yacht status`.
-2. **`course-handoff.json` is validated on write and never on read.**
-   `validate_course_handoff_document` is called from exactly one place
-   — the writer. Four consumers load it with a bare JSON read and index
-   required keys.
-3. **Six artifacts have no validator**, because their schema constants
-   live outside the contracts module: `run-index.json`,
-   `benchmark-grading-collection.json`,
-   `real-benchmark-repetitions.json`, `benchmark-aggregate.json`,
-   `terminal-bench-job.json`, and the grading reports.
-   `benchmark-aggregate.json` gained `paired_statistics` in #278 with
-   nothing validating it.
-4. **`real-benchmark-eval.json` carries no `schema` key at all** — the
-   run's top-level summary, 37–46 KB, unversioned, so no external
-   consumer can dispatch on it.
 5. **Summaries are not cross-checked against their own detail rows** in
    the task-attempt scorecard and the launch result (the benchmark
    scorecard does this correctly), and `recorded_vessels` is missing
@@ -61,11 +48,10 @@ and one structural cause: **every schema constant defined outside
 6. **No foreign keys between artifacts.** Renaming a comparison in a
    scorecard still validates; the Every Eval Ever export's
    `total_rows` and `evaluation_id` are never checked against the
-   sibling JSONL.
-
-Suggested order: (1) and (2) first — they are the two that can crash a
-reader — then (3) and (4) as one move that pulls the orphan constants
-into `contracts/schemas.py`, then (5) and (6).
+   sibling JSONL. The recorded-baseline and Every Eval Ever handoff
+   reads were deliberately left on bare loads in #280 —
+   foreign-logbook validation interacts with backward compatibility
+   and belongs here.
 
 ## Open: ADR 0022, MCP server delivery
 

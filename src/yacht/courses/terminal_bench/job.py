@@ -11,9 +11,12 @@ from yacht.domain.model import (
     RuntimeRecipe,
     Vessel,
 )
+from yacht.contracts.schemas import (
+    TERMINAL_BENCH_JOB_SCHEMA,
+    validate_terminal_bench_job_document,
+)
 
 
-TERMINAL_BENCH_JOB_SCHEMA = "yacht.terminal-bench-job.v1"
 TERMINAL_BENCH_JOB_FILENAME = "terminal-bench-job.json"
 
 HARBOR_AGENT_BY_HARNESS = {
@@ -49,7 +52,7 @@ def render_terminal_bench_job(
     declaration = _declaration_payload(regatta, runtime)
     if declaration is not None:
         agent["declaration"] = declaration
-    return {
+    job = {
         "schema": TERMINAL_BENCH_JOB_SCHEMA,
         "dataset": _dataset(regatta.course.adapter),
         "tasks": [str(task.id) for task in regatta.course.tasks],
@@ -58,6 +61,8 @@ def render_terminal_bench_job(
         "secret_env": _secret_env(regatta, runtime, riggings),
         "vessel": vessel.name,
     }
+    validate_terminal_bench_job_document(job)
+    return job
 
 
 def _dataset(adapter: Any) -> dict[str, str]:

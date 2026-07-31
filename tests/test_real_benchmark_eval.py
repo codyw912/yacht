@@ -140,6 +140,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 ),
                 summary,
             )
+            self.assertEqual(summary["schema"], "yacht.real-benchmark-eval.v1")
             run_index = json.loads(
                 (logbook_dir / RUN_INDEX_PATH).read_text(encoding="utf-8")
             )
