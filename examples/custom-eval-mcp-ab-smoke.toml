@@ -1,0 +1,97 @@
+# Measure MCP server delivery (ADR 0022): the same pinned Claude Code
+# on the same task, with and without a filesystem MCP server rigged in.
+#
+# The point of this comparison is the delivery evidence, not the
+# resolution delta: both vessels can solve the task, but only the
+# rigged vessel carries the server, and its `mcp-server` install step
+# alone makes delivery measurable — the task attempts record a
+# namespace expectation (mcp__files__), the scorecard reports whether
+# any of the server's tools fired, and observed_tools lists which.
+#
+#   uv run yacht run examples/custom-eval-mcp-ab-smoke.toml \
+#     --logbook /private/tmp/yacht-mcp-ab \
+#     --workspace . \
+#     --secret anthropic=@env:ANTHROPIC_API_KEY \
+#     --repetitions 3
+#
+# Requirements: Docker running, uv, ANTHROPIC_API_KEY exported, and the
+# pinned launcher image built:
+#
+#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+
+[regatta]
+name = "custom-eval-mcp-ab-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "mcp-files-ab"
+
+[[course.tasks]]
+id = "mcp-task"
+title = "Inventory the data files, via MCP filesystem tools when available"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "custom-evals"
+split = "v1"
+harness = "harbor"
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.harbor-claude]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "claude-code"
+harness_version = "2.1.215"
+required_secrets = ["anthropic"]
+
+[runtimes.harbor-claude.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "agent-install", kind = "install-only" },
+]
+
+[tools.files]
+kind = "mcp-server"
+description = "Reference filesystem MCP server: directory listing and file reads under /app."
+interfaces = ["mcp"]
+install_methods = ["package", "mcp-server"]
+
+# The treatment: the reference filesystem MCP server, pinned at install
+# time so the server start is offline and deterministic. The server
+# name ("files") is the mcp-server step's target; that target alone is
+# what makes delivery measurable — no tool list is declared anywhere.
+[riggings.files-mcp]
+tools = ["files"]
+instructions = "Prefer the mcp__files__ tools for filesystem inspection."
+
+[[riggings.files-mcp.install]]
+method = "package"
+target = "npm:@modelcontextprotocol/server-filesystem@2026.7.10"
+
+[[riggings.files-mcp.install]]
+method = "mcp-server"
+target = "files"
+command = ["mcp-server-filesystem", "/app"]
+
+[[vessels]]
+name = "claude-baseline"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-claude"
+
+[[vessels]]
+name = "claude-with-mcp"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-claude"
+rigging = ["files-mcp"]
+
+[[comparisons]]
+name = "mcp-vs-baseline"
+course = "mcp-files-ab"
+vessels = ["claude-baseline", "claude-with-mcp"]

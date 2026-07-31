@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from yacht.courses.registry import evaluator_adapter
 from yacht.courses.registry import supported_benchmark_adapter_kinds
 from yacht.courses.registry import supported_course_adapter_harnesses
 from yacht.runtimes.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES
@@ -36,10 +37,13 @@ TERMINAL_BENCH_JOB_SCHEMA = "yacht.terminal-bench-job.v1"
 SWE_BENCH_GRADING_SCHEMA = "yacht.swe-bench-grading.v1"
 TERMINAL_BENCH_GRADING_SCHEMA = "yacht.terminal-bench-grading.v1"
 LIVECODEBENCH_GRADING_SCHEMA = "yacht.livecodebench-grading.v1"
+# Derived from the registry, like COURSE_ADAPTER_KINDS: courses that
+# reuse another course's grading writer under their own schema name
+# (aider-polyglot, custom-eval) declare it only there, and a hand-kept
+# list silently missed them.
 COURSE_GRADING_SCHEMAS = {
-    SWE_BENCH_GRADING_SCHEMA,
-    TERMINAL_BENCH_GRADING_SCHEMA,
-    LIVECODEBENCH_GRADING_SCHEMA,
+    evaluator_adapter(kind).grading_schema
+    for kind in supported_benchmark_adapter_kinds()
 }
 
 # Kept in sync with yacht.harnesses.registry.supported_harness_names()

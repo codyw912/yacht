@@ -1471,6 +1471,18 @@ class CourseGradingReportSchemaTests(unittest.TestCase):
     def test_grading_report_documents_include_schema_version(self) -> None:
         validate_course_grading_report_document(_valid_course_grading_report_document())
 
+    def test_grading_report_accepts_every_registered_course_schema(self) -> None:
+        from yacht.courses.registry import (
+            evaluator_adapter,
+            supported_benchmark_adapter_kinds,
+        )
+
+        for kind in supported_benchmark_adapter_kinds():
+            document = _valid_course_grading_report_document()
+            document["schema"] = evaluator_adapter(kind).grading_schema
+
+            validate_course_grading_report_document(document)
+
     def test_grading_report_rejects_unknown_schema(self) -> None:
         document = _valid_course_grading_report_document()
         document["schema"] = "yacht.aider-grading.v1"

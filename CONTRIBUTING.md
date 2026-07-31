@@ -1,5 +1,27 @@
 # Contributing
 
+## Testing Conventions
+
+Three rules, each earned by a bug that reached a live run:
+
+- **Changing a shared seam means testing every caller.** When a
+  function serving multiple course kinds or artifact writers gains new
+  behavior (especially validation), enumerate its callers and make
+  sure a test exercises the change through each one — through the
+  registry, the way production reaches it, not only against
+  hand-built fixtures. `tests/test_course_grading_roundtrips.py` is
+  the pattern.
+- **Derive contract vocabularies from the registry that owns them.**
+  A set of allowed values hand-copied from another module is a latent
+  divergence, not a constant (`COURSE_GRADING_SCHEMAS` and
+  `COURSE_ADAPTER_KINDS` are derived for this reason). Where a direct
+  import would cycle, pin the literal and add a sync test.
+- **Every validate-on-write seam gets a zero-token roundtrip test**:
+  the writer's own output must pass its own validator, per registered
+  caller. Live token-spending runs are the last line of verification
+  for what unit tests cannot reach (real harness rendering, real
+  transcripts) — never the first line for schema plumbing.
+
 ## Adding a Benchmark Course
 
 The most valuable contribution is a new course. The contract — adapter
