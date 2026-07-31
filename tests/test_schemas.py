@@ -18,6 +18,7 @@ from yacht.contracts.schemas import (
     REAL_BENCHMARK_RUNBOOK_SCHEMA,
     REAL_SMOKE_RUNBOOK_SCHEMA,
     REGATTA_SCHEMA,
+    RUN_INDEX_SCHEMA,
     RUNTIME_INSTANCES_SCHEMA,
     SCORECARD_SCHEMA,
     SMOKE_READINESS_REPORT_SCHEMA,
@@ -34,6 +35,7 @@ from yacht.contracts.schemas import (
     validate_preflight_summary_document,
     validate_real_benchmark_runbook_document,
     validate_real_smoke_runbook_document,
+    validate_run_index_document,
     validate_runtime_instances_document,
     validate_scorecard_document,
     validate_smoke_readiness_report_document,
@@ -1065,6 +1067,82 @@ def _valid_benchmark_readiness_summary_document() -> dict[str, Any]:
             }
         ],
     }
+
+
+def _valid_run_index_document() -> dict[str, Any]:
+    return {
+        "schema": RUN_INDEX_SCHEMA,
+        "run_kind": "real-benchmark",
+        "status": "complete",
+        "updated_at": "2026-07-31T00:00:00Z",
+        "config_path": "/tmp/regatta.toml",
+        "logbook": "/tmp/logbook",
+        "regatta": "demo",
+        "course": "demo-course",
+        "comparisons": [
+            {
+                "name": "comparison",
+                "course": "demo-course",
+                "vessels": ["baseline", "challenger"],
+            }
+        ],
+        "artifacts": {
+            "benchmark_scorecard": {
+                "path": "/tmp/logbook/benchmark-scorecard.json",
+                "present": False,
+            }
+        },
+    }
+
+
+class RunIndexSchemaTests(unittest.TestCase):
+    def test_run_index_documents_include_schema_version(self) -> None:
+        validate_run_index_document(_valid_run_index_document())
+
+    def test_run_index_accepts_empty_comparisons_and_artifacts(self) -> None:
+        document = _valid_run_index_document()
+        document["comparisons"] = []
+        document["artifacts"] = {}
+
+        validate_run_index_document(document)
+
+    def test_run_index_requires_status(self) -> None:
+        document = _valid_run_index_document()
+        del document["status"]
+
+        with self.assertRaisesRegex(ValueError, "run index.*status"):
+            validate_run_index_document(document)
+
+    def test_run_index_rejects_unknown_schema(self) -> None:
+        document = _valid_run_index_document()
+        document["schema"] = "yacht.run-index.v2"
+
+        with self.assertRaisesRegex(ValueError, "schema"):
+            validate_run_index_document(document)
+
+    def test_run_index_rejects_unknown_run_kind(self) -> None:
+        document = _valid_run_index_document()
+        document["run_kind"] = "dry-run"
+
+        with self.assertRaisesRegex(ValueError, "run_kind"):
+            validate_run_index_document(document)
+
+    def test_run_index_rejects_comparison_without_vessels(self) -> None:
+        document = _valid_run_index_document()
+        document["comparisons"] = [{"name": "comparison", "course": "demo-course"}]
+
+        with self.assertRaisesRegex(ValueError, "comparisons\\[0\\].*vessels"):
+            validate_run_index_document(document)
+
+    def test_run_index_rejects_artifact_entry_without_presence(self) -> None:
+        document = _valid_run_index_document()
+        document["artifacts"]["benchmark_scorecard"] = {"path": "x.json"}
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "artifacts.benchmark_scorecard.*present",
+        ):
+            validate_run_index_document(document)
 
 
 if __name__ == "__main__":

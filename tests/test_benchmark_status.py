@@ -6,6 +6,7 @@ from io import StringIO
 from pathlib import Path
 
 from yacht.cli import main
+from yacht.domain.model import ConfigError
 from yacht.logbook.index import RUN_INDEX_PATH
 from yacht.reports.benchmark_status import build_benchmark_status
 from yacht.reports.benchmark_status import render_benchmark_status
@@ -71,6 +72,23 @@ class BenchmarkStatusTests(unittest.TestCase):
             )
             self.assertEqual(status["artifacts"][0]["state"], "ready")
             self.assertEqual(status["artifacts"][1]["state"], "missing")
+
+    def test_malformed_run_index_raises_config_error_not_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir()
+            (logbook_dir / RUN_INDEX_PATH).write_text(
+                json.dumps(
+                    {
+                        "schema": "yacht.run-index.v1",
+                        "run_kind": "real-benchmark",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ConfigError, "run index"):
+                build_benchmark_status(logbook_dir)
 
     def test_reports_missing_artifacts_and_start_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
