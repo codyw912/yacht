@@ -235,7 +235,7 @@ def _aggregate_summary(aggregate: dict[str, Any]) -> dict[str, Any]:
                         "total_tokens": vessel["total_tokens"],
                         "total_cost": vessel["total_cost"],
                         "total_duration_seconds": vessel["total_duration_seconds"],
-                        "total_tool_calls": vessel["total_tool_calls"],
+                        "total_distinct_tool_uses": vessel["total_distinct_tool_uses"],
                     }
                     for vessel in comparison["vessels"]
                 ],

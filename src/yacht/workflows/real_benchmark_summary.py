@@ -73,7 +73,7 @@ def _usage_lines(scorecard: Any) -> list[str]:
         f"tokens={usage.get('total_tokens', 0)} | "
         f"cost={_cost(usage.get('total_cost', 0.0))} | "
         f"duration={_duration(usage.get('total_duration_seconds', 0.0))} | "
-        f"tool_calls={usage.get('total_tool_calls', 0)}"
+        f"tool_calls={usage.get('total_distinct_tool_uses', 0)}"
     ]
 
 
@@ -121,7 +121,7 @@ def _aggregate_delta_lines(aggregate_summary: Any) -> list[str]:
         "",
         "Aggregate deltas:",
         "comparison | baseline | challenger | resolved_delta | rate_delta | "
-        "tokens_delta | cost_delta | duration_delta | tool_calls_delta",
+        "tokens_delta | cost_delta | duration_delta | distinct_tool_uses_delta",
     ]
     for comparison in comparisons:
         if not isinstance(comparison, dict):
@@ -146,7 +146,7 @@ def _aggregate_delta_lines(aggregate_summary: Any) -> list[str]:
             f"{_signed_int(delta.get('tokens_delta', 0))} | "
             f"{_signed_cost(delta.get('cost_delta', 0.0))} | "
             f"{_signed_duration(delta.get('duration_seconds_delta', 0.0))} | "
-            f"{_signed_int(delta.get('tool_calls_delta', 0))}"
+            f"{_signed_int(delta.get('distinct_tool_uses_delta', 0))}"
         )
     return lines
 

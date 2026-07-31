@@ -408,7 +408,7 @@ def _comparison_sections(
             sections.append(usage_chart)
         tool_table = _tool_call_table(attempt_comparison)
         if tool_table:
-            sections.append("<h2>Tool calls</h2>")
+            sections.append("<h2>Distinct tools</h2>")
             sections.append(
                 '<p class="muted">Evidence that a challenger tool was actually '
                 "used, not just installed.</p>"
@@ -681,7 +681,7 @@ def _usage_chart(
         ("total_tokens", "tokens", _num),
         ("total_cost", "cost ($)", _cost),
         ("total_duration_seconds", "duration (s)", _seconds),
-        ("tool_call_count", "tool calls", _num),
+        ("distinct_tool_uses", "tool calls", _num),
     )
     label_width, bar_width, row_height = 190, 360, 22
     groups: list[str] = []
@@ -733,14 +733,14 @@ def _recorded_usage_vessels(
 def _tool_call_table(attempt_comparison: dict[str, Any]) -> str:
     vessels = attempt_comparison.get("vessels", [])
     tools = sorted(
-        {tool for vessel in vessels for tool in (vessel.get("tool_call_counts") or {})}
+        {tool for vessel in vessels for tool in (vessel.get("attempts_by_tool") or {})}
     )
     if not tools:
         return ""
     header = "".join(f'<th class="num"><code>{_e(tool)}</code></th>' for tool in tools)
     rows = [f"<table><tr><th>Vessel</th>{header}</tr>"]
     for vessel in vessels:
-        counts = vessel.get("tool_call_counts") or {}
+        counts = vessel.get("attempts_by_tool") or {}
         cells = "".join(f'<td class="num">{counts.get(tool, 0)}</td>' for tool in tools)
         rows.append(f"<tr><td><code>{_e(str(vessel['name']))}</code></td>{cells}</tr>")
     rows.append("</table>")

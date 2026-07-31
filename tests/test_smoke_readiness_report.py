@@ -57,7 +57,7 @@ class SmokeReadinessReportTests(unittest.TestCase):
             rigged = report["comparisons"][0]["vessels"][1]
             self.assertEqual(rigged["expected_tool_calls"], ["fffind"])
             self.assertEqual(rigged["missing_expected_tool_calls"], [])
-            self.assertEqual(rigged["tool_call_counts"], {"fffind": 1})
+            self.assertEqual(rigged["attempts_by_tool"], {"fffind": 1})
             self.assertTrue((logbook_dir / "smoke-readiness-report.json").is_file())
 
     def test_smoke_readiness_report_blocks_without_agent_prompt_evidence(
@@ -183,7 +183,7 @@ class SmokeReadinessReportTests(unittest.TestCase):
             self.assertEqual(rigged["status"], "missing-expected-tool-calls")
             self.assertEqual(rigged["expected_tool_calls"], ["fffind"])
             self.assertEqual(rigged["missing_expected_tool_calls"], ["fffind"])
-            self.assertEqual(rigged["tool_call_counts"], {"bash": 1})
+            self.assertEqual(rigged["attempts_by_tool"], {"bash": 1})
             self.assertEqual(rigged["reasons"], ["missing-expected-tool-calls"])
 
     def _write_fixture(self, root: Path) -> tuple[Path, Path, Path]:

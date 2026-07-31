@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -187,6 +188,11 @@ def _recorded_baseline_config(baseline_logbook: Path, root: Path) -> Path:
 
 def _export(candidate_logbook: Path, export_dir: Path) -> None:
     print("\n[3/4] Every Eval Ever export (no tokens)")
+    # Export filenames carry a retrieval timestamp, so re-running the
+    # gate over an existing root would accumulate documents and fail the
+    # count check on its own leftovers.
+    if export_dir.is_dir():
+        shutil.rmtree(export_dir)
     _yacht(
         "report",
         "--logbook",

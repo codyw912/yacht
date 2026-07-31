@@ -23,7 +23,10 @@ from yacht.contracts.schemas import (
 from yacht.domain.model import ConfigError
 from yacht.logbook.index import RUN_INDEX_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
-from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
+from yacht.reports.task_attempt_scorecard import (
+    TASK_ATTEMPT_SCORECARD_PATH,
+    normalize_task_attempt_scorecard,
+)
 
 
 _LOGBOOK_MARKERS = (
@@ -107,6 +110,8 @@ def _load_entry(logbook: Path) -> LogbookEntry:
         validate_task_attempt_scorecard_document,
         errors,
     )
+    if attempt_scorecard is not None:
+        attempt_scorecard = normalize_task_attempt_scorecard(attempt_scorecard)
     source = benchmark_scorecard or attempt_scorecard or {}
     marker_paths = [
         logbook / marker for marker in _LOGBOOK_MARKERS if (logbook / marker).is_file()
@@ -168,7 +173,7 @@ def _entry_records(entry: LogbookEntry) -> list[VesselRecord]:
                     provenance=provenance if isinstance(provenance, dict) else None,
                     usage={
                         "task_attempts": int(vessel["task_attempts"]),
-                        "tool_call_count": int(vessel["tool_call_count"]),
+                        "distinct_tool_uses": int(vessel["distinct_tool_uses"]),
                         "total_tokens": int(vessel["total_tokens"]),
                         "total_cost": float(vessel.get("total_cost", 0.0)),
                         "total_duration_seconds": float(

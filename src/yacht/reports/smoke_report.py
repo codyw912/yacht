@@ -87,7 +87,7 @@ def _render_text(
         f"Blocked: {summary['blocked_vessels']} | "
         f"Attempts: {scorecard_summary['total_attempts']} | "
         f"Failed: {scorecard_summary['failed_attempts']} | "
-        f"Tool calls: {scorecard_summary['total_tool_calls']} | "
+        f"Distinct tools: {scorecard_summary['total_distinct_tool_uses']} | "
         f"Tokens: {scorecard_summary['total_tokens']} | "
         f"Cost: {_cost(scorecard_summary['total_cost'])}",
         _artifact_line(logbook_dir),
@@ -120,7 +120,7 @@ def _render_markdown(
         f"- Blocked: {summary['blocked_vessels']}",
         f"- Attempts: {scorecard_summary['total_attempts']}",
         f"- Failed attempts: {scorecard_summary['failed_attempts']}",
-        f"- Tool calls: {scorecard_summary['total_tool_calls']}",
+        f"- Distinct tools: {scorecard_summary['total_distinct_tool_uses']}",
         f"- Tokens: {scorecard_summary['total_tokens']}",
         f"- Cost: {_cost(scorecard_summary['total_cost'])}",
         f"- Logbook: `{logbook_dir}`",
@@ -172,7 +172,7 @@ def _vessel_row(
         f"{readiness_vessel['status']} | "
         f"{readiness_vessel['preflight_status']} | "
         f"{readiness_vessel['task_attempt_status']} | "
-        f"{_tool_counts(readiness_vessel['tool_call_counts'])} | "
+        f"{_tool_counts(readiness_vessel['attempts_by_tool'])} | "
         f"{_tool_list(readiness_vessel['expected_tool_calls'])} | "
         f"{_tool_list(readiness_vessel['missing_expected_tool_calls'])} | "
         f"{scorecard_vessel['total_tokens']} | "

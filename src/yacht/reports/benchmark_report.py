@@ -27,7 +27,10 @@ from yacht.courses.artifacts import (
     candidate_patches_path,
     grading_report_path,
 )
-from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
+from yacht.reports.task_attempt_scorecard import (
+    TASK_ATTEMPT_SCORECARD_PATH,
+    normalize_task_attempt_scorecard,
+)
 
 
 def render_benchmark_report(
@@ -151,7 +154,7 @@ def _load_task_attempt_scorecard(logbook_dir: Path) -> dict[str, Any] | None:
         raise ConfigError(
             f"task attempt scorecard artifact is invalid: {error}"
         ) from error
-    return scorecard
+    return normalize_task_attempt_scorecard(scorecard)
 
 
 def _load_json(path: Path, label: str) -> dict[str, Any]:
@@ -705,8 +708,8 @@ def _usage_delta(
         "cost": float(challenger["total_cost"]) - float(baseline["total_cost"]),
         "duration": float(challenger["total_duration_seconds"])
         - float(baseline["total_duration_seconds"]),
-        "tool_calls": int(challenger["tool_call_count"])
-        - int(baseline["tool_call_count"]),
+        "tool_calls": int(challenger["distinct_tool_uses"])
+        - int(baseline["distinct_tool_uses"]),
     }
 
 
@@ -795,7 +798,7 @@ def _recorded_baseline_usage(comparison: dict[str, Any]) -> dict[str, Any] | Non
         "total_tokens",
         "total_cost",
         "total_duration_seconds",
-        "tool_call_count",
+        "distinct_tool_uses",
     )
     if not all(isinstance(usage.get(key), int | float) for key in required):
         return None
@@ -1023,7 +1026,7 @@ def _usage_summary_line(scorecard: dict[str, Any] | None) -> str:
         "Usage: "
         f"Attempts: {summary['total_attempts']} | "
         f"Failed: {summary['failed_attempts']} | "
-        f"Tool calls: {summary['total_tool_calls']} | "
+        f"Distinct tools: {summary['total_distinct_tool_uses']} | "
         f"Tokens: {summary['total_tokens']} | "
         f"Cost: {_cost(summary['total_cost'])} | "
         f"Duration: {_duration(summary['total_duration_seconds'])}"
@@ -1037,7 +1040,7 @@ def _usage_summary_markdown_lines(scorecard: dict[str, Any] | None) -> list[str]
     return [
         f"- Attempts: {summary['total_attempts']}",
         f"- Failed attempts: {summary['failed_attempts']}",
-        f"- Tool calls: {summary['total_tool_calls']}",
+        f"- Distinct tools: {summary['total_distinct_tool_uses']}",
         f"- Tokens: {summary['total_tokens']}",
         f"- Cost: {_cost(summary['total_cost'])}",
         f"- Duration: {_duration(summary['total_duration_seconds'])}",
@@ -1082,7 +1085,7 @@ def _usage_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
         f"{_harnesses(vessel)} | "
         f"{vessel['task_attempts']} | "
         f"{vessel['failed_attempts']} | "
-        f"{_tool_counts(vessel['tool_call_counts'])} | "
+        f"{_tool_counts(vessel['attempts_by_tool'])} | "
         f"{vessel['total_tokens']} | "
         f"{_cost(vessel['total_cost'])} | "
         f"{_duration(vessel['total_duration_seconds'])}"
