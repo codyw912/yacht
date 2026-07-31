@@ -28,8 +28,8 @@ script stay `yacht` (see ADR 0007).
 
 ```sh
 uv build
-uv run --isolated --no-project --with ./dist/yacht_eval-0.8.0-py3-none-any.whl yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
-uv run --isolated --no-project --with ./dist/yacht_eval-0.8.0-py3-none-any.whl yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-wheel-smoke
+uv run --isolated --no-project --with ./dist/yacht_eval-0.9.0-py3-none-any.whl yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
+uv run --isolated --no-project --with ./dist/yacht_eval-0.9.0-py3-none-any.whl yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-wheel-smoke
 ```
 
 Update the wheel filename when the release version changes.
@@ -50,6 +50,15 @@ The tag must be annotated: `tag.gpgsign` is on, so a lightweight
 `git tag v<version>` fails with "no tag message?". Tag the merge commit
 on main whose version matches the tag; the workflow fails if they
 disagree.
+
+After the workflow publishes, create the GitHub release object — the
+tag alone does not appear on the Releases page (v0.8.0 shipped without
+one for three days before anyone noticed):
+
+```sh
+gh release create v<version> --verify-tag --title "YACHT <version>" \
+  --notes-file <file with the CHANGELOG section for this version>
+```
 
 ## Live Gate
 

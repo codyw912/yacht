@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.9.0 - Artifact Contracts and MCP Delivery
+
+YACHT 0.9.0 closes the July audit's contract findings and the last
+delivery-measurement gap: every artifact YACHT writes is now validated
+on write and on read, summaries must agree with their own detail rows,
+artifacts cross-check the artifacts they reference — and MCP servers,
+the most-rigged and least-measured treatment, join skills and
+extensions as measurable for delivery from the transcripts runs
+already preserve.
+
+### Artifact contract integrity
+
+- Artifacts are no longer trusted on read. `run-index.json` gained a
+  validator (it had none) and a malformed index surfaces as a clean
+  error from `yacht status` instead of a raw traceback;
+  `course-handoff.json` is validated by every consumer through a
+  shared `load_course_handoff` instead of four duplicated bare JSON
+  loads.
+- Every persisted artifact schema constant now lives in
+  `contracts/schemas.py` with a validator: the grading collection,
+  repetition summary, benchmark aggregate (including the
+  `paired_statistics` block 0.8.0 added unvalidated), terminal-bench
+  job, and the course grading reports. Writers validate before
+  writing; the crash-prone readers validate on read. Statistics
+  blocks stay optional in the aggregate contract because older
+  logbooks predate them and the renderer enriches.
+- `real-benchmark-eval.json` — the run's top-level summary — carries
+  `schema: yacht.real-benchmark-eval.v1`, so external consumers can
+  dispatch on it.
+- Summaries are cross-checked against their own detail rows: the
+  task-attempt scorecard and launch result counts must equal the sums
+  over their vessels, and `recorded_vessels` participates in the
+  benchmark scorecard's cross-checks at both levels.
+- Artifacts verify the artifacts they reference: the Every Eval Ever
+  export checks each aggregate against its sibling instance JSONL
+  (row count, per-row `evaluation_id`, checksum) and refuses a
+  scorecard whose regatta, course, or comparison names diverge from
+  the course handoff; recorded-baseline handoff reads are validated.
+
+### MCP server delivery (ADR 0022)
+
+- An `mcp-server` install step's target alone makes the server
+  measurable: it contributes a delivery expectation matching the
+  delimited tool namespace (`mcp__<server>__`), with the delimiter
+  intact so a server named `fff` never absorbs calls from one named
+  `fff2`. Nothing new is configured, and no tool list can go stale.
+- The server is the delivery unit — it counts as delivered when any
+  of its tools fired — and which tools fired is read back out of the
+  namespace suffixes as `observed_tools`, reported per run, unioned
+  across repetitions, and shown in the HTML delivery table. In the
+  bundled example's live validation this distinguished a repetition
+  where the server was connected but unused (not-delivered) from two
+  where it fired.
+- Harnesses that do not namespace MCP tools yield no expectation and
+  report unmeasured rather than guessed at. Precise
+  `expected_tool_calls` assertions remain available unchanged.
+- `examples/custom-eval-mcp-ab-smoke.toml` and
+  `examples/custom-evals/mcp-task` are the live-validated A/B: a
+  pinned `@modelcontextprotocol/server-filesystem` against a baseline
+  on the same task.
+
+### Testing conventions
+
+- Contract vocabularies are derived from the registry that owns them
+  (`COURSE_GRADING_SCHEMAS`, like `COURSE_ADAPTER_KINDS` before it) —
+  a hand-kept copy missed the two grading schemas declared only in
+  the course registry, and the first live MCP run found it before the
+  suite did.
+- Every Harbor-rollout course kind's grading writer now roundtrips
+  through the registry against its own validator at zero token cost,
+  and CONTRIBUTING records the conventions: shared seams are tested
+  through every caller, and live token-spending runs are the last
+  line of verification, never the first.
+
 ## 0.8.0 - Recorded Baselines and Delivery Evidence
 
 YACHT 0.8.0 makes the regression-check loop cheap and the skill claim
