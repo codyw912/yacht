@@ -164,6 +164,19 @@ conventions that are documented only in the skill, so the skill's
 effect surfaces as resolution — measured by the verifier, not judged
 from transcripts.
 
+The same shape measures MCP server delivery (ADR 0022):
+`examples/custom-eval-mcp-ab-smoke.toml` runs
+`examples/custom-evals/mcp-task` with and without a pinned filesystem
+MCP server. The `mcp-server` install step's target alone makes delivery
+measurable — task attempts record a namespace expectation
+(`mcp__<server>__`), the scorecard reports whether any of the server's
+tools fired, and `observed_tools` lists which. In a live 3-repetition
+run of this example the instrument distinguished a repetition where the
+server was connected but unused (delivery: not-delivered) from two
+where the agent called `mcp__files__list_directory` — exactly the
+distinction that separates "the treatment did nothing" from "the
+treatment never fired".
+
 Two properties make the result trustworthy where a raw pass-rate delta
 is not:
 
