@@ -1572,6 +1572,33 @@ def validate_benchmark_launch_result_document(document: dict[str, Any]) -> None:
     )
     _validate_benchmark_launch_result_summary(document["summary"])
     _validate_benchmark_launch_result_comparisons(document["comparisons"])
+    _validate_benchmark_launch_result_summary_matches_comparisons(
+        document["summary"],
+        document["comparisons"],
+    )
+
+
+def _validate_benchmark_launch_result_summary_matches_comparisons(
+    summary: dict[str, Any],
+    comparisons: list[Any],
+) -> None:
+    statuses = [
+        str(vessel["status"])
+        for comparison in comparisons
+        for vessel in comparison["vessels"]
+    ]
+    expected = {
+        "total_vessels": len(statuses),
+        "completed_launches": statuses.count("completed"),
+        "failed_launches": statuses.count("failed"),
+        "skipped_vessels": statuses.count("skipped"),
+    }
+    expected["launched_vessels"] = (
+        expected["completed_launches"] + expected["failed_launches"]
+    )
+    for key, expected_value in expected.items():
+        if summary[key] != expected_value:
+            raise SchemaValidationError(f"summary.{key} must equal {expected_value}")
 
 
 def validate_runtime_instances_document(document: dict[str, Any]) -> None:
@@ -1717,6 +1744,55 @@ def validate_task_attempt_scorecard_document(document: dict[str, Any]) -> None:
     )
     _validate_task_attempt_scorecard_summary(document["summary"], "summary")
     _validate_task_attempt_scorecard_comparisons(document["comparisons"])
+    _validate_task_attempt_scorecard_summaries_match_details(document)
+
+
+# Count fields whose summary value must equal the sum over detail rows,
+# as (summary key, vessel key). Float fields (cost, duration) are excluded:
+# the writer rounds them, so equality is not part of the contract.
+_TASK_ATTEMPT_SUMMARY_SUM_FIELDS = (
+    ("total_attempts", "task_attempts"),
+    ("completed_attempts", "completed_attempts"),
+    ("failed_attempts", "failed_attempts"),
+    ("total_distinct_tool_uses", "distinct_tool_uses"),
+    ("total_tokens", "total_tokens"),
+)
+
+
+def _validate_task_attempt_scorecard_summaries_match_details(
+    document: dict[str, Any],
+) -> None:
+    comparisons = document["comparisons"]
+    for index, comparison in enumerate(comparisons):
+        _validate_task_attempt_summary_matches_vessels(
+            comparison["summary"],
+            comparison["vessels"],
+            f"comparisons[{index}].summary",
+        )
+    all_vessels = [
+        vessel for comparison in comparisons for vessel in comparison["vessels"]
+    ]
+    summary = document["summary"]
+    _validate_task_attempt_summary_matches_vessels(summary, all_vessels, "summary")
+    if "total_comparisons" in summary and summary["total_comparisons"] != len(
+        comparisons
+    ):
+        raise SchemaValidationError(
+            f"summary.total_comparisons must equal {len(comparisons)}"
+        )
+
+
+def _validate_task_attempt_summary_matches_vessels(
+    summary: dict[str, Any],
+    vessels: list[dict[str, Any]],
+    path: str,
+) -> None:
+    expected: dict[str, int] = {"total_vessels": len(vessels)}
+    for summary_key, vessel_key in _TASK_ATTEMPT_SUMMARY_SUM_FIELDS:
+        expected[summary_key] = sum(int(vessel[vessel_key]) for vessel in vessels)
+    for key, expected_value in expected.items():
+        if summary[key] != expected_value:
+            raise SchemaValidationError(f"{path}.{key} must equal {expected_value}")
 
 
 def validate_smoke_readiness_report_document(document: dict[str, Any]) -> None:
@@ -2960,8 +3036,10 @@ def _validate_benchmark_scorecard_summary_matches_vessels(
         ),
     }
     recorded = len(vessels) - len(live)
-    if recorded:
-        expected["recorded_vessels"] = recorded
+    if summary.get("recorded_vessels", 0) != recorded:
+        raise SchemaValidationError(
+            f"{path}.summary.recorded_vessels must equal {recorded}"
+        )
     _validate_benchmark_scorecard_summary_matches_expected(
         summary,
         expected,
@@ -2995,6 +3073,13 @@ def _validate_benchmark_scorecard_top_level_summary_matches_comparisons(
             for key in BENCHMARK_SCORECARD_SUMMARY_KEYS
         },
     }
+    recorded = sum(
+        comparison["summary"].get("recorded_vessels", 0) for comparison in comparisons
+    )
+    if summary.get("recorded_vessels", 0) != recorded:
+        raise SchemaValidationError(
+            f"benchmark scorecard.summary.recorded_vessels must equal {recorded}"
+        )
     _validate_benchmark_scorecard_summary_matches_expected(
         summary,
         expected,

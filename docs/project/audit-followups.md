@@ -26,32 +26,24 @@ defect is in the suite.
 | `course-handoff.json` validated on write only; four consumers indexed it blind | `courses/handoff.py` + consumers | #280 |
 | Six artifacts had schema constants outside `contracts/schemas.py` and no validator (grading collection, repetitions, aggregate incl. `paired_statistics`, terminal-bench job, grading reports); all now validate on write, and the aggregate, grading collection, and grading report readers validate on read | `contracts/schemas.py` + writers/readers | #281 |
 | `real-benchmark-eval.json` carried no `schema` key; now versioned as `yacht.real-benchmark-eval.v1` and validated on write | `workflows/real_benchmark_eval.py` | #281 |
+| Summaries were not cross-checked against their own detail rows in the task-attempt scorecard and launch result, and `recorded_vessels` escaped the benchmark scorecard's summary cross-checks | `contracts/schemas.py` | #282 |
+| No foreign keys between artifacts: the Every Eval Ever export never checked `total_rows`/`evaluation_id`/checksum against the sibling JSONL or the scorecard's comparisons against the handoff, and the recorded-baseline and EEE handoff reads were bare loads | `reports/every_eval_ever.py`, `workflows/baseline.py` | #282 |
 
 Decisions recorded along the way: ADR 0022 (MCP delivery by tool
 namespace, approved but **not implemented**) and ADR 0023 (pooling
 paired outcomes, implemented in #278).
 
-## Open: artifact contract integrity
+## Closed: artifact contract integrity
 
 The audit's contract findings shared one shape — artifacts validated
 when written and trusted when read — with one structural cause: every
 schema constant defined outside `contracts/schemas.py` had no
-validator. Findings (1)–(4) are closed (#280, #281): every persisted
-artifact schema constant now lives in `contracts/schemas.py` with a
-validator, writers validate before writing, and the crash-prone
-readers validate on read. Two findings remain:
-
-5. **Summaries are not cross-checked against their own detail rows** in
-   the task-attempt scorecard and the launch result (the benchmark
-   scorecard does this correctly), and `recorded_vessels` is missing
-   from the top-level summary key set.
-6. **No foreign keys between artifacts.** Renaming a comparison in a
-   scorecard still validates; the Every Eval Ever export's
-   `total_rows` and `evaluation_id` are never checked against the
-   sibling JSONL. The recorded-baseline and Every Eval Ever handoff
-   reads were deliberately left on bare loads in #280 —
-   foreign-logbook validation interacts with backward compatibility
-   and belongs here.
+validator. All six findings are closed (#280, #281, #282): every
+persisted artifact schema constant lives in `contracts/schemas.py`
+with a validator, writers validate before writing, crash-prone readers
+validate on read, summaries are cross-checked against their detail
+rows, and the export and recorded-baseline paths verify their
+cross-artifact references.
 
 ## Open: ADR 0022, MCP server delivery
 

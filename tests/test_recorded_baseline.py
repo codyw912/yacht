@@ -272,6 +272,22 @@ class RecordedBaselineVerificationTests(unittest.TestCase):
 
             self.assertIn("grading report", str(raised.exception))
 
+    def test_load_baseline_record_rejects_malformed_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            recorded_logbook = _write_baseline_logbook(root)
+            handoff_path = recorded_logbook / "course-handoff.json"
+            handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+            del handoff["grading"]
+            handoff_path.write_text(json.dumps(handoff), encoding="utf-8")
+            config_path = _baseline_config(root, recorded_logbook)
+            regatta = load_regatta(config_path)
+            comparison = regatta.comparisons[0]
+            assert comparison.baseline is not None
+
+            with self.assertRaisesRegex(ConfigError, "course handoff"):
+                load_baseline_record(comparison.baseline)
+
     def test_verification_refuses_missing_baseline_handoff(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
