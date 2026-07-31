@@ -28,8 +28,8 @@ script stay `yacht` (see ADR 0007).
 
 ```sh
 uv build
-uv run --isolated --no-project --with ./dist/yacht_eval-0.8.0-py3-none-any.whl yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
-uv run --isolated --no-project --with ./dist/yacht_eval-0.8.0-py3-none-any.whl yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-wheel-smoke
+uv run --isolated --no-project --with ./dist/yacht_eval-0.9.0-py3-none-any.whl yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
+uv run --isolated --no-project --with ./dist/yacht_eval-0.9.0-py3-none-any.whl yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-wheel-smoke
 ```
 
 Update the wheel filename when the release version changes.
