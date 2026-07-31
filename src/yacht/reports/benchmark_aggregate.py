@@ -959,7 +959,7 @@ def _decision_summary_row(comparison: dict[str, Any]) -> str:
     return " | ".join(
         [
             str(comparison["name"]),
-            _resolution_decision(delta),
+            _resolution_decision(delta, comparison.get("delta_statistics")),
             _resource_decision("tokens", int(delta["tokens_delta"])) + confound,
             _resource_decision("cost", float(delta["cost_delta"])) + confound,
             _resource_decision("duration", float(delta["duration_seconds_delta"]))
@@ -968,7 +968,10 @@ def _decision_summary_row(comparison: dict[str, Any]) -> str:
     )
 
 
-def _resolution_decision(delta: dict[str, Any]) -> str:
+def _resolution_decision(
+    delta: dict[str, Any],
+    delta_statistics: dict[str, Any] | None = None,
+) -> str:
     resolved_delta = int(delta["resolved_instances_delta"])
     rate_delta = float(delta["resolution_rate_delta"])
     if resolved_delta > 0:
@@ -981,10 +984,17 @@ def _resolution_decision(delta: dict[str, Any]) -> str:
         label = "worse"
     else:
         label = "tied"
-    return (
+    decision = (
         f"resolution {label} "
         f"({_signed_int(resolved_delta)} resolved, {_signed_rate(rate_delta)} rate)"
     )
+    # The headline must not assert a result the evidence table on the
+    # same page calls insufficient (ADR 0013).
+    if isinstance(delta_statistics, dict):
+        metric = delta_statistics.get("resolution_rate_delta")
+        if isinstance(metric, dict):
+            decision = f"{decision} [{_evidence_cell(metric)}]"
+    return decision
 
 
 def _resource_decision(label: str, value: int | float) -> str:
