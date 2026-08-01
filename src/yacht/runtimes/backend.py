@@ -27,6 +27,7 @@ from yacht.runtimes.rigging_setup import (
     plan_rigging_setup,
     run_setup_command,
 )
+from yacht.runtimes.tool_capabilities import ToolCapability
 
 
 class RuntimePreparationError(ValueError):
@@ -87,6 +88,7 @@ class HostNixRuntimeBackend:
             resolution=resolution,
             env=env,
             setup_runner=self._setup_runner,
+            tool_capabilities=regatta.tool_capabilities,
         )
 
         return RuntimeInstance(
@@ -132,6 +134,7 @@ class ContainerRuntimeBackend:
             resolution=resolution,
             env=env,
             setup_runner=self._setup_runner,
+            tool_capabilities=regatta.tool_capabilities,
         )
 
         return RuntimeInstance(
@@ -199,12 +202,14 @@ def _apply_rigging_installs(
     resolution: HostNixRuntimeResolution | ContainerRuntimeResolution,
     env: dict[str, str],
     setup_runner: SetupCommandRunner,
+    tool_capabilities: dict[str, ToolCapability] | None = None,
 ) -> tuple[RuntimeSetupResult, ...]:
     try:
         plan = plan_rigging_setup(
             runtime=resolution.runtime,
             riggings=resolution.riggings,
             command_prefix=resolution.command_prefix,
+            tool_capabilities=tool_capabilities,
         )
         return apply_rigging_setup(
             plan=plan,
