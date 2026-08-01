@@ -13,14 +13,16 @@ the harness name alone: Claude Code supports MCP, everything else is
 refused before tokens are spent.
 
 Pi breaks the key. MCP support is explicitly not shipping in pi's base
-package; it arrives as an extension — `pi-mcp-adapter`, installed from
-npm and loaded through pi's package manifest. The capability is real,
-but it is a property of the *rigging composition*, not of the harness:
-a stock pi vessel cannot carry an MCP server, and the same vessel with
-the adapter rigged in can. yacht already runs
-stock-versus-extended comparisons as its original use case (the fff
-examples); what it cannot yet express is an extension that changes
-which install methods the vessel accepts.
+package — there is no official pi MCP support at all; extensions are
+the only route, and more than one such extension can exist.
+`pi-mcp-adapter`, installed from npm and loaded through pi's package
+manifest, is one of them and the concrete example throughout this
+document. The capability is real, but it is a property of the
+*rigging composition*, not of the harness: a stock pi vessel cannot
+carry an MCP server, and the same vessel with an adapter rigged in
+can. yacht already runs stock-versus-extended comparisons as its
+original use case (the fff examples); what it cannot yet express is an
+extension that changes which install methods the vessel accepts.
 
 The adapter also decides whether delivery stays measurable. Its default
 proxy mode funnels every server through a single `mcp` tool, which
@@ -51,13 +53,17 @@ providing it.
   with a version-pinned target; nothing about provision exempts it
   from the determinism rules.
 - **yacht renders the MCP configuration into the provider's own file,
-  in the trial home, with observability pinned.** For pi-mcp-adapter
-  that is one JSON document carrying both the declared servers and the
-  adapter settings, and yacht writes the settings that make delivery
-  measurable: `directTools` on, `toolPrefix` set to the delimited
-  `mcp` convention. The namespace ADR 0022 matches becomes a
-  configured fact of the rig, not a hope about defaults — the same
-  posture as pinning a version.
+  in the trial home, with observability pinned — and that rendering is
+  per-provider knowledge yacht ships.** A provider is supported the
+  way a harness is supported: yacht knows its config format, its
+  file's place in the trial home, and the settings that make delivery
+  measurable, or the provider cannot be declared. For pi-mcp-adapter,
+  the first supported provider, that is one JSON document carrying
+  both the declared servers and the adapter settings, with
+  `directTools` on and `toolPrefix` set to the delimited `mcp`
+  convention. The namespace ADR 0022 matches becomes a configured fact
+  of the rig, not a hope about defaults — the same posture as pinning
+  a version.
 - **Expectation derivation keys on the guarantee, not the harness
   list.** MCP delivery expectations are emitted when the harness
   namespaces natively (Claude Code) or when the vessel's rigging
@@ -91,6 +97,11 @@ providing it.
 - Provision is declared per harness, so a future adapter for another
   harness reuses the mechanism without widening it: the gate learns
   nothing about harnesses, only about declarations.
+- The mechanism privileges no particular extension. Pi has no official
+  MCP support, so any MCP-providing extension enters the same way:
+  yacht ships its rendering and namespace guarantee, and the
+  declaration does the rest. pi-mcp-adapter is the first supported
+  provider, not the definition of one.
 - The number of ways yacht can be sure stays smaller than the number
   of ways it could guess: no provider declaration, no expectation; no
   namespace guarantee, no delivery verdict.
