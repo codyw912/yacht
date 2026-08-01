@@ -1,0 +1,89 @@
+# ADR 0024 on the container backend: the adapter's servers are lazy
+# (they connect on first tool call), so a config-presence check proves
+# rendering, not a working server. The agent-prompt preflight with
+# expect_tool_calls is the liveness gate.
+
+[regatta]
+name = "container-pi-mcp-real-task-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "container-pi-mcp-real-task-smoke"
+tasks = [
+  { id = "container-pi-mcp-smoke-1", title = "Inspect this repository using any configured MCP tooling available to you, then reply with a compact JSON object containing completed and tool_calls.", difficulty = 1 },
+]
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.pi-container]
+backend = "container"
+harness = "pi"
+image = "yacht/pi-agent-runtime:pi-0.74.0"
+command = ["pi", "--provider", "anthropic", "--model", "haiku", "--print", "--mode", "json"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+required_secrets = ["anthropic"]
+
+[runtimes.pi-container.preflight]
+required = true
+checks = [
+  { name = "pi-present", kind = "command", command = ["pi", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[tools.pi-mcp-adapter]
+kind = "mcp-adapter"
+description = "MCP adapter extension for pi: provides the mcp-server install method."
+interfaces = ["agent-tool"]
+install_methods = ["agent-extension"]
+provides = [{ method = "mcp-server", harness = "pi" }]
+
+[tools.files]
+kind = "mcp-server"
+description = "Reference filesystem MCP server scoped to the trial workspace."
+interfaces = ["mcp"]
+install_methods = ["package", "mcp-server"]
+
+[riggings.pi-mcp-files]
+tools = ["pi-mcp-adapter", "files"]
+instructions = "Use the mcp__files__ tools for filesystem inspection. For this smoke task, make exactly one minimal mcp__files__list_allowed_directories tool call before answering."
+
+[[riggings.pi-mcp-files.install]]
+method = "agent-extension"
+target = "npm:pi-mcp-adapter@2.15.0"
+agent = "pi"
+
+[[riggings.pi-mcp-files.install]]
+method = "package"
+target = "npm:@modelcontextprotocol/server-filesystem@2026.7.10"
+
+[[riggings.pi-mcp-files.install]]
+method = "mcp-server"
+target = "files"
+command = ["mcp-server-filesystem", "/workspace"]
+
+[riggings.pi-mcp-files.preflight]
+required = true
+checks = [
+  { name = "pi-mcp-headless-smoke", kind = "agent-prompt", prompt = "preflights/pi-mcp.md", expect_tool_calls = ["mcp__files__list_allowed_directories"] },
+]
+
+[[vessels]]
+name = "pi-container-baseline"
+model = "haiku"
+runtime = "pi-container"
+
+[[vessels]]
+name = "pi-container-mcp"
+model = "haiku"
+runtime = "pi-container"
+rigging = ["pi-mcp-files"]
+
+[[comparisons]]
+name = "container-pi-vs-pi-mcp-real-task"
+course = "container-pi-mcp-real-task-smoke"
+vessels = ["pi-container-baseline", "pi-container-mcp"]

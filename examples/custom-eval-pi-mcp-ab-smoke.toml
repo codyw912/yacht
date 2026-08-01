@@ -1,0 +1,106 @@
+# Measure MCP delivery on a harness without MCP support (ADR 0024):
+# stock pi cannot carry an MCP server; the treatment rigs
+# pi-mcp-adapter — a declared install provider — plus the reference
+# filesystem server. yacht renders the adapter's mcp.json with
+# directTools on and the delimited mcp toolPrefix, so the treatment
+# stays observable as mcp__files__ tools in the preserved transcript.
+#
+#   uv run yacht run examples/custom-eval-pi-mcp-ab-smoke.toml \
+#     --logbook /private/tmp/yacht-pi-mcp-ab \
+#     --workspace . \
+#     --secret anthropic=@env:ANTHROPIC_API_KEY \
+#     --repetitions 3
+#
+# Requirements: Docker running, uv, ANTHROPIC_API_KEY exported, and the
+# pinned launcher image built (rebuild it after launcher changes):
+#
+#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+
+[regatta]
+name = "custom-eval-pi-mcp-ab-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "pi-mcp-files-ab"
+
+[[course.tasks]]
+id = "mcp-task"
+title = "Inventory the data files, via MCP filesystem tools when available"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "custom-evals"
+split = "v1"
+harness = "harbor"
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.harbor-pi]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "pi"
+harness_version = "0.74.0"
+required_secrets = ["anthropic"]
+
+[runtimes.harbor-pi.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "agent-install", kind = "install-only" },
+]
+
+# The provider: an extension that gives pi the mcp-server install
+# method. Declaring provision is what unlocks the capability gate;
+# yacht ships the rendering that keeps it observable (ADR 0024).
+[tools.pi-mcp-adapter]
+kind = "mcp-adapter"
+description = "MCP adapter extension for pi: provides the mcp-server install method."
+interfaces = ["agent-tool"]
+install_methods = ["agent-extension"]
+provides = [{ method = "mcp-server", harness = "pi" }]
+
+[tools.files]
+kind = "mcp-server"
+description = "Reference filesystem MCP server: directory listing and file reads under /app."
+interfaces = ["mcp"]
+install_methods = ["package", "mcp-server"]
+
+# The treatment is honestly a composition: the adapter plus the server.
+[riggings.pi-mcp-files]
+tools = ["pi-mcp-adapter", "files"]
+instructions = "Prefer the mcp__files__ tools for filesystem inspection."
+
+[[riggings.pi-mcp-files.install]]
+method = "agent-extension"
+target = "npm:pi-mcp-adapter@2.15.0"
+agent = "pi"
+
+[[riggings.pi-mcp-files.install]]
+method = "package"
+target = "npm:@modelcontextprotocol/server-filesystem@2026.7.10"
+
+[[riggings.pi-mcp-files.install]]
+method = "mcp-server"
+target = "files"
+command = ["mcp-server-filesystem", "/app"]
+
+[[vessels]]
+name = "pi-baseline"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-pi"
+
+[[vessels]]
+name = "pi-with-mcp"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-pi"
+rigging = ["pi-mcp-files"]
+
+[[comparisons]]
+name = "pi-mcp-vs-baseline"
+course = "pi-mcp-files-ab"
+vessels = ["pi-baseline", "pi-with-mcp"]
