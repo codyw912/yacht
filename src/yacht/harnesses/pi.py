@@ -58,6 +58,17 @@ PI_JSONL_EVENT_TYPES = frozenset(
         "agent_end",
     )
 )
+PI_JSONL_EVIDENCE = "pi-jsonl"
+
+
+def tool_calls_from_pi_jsonl(output: str) -> tuple[str, ...] | None:
+    """Tool calls from a preserved pi --mode json stream, or None when
+    the output is not pi JSONL — unmeasured, which is different from a
+    stream that shows no tool was called."""
+    events = _jsonl_events(output)
+    if not events or not _looks_like_pi_jsonl(events):
+        return None
+    return _tool_calls_from_pi_events(events)
 
 
 class PiAdapter:

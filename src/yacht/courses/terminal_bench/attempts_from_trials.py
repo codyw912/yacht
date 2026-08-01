@@ -19,6 +19,7 @@ from yacht.harnesses.claude_code import (
     mcp_server_namespace,
     tool_calls_from_session_transcript,
 )
+from yacht.harnesses.pi import PI_JSONL_EVIDENCE, tool_calls_from_pi_jsonl
 from yacht.courses.terminal_bench.harness import HARBOR_JOB_NAME
 from yacht.domain.model import (
     Comparison,
@@ -326,6 +327,9 @@ def _observed_tool_calls(trial_dir: Path) -> tuple[list[str], str | None]:
     session_calls = _session_tool_calls(trial_dir / "agent" / "sessions")
     if session_calls is not None:
         return session_calls, SESSION_TRANSCRIPT_EVIDENCE
+    pi_calls = _pi_output_tool_calls(trial_dir / "agent" / "pi.txt")
+    if pi_calls is not None:
+        return list(pi_calls), PI_JSONL_EVIDENCE
     return [], None
 
 
@@ -365,6 +369,12 @@ def _session_tool_calls(sessions_dir: Path) -> list[str] | None:
     if not measured:
         return None
     return list(dict.fromkeys(observed))
+
+
+def _pi_output_tool_calls(output_path: Path) -> tuple[str, ...] | None:
+    if not output_path.is_file():
+        return None
+    return tool_calls_from_pi_jsonl(output_path.read_text(encoding="utf-8"))
 
 
 def _machine_evidence(trial: dict[str, Any] | None) -> dict[str, Any]:

@@ -1,8 +1,11 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from yacht.config.loader import _parse_tool_capabilities
 from yacht.contracts.schemas import SchemaValidationError, _validate_tool_capabilities
+from yacht.courses.terminal_bench.attempts_from_trials import _observed_tool_calls
 from yacht.domain.model import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
 from yacht.harnesses.mcp_config import (
     MCP_INSTALL_PROVIDERS,
@@ -10,6 +13,7 @@ from yacht.harnesses.mcp_config import (
     render_provider_mcp_config,
     supported_mcp_install_provider,
 )
+from yacht.harnesses.pi import PI_JSONL_EVIDENCE, tool_calls_from_pi_jsonl
 from yacht.runtimes.capabilities import (
     rigging_capabilities_to_json,
     unsupported_rigging_capability_reasons,
@@ -355,6 +359,68 @@ class ProviderCapabilityGateTests(unittest.TestCase):
             ),
             1,
         )
+
+
+PI_JSONL = "\n".join(
+    [
+        '{"type": "agent_start"}',
+        '{"type": "turn_end", "toolResults": [{"toolName": "mcp__files__list_directory"}]}',
+        '{"type": "message_end", "message": {"role": "assistant", "api": "anthropic", "content": [{"type": "text", "text": "done"}]}}',
+        '{"type": "agent_end"}',
+    ]
+)
+
+
+class PiObservedToolCallTests(unittest.TestCase):
+    def test_parses_tool_calls_from_pi_jsonl(self) -> None:
+        self.assertEqual(
+            tool_calls_from_pi_jsonl(PI_JSONL),
+            ("mcp__files__list_directory",),
+        )
+
+    def test_non_pi_output_is_unmeasured(self) -> None:
+        self.assertIsNone(tool_calls_from_pi_jsonl("plain text output"))
+
+    def test_observed_tool_calls_reads_preserved_pi_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trial_dir = Path(tmp)
+            (trial_dir / "agent").mkdir()
+            (trial_dir / "agent" / "pi.txt").write_text(PI_JSONL, encoding="utf-8")
+
+            calls, source = _observed_tool_calls(trial_dir)
+
+        self.assertEqual(calls, ["mcp__files__list_directory"])
+        self.assertEqual(source, PI_JSONL_EVIDENCE)
+
+    def test_missing_pi_output_stays_unmeasured(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            calls, source = _observed_tool_calls(Path(tmp))
+
+        self.assertEqual(calls, [])
+        self.assertIsNone(source)
+
+    def test_pi_stream_with_no_tool_calls_is_measured_empty(self) -> None:
+        """A parseable pi stream that never called a tool is measured zero,
+        distinct from no preserved stream at all (unmeasured)."""
+        no_tools = "\n".join(
+            [
+                '{"type": "agent_start"}',
+                '{"type": "message_end", "message": {"role": "assistant", "api": "anthropic", "content": [{"type": "text", "text": "done"}]}}',
+                '{"type": "agent_end"}',
+            ]
+        )
+
+        self.assertEqual(tool_calls_from_pi_jsonl(no_tools), ())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trial_dir = Path(tmp)
+            (trial_dir / "agent").mkdir()
+            (trial_dir / "agent" / "pi.txt").write_text(no_tools, encoding="utf-8")
+
+            calls, source = _observed_tool_calls(trial_dir)
+
+        self.assertEqual(calls, [])
+        self.assertEqual(source, PI_JSONL_EVIDENCE)
 
 
 if __name__ == "__main__":
