@@ -304,6 +304,11 @@ def _rigging_steps(
                         f"targets agent {step.agent}, but runtime harness is "
                         f"{harness}"
                     )
+                if not step.target.startswith("npm:"):
+                    raise ConfigError(
+                        f"rigging {rigging.name} agent-extension {step.target} "
+                        "must use the npm: prefix for terminal-bench"
+                    )
                 if not _PACKAGE_PIN.search(step.target):
                     raise ConfigError(
                         f"rigging {rigging.name} agent-extension {step.target} "
