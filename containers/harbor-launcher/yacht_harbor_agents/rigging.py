@@ -19,6 +19,21 @@ _AGENT_EXTENSION_INSTALLERS = {
     "pi": ". ~/.nvm/nvm.sh; pi install {target}",
 }
 
+# pi's npm home moved from @mariozechner to @earendil-works at 0.74.0;
+# harbor 0.20.0's Pi agent still installs the retired scope, whose last
+# release (0.73.1) predates every current pi extension build. YachtPi
+# overrides the harness install to this package.
+PI_PACKAGE = "@earendil-works/pi-coding-agent"
+
+# Official node base images set NODE_VERSION; nvm's installer
+# pre-installs that version and pins the default alias to it, so a
+# fresh exec session's `. ~/.nvm/nvm.sh` activates the stale default
+# instead of the node harbor installed — hiding pi and every other
+# npm -g binary. Re-aim default at the latest installed node once,
+# right after the harness install, and every later session (rigging
+# steps and harbor's own pi run alike) resolves the right bin.
+PI_NODE_ALIAS_REPAIR_COMMAND = ". ~/.nvm/nvm.sh; nvm alias default node"
+
 
 def rigging_commands(steps: list[dict[str, Any]]) -> list[str]:
     return [_step_command(step) for step in steps]

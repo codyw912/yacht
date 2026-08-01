@@ -107,6 +107,23 @@ class HarborAgentRiggingTests(unittest.TestCase):
                 ]
             )
 
+    def test_pi_package_names_the_current_scope(self) -> None:
+        # pi's npm home moved from @mariozechner to @earendil-works at
+        # 0.74.0; harbor 0.20.0 still installs the retired scope, whose
+        # last release predates every current pi extension build.
+        # YachtPi's install override must name the current package.
+        self.assertEqual(rigging.PI_PACKAGE, "@earendil-works/pi-coding-agent")
+
+    def test_node_alias_repair_reaims_default_at_the_installed_node(self) -> None:
+        # Official node base images set NODE_VERSION; nvm's installer
+        # pre-installs that version and pins the default alias to it, so
+        # fresh exec sessions miss the node harbor installed (and every
+        # npm -g binary in it, pi included). The repair command must
+        # re-source nvm and re-aim default at the latest installed node.
+        command = rigging.PI_NODE_ALIAS_REPAIR_COMMAND
+        self.assertIn(". ~/.nvm/nvm.sh", command)
+        self.assertIn("nvm alias default node", command)
+
     def test_agent_extension_installers_match_the_harbor_capability_gate(
         self,
     ) -> None:
