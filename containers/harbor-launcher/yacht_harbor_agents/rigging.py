@@ -12,7 +12,12 @@ import shlex
 from typing import Any
 
 
-SUPPORTED_METHODS = ("config-file", "package")
+SUPPORTED_METHODS = ("agent-extension", "config-file", "package")
+
+_AGENT_EXTENSION_INSTALLERS = {
+    # pi's node comes from nvm inside harbor task containers.
+    "pi": ". ~/.nvm/nvm.sh; pi install {target}",
+}
 
 
 def rigging_commands(steps: list[dict[str, Any]]) -> list[str]:
@@ -25,11 +30,30 @@ def _step_command(step: dict[str, Any]) -> str:
         return _package_command(step)
     if method == "config-file":
         return _config_file_command(step)
+    if method == "agent-extension":
+        return _agent_extension_command(step)
     supported = ", ".join(SUPPORTED_METHODS)
     raise ValueError(
         f"rigging step method {method!r} is not supported in task containers; "
         f"supported methods: {supported}"
     )
+
+
+def _agent_extension_command(step: dict[str, Any]) -> str:
+    agent = step.get("agent")
+    template = _AGENT_EXTENSION_INSTALLERS.get(agent)
+    if template is None:
+        supported = ", ".join(sorted(_AGENT_EXTENSION_INSTALLERS))
+        raise ValueError(
+            f"agent-extension steps are supported for agents {supported} in "
+            f"task containers, got {agent!r}"
+        )
+    target = step.get("target")
+    if not isinstance(target, str) or not target.startswith("npm:"):
+        raise ValueError(
+            f"agent-extension step target must use the npm: prefix, got {target!r}"
+        )
+    return template.format(target=shlex.quote(target))
 
 
 def _package_command(step: dict[str, Any]) -> str:

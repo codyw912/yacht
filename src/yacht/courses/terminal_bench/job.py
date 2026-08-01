@@ -7,6 +7,7 @@ from typing import Any
 from yacht.domain.model import (
     ConfigError,
     Regatta,
+    RiggingInstallStep,
     RiggingRecipe,
     RuntimeRecipe,
     Vessel,
@@ -15,6 +16,12 @@ from yacht.contracts.schemas import (
     TERMINAL_BENCH_JOB_SCHEMA,
     validate_terminal_bench_job_document,
 )
+from yacht.harnesses.mcp_config import (
+    McpInstallProvider,
+    render_provider_mcp_config,
+    supports_mcp_server_installs,
+)
+from yacht.runtimes.tool_capabilities import provided_mcp_install_provider
 
 
 TERMINAL_BENCH_JOB_FILENAME = "terminal-bench-job.json"
@@ -24,7 +31,12 @@ HARBOR_AGENT_BY_HARNESS = {
     "pi": "yacht_harbor_agents.agents:YachtPi",
 }
 
-SUPPORTED_RIGGING_INSTALL_METHODS = ("config-file", "mcp-server", "package")
+SUPPORTED_RIGGING_INSTALL_METHODS = (
+    "agent-extension",
+    "config-file",
+    "mcp-server",
+    "package",
+)
 
 _PACKAGE_PIN = re.compile(r"@\d+(?:\.\d+)+(?:[-+][\w.-]+)?$")
 
@@ -39,15 +51,19 @@ def render_terminal_bench_job(
     vessel = _vessel(regatta, vessel_name)
     runtime = _runtime(regatta, vessel)
     riggings = [_rigging(regatta, vessel, name) for name in vessel.rigging]
+    harness = _harness_name(runtime)
+    provider = provided_mcp_install_provider(
+        harness, tuple(riggings), regatta.tool_capabilities
+    )
 
     agent: dict[str, Any] = {
-        "name": _harness_name(runtime),
+        "name": harness,
         "import_path": _harbor_agent(regatta, runtime),
         "version": _harness_version(runtime),
         "model": str(vessel.model),
         "env": _agent_env(riggings),
-        "mcp_servers": _mcp_servers(riggings),
-        "rigging_steps": _rigging_steps(riggings),
+        "mcp_servers": _mcp_servers(riggings, harness),
+        "rigging_steps": _rigging_steps(riggings, harness, provider),
     }
     declaration = _declaration_payload(regatta, runtime)
     if declaration is not None:
@@ -219,7 +235,11 @@ def _agent_env(riggings: list[RiggingRecipe]) -> dict[str, str]:
     return env
 
 
-def _mcp_servers(riggings: list[RiggingRecipe]) -> list[dict[str, Any]]:
+def _mcp_servers(
+    riggings: list[RiggingRecipe],
+    harness: str,
+) -> list[dict[str, Any]]:
+    native = supports_mcp_server_installs(harness)
     servers: list[dict[str, Any]] = []
     seen: set[str] = set()
     for rigging in riggings:
@@ -238,6 +258,8 @@ def _mcp_servers(riggings: list[RiggingRecipe]) -> list[dict[str, Any]]:
                     f"{step.target}"
                 )
             seen.add(step.target)
+            if not native:
+                continue
             servers.append(
                 {
                     "name": str(step.target),
@@ -248,19 +270,56 @@ def _mcp_servers(riggings: list[RiggingRecipe]) -> list[dict[str, Any]]:
     return servers
 
 
-def _rigging_steps(riggings: list[RiggingRecipe]) -> list[dict[str, Any]]:
+def _rigging_steps(
+    riggings: list[RiggingRecipe],
+    harness: str,
+    provider: McpInstallProvider | None,
+) -> list[dict[str, Any]]:
+    native = supports_mcp_server_installs(harness)
     steps: list[dict[str, Any]] = []
+    mcp_steps: list[tuple[str, RiggingInstallStep]] = []
     for rigging in riggings:
         for step in rigging.install:
             _require_supported_method(rigging, step)
             if step.method == "mcp-server":
+                if native:
+                    continue
+                if provider is None:
+                    raise ConfigError(
+                        f"runtime harness {harness} does not support rigging "
+                        "install method mcp-server and no rigged tool "
+                        "provides it"
+                    )
+                mcp_steps.append((rigging.name, step))
                 continue
             if step.method == "package" and not _PACKAGE_PIN.search(step.target):
                 raise ConfigError(
                     f"rigging {rigging.name} package {step.target} must pin a "
                     "version for terminal-bench"
                 )
+            if step.method == "agent-extension":
+                if step.agent != harness:
+                    raise ConfigError(
+                        f"rigging {rigging.name} agent-extension {step.target} "
+                        f"targets agent {step.agent}, but runtime harness is "
+                        f"{harness}"
+                    )
+                if not _PACKAGE_PIN.search(step.target):
+                    raise ConfigError(
+                        f"rigging {rigging.name} agent-extension {step.target} "
+                        "must pin a version for terminal-bench"
+                    )
             steps.append(step.to_json())
+    if mcp_steps:
+        assert provider is not None
+        render = render_provider_mcp_config(provider, tuple(mcp_steps))
+        steps.append(
+            {
+                "method": "config-file",
+                "target": render.target,
+                "content": render.content,
+            }
+        )
     return steps
 
 

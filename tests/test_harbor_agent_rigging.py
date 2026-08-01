@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from yacht.runtimes.capabilities import HARBOR_AGENT_EXTENSION_HARNESSES
+
 
 def _load_rigging_module():
     module_path = (
@@ -77,6 +79,45 @@ class HarborAgentRiggingTests(unittest.TestCase):
     def test_rejects_unsupported_methods(self) -> None:
         with self.assertRaisesRegex(ValueError, "not supported"):
             rigging.rigging_commands([{"method": "mcp-server", "target": "fff"}])
+
+    def test_agent_extension_step_installs_through_pi(self) -> None:
+        commands = rigging.rigging_commands(
+            [
+                {
+                    "method": "agent-extension",
+                    "target": "npm:pi-mcp-adapter@2.15.0",
+                    "agent": "pi",
+                }
+            ]
+        )
+
+        self.assertEqual(len(commands), 1)
+        self.assertIn(". ~/.nvm/nvm.sh; pi install", commands[0])
+        self.assertIn("npm:pi-mcp-adapter@2.15.0", commands[0])
+
+    def test_agent_extension_step_rejects_unknown_agents(self) -> None:
+        with self.assertRaises(ValueError):
+            rigging.rigging_commands(
+                [
+                    {
+                        "method": "agent-extension",
+                        "target": "npm:x@1.0.0",
+                        "agent": "claude-code",
+                    }
+                ]
+            )
+
+    def test_agent_extension_installers_match_the_harbor_capability_gate(
+        self,
+    ) -> None:
+        # The launcher's installer map and yacht's capability gate
+        # (HARBOR_AGENT_EXTENSION_HARNESSES) must name the same agents:
+        # a harness the gate lets through but the launcher can't install
+        # for would fail mid-trial, after tokens are spent.
+        self.assertEqual(
+            set(rigging._AGENT_EXTENSION_INSTALLERS),
+            HARBOR_AGENT_EXTENSION_HARNESSES,
+        )
 
 
 if __name__ == "__main__":
