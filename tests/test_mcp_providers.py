@@ -240,6 +240,35 @@ class ProviderCapabilityGateTests(unittest.TestCase):
 
         self.assertEqual(reasons, ())
 
+    def test_provider_in_one_rigging_unlocks_mcp_server_in_another(self) -> None:
+        adapter = RiggingRecipe(
+            name="pi-adapter",
+            tools=("pi-mcp-adapter",),
+            install=(
+                RiggingInstallStep(
+                    method="agent-extension",
+                    target="npm:pi-mcp-adapter@2.15.0",
+                    agent="pi",
+                ),
+            ),
+        )
+        server = RiggingRecipe(
+            name="files-mcp",
+            install=(
+                RiggingInstallStep(
+                    method="mcp-server",
+                    target="files",
+                    command=("mcp-server-filesystem", "/app"),
+                ),
+            ),
+        )
+
+        reasons = unsupported_rigging_capability_reasons(
+            _pi_runtime(), (adapter, server), {"pi-mcp-adapter": _adapter_capability()}
+        )
+
+        self.assertEqual(reasons, ())
+
     def test_gate_still_refuses_without_the_provider(self) -> None:
         reasons = unsupported_rigging_capability_reasons(
             _pi_runtime(), (_mcp_rigging(),), {}
