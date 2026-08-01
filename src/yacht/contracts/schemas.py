@@ -6,6 +6,7 @@ from typing import Any
 from yacht.courses.registry import evaluator_adapter
 from yacht.courses.registry import supported_benchmark_adapter_kinds
 from yacht.courses.registry import supported_course_adapter_harnesses
+from yacht.harnesses.mcp_config import supported_mcp_install_provider
 from yacht.runtimes.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES
 
 
@@ -4153,6 +4154,21 @@ def _validate_tool_capabilities(document: dict[str, Any]) -> set[str]:
             tool.get("expected_tool_calls", []),
             f"tools.{tool_name}.expected_tool_calls",
         )
+        provides = tool.get("provides", [])
+        provides_list = _require_list(provides, f"tools.{tool_name}.provides")
+        for index, entry_value in enumerate(provides_list):
+            entry_path = f"tools.{tool_name}.provides[{index}]"
+            entry = _require_object(entry_value, entry_path)
+            _require_allowed_value(
+                entry.get("method"), {"mcp-server"}, f"{entry_path}.method"
+            )
+            _require_non_empty_string(entry.get("harness"), f"{entry_path}.harness")
+            if not supported_mcp_install_provider(tool_name, str(entry["harness"])):
+                raise SchemaValidationError(
+                    f"{entry_path} declares an unsupported provider: yacht "
+                    f"does not ship a {entry['method']} rendering for tool "
+                    f"{tool_name} on harness {entry['harness']}"
+                )
     return built_in_tools | set(tools)
 
 

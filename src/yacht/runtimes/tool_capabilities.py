@@ -1,7 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from yacht.harnesses.mcp_config import MCP_INSTALL_PROVIDERS, McpInstallProvider
+
+# Deferred to type-checking only: domain.model imports contracts.schemas,
+# which imports this module for BUILT_IN_TOOL_CAPABILITIES, so a runtime
+# import of domain.model here would close an import cycle. RiggingRecipe
+# is only ever used in an annotation below (deferred by `from __future__
+# import annotations`).
+if TYPE_CHECKING:
+    from yacht.domain.model import RiggingRecipe
 
 
 @dataclass(frozen=True)
@@ -59,6 +69,30 @@ BUILT_IN_TOOL_CAPABILITIES: dict[str, ToolCapability] = {
         expected_tool_calls=("local-smoke",),
     ),
 }
+
+
+def provided_mcp_install_provider(
+    harness: str | None,
+    riggings: tuple[RiggingRecipe, ...],
+    capabilities: dict[str, ToolCapability] | None,
+) -> McpInstallProvider | None:
+    """The supported provider a rigged tool declares for this harness,
+    or None. Declaration and registry must agree: a tool that declares
+    provision yacht cannot render for resolves to nothing."""
+    if harness is None or not capabilities:
+        return None
+    for rigging in riggings:
+        for tool_name in rigging.tools:
+            capability = capabilities.get(tool_name)
+            if capability is None:
+                continue
+            for provided in capability.provides:
+                if provided.method != "mcp-server" or provided.harness != harness:
+                    continue
+                provider = MCP_INSTALL_PROVIDERS.get((tool_name, harness))
+                if provider is not None:
+                    return provider
+    return None
 
 
 def tool_capabilities_to_json(

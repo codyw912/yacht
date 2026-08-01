@@ -4,6 +4,8 @@ This is the harness adapter hook from ADR 0008: a harness that loads MCP
 servers from configuration registers a renderer here, turning mcp-server
 install steps into a config-file write inside the trial home. Harnesses
 without a renderer keep blocking the method before tokens are spent.
+Providers registered here can also supply the renderer for a harness
+that lacks one of its own (ADR 0024).
 
 This module stays free of imports from yacht.runtimes so the setup and
 capability machinery there can depend on it without an import cycle.
@@ -13,8 +15,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from yacht.domain.model import RiggingInstallStep
+# Deferred to type-checking only: contracts.schemas and
+# runtimes.tool_capabilities both need to import this module at runtime,
+# and domain.model imports contracts.schemas, so a runtime import here
+# would close an import cycle. RiggingInstallStep is only ever used in
+# annotations below (deferred by `from __future__ import annotations`).
+if TYPE_CHECKING:
+    from yacht.domain.model import RiggingInstallStep
 
 
 class McpConfigError(ValueError):
@@ -58,9 +67,9 @@ def render_mcp_config(
     return renderer(steps)
 
 
-def _render_claude_code_mcp_config(
+def _mcp_servers_from_steps(
     steps: tuple[tuple[str, RiggingInstallStep], ...],
-) -> McpConfigRender:
+) -> tuple[dict[str, dict[str, object]], tuple[McpServerEntry, ...]]:
     servers: dict[str, dict[str, object]] = {}
     entries: list[McpServerEntry] = []
     for origin_name, step in steps:
@@ -75,13 +84,77 @@ def _render_claude_code_mcp_config(
             "args": list(step.command[1:]),
         }
         entries.append(McpServerEntry(origin_name=origin_name, server_name=step.target))
+    return servers, tuple(entries)
+
+
+def _render_claude_code_mcp_config(
+    steps: tuple[tuple[str, RiggingInstallStep], ...],
+) -> McpConfigRender:
+    servers, entries = _mcp_servers_from_steps(steps)
     return McpConfigRender(
         target=CLAUDE_CODE_MCP_CONFIG_TARGET,
         content=json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n",
-        entries=tuple(entries),
+        entries=entries,
     )
 
 
 _MCP_CONFIG_RENDERERS = {
     "claude-code": _render_claude_code_mcp_config,
 }
+
+
+PI_MCP_ADAPTER_CONFIG_TARGET = ".pi/agent/mcp.json"
+
+
+@dataclass(frozen=True)
+class McpInstallProvider:
+    """A rigged tool yacht knows how to render MCP configuration for.
+
+    pins_namespace records whether the rendered settings guarantee the
+    delimited mcp__<server>__ tool names ADR 0022 matches; a provider
+    without the guarantee yields no delivery expectation.
+    """
+
+    tool_name: str
+    harness: str
+    config_target: str
+    pins_namespace: bool
+
+
+MCP_INSTALL_PROVIDERS: dict[tuple[str, str], McpInstallProvider] = {
+    ("pi-mcp-adapter", "pi"): McpInstallProvider(
+        tool_name="pi-mcp-adapter",
+        harness="pi",
+        config_target=PI_MCP_ADAPTER_CONFIG_TARGET,
+        pins_namespace=True,
+    ),
+}
+
+
+def supported_mcp_install_provider(tool_name: str, harness: str) -> bool:
+    return (tool_name, harness) in MCP_INSTALL_PROVIDERS
+
+
+def render_provider_mcp_config(
+    provider: McpInstallProvider,
+    steps: tuple[tuple[str, RiggingInstallStep], ...],
+) -> McpConfigRender:
+    servers, entries = _mcp_servers_from_steps(steps)
+    content = (
+        json.dumps(
+            {
+                "mcpServers": servers,
+                # directTools + the mcp toolPrefix pin the delimited
+                # namespace; proxy mode would make delivery unobservable.
+                "settings": {"directTools": True, "toolPrefix": "mcp"},
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    return McpConfigRender(
+        target=provider.config_target,
+        content=content,
+        entries=entries,
+    )
