@@ -15,10 +15,15 @@ from yacht.harnesses.mcp_config import (
     McpConfigError,
     McpConfigRender,
     render_mcp_config,
+    render_provider_mcp_config,
 )
 from yacht.reports.surface_metadata import harness_for_runtime
 from yacht.runtimes.capabilities import unsupported_rigging_capability_reasons
 from yacht.runtimes.process import subprocess_env
+from yacht.runtimes.tool_capabilities import (
+    ToolCapability,
+    provided_mcp_install_provider,
+)
 
 
 class RiggingSetupError(ValueError):
@@ -64,8 +69,11 @@ def plan_rigging_setup(
     runtime: RuntimeRecipe,
     riggings: tuple[RiggingRecipe, ...],
     command_prefix: tuple[str, ...],
+    tool_capabilities: dict[str, ToolCapability] | None = None,
 ) -> RiggingSetupPlan:
-    unsupported = unsupported_rigging_capability_reasons(runtime, riggings)
+    unsupported = unsupported_rigging_capability_reasons(
+        runtime, riggings, tool_capabilities
+    )
     if unsupported:
         raise RiggingSetupError("; ".join(unsupported))
 
@@ -91,7 +99,7 @@ def plan_rigging_setup(
     return RiggingSetupPlan(
         commands=tuple(commands),
         files=tuple(files),
-        mcp_config=_mcp_config(runtime, tuple(mcp_steps)),
+        mcp_config=_mcp_config(runtime, riggings, tuple(mcp_steps), tool_capabilities),
     )
 
 
@@ -187,18 +195,27 @@ def _write_setup_file(
 
 def _mcp_config(
     runtime: RuntimeRecipe,
+    riggings: tuple[RiggingRecipe, ...],
     mcp_steps: tuple[tuple[str, RiggingInstallStep], ...],
+    tool_capabilities: dict[str, ToolCapability] | None,
 ) -> McpConfigRender | None:
     if not mcp_steps:
         return None
+    harness = harness_for_runtime(runtime)
     try:
-        render = render_mcp_config(harness_for_runtime(runtime), mcp_steps)
+        render = render_mcp_config(harness, mcp_steps)
+        if render is None:
+            provider = provided_mcp_install_provider(
+                harness, riggings, tool_capabilities
+            )
+            if provider is not None:
+                render = render_provider_mcp_config(provider, mcp_steps)
     except McpConfigError as error:
         raise RiggingSetupError(str(error)) from error
     if render is None:
         raise RiggingSetupError(
-            f"runtime harness {harness_for_runtime(runtime)} does not support "
-            "rigging install method mcp-server yet"
+            f"runtime harness {harness} does not support rigging install "
+            "method mcp-server and no rigged tool provides it"
         )
     return render
 

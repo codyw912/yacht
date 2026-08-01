@@ -11,6 +11,7 @@ from yacht.runtimes.rigging_setup import (
     apply_rigging_setup,
     plan_rigging_setup,
 )
+from yacht.runtimes.tool_capabilities import ProvidedInstall, ToolCapability
 
 
 def _runtime() -> RuntimeRecipe:
@@ -289,7 +290,8 @@ class McpServerSetupTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             RiggingSetupError,
-            "runtime harness pi does not support rigging install method mcp-server yet",
+            "runtime harness pi does not support rigging install method "
+            "mcp-server and no rigged tool provides it",
         ):
             plan_rigging_setup(
                 runtime=_runtime(),
@@ -433,6 +435,65 @@ class ApplyRiggingSetupTests(unittest.TestCase):
                     temp_home=temp_home,
                 )
             self.assertFalse((Path(temp_dir) / "escape.json").exists())
+
+
+def _adapter_capabilities() -> dict[str, ToolCapability]:
+    return {
+        "pi-mcp-adapter": ToolCapability(
+            name="pi-mcp-adapter",
+            kind="mcp-adapter",
+            provides=(ProvidedInstall(method="mcp-server", harness="pi"),),
+        )
+    }
+
+
+class ProviderMcpConfigPlanTests(unittest.TestCase):
+    def test_plans_provider_config_for_pi_with_adapter_rigged(self) -> None:
+        rigging = RiggingRecipe(
+            name="pi-mcp-files",
+            tools=("pi-mcp-adapter", "files"),
+            install=(
+                RiggingInstallStep(
+                    method="agent-extension",
+                    target="npm:pi-mcp-adapter@2.15.0",
+                    agent="pi",
+                ),
+                _mcp_step("files", ("mcp-server-filesystem", "/app")),
+            ),
+        )
+
+        plan = plan_rigging_setup(
+            runtime=_runtime(),
+            riggings=(rigging,),
+            command_prefix=(),
+            tool_capabilities=_adapter_capabilities(),
+        )
+
+        self.assertIsNotNone(plan.mcp_config)
+        self.assertEqual(plan.mcp_config.target, ".pi/agent/mcp.json")
+        content = json.loads(plan.mcp_config.content)
+        self.assertEqual(
+            content["settings"], {"directTools": True, "toolPrefix": "mcp"}
+        )
+        self.assertIn("files", content["mcpServers"])
+        # The adapter itself still installs by its ordinary step.
+        self.assertEqual(
+            [command.target for command in plan.commands],
+            ["npm:pi-mcp-adapter@2.15.0"],
+        )
+
+    def test_still_rejects_mcp_server_for_pi_without_the_provider(self) -> None:
+        rigging = RiggingRecipe(
+            name="pi-mcp-files",
+            install=(_mcp_step("files", ("mcp-server-filesystem", "/app")),),
+        )
+
+        with self.assertRaises(RiggingSetupError):
+            plan_rigging_setup(
+                runtime=_runtime(),
+                riggings=(rigging,),
+                command_prefix=(),
+            )
 
 
 if __name__ == "__main__":

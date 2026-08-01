@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import tempfile
 import unittest
@@ -245,7 +246,7 @@ class TerminalBenchJobTests(unittest.TestCase):
 
     def test_rejects_rigging_install_methods_harbor_cannot_express(self) -> None:
         config = TERMINAL_BENCH_CONFIG.replace(
-            'method = "mcp-server"', 'method = "agent-extension"'
+            'method = "mcp-server"', 'method = "preinstalled"'
         ).replace('command = ["mcp-fff", "--stdio"]', "")
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "regatta.toml"
@@ -254,7 +255,7 @@ class TerminalBenchJobTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 ConfigError,
-                "install method agent-extension is not supported for terminal-bench",
+                "install method preinstalled is not supported for terminal-bench",
             ):
                 render_terminal_bench_job(
                     regatta=regatta,
@@ -279,6 +280,57 @@ class TerminalBenchJobTests(unittest.TestCase):
                     regatta=regatta,
                     vessel_name="claude-with-fff",
                 )
+
+    def test_rejects_agent_extension_targeting_a_different_agent(self) -> None:
+        config = TERMINAL_BENCH_CONFIG.replace(
+            'method = "mcp-server"', 'method = "agent-extension"'
+        ).replace('command = ["mcp-fff", "--stdio"]', "")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "targets agent None, but runtime harness is claude-code",
+            ):
+                render_terminal_bench_job(
+                    regatta=regatta,
+                    vessel_name="claude-with-fff",
+                )
+
+    def test_rejects_unpinned_agent_extension_target(self) -> None:
+        config = PI_MCP_EXAMPLE_CONFIG.read_text(encoding="utf-8").replace(
+            'target = "npm:pi-mcp-adapter@2.15.0"',
+            'target = "npm:pi-mcp-adapter"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "agent-extension npm:pi-mcp-adapter must pin a version",
+            ):
+                render_terminal_bench_job(regatta=regatta, vessel_name="pi-with-mcp")
+
+    def test_rejects_agent_extension_target_without_npm_prefix(self) -> None:
+        config = PI_MCP_EXAMPLE_CONFIG.read_text(encoding="utf-8").replace(
+            'target = "npm:pi-mcp-adapter@2.15.0"',
+            'target = "pi-mcp-adapter@2.15.0"',
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "agent-extension pi-mcp-adapter@2.15.0 must use the npm: "
+                "prefix for terminal-bench",
+            ):
+                render_terminal_bench_job(regatta=regatta, vessel_name="pi-with-mcp")
 
 
 class HarborBackendValidationTests(unittest.TestCase):
@@ -929,6 +981,82 @@ class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
             }
             self.assertEqual(vessels["claude-baseline"]["resolved_instances"], 1)
             self.assertEqual(vessels["claude-with-fff"]["resolved_instances"], 2)
+
+
+PI_MCP_EXAMPLE_CONFIG = Path("examples/custom-eval-pi-mcp-ab-smoke.toml")
+
+
+def _load_harbor_rigging_module():
+    module_path = (
+        Path(__file__).resolve().parent.parent
+        / "containers/harbor-launcher/yacht_harbor_agents/rigging.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "yacht_harbor_agents_rigging_seam", module_path
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class ProviderJobRenderingTests(unittest.TestCase):
+    def test_provider_vessel_ships_rendered_config_not_mcp_servers(self) -> None:
+        regatta = load_regatta(PI_MCP_EXAMPLE_CONFIG)
+
+        job = render_terminal_bench_job(regatta=regatta, vessel_name="pi-with-mcp")
+
+        agent = job["agent"]
+        self.assertEqual(agent["mcp_servers"], [])
+        methods = [step["method"] for step in agent["rigging_steps"]]
+        self.assertIn("agent-extension", methods)
+        config_steps = [
+            step
+            for step in agent["rigging_steps"]
+            if step["method"] == "config-file"
+            and step["target"] == ".pi/agent/mcp.json"
+        ]
+        self.assertEqual(len(config_steps), 1)
+        content = json.loads(config_steps[0]["content"])
+        self.assertEqual(
+            content["settings"], {"directTools": True, "toolPrefix": "mcp"}
+        )
+        self.assertIn("files", content["mcpServers"])
+
+    def test_rejects_mcp_server_step_with_no_native_support_and_no_provider(
+        self,
+    ) -> None:
+        config = PI_MCP_EXAMPLE_CONFIG.read_text(encoding="utf-8").replace(
+            'tools = ["pi-mcp-adapter", "files"]', 'tools = ["files"]'
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "does not support rigging install method mcp-server and no "
+                "rigged tool provides it",
+            ):
+                render_terminal_bench_job(regatta=regatta, vessel_name="pi-with-mcp")
+
+    def test_rigging_steps_run_through_the_harbor_launcher(self) -> None:
+        rigging_module = _load_harbor_rigging_module()
+        regatta = load_regatta(PI_MCP_EXAMPLE_CONFIG)
+        job = render_terminal_bench_job(regatta=regatta, vessel_name="pi-with-mcp")
+
+        commands = rigging_module.rigging_commands(job["agent"]["rigging_steps"])
+
+        self.assertEqual(len(commands), 3)
+
+    def test_claude_code_native_path_is_unchanged(self) -> None:
+        regatta = load_regatta(Path("examples/custom-eval-mcp-ab-smoke.toml"))
+
+        job = render_terminal_bench_job(regatta=regatta, vessel_name="claude-with-mcp")
+
+        self.assertEqual(
+            [server["name"] for server in job["agent"]["mcp_servers"]], ["files"]
+        )
 
 
 if __name__ == "__main__":

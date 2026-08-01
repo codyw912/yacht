@@ -353,7 +353,7 @@ class CliPreflightTests(unittest.TestCase):
                 artifact["checks"][0]["evidence"]["reason"],
                 (
                     "runtime harness mock-agent does not support rigging install "
-                    "method mcp-server yet"
+                    "method mcp-server and no rigged tool provides it"
                 ),
             )
             self.assertFalse((logbook_dir / "runtime").exists())

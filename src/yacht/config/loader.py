@@ -27,7 +27,11 @@ from yacht.domain.model import (
     Vessel,
 )
 from yacht.contracts.schemas import SchemaValidationError, validate_regatta_document
-from yacht.runtimes.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES, ToolCapability
+from yacht.runtimes.tool_capabilities import (
+    BUILT_IN_TOOL_CAPABILITIES,
+    ProvidedInstall,
+    ToolCapability,
+)
 
 
 def load_regatta(config_path: Path) -> Regatta:
@@ -523,6 +527,13 @@ def _parse_tool_capabilities(raw: dict[str, Any]) -> dict[str, ToolCapability]:
                 ),
                 expected_tool_calls=tuple(
                     str(item) for item in tool.get("expected_tool_calls", ())
+                ),
+                provides=tuple(
+                    ProvidedInstall(
+                        method=str(item["method"]),
+                        harness=str(item["harness"]),
+                    )
+                    for item in tool.get("provides", ())
                 ),
             )
             for name, tool in raw.get("tools", {}).items()

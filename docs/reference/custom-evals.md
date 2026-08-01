@@ -177,6 +177,18 @@ where the agent called `mcp__files__list_directory` — exactly the
 distinction that separates "the treatment did nothing" from "the
 treatment never fired".
 
+A harness without native MCP support can still carry a server, if a
+rigged tool declares that it provides `mcp-server` for that harness
+(ADR 0024). `examples/custom-eval-pi-mcp-ab-smoke.toml` runs the same
+comparison on pi: `pi-mcp-adapter` declares
+`provides = [{ method = "mcp-server", harness = "pi" }]`, the
+capability gate accepts the `files` server's install step on that
+strength, and yacht renders the adapter's `.pi/agent/mcp.json` with
+`directTools` on and the delimited `mcp` prefix so delivery stays
+measurable. Without a declared provider the gate still refuses the
+step, and without the namespace guarantee the server reports
+unmeasured rather than guessed at.
+
 Two properties make the result trustworthy where a raw pass-rate delta
 is not:
 

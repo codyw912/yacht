@@ -547,7 +547,8 @@ tools = ["repo-map"]""",
                         "supported": False,
                         "reason": (
                             "runtime harness pi does not support rigging "
-                            "install method mcp-server yet"
+                            "install method mcp-server and no rigged tool "
+                            "provides it"
                         ),
                     }
                 ],

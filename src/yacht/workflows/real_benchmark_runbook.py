@@ -196,7 +196,9 @@ def _rigging_capabilities(regatta: Regatta) -> list[dict[str, Any]]:
             continue
         runtime = regatta.runtime_recipes[vessel.runtime]
         riggings = tuple(regatta.rigging_recipes[name] for name in vessel.rigging)
-        payload = rigging_capabilities_to_json(runtime, riggings)
+        payload = rigging_capabilities_to_json(
+            runtime, riggings, regatta.tool_capabilities
+        )
         payload["vessel"] = vessel.name
         payload["runtime"] = runtime.name
         capabilities.append(payload)

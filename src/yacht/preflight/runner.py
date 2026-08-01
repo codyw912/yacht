@@ -29,6 +29,7 @@ from yacht.domain.model import (
     Vessel,
 )
 from yacht.runtimes.capabilities import rigging_capabilities_to_json
+from yacht.runtimes.tool_capabilities import ToolCapability
 from yacht.runtimes.backend import RuntimePreparationError, runtime_backend_for_recipe
 from yacht.contracts.schemas import (
     PREFLIGHT_SUMMARY_SCHEMA,
@@ -296,6 +297,7 @@ def _planned_vessel_preflight(
         artifact_path=artifact_path,
         transcript_dir=transcript_dir,
         include_agent_checks=include_agent_checks,
+        tool_capabilities=regatta.tool_capabilities,
     )
     return PlannedVesselPreflight(
         vessel=vessel,
@@ -315,11 +317,13 @@ def _planned_preflight_checks(
     artifact_path: Path,
     transcript_dir: Path,
     include_agent_checks: bool,
+    tool_capabilities: dict[str, ToolCapability],
 ) -> list[PlannedPreflightCheck]:
     checks = _planned_rigging_capability_checks(
         runtime=runtime,
         riggings=riggings,
         artifact_path=artifact_path,
+        tool_capabilities=tool_capabilities,
     )
     checks.extend(
         _planned_checks_from_recipe(
@@ -352,8 +356,9 @@ def _planned_rigging_capability_checks(
     runtime: RuntimeRecipe,
     riggings: tuple[RiggingRecipe, ...],
     artifact_path: Path,
+    tool_capabilities: dict[str, ToolCapability],
 ) -> list[PlannedPreflightCheck]:
-    capabilities = rigging_capabilities_to_json(runtime, riggings)
+    capabilities = rigging_capabilities_to_json(runtime, riggings, tool_capabilities)
     return [
         PlannedPreflightCheck(
             name=f"rigging-capability-{check['origin_name']}-{check['method']}",
