@@ -3,12 +3,16 @@ import unittest
 
 from yacht.config.loader import _parse_tool_capabilities
 from yacht.contracts.schemas import SchemaValidationError, _validate_tool_capabilities
-from yacht.domain.model import RiggingInstallStep, RiggingRecipe
+from yacht.domain.model import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
 from yacht.harnesses.mcp_config import (
     MCP_INSTALL_PROVIDERS,
     McpConfigError,
     render_provider_mcp_config,
     supported_mcp_install_provider,
+)
+from yacht.runtimes.capabilities import (
+    rigging_capabilities_to_json,
+    unsupported_rigging_capability_reasons,
 )
 from yacht.runtimes.tool_capabilities import (
     ProvidedInstall,
@@ -195,6 +199,133 @@ class ProvidesSchemaValidationTests(unittest.TestCase):
                     }
                 }
             )
+
+
+def _pi_runtime(backend: str = "container") -> RuntimeRecipe:
+    return RuntimeRecipe(
+        name="pi-runtime",
+        backend=backend,
+        harness="pi",
+        image="yacht/pi-agent-runtime:pi-0.74.0",
+        command=("pi",),
+    )
+
+
+def _mcp_rigging() -> RiggingRecipe:
+    return RiggingRecipe(
+        name="pi-mcp-files",
+        tools=("pi-mcp-adapter", "files"),
+        install=(
+            RiggingInstallStep(
+                method="agent-extension",
+                target="npm:pi-mcp-adapter@2.15.0",
+                agent="pi",
+            ),
+            RiggingInstallStep(
+                method="mcp-server",
+                target="files",
+                command=("mcp-server-filesystem", "/app"),
+            ),
+        ),
+    )
+
+
+class ProviderCapabilityGateTests(unittest.TestCase):
+    def test_provider_unlocks_mcp_server_for_pi(self) -> None:
+        capabilities = {"pi-mcp-adapter": _adapter_capability()}
+
+        reasons = unsupported_rigging_capability_reasons(
+            _pi_runtime(), (_mcp_rigging(),), capabilities
+        )
+
+        self.assertEqual(reasons, ())
+
+    def test_gate_still_refuses_without_the_provider(self) -> None:
+        reasons = unsupported_rigging_capability_reasons(
+            _pi_runtime(), (_mcp_rigging(),), {}
+        )
+
+        self.assertEqual(len(reasons), 1)
+        self.assertIn("mcp-server", reasons[0])
+
+    def test_check_payload_names_the_provider(self) -> None:
+        capabilities = {"pi-mcp-adapter": _adapter_capability()}
+
+        payload = rigging_capabilities_to_json(
+            _pi_runtime(), (_mcp_rigging(),), capabilities
+        )
+
+        mcp_checks = [
+            check
+            for check in payload["install_checks"]
+            if check["method"] == "mcp-server"
+        ]
+        self.assertEqual(mcp_checks[0]["provided_by"], "pi-mcp-adapter")
+        self.assertTrue(mcp_checks[0]["supported"])
+
+    def test_claude_code_native_support_gains_no_provided_by(self) -> None:
+        runtime = RuntimeRecipe(
+            name="claude-runtime",
+            backend="container",
+            harness="claude-code",
+            image="img",
+            command=("claude",),
+        )
+        rigging = RiggingRecipe(
+            name="files-mcp",
+            install=(
+                RiggingInstallStep(
+                    method="mcp-server",
+                    target="files",
+                    command=("mcp-server-filesystem", "/app"),
+                ),
+            ),
+        )
+
+        payload = rigging_capabilities_to_json(runtime, (rigging,), {})
+
+        check = payload["install_checks"][0]
+        self.assertTrue(check["supported"])
+        self.assertNotIn("provided_by", check)
+
+    def test_harbor_agent_extension_supported_for_pi_only(self) -> None:
+        step = RiggingInstallStep(
+            method="agent-extension",
+            target="npm:pi-mcp-adapter@2.15.0",
+            agent="pi",
+        )
+        rigging = RiggingRecipe(name="adapter", install=(step,))
+        pi_harbor = RuntimeRecipe(
+            name="harbor-pi",
+            backend="harbor",
+            harness="pi",
+            image="yacht/harbor-launcher:harbor-0.20.0",
+            command=(),
+        )
+        claude_harbor = RuntimeRecipe(
+            name="harbor-claude",
+            backend="harbor",
+            harness="claude-code",
+            image="yacht/harbor-launcher:harbor-0.20.0",
+            command=(),
+        )
+        claude_step = RiggingInstallStep(
+            method="agent-extension", target="npm:x@1.0.0", agent="claude-code"
+        )
+
+        self.assertEqual(
+            unsupported_rigging_capability_reasons(pi_harbor, (rigging,), {}), ()
+        )
+        self.assertEqual(
+            len(
+                unsupported_rigging_capability_reasons(
+                    claude_harbor,
+                    (RiggingRecipe(name="x", install=(claude_step,)),),
+                    {},
+                )
+            ),
+            1,
+        )
 
 
 if __name__ == "__main__":

@@ -71,6 +71,16 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
                             "supported": True,
                         }
                     ],
+                    "tools": [
+                        {
+                            "name": "fff",
+                            "kind": "code-navigation",
+                            "description": "Codebase memory and navigation tool.",
+                            "interfaces": ["agent-tool"],
+                            "install_methods": ["agent-extension"],
+                            "expected_tool_calls": ["fffind", "ffgrep"],
+                        }
+                    ],
                 },
             )
             self.assertEqual(

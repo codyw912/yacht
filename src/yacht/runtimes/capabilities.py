@@ -4,9 +4,13 @@ from pathlib import PurePosixPath
 from typing import Any
 
 from yacht.domain.model import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
-from yacht.harnesses.mcp_config import supports_mcp_server_installs
+from yacht.harnesses.mcp_config import McpInstallProvider, supports_mcp_server_installs
 from yacht.reports.surface_metadata import harness_for_runtime
-from yacht.runtimes.tool_capabilities import ToolCapability, tool_capabilities_to_json
+from yacht.runtimes.tool_capabilities import (
+    ToolCapability,
+    provided_mcp_install_provider,
+    tool_capabilities_to_json,
+)
 
 
 SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
@@ -19,6 +23,7 @@ SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
         "custom-command",
     ),
     "harbor": (
+        "agent-extension",
         "config-file",
         "mcp-server",
         "package",
@@ -33,6 +38,8 @@ SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
     ),
 }
 
+HARBOR_AGENT_EXTENSION_HARNESSES = {"pi"}
+
 SUPPORTED_PACKAGE_TARGET_PREFIXES = ("npm:",)
 
 
@@ -41,7 +48,7 @@ def rigging_capabilities_to_json(
     riggings: tuple[RiggingRecipe, ...],
     tool_capabilities: dict[str, ToolCapability] | None = None,
 ) -> dict[str, Any]:
-    checks = _install_checks(runtime, riggings)
+    checks = _install_checks(runtime, riggings, tool_capabilities)
     unsupported = [check for check in checks if not bool(check["supported"])]
     payload = {
         "status": "unsupported" if unsupported else "supported",
@@ -62,8 +69,9 @@ def rigging_capabilities_to_json(
 def unsupported_rigging_capability_reasons(
     runtime: RuntimeRecipe,
     riggings: tuple[RiggingRecipe, ...],
+    tool_capabilities: dict[str, ToolCapability] | None = None,
 ) -> tuple[str, ...]:
-    checks = _install_checks(runtime, riggings)
+    checks = _install_checks(runtime, riggings, tool_capabilities)
     return tuple(
         str(check["reason"])
         for check in checks
@@ -74,9 +82,13 @@ def unsupported_rigging_capability_reasons(
 def _install_checks(
     runtime: RuntimeRecipe,
     riggings: tuple[RiggingRecipe, ...],
+    tool_capabilities: dict[str, ToolCapability] | None,
 ) -> list[dict[str, Any]]:
+    provider = provided_mcp_install_provider(
+        harness_for_runtime(runtime), riggings, tool_capabilities
+    )
     return [
-        _install_check(runtime, rigging, step)
+        _install_check(runtime, rigging, step, provider)
         for rigging in riggings
         for step in rigging.install
     ]
@@ -86,8 +98,9 @@ def _install_check(
     runtime: RuntimeRecipe,
     rigging: RiggingRecipe,
     step: RiggingInstallStep,
+    provider: McpInstallProvider | None,
 ) -> dict[str, Any]:
-    supported, reason = _step_support(runtime, step)
+    supported, reason = _step_support(runtime, step, provider)
     payload = {
         "origin": "rigging",
         "origin_name": rigging.name,
@@ -97,12 +110,20 @@ def _install_check(
     }
     if reason is not None:
         payload["reason"] = reason
+    if (
+        step.method == "mcp-server"
+        and supported
+        and not supports_mcp_server_installs(harness_for_runtime(runtime))
+        and provider is not None
+    ):
+        payload["provided_by"] = provider.tool_name
     return payload
 
 
 def _step_support(
     runtime: RuntimeRecipe,
     step: RiggingInstallStep,
+    provider: McpInstallProvider | None,
 ) -> tuple[bool, str | None]:
     supported_methods = _supported_methods(runtime)
     if step.method not in supported_methods:
@@ -125,13 +146,23 @@ def _step_support(
                 "agent-extension install targets agent "
                 f"{step.agent}, but runtime harness is {runtime_harness}",
             )
+        if (
+            runtime.backend == "harbor"
+            and runtime_harness not in HARBOR_AGENT_EXTENSION_HARNESSES
+        ):
+            return (
+                False,
+                "agent-extension installs on the harbor backend are supported "
+                f"for harnesses {sorted(HARBOR_AGENT_EXTENSION_HARNESSES)} only, "
+                f"not {runtime_harness}",
+            )
     if step.method == "mcp-server":
         runtime_harness = harness_for_runtime(runtime)
-        if not supports_mcp_server_installs(runtime_harness):
+        if not supports_mcp_server_installs(runtime_harness) and provider is None:
             return (
                 False,
                 f"runtime harness {runtime_harness} does not support rigging "
-                "install method mcp-server yet",
+                "install method mcp-server and no rigged tool provides it",
             )
         if not step.command:
             return (

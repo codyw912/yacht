@@ -378,7 +378,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                     "origin_name": "pi-fff",
                     "reason": (
                         "runtime harness pi does not support rigging install "
-                        "method mcp-server yet"
+                        "method mcp-server and no rigged tool provides it"
                     ),
                 },
             )

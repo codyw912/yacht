@@ -239,7 +239,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                 RuntimePreparationError,
                 (
                     "runtime harness pi does not support rigging install "
-                    "method mcp-server yet"
+                    "method mcp-server and no rigged tool provides it"
                 ),
             ):
                 HostNixRuntimeBackend(setup_runner=_passing_setup).prepare(
@@ -276,7 +276,7 @@ class HostNixRuntimeBackendTests(unittest.TestCase):
                 RuntimePreparationError,
                 (
                     "runtime harness pi does not support rigging install "
-                    "method mcp-server yet"
+                    "method mcp-server and no rigged tool provides it"
                 ),
             ):
                 HostNixRuntimeBackend(setup_runner=setup_runner).prepare(

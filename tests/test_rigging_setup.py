@@ -289,7 +289,8 @@ class McpServerSetupTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             RiggingSetupError,
-            "runtime harness pi does not support rigging install method mcp-server yet",
+            "runtime harness pi does not support rigging install method "
+            "mcp-server and no rigged tool provides it",
         ):
             plan_rigging_setup(
                 runtime=_runtime(),
