@@ -5,6 +5,12 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class ProvidedInstall:
+    method: str
+    harness: str
+
+
+@dataclass(frozen=True)
 class ToolCapability:
     name: str
     kind: str
@@ -12,6 +18,7 @@ class ToolCapability:
     interfaces: tuple[str, ...] = ()
     install_methods: tuple[str, ...] = ()
     expected_tool_calls: tuple[str, ...] = ()
+    provides: tuple[ProvidedInstall, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -26,6 +33,11 @@ class ToolCapability:
             payload["install_methods"] = list(self.install_methods)
         if self.expected_tool_calls:
             payload["expected_tool_calls"] = list(self.expected_tool_calls)
+        if self.provides:
+            payload["provides"] = [
+                {"method": provided.method, "harness": provided.harness}
+                for provided in self.provides
+            ]
         return payload
 
 
