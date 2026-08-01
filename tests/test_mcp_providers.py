@@ -422,6 +422,22 @@ class PiObservedToolCallTests(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(source, PI_JSONL_EVIDENCE)
 
+    def test_pi_output_truncated_mid_multibyte_char_is_unmeasured(self) -> None:
+        """A pi.txt truncated mid-multibyte character (e.g. by a killed tee)
+        must not crash the run; it should degrade to unmeasured, matching
+        the sibling evidence sources' handling of unreadable files."""
+        with tempfile.TemporaryDirectory() as tmp:
+            trial_dir = Path(tmp)
+            (trial_dir / "agent").mkdir()
+            (trial_dir / "agent" / "pi.txt").write_bytes(
+                b'{"type": "agent_start"}\n\xe2\x9c'
+            )
+
+            calls, source = _observed_tool_calls(trial_dir)
+
+        self.assertEqual(calls, [])
+        self.assertIsNone(source)
+
 
 if __name__ == "__main__":
     unittest.main()

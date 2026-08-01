@@ -374,7 +374,11 @@ def _session_tool_calls(sessions_dir: Path) -> list[str] | None:
 def _pi_output_tool_calls(output_path: Path) -> tuple[str, ...] | None:
     if not output_path.is_file():
         return None
-    return tool_calls_from_pi_jsonl(output_path.read_text(encoding="utf-8"))
+    try:
+        text = output_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    return tool_calls_from_pi_jsonl(text)
 
 
 def _machine_evidence(trial: dict[str, Any] | None) -> dict[str, Any]:
