@@ -107,6 +107,20 @@ class ProviderRegistryTests(unittest.TestCase):
         with self.assertRaises(McpConfigError):
             render_provider_mcp_config(provider, (("rig", no_command),))
 
+    def test_provider_render_rejects_duplicate_server_names(self) -> None:
+        provider = MCP_INSTALL_PROVIDERS[("pi-mcp-adapter", "pi")]
+        first = RiggingInstallStep(
+            method="mcp-server", target="files", command=("mcp-server-filesystem",)
+        )
+        second = RiggingInstallStep(
+            method="mcp-server", target="files", command=("mcp-server-filesystem-2",)
+        )
+
+        with self.assertRaises(McpConfigError):
+            render_provider_mcp_config(
+                provider, (("rig-one", first), ("rig-two", second))
+            )
+
 
 class ProviderResolutionTests(unittest.TestCase):
     def test_resolves_provider_rigged_on_the_vessel(self) -> None:
@@ -129,6 +143,18 @@ class ProviderResolutionTests(unittest.TestCase):
         self.assertIsNone(provided_mcp_install_provider("pi", (rigging,), {}))
         self.assertIsNone(provided_mcp_install_provider("pi", (rigging,), None))
         self.assertIsNone(provided_mcp_install_provider(None, (rigging,), capabilities))
+
+    def test_no_provider_when_declaration_has_no_matching_registry_entry(self) -> None:
+        rigging = RiggingRecipe(name="mystery-mcp", tools=("mystery-adapter",))
+        capabilities = {
+            "mystery-adapter": ToolCapability(
+                name="mystery-adapter",
+                kind="mcp-adapter",
+                provides=(ProvidedInstall(method="mcp-server", harness="pi"),),
+            )
+        }
+
+        self.assertIsNone(provided_mcp_install_provider("pi", (rigging,), capabilities))
 
 
 class ProvidesSchemaValidationTests(unittest.TestCase):
