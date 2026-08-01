@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### MCP installs through capability-providing riggings (ADR 0024)
+
+- A `[tools.<name>]` entry can declare that it provides the `mcp-server`
+  install method for a named harness, and the capability gate accepts an
+  mcp-server step when the harness supports it natively or a rigged tool
+  provides it. pi-mcp-adapter on pi is the first supported provider:
+  yacht renders the adapter's `.pi/agent/mcp.json` with `directTools` on
+  and the delimited `mcp` tool prefix, so delivery stays measurable.
+- MCP delivery expectations now key on the namespace guarantee rather
+  than the harness list, and harbor trials preserve pi's JSONL stream as
+  tool-call evidence, so stock-versus-extended MCP comparisons extend to
+  pi with delivery evidence on the treatment side.
+- Harbor job rendering now refuses mcp-server steps for a harness with
+  neither native support nor a declared provider (previously they were
+  silently passed through to an agent that could not honor them), and
+  agent-extension steps on harbor courses are supported for pi with
+  npm-pinned targets.
+
 ## 0.9.0 - Artifact Contracts and MCP Delivery
 
 YACHT 0.9.0 closes the July audit's contract findings and the last

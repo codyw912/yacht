@@ -128,7 +128,9 @@ For an MCP rigging the delivery unit is the server (ADR 0022): the
 automatically, any `mcp__<server>__` call in the preserved trajectory
 counts the server as delivered, and the report lists which of its tools
 were actually observed — no per-tool declaration to write or keep
-current.
+current. pi has no native MCP support, so carrying a server there
+needs a declared provider — the `pi-mcp-adapter` rigging in
+`examples/custom-eval-pi-mcp-ab-smoke.toml` (ADR 0024).
 
 A claim validated here means: on this course, with this harness and model at
 these pinned versions, the tool changed the outcome by this much, and the
