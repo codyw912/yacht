@@ -31,6 +31,7 @@ from yacht.domain.model import (
     Vessel,
 )
 from yacht.logbook.paths import task_attempt_path
+from yacht.runtimes.tool_capabilities import provided_mcp_install_provider
 from yacht.workflows.benchmark_launcher_handoff import (
     native_report_path_from_launcher_handoff,
 )
@@ -195,9 +196,12 @@ def _agent_to_json(
 _SKILL_INSTALL_TARGET = re.compile(r"^\.claude/skills/([^/]+)/SKILL\.md$")
 _FRONTMATTER_NAME = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 
-# The mcp__<server>__ convention belongs to Claude Code's rendering of
-# MCP tools (ADR 0022). Other harnesses get no MCP expectation rather
-# than a marker their transcripts can never match.
+# The mcp__<server>__ convention is guaranteed either natively, by
+# Claude Code's own rendering of MCP tools, or by a rigged provider
+# whose rendered configuration pins the delimited convention for a
+# harness that doesn't natively namespace (ADR 0024). A harness with
+# neither guarantee gets no MCP expectation rather than a marker its
+# transcripts can never match.
 _MCP_NAMESPACED_HARNESSES = {"claude-code"}
 
 
@@ -216,6 +220,17 @@ def _tool_expectations(
     expectations: list[dict[str, Any]] = []
     seen: set[str] = set()
     seen_servers: set[str] = set()
+    riggings = tuple(
+        rigging
+        for name in vessel.rigging
+        if (rigging := regatta.rigging_recipes.get(name)) is not None
+    )
+    provider = provided_mcp_install_provider(
+        runtime.harness, riggings, regatta.tool_capabilities
+    )
+    mcp_namespaced = runtime.harness in _MCP_NAMESPACED_HARNESSES or (
+        provider is not None and provider.pins_namespace
+    )
     for rigging_name in vessel.rigging:
         rigging = regatta.rigging_recipes.get(rigging_name)
         if rigging is None:
@@ -245,7 +260,7 @@ def _tool_expectations(
                     "expected_calls": expected_calls,
                 }
             )
-        if runtime.harness not in _MCP_NAMESPACED_HARNESSES:
+        if not mcp_namespaced:
             continue
         for step in rigging.install:
             if step.method != "mcp-server":

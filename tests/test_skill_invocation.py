@@ -17,6 +17,7 @@ from yacht.reports.task_attempt_scorecard import write_task_attempt_scorecard
 
 EXAMPLE_CONFIG = Path("examples/custom-eval-skill-ab-smoke.toml")
 MCP_EXAMPLE_CONFIG = Path("examples/container-claude-code-mcp-real-task-smoke.toml")
+PI_MCP_EXAMPLE_CONFIG = Path("examples/custom-eval-pi-mcp-ab-smoke.toml")
 
 SESSION_EVENTS = [
     {"type": "user", "message": {"content": "do the task"}},
@@ -185,6 +186,34 @@ class ToolExpectationTests(unittest.TestCase):
             if vessel.name == "claude-code-container-fff-mcp"
         )
         runtime = replace(regatta.runtime_recipes[vessel.runtime], harness="pi")
+
+        self.assertEqual(_tool_expectations(regatta, vessel, runtime), [])
+
+
+class PiProviderExpectationTests(unittest.TestCase):
+    def test_provider_guarantee_emits_the_namespace_expectation(self) -> None:
+        regatta = load_regatta(PI_MCP_EXAMPLE_CONFIG)
+        vessel = next(v for v in regatta.vessels if v.name == "pi-with-mcp")
+        runtime = regatta.runtime_recipes[vessel.runtime]
+
+        expectations = _tool_expectations(regatta, vessel, runtime)
+
+        mcp = [e for e in expectations if e["kind"] == "mcp-server"]
+        self.assertEqual(
+            mcp,
+            [
+                {
+                    "tool": "files",
+                    "kind": "mcp-server",
+                    "expected_calls": ["mcp__files__"],
+                }
+            ],
+        )
+
+    def test_stock_pi_vessel_gets_no_mcp_expectation(self) -> None:
+        regatta = load_regatta(PI_MCP_EXAMPLE_CONFIG)
+        vessel = next(v for v in regatta.vessels if v.name == "pi-baseline")
+        runtime = regatta.runtime_recipes[vessel.runtime]
 
         self.assertEqual(_tool_expectations(regatta, vessel, runtime), [])
 
