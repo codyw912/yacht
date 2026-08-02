@@ -157,9 +157,11 @@ a normal episode ending (`ended: "cap"`, from the stream result's
 the cap by naming a `{max_turns}` placeholder somewhere in their
 declared `command`; without that placeholder, `max_turns` in
 `[episodes]` has no effect and only the `timeout_seconds` wall-clock
-backstop applies to that harness. Declared episodes have no cap signal
-of their own — `ended` for them is `natural`, `timeout`, or `error`
-only, never `cap`.
+backstop applies to that harness. The reverse mismatch is a hard error,
+not a silent no-op: a declared `command` that names `{max_turns}` while
+the task's `[episodes]` sets no per-episode `max_turns` raises at run
+time. Declared episodes have no cap signal of their own — `ended` for
+them is `natural`, `timeout`, or `error` only, never `cap`.
 
 `timeout_seconds` is the driver's own backstop for hangs; hitting it
 ends the episode with `ended: "timeout"`, itself a normal ending, and
@@ -206,18 +208,21 @@ Per-episode artifacts land under the trial's agent log directory:
 │   ├── instruction.md
 │   ├── claude-code.txt          # or run-stdout.txt/run-stderr.txt +
 │   │                             # harness-evidence.json (declared harnesses)
-│   └── sessions-manifest.json
+│   └── sessions-manifest.json   # claude-code only
 ├── 002/
 │   ├── instruction.md
 │   ├── ...
-│   └── reward.json               # + reward.txt, when verify_between ran here
+│   └── reward.json               # + reward.txt, episode-stdout.txt,
+│                                  # when verify_between ran here
 └── summary.json                  # {count, items, to_resolution?}
 ```
 
-`sessions-manifest.json` is cumulative — each episode's copy lists every
-session file written so far, not just that episode's own. Attributing a
-session to a specific episode means diffing episode *k*'s manifest
-against episode *k-1*'s.
+`sessions-manifest.json` is written only for `claude-code` (its run
+loop snapshots the harness's session directory after every episode);
+declared harnesses have no analog. Where it exists, it is cumulative —
+each episode's copy lists every session file written so far, not just
+that episode's own. Attributing a session to a specific episode means
+diffing episode *k*'s manifest against episode *k-1*'s.
 
 The task attempt carries a validated top-level `episodes` block —
 `{count, items, to_resolution?}`, where each item has `index`, `ended`
