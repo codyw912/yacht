@@ -163,6 +163,34 @@ class ToolUseNamingTests(unittest.TestCase):
         self.assertNotIn("tool_call_counts", vessel)
 
 
+class EpisodesOutcomeCountingTests(unittest.TestCase):
+    def test_an_episodes_block_does_not_change_outcome_counting(self) -> None:
+        # ADR 0025: a relay task's episodes are sub-steps within one trial,
+        # not additional trials. The scorer counts attempts, not episodes —
+        # pin that an "episodes" block leaves outcome counting untouched.
+        episodic = _full_attempt({})
+        episodic["episodes"] = {
+            "count": 2,
+            "to_resolution": 2,
+            "items": [
+                {"index": 1, "ended": "cap"},
+                {"index": 2, "ended": "natural", "reward": 1.0},
+            ],
+        }
+        plain = _full_attempt({})
+
+        episodic_vessel = _vessel_score("candidate", [episodic])
+        plain_vessel = _vessel_score("candidate", [plain])
+
+        for key in (
+            "task_attempts",
+            "completed_attempts",
+            "failed_attempts",
+            "success_rate",
+        ):
+            self.assertEqual(episodic_vessel[key], plain_vessel[key])
+
+
 LEGACY_VESSEL_KEYS = ("tool_call_count", "tool_call_counts")
 
 

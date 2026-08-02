@@ -921,6 +921,87 @@ class TerminalBenchAttemptsFromTrialsTests(unittest.TestCase):
             )
             self.assertEqual(summary["status"], "validated")
 
+    def test_attempt_carries_episodes_block_and_metrics_are_unchanged(self) -> None:
+        from yacht.courses.terminal_bench.attempts_from_trials import (
+            write_terminal_bench_attempts_from_trials,
+        )
+        from yacht.courses.terminal_bench.harness import native_report_from_trials
+
+        episodes_data = {
+            "count": 2,
+            "to_resolution": 2,
+            "items": [
+                {
+                    "index": 1,
+                    "ended": "cap",
+                    "started_at": "2026-08-01T10:00:00Z",
+                    "finished_at": "2026-08-01T10:01:00Z",
+                    "usage": {"input_tokens": 500, "output_tokens": 200},
+                    "cost_usd": 0.015,
+                },
+                {
+                    "index": 2,
+                    "ended": "natural",
+                    "started_at": "2026-08-01T10:01:00Z",
+                    "finished_at": "2026-08-01T10:02:00Z",
+                    "usage": {"input_tokens": 400, "output_tokens": 150},
+                    "cost_usd": 0.012,
+                    "reward": 1.0,
+                },
+            ],
+        }
+
+        def _write_attempts(*, with_episodes: bool) -> dict[str, Any]:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                config_path = _write_config(root)
+                logbook_dir = root / "logbook"
+                write_terminal_bench_rollout_plan(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    vessel_name="claude-baseline",
+                    comparison_name="claude-vs-claude-fff",
+                )
+                trials_dir = root / "trials"
+                result = _trial_result("hello-world", reward=1)
+                trial_name = result["trial_name"]
+                _write_trial(trials_dir, result)
+                if with_episodes:
+                    _write_trial_episodes(trials_dir, trial_name, episodes_data)
+                report = native_report_from_trials(
+                    trials_dir=trials_dir,
+                    roster_ids=["hello-world", "fix-permissions"],
+                )
+                with patch(
+                    "yacht.courses.terminal_bench.attempts_from_trials."
+                    "native_report_path_from_launcher_handoff",
+                    return_value=_written_report(root, report),
+                ):
+                    write_terminal_bench_attempts_from_trials(
+                        config_path=config_path,
+                        logbook_dir=logbook_dir,
+                        vessel_name="claude-baseline",
+                        comparison_name="claude-vs-claude-fff",
+                    )
+                return json.loads(
+                    (
+                        logbook_dir
+                        / "task-attempts/claude-vs-claude-fff/claude-baseline"
+                        / "hello-world.json"
+                    ).read_text(encoding="utf-8")
+                )
+
+        baseline_attempt = _write_attempts(with_episodes=False)
+        episodic_attempt = _write_attempts(with_episodes=True)
+
+        self.assertNotIn("episodes", baseline_attempt)
+        self.assertEqual(episodic_attempt["episodes"], episodes_data)
+        self.assertEqual(
+            episodic_attempt["agent"]["machine_evidence"]["episodes"],
+            episodes_data["items"],
+        )
+        self.assertEqual(episodic_attempt["metrics"], baseline_attempt["metrics"])
+
 
 def _written_report(root: Path, report: dict[str, Any]) -> Path:
     report_path = root / "native-report" / "claude-baseline.run-1.json"

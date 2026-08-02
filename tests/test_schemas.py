@@ -173,70 +173,82 @@ class SchemaTests(unittest.TestCase):
         validate_runtime_instances_document(document)
 
     def test_task_attempt_documents_include_schema_version(self) -> None:
-        document = {
-            "schema": TASK_ATTEMPT_SCHEMA,
-            "regatta": "pi-fff-comparison",
-            "course": "tiny-smoke-course",
-            "comparison": "pi-vs-pi-fff",
-            "vessel": "pi-plus-fff",
-            "model": "pi",
-            "rigging": ["fff"],
-            "runtime": "pi-runtime",
-            "status": "completed",
-            "task": {
-                "id": "task-1",
-                "title": "Touch a marker file",
-                "difficulty": 1,
-            },
-            "runtime_context": {
-                "backend": "host-nix",
-                "harness": "pi",
-                "agent": "pi",
-                "temp_home": "/tmp/yacht/home",
-                "workspace_path": "/tmp/workspace",
-                "command_prefix": ["nix", "develop", "flake", "--command"],
-                "command": ["pi"],
-                "cleanup_paths": ["/tmp/yacht"],
-            },
-            "prompt": "Create the requested marker file.",
-            "agent": {
-                "exit_code": 0,
-                "response": "done",
-                "tool_calls": ["fff"],
-                "transcript_path": "/tmp/logbook/transcripts/task-1.json",
-                "machine_evidence": {
-                    "format": "pi-jsonl",
-                    "event_count": 12,
-                    "api": "anthropic-messages",
-                    "provider": "anthropic",
-                    "model": "claude-haiku-4-5",
-                    "response_id": "msg_123",
-                    "usage": {
-                        "input": 1000,
-                        "output": 234,
-                        "cacheRead": 0,
-                        "cacheWrite": 0,
-                        "totalTokens": 1234,
-                    },
-                    "cost": {"total": 0.00123},
-                    "tool_calls": ["fff"],
-                },
-            },
-            "metrics": {
-                "tokens": 1234,
-                "duration_seconds": 12.5,
-            },
-            "secret_refs": [
+        document = _valid_task_attempt_document()
+
+        validate_task_attempt_document(document)
+
+    def test_task_attempt_episodes_block_validates(self) -> None:
+        document = _valid_task_attempt_document()
+        document["episodes"] = {
+            "count": 2,
+            "to_resolution": 2,
+            "items": [
                 {
-                    "name": "anthropic",
-                    "source": "env",
-                    "ref": "ANTHROPIC_API_KEY",
-                    "redacted": True,
-                }
+                    "index": 1,
+                    "ended": "cap",
+                    "started_at": "2026-08-02T00:00:00+00:00",
+                    "finished_at": "2026-08-02T00:10:00+00:00",
+                    "usage": {"input_tokens": 100, "output_tokens": 50},
+                    "cost_usd": 0.4,
+                },
+                {"index": 2, "ended": "natural", "reward": 1.0},
             ],
         }
 
         validate_task_attempt_document(document)
+
+    def test_task_attempt_episodes_rejects_count_mismatch(self) -> None:
+        document = _valid_task_attempt_document()
+        document["episodes"] = {
+            "count": 3,
+            "items": [{"index": 1, "ended": "natural"}],
+        }
+
+        with self.assertRaisesRegex(ValueError, "episodes.items must contain"):
+            validate_task_attempt_document(document)
+
+    def test_task_attempt_episodes_rejects_unknown_ended_value(self) -> None:
+        document = _valid_task_attempt_document()
+        document["episodes"] = {
+            "count": 1,
+            "items": [{"index": 1, "ended": "give-up"}],
+        }
+
+        with self.assertRaisesRegex(ValueError, "episodes.items\\[0\\].ended"):
+            validate_task_attempt_document(document)
+
+    def test_task_attempt_episodes_rejects_to_resolution_above_count(self) -> None:
+        document = _valid_task_attempt_document()
+        document["episodes"] = {
+            "count": 1,
+            "to_resolution": 2,
+            "items": [{"index": 1, "ended": "natural"}],
+        }
+
+        with self.assertRaisesRegex(ValueError, "episodes.to_resolution"):
+            validate_task_attempt_document(document)
+
+    def test_task_attempt_episodes_rejects_negative_cost(self) -> None:
+        document = _valid_task_attempt_document()
+        document["episodes"] = {
+            "count": 1,
+            "items": [{"index": 1, "ended": "natural", "cost_usd": -0.1}],
+        }
+
+        with self.assertRaisesRegex(ValueError, "episodes.items\\[0\\].cost_usd"):
+            validate_task_attempt_document(document)
+
+    def test_task_attempt_episodes_rejects_non_object_item(self) -> None:
+        document = _valid_task_attempt_document()
+        document["episodes"] = {
+            "count": 1,
+            "items": ["not-an-object"],
+        }
+
+        with self.assertRaisesRegex(
+            ValueError, "episodes.items\\[0\\] must be an object"
+        ):
+            validate_task_attempt_document(document)
 
     def test_task_attempt_scorecard_documents_include_schema_version(self) -> None:
         validate_task_attempt_scorecard_document(
@@ -921,6 +933,71 @@ class SchemaTests(unittest.TestCase):
                 run_regatta(config_path, logbook_dir)
 
             self.assertFalse(logbook_dir.exists())
+
+
+def _valid_task_attempt_document() -> dict[str, Any]:
+    return {
+        "schema": TASK_ATTEMPT_SCHEMA,
+        "regatta": "pi-fff-comparison",
+        "course": "tiny-smoke-course",
+        "comparison": "pi-vs-pi-fff",
+        "vessel": "pi-plus-fff",
+        "model": "pi",
+        "rigging": ["fff"],
+        "runtime": "pi-runtime",
+        "status": "completed",
+        "task": {
+            "id": "task-1",
+            "title": "Touch a marker file",
+            "difficulty": 1,
+        },
+        "runtime_context": {
+            "backend": "host-nix",
+            "harness": "pi",
+            "agent": "pi",
+            "temp_home": "/tmp/yacht/home",
+            "workspace_path": "/tmp/workspace",
+            "command_prefix": ["nix", "develop", "flake", "--command"],
+            "command": ["pi"],
+            "cleanup_paths": ["/tmp/yacht"],
+        },
+        "prompt": "Create the requested marker file.",
+        "agent": {
+            "exit_code": 0,
+            "response": "done",
+            "tool_calls": ["fff"],
+            "transcript_path": "/tmp/logbook/transcripts/task-1.json",
+            "machine_evidence": {
+                "format": "pi-jsonl",
+                "event_count": 12,
+                "api": "anthropic-messages",
+                "provider": "anthropic",
+                "model": "claude-haiku-4-5",
+                "response_id": "msg_123",
+                "usage": {
+                    "input": 1000,
+                    "output": 234,
+                    "cacheRead": 0,
+                    "cacheWrite": 0,
+                    "totalTokens": 1234,
+                },
+                "cost": {"total": 0.00123},
+                "tool_calls": ["fff"],
+            },
+        },
+        "metrics": {
+            "tokens": 1234,
+            "duration_seconds": 12.5,
+        },
+        "secret_refs": [
+            {
+                "name": "anthropic",
+                "source": "env",
+                "ref": "ANTHROPIC_API_KEY",
+                "redacted": True,
+            }
+        ],
+    }
 
 
 def _valid_benchmark_scorecard_document() -> dict[str, Any]:
