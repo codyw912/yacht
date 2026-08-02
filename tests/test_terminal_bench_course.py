@@ -434,6 +434,45 @@ class TerminalBenchRolloutPlanTests(unittest.TestCase):
 
 
 class TerminalBenchHarnessTests(unittest.TestCase):
+    def test_harbor_command_absolutizes_relative_paths(self) -> None:
+        """Docker rejects relative bind mounts ("mount path must be
+        absolute"), so a relative --logbook must not reach the -v flags."""
+        command = harbor_command(
+            Path("relay-logbook/trials/harbor-run-config.json"),
+            trials_dir=Path("relay-logbook/trials"),
+            secret_env=[],
+            tasks_path=Path("examples/custom-evals"),
+        )
+        trials_abs = Path.cwd() / "relay-logbook" / "trials"
+        tasks_abs = Path.cwd() / "examples" / "custom-evals"
+        self.assertIn(f"{trials_abs}:{trials_abs}", command)
+        self.assertIn(f"{tasks_abs}:{tasks_abs}", command)
+        config_arg = command[command.index("-c") + 1]
+        self.assertEqual(config_arg, str(trials_abs / "harbor-run-config.json"))
+
+    def test_harbor_run_config_records_absolute_jobs_dir(self) -> None:
+        """jobs_dir is read inside the launcher container, where the trials
+        dir is mounted at its absolute host path; a relative value would
+        strand trial results under /workspace."""
+        job = {
+            "dataset": {"name": "terminal-bench/terminal-bench-2", "version": "2.0"},
+            "tasks": ["hello-world"],
+            "agent": {
+                "name": "claude-code",
+                "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
+                "version": "2.1.211",
+                "model": "claude-haiku-4-5",
+                "env": {},
+                "mcp_servers": [],
+                "rigging_steps": [],
+            },
+        }
+        run_config = harbor_run_config(job, trials_dir=Path("relay-logbook/trials"))
+        self.assertEqual(
+            run_config["jobs_dir"],
+            str(Path.cwd() / "relay-logbook" / "trials"),
+        )
+
     def test_translates_trials_into_normalized_native_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             trials_dir = Path(temp_dir)

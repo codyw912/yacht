@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Callable
@@ -9,6 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from yacht.domain.model import ConfigError
+
+
+def _absolute(path: Path) -> Path:
+    return Path(os.path.abspath(path))
 
 
 HARBOR_LAUNCHER_IMAGE = "yacht/harbor-launcher:harbor-0.20.0"
@@ -110,6 +115,18 @@ def harbor_command(
     tasks_path: Path | None = None,
     artifact_path: Path | None = None,
 ) -> list[str]:
+    # Docker rejects relative bind mounts, and the launcher resolves -c
+    # against its own working directory; every path that crosses the
+    # container boundary must be absolute. abspath, not resolve(): the
+    # mounted path must match what jobs_dir records, and resolving
+    # symlinks (e.g. macOS /var -> /private/var) would change paths the
+    # caller sees elsewhere.
+    harbor_config_path = _absolute(harbor_config_path)
+    trials_dir = _absolute(trials_dir)
+    if tasks_path is not None:
+        tasks_path = _absolute(tasks_path)
+    if artifact_path is not None:
+        artifact_path = _absolute(artifact_path)
     command = [
         "docker",
         "run",
@@ -143,6 +160,10 @@ def harbor_command(
 
 
 def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any]:
+    # jobs_dir is read inside the launcher container, where the trials
+    # dir is mounted at its absolute host path; a relative value would
+    # strand trial results under the container's working directory.
+    trials_dir = _absolute(trials_dir)
     agent = job["agent"]
     kwargs: dict[str, Any] = {"version": str(agent["version"])}
     if agent.get("rigging_steps"):
