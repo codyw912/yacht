@@ -536,9 +536,16 @@ class YachtDeclared(BaseInstalledAgent):
         if failure is not None:
             raise failure
         if not per_episode_evidence:
+            # Reachable not just when every episode times out, but also
+            # when a timed-out episode's inter-episode verifier reports
+            # resolution (to_resolution set) before any episode ever
+            # completed a measured run. Resolution does not exempt the
+            # relay from the evidence requirement below.
             raise RuntimeError(
-                "declared harness relay produced no evidence: every episode "
-                "timed out"
+                "declared episodic relay produced no harness evidence (no "
+                "episode completed a measured run); a run without valid "
+                "evidence is a trial error even when an inter-episode "
+                "verifier reported resolution"
             )
         merged = episodes.merged_declared_evidence(per_episode_evidence)
         validated = declared_support.validate_evidence(merged)
