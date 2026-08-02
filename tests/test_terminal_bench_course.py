@@ -670,6 +670,36 @@ class TerminalBenchHarnessTests(unittest.TestCase):
             },
         )
 
+    def test_harbor_run_config_forwards_episode_plans(self) -> None:
+        job = {
+            "schema": "yacht.terminal-bench-job.v1",
+            "dataset": {"name": "terminal-bench/terminal-bench-2", "version": "2.0"},
+            "tasks": ["relay-task"],
+            "vessel": "claude-baseline",
+            "agent": {
+                "name": "claude-code",
+                "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
+                "version": "2.1.211",
+                "model": "claude-haiku-4-5",
+                "env": {},
+                "mcp_servers": [],
+                "rigging_steps": [],
+                "episodes": {
+                    "relay-task": {
+                        "max": 2,
+                        "verify_between": False,
+                        "instructions": ["x"],
+                    }
+                },
+            },
+        }
+
+        config = harbor_run_config(job, trials_dir=Path("/tmp/trials"))
+
+        self.assertEqual(
+            config["agents"][0]["kwargs"]["episodes"]["relay-task"]["max"], 2
+        )
+
 
 class TerminalBenchAttemptsFromTrialsTests(unittest.TestCase):
     def test_synthesizes_attempts_for_missing_and_errored_trials(self) -> None:
@@ -1057,6 +1087,151 @@ class ProviderJobRenderingTests(unittest.TestCase):
         self.assertEqual(
             [server["name"] for server in job["agent"]["mcp_servers"]], ["files"]
         )
+
+
+CUSTOM_EVAL_EPISODIC_CONFIG = """
+[regatta]
+name = "custom-eval-episodic"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "relay-course"
+
+[[course.tasks]]
+id = "relay-task"
+title = "Relay task with an episode plan"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "evals"
+split = "v1"
+harness = "harbor"
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.harbor-claude]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "claude-code"
+harness_version = "2.1.211"
+required_secrets = ["anthropic"]
+
+[runtimes.harbor-pi]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "pi"
+harness_version = "0.74.0"
+required_secrets = ["anthropic"]
+
+[[vessels]]
+name = "claude-baseline"
+model = "claude-haiku-4-5"
+runtime = "harbor-claude"
+
+[[vessels]]
+name = "pi-baseline"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-pi"
+
+[[comparisons]]
+name = "claude-vs-pi"
+course = "relay-course"
+vessels = ["claude-baseline", "pi-baseline"]
+"""
+
+
+def _write_custom_eval_relay_task(
+    root: Path, *, episodes_table: str | None
+) -> Path:
+    tasks_dir = root / "evals"
+    task_dir = tasks_dir / "relay-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "instruction.md").write_text("episode one\n", encoding="utf-8")
+    body = (
+        '[metadata]\n'
+        'author = "yacht"\n'
+        'description = "Episodic relay smoke task."\n'
+        'difficulty = "easy"\n'
+        "\n"
+        "[verifier]\n"
+        "timeout_sec = 60.0\n"
+        "\n"
+        "[agent]\n"
+        "timeout_sec = 300.0\n"
+    )
+    if episodes_table is not None:
+        body += "\n" + episodes_table
+    (task_dir / "task.toml").write_text(body, encoding="utf-8")
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test.sh").write_text(
+        "#!/bin/bash\nset -uo pipefail\nexit 0\n", encoding="utf-8"
+    )
+    environment_dir = task_dir / "environment"
+    environment_dir.mkdir()
+    (environment_dir / "Dockerfile").write_text(
+        "FROM alpine:3.20\n", encoding="utf-8"
+    )
+    if episodes_table is not None:
+        episodes_dir = task_dir / "episodes"
+        episodes_dir.mkdir()
+        (episodes_dir / "002.md").write_text("delta two\n", encoding="utf-8")
+    return tasks_dir
+
+
+def _write_custom_eval_episodic_config(root: Path) -> Path:
+    config_path = root / "regatta.toml"
+    config_path.write_text(CUSTOM_EVAL_EPISODIC_CONFIG, encoding="utf-8")
+    return config_path
+
+
+class EpisodicJobRenderingTests(unittest.TestCase):
+    def test_render_job_embeds_episode_plans_for_episodic_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_custom_eval_relay_task(
+                root, episodes_table="[episodes]\nmax = 2\n"
+            )
+            config_path = _write_custom_eval_episodic_config(root)
+            regatta = load_regatta(config_path)
+
+            job = render_terminal_bench_job(
+                regatta=regatta, vessel_name="claude-baseline"
+            )
+
+        self.assertEqual(
+            job["agent"]["episodes"]["relay-task"]["instructions"], ["delta two\n"]
+        )
+        self.assertEqual(job["agent"]["episodes"]["relay-task"]["max"], 2)
+
+    def test_render_job_omits_episodes_key_when_no_task_is_episodic(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_custom_eval_relay_task(root, episodes_table=None)
+            config_path = _write_custom_eval_episodic_config(root)
+            regatta = load_regatta(config_path)
+
+            job = render_terminal_bench_job(
+                regatta=regatta, vessel_name="claude-baseline"
+            )
+
+        self.assertNotIn("episodes", job["agent"])
+
+    def test_render_job_rejects_episodic_tasks_on_pi(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_custom_eval_relay_task(
+                root, episodes_table="[episodes]\nmax = 2\n"
+            )
+            config_path = _write_custom_eval_episodic_config(root)
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(ConfigError, "pi"):
+                render_terminal_bench_job(regatta=regatta, vessel_name="pi-baseline")
 
 
 if __name__ == "__main__":

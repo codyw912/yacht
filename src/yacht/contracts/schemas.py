@@ -1331,6 +1331,8 @@ def validate_terminal_bench_job_document(document: dict[str, Any]) -> None:
             _require_object(entry, f"terminal-bench job.agent.{key}[{index}]")
     if "declaration" in agent:
         _require_object(agent["declaration"], "terminal-bench job.agent.declaration")
+    if "episodes" in agent:
+        _validate_job_episode_plans(agent["episodes"], document["tasks"])
     _require_non_empty_string(
         document["launcher_image"], "terminal-bench job.launcher_image"
     )
@@ -1338,6 +1340,39 @@ def validate_terminal_bench_job_document(document: dict[str, Any]) -> None:
     for index, name in enumerate(secret_env):
         _require_non_empty_string(name, f"terminal-bench job.secret_env[{index}]")
     _require_non_empty_string(document["vessel"], "terminal-bench job.vessel")
+
+
+def _validate_job_episode_plans(value: Any, tasks: Any) -> None:
+    episodes = _require_object(value, "terminal-bench job.agent.episodes")
+    task_names = {str(task) for task in tasks} if isinstance(tasks, list) else set()
+    for task_name, plan_value in episodes.items():
+        path = f"terminal-bench job.agent.episodes[{task_name}]"
+        _require_non_empty_string(task_name, "terminal-bench job.agent.episodes key")
+        if task_name not in task_names:
+            raise SchemaValidationError(
+                f"{path} does not match any task in the job"
+            )
+        plan = _require_object(plan_value, path)
+        _require_keys(plan, ("max", "verify_between", "instructions"), path)
+        maximum = plan["max"]
+        if isinstance(maximum, bool) or not isinstance(maximum, int) or maximum < 2:
+            raise SchemaValidationError(f"{path}.max must be an integer >= 2")
+        if not isinstance(plan["verify_between"], bool):
+            raise SchemaValidationError(f"{path}.verify_between must be a boolean")
+        instructions = _require_list(plan["instructions"], f"{path}.instructions")
+        if len(instructions) != maximum - 1:
+            raise SchemaValidationError(
+                f"{path}.instructions must contain max - 1 entries"
+            )
+        for index, entry in enumerate(instructions):
+            _require_non_empty_string(entry, f"{path}.instructions[{index}]")
+        for key in ("max_turns", "timeout_seconds"):
+            if key in plan:
+                bound = plan[key]
+                if isinstance(bound, bool) or not isinstance(bound, int) or bound < 1:
+                    raise SchemaValidationError(
+                        f"{path}.{key} must be an integer >= 1"
+                    )
 
 
 def validate_course_grading_report_document(document: dict[str, Any]) -> None:

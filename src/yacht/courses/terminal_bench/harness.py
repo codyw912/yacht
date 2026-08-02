@@ -149,6 +149,8 @@ def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any
         kwargs["rigging_steps"] = list(agent["rigging_steps"])
     if agent.get("declaration"):
         kwargs["declaration"] = dict(agent["declaration"])
+    if agent.get("episodes"):
+        kwargs["episodes"] = dict(agent["episodes"])
     agent_config: dict[str, Any] = {
         "import_path": str(agent["import_path"]),
         "model_name": str(agent["model"]),

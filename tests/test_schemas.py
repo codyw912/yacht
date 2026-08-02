@@ -1447,6 +1447,68 @@ class TerminalBenchJobSchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "agent.version"):
             validate_terminal_bench_job_document(document)
 
+    def test_job_accepts_agent_episodes(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        document["agent"]["episodes"] = {
+            "task-1": {
+                "max": 2,
+                "verify_between": False,
+                "instructions": ["Continue work on the project."],
+            }
+        }
+
+        validate_terminal_bench_job_document(document)
+
+    def test_job_rejects_episode_plan_max_below_two(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        document["agent"]["episodes"] = {
+            "task-1": {"max": 1, "verify_between": False, "instructions": []}
+        }
+
+        with self.assertRaisesRegex(ValueError, "episodes\\[task-1\\].max"):
+            validate_terminal_bench_job_document(document)
+
+    def test_job_rejects_episode_plan_instructions_length_mismatch(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        document["agent"]["episodes"] = {
+            "task-1": {
+                "max": 3,
+                "verify_between": False,
+                "instructions": ["only one"],
+            }
+        }
+
+        with self.assertRaisesRegex(
+            ValueError, "episodes\\[task-1\\].instructions"
+        ):
+            validate_terminal_bench_job_document(document)
+
+    def test_job_rejects_episode_plan_for_task_not_in_job(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        document["agent"]["episodes"] = {
+            "not-a-real-task": {
+                "max": 2,
+                "verify_between": False,
+                "instructions": ["x"],
+            }
+        }
+
+        with self.assertRaisesRegex(
+            ValueError, "does not match any task in the job"
+        ):
+            validate_terminal_bench_job_document(document)
+
+    def test_job_rejects_episode_plan_non_boolean_verify_between(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        document["agent"]["episodes"] = {
+            "task-1": {"max": 2, "verify_between": "yes", "instructions": ["x"]}
+        }
+
+        with self.assertRaisesRegex(
+            ValueError, "episodes\\[task-1\\].verify_between"
+        ):
+            validate_terminal_bench_job_document(document)
+
 
 def _valid_course_grading_report_document() -> dict[str, Any]:
     return {
