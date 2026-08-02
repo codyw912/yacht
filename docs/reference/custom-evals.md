@@ -72,6 +72,169 @@ my-evals/
   nothing.
 - A working example lives at `examples/custom-evals/hello-task`.
 
+## Episodic tasks
+
+A task can declare a *relay*: several cold agent sessions run in sequence
+against one persistent environment, with files on disk as the only
+memory between them (ADR 0025). This is how you test claims about
+institutional memory — session-handoff frameworks, memory files, context
+docs — where the thing under test is whether a fresh session does less
+rediscovery because of what a prior session left behind. A working
+example lives at `examples/custom-evals/relay-task`.
+
+### The `[episodes]` table
+
+Add an `[episodes]` table to `task.toml` to activate the feature:
+
+```toml
+[agent]
+# Covers the whole relay: every episode plus inter-episode verification.
+timeout_sec = 900.0
+
+[episodes]
+max = 2
+verify_between = true
+max_turns = 15
+timeout_seconds = 300
+```
+
+- `max` (required, integer >= 1) — the number of episodes. `max = 1` is
+  the same as omitting the table entirely; a value greater than 1
+  activates the relay.
+- `verify_between` (default `false`) — run the verifier between
+  episodes; see below.
+- `continue_instruction` (default `"Continue work on the project."`) —
+  the instruction an episode receives when no delta file supplies one.
+- `max_turns` (optional) — a per-episode turn cap, enforced
+  harness-natively (see Budgets below).
+- `timeout_seconds` (optional) — a per-episode wall-clock backstop.
+
+Unknown keys, a non-boolean `verify_between`, or a blank
+`continue_instruction` are `ConfigError`s at render time, before any
+container starts. Note that `task.toml` is required for every
+custom-eval task, episodic or not.
+
+Episode 1 always receives the task's normal `instruction.md`. `[agent]
+timeout_sec` is the *trial's* budget, not one episode's — because a
+relay is one Harbor trial, it must cover every episode plus any
+inter-episode verification, not just the first.
+
+### Delta files
+
+Later episodes can each receive their own instruction via
+`episodes/00k.md` files (three digits, contiguous starting at `002`):
+
+```
+relay-task/
+├── task.toml
+├── instruction.md      # episode 1
+└── episodes/
+    └── 002.md           # episode 2
+```
+
+Episode *k* >= 2 receives `episodes/00k.md` **alone** if it exists —
+never unioned with the original instruction or any earlier delta — or
+`continue_instruction` if it doesn't. This is what makes drip-fed
+requirement schedules expressible: each episode sees only what a real
+returning session would see, plus whatever the prior episode chose to
+leave on disk. `examples/custom-evals/relay-task/episodes/002.md`
+delivers a new requirement and points the agent at
+`/app/NOTES.md`, which episode 1's `instruction.md` asked the agent to
+leave for a future session.
+
+A gap in the numbering, a file past `max`, an unknown filename shape, or
+an empty delta file are all `ConfigError`s at render time. Delta files
+with no `[episodes]` table is also an error — the table is what
+activates the feature.
+
+### Budgets: harness-native caps, wall-clock backstop
+
+Per-episode caps come from the harness itself, so a capped episode ends
+the way a real session ends, transcripts intact — not the wall clock.
+For `claude-code`, `max_turns` is passed as `--max-turns`; hitting it is
+a normal episode ending (`ended: "cap"`, from the stream result's
+`error_max_turns` subtype), not a failure. Declared harnesses opt into
+the cap by naming a `{max_turns}` placeholder somewhere in their
+declared `command`; without that placeholder, `max_turns` in
+`[episodes]` has no effect and only the `timeout_seconds` wall-clock
+backstop applies to that harness. Declared episodes have no cap signal
+of their own — `ended` for them is `natural`, `timeout`, or `error`
+only, never `cap`.
+
+`timeout_seconds` is the driver's own backstop for hangs; hitting it
+ends the episode with `ended: "timeout"`, itself a normal ending, and
+the relay moves on to the next episode. Only a harness crash
+(`ended: "error"`) aborts the trial — and it does so preserving whatever
+episodes already completed.
+
+pi does not support episodic trials yet: an `[episodes]` table on a task
+run under the `pi` harness fails at render time, before any container
+starts, never as a silent single-shot fallback.
+
+### The `verify_between` contract
+
+With `verify_between = true`, yacht mirrors Harbor's verifier protocol
+against the live environment after each non-final episode: it uploads
+the task's `tests/`, execs `/tests/test.sh`, reads
+`/logs/verifier/reward.{json,txt}`, relocates those files into the
+episode's evidence directory, and removes `/tests` and the reward files
+from the container. `verify_between` requires `tests/test.sh` to exist —
+its absence is a `ConfigError` at render time.
+
+Setting the flag is the task author's assertion that the verifier is
+**side-effect-free**; the upload/exec/removal sequence is hygiene, not a
+guarantee, and the documented contract puts the leakage risk on the
+author. The inter-episode exec always runs `tests/test.sh` directly and
+ignores the task's `[verifier]` `env` settings (a v1 limitation) — it
+does not reproduce arbitrary verifier configuration, only the script
+itself.
+
+A reward >= 1.0 between episodes ends the relay early and records
+`to_resolution`. It never grades the trial: the final Harbor-run
+verifier, run once after the last episode, remains grading truth. If a
+mid-relay pass is contradicted by the final verdict, both are preserved
+as a visible mismatch in the evidence — yacht never resolves the
+disagreement in its own favor.
+
+### Evidence
+
+Per-episode artifacts land under the trial's agent log directory:
+
+```
+<trial>/agent/episodes/
+├── 001/
+│   ├── instruction.md
+│   ├── claude-code.txt          # or run-stdout.txt/run-stderr.txt +
+│   │                             # harness-evidence.json (declared harnesses)
+│   └── sessions-manifest.json
+├── 002/
+│   ├── instruction.md
+│   ├── ...
+│   └── reward.json               # + reward.txt, when verify_between ran here
+└── summary.json                  # {count, items, to_resolution?}
+```
+
+`sessions-manifest.json` is cumulative — each episode's copy lists every
+session file written so far, not just that episode's own. Attributing a
+session to a specific episode means diffing episode *k*'s manifest
+against episode *k-1*'s.
+
+The task attempt carries a validated top-level `episodes` block —
+`{count, items, to_resolution?}`, where each item has `index`, `ended`
+(`natural` | `cap` | `timeout` | `error`), and optional `started_at`,
+`finished_at`, `usage`, `cost_usd`, `reward`. Attempt-level usage and
+cost sum across episodes.
+
+### Statistics
+
+One trial contributes exactly one paired outcome, however many episodes
+it ran. Episode metrics — endings, rewards, `to_resolution`, per-episode
+usage — are descriptive evidence for reading what happened inside the
+relay; they never enter the sign test and never count toward repetition
+budgets (ADR 0021, ADR 0023). A repetition of an episodic task is a
+complete fresh relay: new container, new workspace, every episode run
+again from episode 1 (ADR 0025).
+
 ## Configuration
 
 ```toml
