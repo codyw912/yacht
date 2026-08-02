@@ -403,11 +403,39 @@ def _usage_cost(message: dict[str, Any]) -> dict[str, Any]:
 def _tool_calls_from_pi_events(events: list[dict[str, Any]]) -> tuple[str, ...]:
     tool_calls: list[str] = []
     for event in events:
+        tool_calls.extend(_gateway_tool_calls(event))
         for tool_result in _tool_result_values(event):
             name = _tool_name(tool_result)
             if name is not None:
                 tool_calls.append(name)
     return tuple(dict.fromkeys(tool_calls))
+
+
+def _gateway_tool_calls(event: dict[str, Any]) -> list[str]:
+    """MCP tools invoked through pi-mcp-adapter's mcp gateway.
+
+    The observable tool is named mcp, but the call's arguments carry the
+    prefixed inner tool name (mcp__<server>_<tool>) — the per-server
+    delivery evidence ADR 0024 keys on."""
+    message = event.get("message")
+    if not isinstance(message, dict):
+        return []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return []
+    names: list[str] = []
+    for item in content:
+        if not isinstance(item, dict) or item.get("type") != "toolCall":
+            continue
+        if item.get("name") != "mcp":
+            continue
+        arguments = item.get("arguments")
+        if not isinstance(arguments, dict):
+            continue
+        inner = arguments.get("tool")
+        if isinstance(inner, str) and inner:
+            names.append(inner)
+    return names
 
 
 def _tool_result_values(event: dict[str, Any]) -> list[Any]:

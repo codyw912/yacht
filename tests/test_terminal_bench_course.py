@@ -301,7 +301,7 @@ class TerminalBenchJobTests(unittest.TestCase):
 
     def test_rejects_unpinned_agent_extension_target(self) -> None:
         config = PI_MCP_EXAMPLE_CONFIG.read_text(encoding="utf-8").replace(
-            'target = "npm:pi-mcp-adapter@2.15.0"',
+            'target = "npm:pi-mcp-adapter@2.17.0"',
             'target = "npm:pi-mcp-adapter"',
         )
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -317,8 +317,8 @@ class TerminalBenchJobTests(unittest.TestCase):
 
     def test_rejects_agent_extension_target_without_npm_prefix(self) -> None:
         config = PI_MCP_EXAMPLE_CONFIG.read_text(encoding="utf-8").replace(
-            'target = "npm:pi-mcp-adapter@2.15.0"',
-            'target = "pi-mcp-adapter@2.15.0"',
+            'target = "npm:pi-mcp-adapter@2.17.0"',
+            'target = "pi-mcp-adapter@2.17.0"',
         )
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "regatta.toml"
@@ -327,7 +327,7 @@ class TerminalBenchJobTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 ConfigError,
-                "agent-extension pi-mcp-adapter@2.15.0 must use the npm: "
+                "agent-extension pi-mcp-adapter@2.17.0 must use the npm: "
                 "prefix for terminal-bench",
             ):
                 render_terminal_bench_job(regatta=regatta, vessel_name="pi-with-mcp")

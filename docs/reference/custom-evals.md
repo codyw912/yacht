@@ -184,10 +184,13 @@ comparison on pi: `pi-mcp-adapter` declares
 `provides = [{ method = "mcp-server", harness = "pi" }]`, the
 capability gate accepts the `files` server's install step on that
 strength, and yacht renders the adapter's `.pi/agent/mcp.json` with
-`directTools` on and the delimited `mcp` prefix so delivery stays
-measurable. Without a declared provider the gate still refuses the
-step, and without the namespace guarantee the server reports
-unmeasured rather than guessed at.
+`directTools` on and the `mcp` tool prefix, which names the server's
+tools `mcp__files_<tool>`. Delivery evidence keys on that convention
+wherever the names appear — as directly registered tools or as the
+inner tool name a call through the adapter's `mcp` gateway carries.
+Without a declared provider the gate still refuses the step, and
+without the namespace guarantee the server reports unmeasured rather
+than guessed at.
 
 Two properties make the result trustworthy where a raw pass-rate delta
 is not:

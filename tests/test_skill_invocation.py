@@ -205,7 +205,7 @@ class PiProviderExpectationTests(unittest.TestCase):
                 {
                     "tool": "files",
                     "kind": "mcp-server",
-                    "expected_calls": ["mcp__files__"],
+                    "expected_calls": ["mcp__files_"],
                 }
             ],
         )
