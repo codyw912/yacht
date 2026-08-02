@@ -38,6 +38,22 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def resolve_episode_plan(
+    episodes_kwarg: dict[str, Any] | None, logs_dir: Path
+) -> tuple[dict[str, Any] | None, Path | None]:
+    """The validated episode plan for this trial, or (None, None).
+
+    Shared by `YachtClaudeCode` and `YachtDeclared`: both key their plan
+    off the task identity read from the trial's Harbor config.json,
+    which sits one directory up from the agent's own logs_dir.
+    """
+    if not episodes_kwarg:
+        return None, None
+    task_name, task_dir = episodes.task_identity(logs_dir.parent)
+    plan = episodes.plan_for_task(episodes_kwarg, task_name)
+    return plan, task_dir
+
+
 async def apply_rigging_steps(
     environment: BaseEnvironment,
     steps: list[dict[str, Any]],
@@ -125,11 +141,7 @@ class YachtClaudeCode(ClaudeCode):
         await self._run_episodes(plan, task_dir, instruction, environment, context)
 
     def _episode_plan(self) -> tuple[dict[str, Any] | None, Path | None]:
-        if not self._episodes_kwarg:
-            return None, None
-        task_name, task_dir = episodes.task_identity(self.logs_dir.parent)
-        plan = episodes.plan_for_task(self._episodes_kwarg, task_name)
-        return plan, task_dir
+        return resolve_episode_plan(self._episodes_kwarg, self.logs_dir)
 
     async def _run_episodes(
         self,
@@ -298,11 +310,13 @@ class YachtDeclared(BaseInstalledAgent):
         logs_dir: Path,
         declaration: dict[str, Any],
         rigging_steps: list[dict[str, Any]] | None = None,
+        episodes: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ):
         self._declaration = dict(declaration)
         self._rigging_steps = list(rigging_steps or [])
+        self._episodes_kwarg = dict(episodes or {})
         self._evidence: dict[str, Any] | None = None
         super().__init__(logs_dir, *args, **kwargs)
 
@@ -346,6 +360,10 @@ class YachtDeclared(BaseInstalledAgent):
         return target
 
     async def run(self, instruction, environment: BaseEnvironment, context) -> None:
+        plan, task_dir = resolve_episode_plan(self._episodes_kwarg, self.logs_dir)
+        if plan is not None:
+            await self._run_episodes(plan, task_dir, instruction, environment, context)
+            return
         command = declared_support.run_command(
             self._declaration,
             model=str(self.model_name or ""),
@@ -362,15 +380,181 @@ class YachtDeclared(BaseInstalledAgent):
             raise RuntimeError(
                 f"declared harness exited with code {result.return_code}"
             )
-        self._evidence = await self._collect_evidence(environment, result)
+        self._evidence = await self._collect_evidence(
+            environment, result, self.logs_dir
+        )
+
+    async def _run_episodes(
+        self,
+        plan: dict[str, Any],
+        task_dir: Path,
+        instruction: str,
+        environment: BaseEnvironment,
+        context,
+    ) -> None:
+        episodes_dir = self.logs_dir / "episodes"
+        records: list[dict[str, Any]] = []
+        per_episode_evidence: list[dict[str, Any]] = []
+        to_resolution: int | None = None
+        failure: Exception | None = None
+        try:
+            for index in range(1, plan["max"] + 1):
+                text = instruction if index == 1 else plan["instructions"][index - 2]
+                episode_dir = episodes_dir / f"{index:03d}"
+                episode_dir.mkdir(parents=True, exist_ok=True)
+                (episode_dir / "instruction.md").write_text(text, encoding="utf-8")
+                command = declared_support.run_command(
+                    self._declaration,
+                    model=str(self.model_name or ""),
+                    instruction=text,
+                    max_turns=plan.get("max_turns"),
+                )
+                started_at = _utc_now()
+                timed_out = False
+                result = None
+                try:
+                    timeout = plan.get("timeout_seconds")
+                    if timeout:
+                        async with asyncio.timeout(timeout):
+                            result = await environment.exec(command=command)
+                    else:
+                        result = await environment.exec(command=command)
+                except TimeoutError:
+                    timed_out = True
+                    binary = declared_support.binary_path(self._declaration)
+                    await environment.exec(command=f"pkill -f {binary} || true")
+                    # No evidence was collected this episode, but the
+                    # harness may have partially written the container
+                    # evidence file before being killed; clear it so the
+                    # next episode cannot inherit stale evidence.
+                    await environment.exec(
+                        command=f"rm -f {declared_support.CONTAINER_EVIDENCE_PATH}"
+                    )
+                finished_at = _utc_now()
+
+                # Mirrors YachtClaudeCode._run_episodes: a timeout is a
+                # normal (if unproductive) episode ending, not a trial
+                # failure — the relay tries the next episode. Only a
+                # nonzero exit or invalid evidence aborts the trial.
+                if timed_out:
+                    record = episodes.episode_record(
+                        index=index,
+                        ended=episodes.ENDED_TIMEOUT,
+                        started_at=started_at,
+                        finished_at=finished_at,
+                    )
+                elif result.return_code != 0:
+                    (episode_dir / "run-stdout.txt").write_text(
+                        result.stdout or "", encoding="utf-8"
+                    )
+                    (episode_dir / "run-stderr.txt").write_text(
+                        result.stderr or "", encoding="utf-8"
+                    )
+                    records.append(
+                        episodes.episode_record(
+                            index=index,
+                            ended=episodes.ENDED_ERROR,
+                            started_at=started_at,
+                            finished_at=finished_at,
+                        )
+                    )
+                    failure = RuntimeError(
+                        f"declared harness exited with code {result.return_code} "
+                        f"in episode {index}"
+                    )
+                    break
+                else:
+                    (episode_dir / "run-stdout.txt").write_text(
+                        result.stdout or "", encoding="utf-8"
+                    )
+                    (episode_dir / "run-stderr.txt").write_text(
+                        result.stderr or "", encoding="utf-8"
+                    )
+                    try:
+                        evidence = await self._collect_evidence(
+                            environment, result, episode_dir
+                        )
+                    except Exception as exc:
+                        # An episode that ran but yielded invalid/unreadable
+                        # evidence is a trial error, same as a nonzero exit.
+                        records.append(
+                            episodes.episode_record(
+                                index=index,
+                                ended=episodes.ENDED_ERROR,
+                                started_at=started_at,
+                                finished_at=finished_at,
+                            )
+                        )
+                        failure = exc
+                        break
+
+                    await environment.exec(
+                        command=f"rm -f {declared_support.CONTAINER_EVIDENCE_PATH}"
+                    )
+                    per_episode_evidence.append(evidence)
+                    usage_source = evidence.get("usage", {})
+                    usage = {
+                        key: usage_source[key]
+                        for key in (
+                            "input_tokens",
+                            "output_tokens",
+                            "cache_read_tokens",
+                        )
+                        if key in usage_source
+                    }
+                    cost_usd = declared_support.context_fields(evidence)["cost_usd"]
+                    record = episodes.episode_record(
+                        index=index,
+                        ended=episodes.ENDED_NATURAL,
+                        started_at=started_at,
+                        finished_at=finished_at,
+                        usage=usage,
+                        cost_usd=cost_usd,
+                    )
+
+                if (
+                    plan["verify_between"]
+                    and index < plan["max"]
+                    and to_resolution is None
+                ):
+                    reward = await run_episode_verifier(
+                        environment,
+                        task_dir,
+                        episode_dir,
+                        self.logs_dir.parent / "verifier",
+                    )
+                    if reward is not None:
+                        record["reward"] = reward
+                        if reward >= 1.0:
+                            to_resolution = index
+                records.append(record)
+                if to_resolution is not None:
+                    break
+        finally:
+            if records:
+                episodes.write_relay_summary(episodes_dir, records, to_resolution)
+        if failure is not None:
+            raise failure
+        if not per_episode_evidence:
+            raise RuntimeError(
+                "declared harness relay produced no evidence: every episode "
+                "timed out"
+            )
+        merged = episodes.merged_declared_evidence(per_episode_evidence)
+        validated = declared_support.validate_evidence(merged)
+        (self.logs_dir / "harness-evidence.json").write_text(
+            json.dumps(validated, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        self._evidence = validated
 
     async def _collect_evidence(
         self,
         environment: BaseEnvironment,
         result: Any,
+        target: Path,
     ) -> dict[str, Any]:
         if self._declaration.get("evidence", "stdout") == "file":
-            local = self.logs_dir / "harness-evidence.json"
+            local = target / "harness-evidence.json"
             await environment.download_file(
                 declared_support.CONTAINER_EVIDENCE_PATH, local
             )
@@ -384,7 +568,7 @@ class YachtDeclared(BaseInstalledAgent):
                     "declared harness exited 0 without emitting evidence"
                 )
             payload = json.loads(lines[-1])
-            (self.logs_dir / "harness-evidence.json").write_text(
+            (target / "harness-evidence.json").write_text(
                 json.dumps(payload, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )

@@ -30,6 +30,55 @@ VALID_PLAN = {
 }
 
 
+DECLARED_HARNESS = {
+    "name": "yach",
+    "prompt": "argument",
+    "evidence": "file",
+    "command": ["yach", "run", "--model", "{model}", "--max-turns", "{max_turns}"],
+    "install": {"path": "/tmp/dist/yach", "sha256": "a" * 64},
+}
+
+
+class RunCommandMaxTurnsTests(unittest.TestCase):
+    def test_placeholder_replaced_when_max_turns_set(self) -> None:
+        command = declared_support.run_command(
+            DECLARED_HARNESS,
+            model="claude-haiku-4-5",
+            instruction="solve it",
+            max_turns=40,
+        )
+        self.assertIn("--max-turns 40", command)
+        self.assertNotIn("{max_turns}", command)
+
+    def test_placeholder_with_no_max_turns_raises(self) -> None:
+        with self.assertRaises(declared_support.DeclaredAgentError):
+            declared_support.run_command(
+                DECLARED_HARNESS,
+                model="claude-haiku-4-5",
+                instruction="solve it",
+                max_turns=None,
+            )
+
+    def test_max_turns_set_with_no_placeholder_leaves_command_unchanged(self) -> None:
+        declaration = {
+            **DECLARED_HARNESS,
+            "command": ["yach", "run", "--model", "{model}"],
+        }
+        with_cap = declared_support.run_command(
+            declaration,
+            model="claude-haiku-4-5",
+            instruction="solve it",
+            max_turns=40,
+        )
+        without_cap = declared_support.run_command(
+            declaration,
+            model="claude-haiku-4-5",
+            instruction="solve it",
+            max_turns=None,
+        )
+        self.assertEqual(with_cap, without_cap)
+
+
 class PlanForTaskTests(unittest.TestCase):
     def test_happy_path_returns_validated_plan(self) -> None:
         result = episodes.plan_for_task(
