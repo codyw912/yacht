@@ -154,6 +154,20 @@ def _write_trial(trials_dir: Path, result: dict[str, Any]) -> None:
     (trial_dir / "result.json").write_text(json.dumps(result), encoding="utf-8")
 
 
+def _write_trial_episodes(
+    trials_dir: Path,
+    trial_name: str,
+    episodes: dict[str, Any],
+) -> None:
+    """Write episodes/summary.json to a trial directory."""
+    trial_dir = trials_dir / "harbor" / trial_name
+    episodes_dir = trial_dir / "agent" / "episodes"
+    episodes_dir.mkdir(parents=True, exist_ok=True)
+    (episodes_dir / "summary.json").write_text(
+        json.dumps(episodes), encoding="utf-8"
+    )
+
+
 class TerminalBenchJobTests(unittest.TestCase):
     def test_renders_job_with_pinned_agent_and_mcp_rigging(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -516,6 +530,134 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                     trials_dir=trials_dir,
                     roster_ids=["hello-world"],
                 )
+
+    def test_trial_summary_includes_episodes_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            episodes_data = {
+                "count": 2,
+                "items": [
+                    {
+                        "index": 1,
+                        "ended": "incomplete",
+                        "started_at": "2026-08-01T10:00:00Z",
+                        "finished_at": "2026-08-01T10:01:00Z",
+                        "usage": {
+                            "input_tokens": 500,
+                            "output_tokens": 200,
+                        },
+                        "cost_usd": 0.015,
+                    },
+                    {
+                        "index": 2,
+                        "ended": "resolved",
+                        "started_at": "2026-08-01T10:01:00Z",
+                        "finished_at": "2026-08-01T10:02:00Z",
+                        "usage": {
+                            "input_tokens": 400,
+                            "output_tokens": 150,
+                        },
+                        "cost_usd": 0.012,
+                        "reward": 1.0,
+                    },
+                ],
+                "to_resolution": 2,
+            }
+            _write_trial_episodes(trials_dir, trial_name, episodes_data)
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertEqual(trial["task_name"], "relay-task")
+            self.assertIn("episodes", trial)
+            self.assertEqual(trial["episodes"]["count"], 2)
+            self.assertEqual(len(trial["episodes"]["items"]), 2)
+            self.assertEqual(trial["episodes"]["to_resolution"], 2)
+            self.assertEqual(trial["episodes"]["items"][0]["index"], 1)
+            self.assertEqual(trial["episodes"]["items"][1]["reward"], 1.0)
+
+    def test_trial_summary_omits_episodes_when_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            _write_trial(trials_dir, _trial_result("hello-world", reward=1))
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["hello-world"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
+
+    def test_trial_summary_omits_episodes_on_corrupt_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            trial_dir = trials_dir / "harbor" / trial_name
+            episodes_dir = trial_dir / "agent" / "episodes"
+            episodes_dir.mkdir(parents=True, exist_ok=True)
+            (episodes_dir / "summary.json").write_text(
+                "{ invalid json", encoding="utf-8"
+            )
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
+
+    def test_trial_summary_omits_episodes_on_wrong_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            _write_trial_episodes(
+                trials_dir,
+                trial_name,
+                {"count": "2"},  # count should be int, not str
+            )
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
+
+    def test_trial_summary_omits_episodes_when_items_mismatch_count(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            _write_trial_episodes(
+                trials_dir,
+                trial_name,
+                {
+                    "count": 2,
+                    "items": [{"index": 1}],  # only 1 item but count says 2
+                },
+            )
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
 
     def test_runs_job_and_writes_native_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

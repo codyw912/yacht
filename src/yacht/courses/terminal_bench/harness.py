@@ -320,6 +320,9 @@ def _trial_summary(result_path: Path) -> dict[str, Any]:
     usage = _trial_usage(result)
     if usage is not None:
         summary["usage"] = usage
+    episodes = _trial_episodes(result_path.parent)
+    if episodes is not None:
+        summary["episodes"] = episodes
     return summary
 
 
@@ -376,6 +379,37 @@ def _trial_usage(result: dict[str, Any]) -> dict[str, Any] | None:
         and not isinstance(agent_result.get(field), bool)
     }
     return usage or None
+
+
+def _trial_episodes(trial_dir: Path) -> dict[str, Any] | None:
+    """Relay evidence from the agent's episodes/summary.json (ADR 0025).
+
+    Malformed evidence degrades to absent — an unreadable relay is
+    unmeasured, never invented."""
+    summary_path = trial_dir / "agent" / "episodes" / "summary.json"
+    if not summary_path.is_file():
+        return None
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    count = payload.get("count")
+    items = payload.get("items")
+    if not isinstance(count, int) or isinstance(count, bool):
+        return None
+    if not isinstance(items, list) or len(items) != count:
+        return None
+    episodes: dict[str, Any] = {"count": count, "items": items}
+    to_resolution = payload.get("to_resolution")
+    if (
+        isinstance(to_resolution, int)
+        and not isinstance(to_resolution, bool)
+        and 1 <= to_resolution <= count
+    ):
+        episodes["to_resolution"] = to_resolution
+    return episodes
 
 
 def _load_job(path: Path) -> dict[str, Any]:
