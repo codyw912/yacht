@@ -149,64 +149,67 @@ class YachtClaudeCode(ClaudeCode):
         records: list[dict[str, Any]] = []
         to_resolution: int | None = None
         failure: Exception | None = None
-        for index in range(1, plan["max"] + 1):
-            text = instruction if index == 1 else plan["instructions"][index - 2]
-            episode_dir = episodes_dir / f"{index:03d}"
-            episode_dir.mkdir(parents=True, exist_ok=True)
-            (episode_dir / "instruction.md").write_text(text, encoding="utf-8")
-            started_at = _utc_now()
-            timed_out = False
-            error: Exception | None = None
-            try:
-                timeout = plan.get("timeout_seconds")
-                if timeout:
-                    async with asyncio.timeout(timeout):
+        try:
+            for index in range(1, plan["max"] + 1):
+                text = instruction if index == 1 else plan["instructions"][index - 2]
+                episode_dir = episodes_dir / f"{index:03d}"
+                episode_dir.mkdir(parents=True, exist_ok=True)
+                (episode_dir / "instruction.md").write_text(text, encoding="utf-8")
+                started_at = _utc_now()
+                timed_out = False
+                error: Exception | None = None
+                try:
+                    timeout = plan.get("timeout_seconds")
+                    if timeout:
+                        async with asyncio.timeout(timeout):
+                            await super().run(text, environment, context)
+                    else:
                         await super().run(text, environment, context)
-                else:
-                    await super().run(text, environment, context)
-            except TimeoutError:
-                timed_out = True
-                await environment.exec(
-                    command="pkill -f 'claude --verbose' || true"
+                except TimeoutError:
+                    timed_out = True
+                    await environment.exec(
+                        command="pkill -f 'claude --verbose' || true"
+                    )
+                except NonZeroAgentExitCodeError as exc:
+                    error = exc
+                finished_at = _utc_now()
+                result = self._snapshot_episode(episode_dir)
+                ended = episodes.claude_episode_ended(
+                    result["subtype"], timed_out, error is not None
                 )
-            except NonZeroAgentExitCodeError as exc:
-                error = exc
-            finished_at = _utc_now()
-            result = self._snapshot_episode(episode_dir)
-            ended = episodes.claude_episode_ended(
-                result["subtype"], timed_out, error is not None
-            )
-            self._episode_costs.append(result["cost_usd"])
-            record = episodes.episode_record(
-                index=index,
-                ended=ended,
-                started_at=started_at,
-                finished_at=finished_at,
-                usage=result["usage"],
-                cost_usd=result["cost_usd"],
-            )
-            if ended == episodes.ENDED_ERROR:
+                self._episode_costs.append(result["cost_usd"])
+                record = episodes.episode_record(
+                    index=index,
+                    ended=ended,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    usage=result["usage"],
+                    cost_usd=result["cost_usd"],
+                )
+                if ended == episodes.ENDED_ERROR:
+                    records.append(record)
+                    failure = error or RuntimeError(
+                        f"episode {index} ended in error without an exception"
+                    )
+                    break
+                if (
+                    plan["verify_between"]
+                    and index < plan["max"]
+                    and to_resolution is None
+                ):
+                    reward = await run_episode_verifier(
+                        environment, task_dir, episode_dir, self.logs_dir.parent / "verifier"
+                    )
+                    if reward is not None:
+                        record["reward"] = reward
+                        if reward >= 1.0:
+                            to_resolution = index
                 records.append(record)
-                failure = error or RuntimeError(
-                    f"episode {index} ended in error without an exception"
-                )
-                break
-            if (
-                plan["verify_between"]
-                and index < plan["max"]
-                and to_resolution is None
-            ):
-                reward = await run_episode_verifier(
-                    environment, task_dir, episode_dir, self.logs_dir.parent / "verifier"
-                )
-                if reward is not None:
-                    record["reward"] = reward
-                    if reward >= 1.0:
-                        to_resolution = index
-            records.append(record)
-            if to_resolution is not None:
-                break
-        episodes.write_relay_summary(episodes_dir, records, to_resolution)
+                if to_resolution is not None:
+                    break
+        finally:
+            if records:
+                episodes.write_relay_summary(episodes_dir, records, to_resolution)
         if failure is not None:
             raise failure
 
