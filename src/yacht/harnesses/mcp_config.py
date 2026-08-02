@@ -110,15 +110,18 @@ PI_MCP_ADAPTER_CONFIG_TARGET = ".pi/agent/mcp.json"
 class McpInstallProvider:
     """A rigged tool yacht knows how to render MCP configuration for.
 
-    pins_namespace records whether the rendered settings guarantee the
-    delimited mcp__<server>__ tool names ADR 0022 matches; a provider
-    without the guarantee yields no delivery expectation.
+    pins_namespace records whether the rendered settings guarantee a
+    per-server tool-name convention delivery matching can key on;
+    namespace_format is that convention, with {server} standing for the
+    sanitized server name. A provider without the guarantee yields no
+    delivery expectation.
     """
 
     tool_name: str
     harness: str
     config_target: str
     pins_namespace: bool
+    namespace_format: str
 
 
 MCP_INSTALL_PROVIDERS: dict[tuple[str, str], McpInstallProvider] = {
@@ -127,12 +130,26 @@ MCP_INSTALL_PROVIDERS: dict[tuple[str, str], McpInstallProvider] = {
         harness="pi",
         config_target=PI_MCP_ADAPTER_CONFIG_TARGET,
         pins_namespace=True,
+        # The adapter's "mcp" toolPrefix names tools
+        # mcp__<server>_<tool> — a single underscore before the tool,
+        # not Claude Code's mcp__<server>__<tool> convention. Verified
+        # against pi-mcp-adapter 2.17.0's formatToolName.
+        namespace_format="mcp__{server}_",
     ),
 }
 
 
 def supported_mcp_install_provider(tool_name: str, harness: str) -> bool:
     return (tool_name, harness) in MCP_INSTALL_PROVIDERS
+
+
+def provider_mcp_namespace(provider: McpInstallProvider, server: str) -> str:
+    """The namespace marker a provider guarantees for one server's tools.
+
+    Server names are sanitized the way pi-mcp-adapter sanitizes them:
+    hyphens become underscores before the name enters a tool name.
+    """
+    return provider.namespace_format.format(server=server.replace("-", "_"))
 
 
 def render_provider_mcp_config(
@@ -144,8 +161,9 @@ def render_provider_mcp_config(
         json.dumps(
             {
                 "mcpServers": servers,
-                # directTools + the mcp toolPrefix pin the delimited
-                # namespace; proxy mode would make delivery unobservable.
+                # The mcp toolPrefix pins the namespace_format naming
+                # for every route to a server's tools — direct
+                # registration and the gateway's inner names alike.
                 "settings": {"directTools": True, "toolPrefix": "mcp"},
             },
             indent=2,

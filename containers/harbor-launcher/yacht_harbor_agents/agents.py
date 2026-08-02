@@ -18,8 +18,14 @@ from harbor.agents.installed.claude_code import ClaudeCode
 from harbor.agents.installed.pi import Pi
 from harbor.environments.base import BaseEnvironment
 
+from harbor.agents.installed.node_install import nvm_node_install_snippet
+
 from yacht_harbor_agents import declared_support
-from yacht_harbor_agents.rigging import rigging_commands
+from yacht_harbor_agents.rigging import (
+    PI_NODE_ALIAS_REPAIR_COMMAND,
+    PI_PACKAGE,
+    rigging_commands,
+)
 
 
 class RiggingStepError(RuntimeError):
@@ -76,7 +82,32 @@ class YachtPi(Pi):
         super().__init__(logs_dir, *args, **kwargs)
 
     async def install(self, environment: BaseEnvironment) -> None:
-        await super().install(environment)
+        # Replaces (not extends) harbor's Pi install: same shape, but
+        # the current pi npm package (PI_PACKAGE) instead of the retired
+        # @mariozechner scope harbor 0.20.0 still names. Drop this
+        # override when harbor's Pi agent installs the new scope.
+        version_spec = f"@{self._version}" if self._version else "@latest"
+        await self.exec_as_root(
+            environment,
+            command="apt-get update && apt-get install -y curl",
+            env={"DEBIAN_FRONTEND": "noninteractive"},
+        )
+        await self.exec_as_agent(
+            environment,
+            command=(
+                "set -euo pipefail; "
+                f"{nvm_node_install_snippet()} && "
+                f"npm install -g {PI_PACKAGE}{version_spec} && "
+                "pi --version"
+            ),
+        )
+        result = await environment.exec(command=PI_NODE_ALIAS_REPAIR_COMMAND)
+        if result.return_code != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RiggingStepError(
+                "node alias repair failed with exit code "
+                f"{result.return_code}: {PI_NODE_ALIAS_REPAIR_COMMAND}\n{detail}"
+            )
         await apply_rigging_steps(environment, self._rigging_steps)
 
 

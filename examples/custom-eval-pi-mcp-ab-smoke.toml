@@ -3,7 +3,7 @@
 # pi-mcp-adapter — a declared install provider — plus the reference
 # filesystem server. yacht renders the adapter's mcp.json with
 # directTools on and the delimited mcp toolPrefix, so the treatment
-# stays observable as mcp__files__ tools in the preserved transcript.
+# stays observable as mcp__files_ tool names in the preserved transcript.
 #
 #   uv run yacht run examples/custom-eval-pi-mcp-ab-smoke.toml \
 #     --logbook /private/tmp/yacht-pi-mcp-ab \
@@ -73,11 +73,11 @@ install_methods = ["package", "mcp-server"]
 # The treatment is honestly a composition: the adapter plus the server.
 [riggings.pi-mcp-files]
 tools = ["pi-mcp-adapter", "files"]
-instructions = "Prefer the mcp__files__ tools for filesystem inspection."
+instructions = "Prefer the files MCP tools (mcp__files_*) for filesystem inspection."
 
 [[riggings.pi-mcp-files.install]]
 method = "agent-extension"
-target = "npm:pi-mcp-adapter@2.15.0"
+target = "npm:pi-mcp-adapter@2.17.0"
 agent = "pi"
 
 [[riggings.pi-mcp-files.install]]

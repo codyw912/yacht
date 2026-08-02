@@ -50,11 +50,11 @@ install_methods = ["package", "mcp-server"]
 
 [riggings.pi-mcp-files]
 tools = ["pi-mcp-adapter", "files"]
-instructions = "Use the mcp__files__ tools for filesystem inspection. For this smoke task, make exactly one minimal mcp__files__list_allowed_directories tool call before answering."
+instructions = "Use the files MCP tools for filesystem inspection. For this smoke task, make exactly one minimal mcp__files_list_allowed_directories tool call before answering."
 
 [[riggings.pi-mcp-files.install]]
 method = "agent-extension"
-target = "npm:pi-mcp-adapter@2.15.0"
+target = "npm:pi-mcp-adapter@2.17.0"
 agent = "pi"
 
 [[riggings.pi-mcp-files.install]]
@@ -69,7 +69,7 @@ command = ["mcp-server-filesystem", "/workspace"]
 [riggings.pi-mcp-files.preflight]
 required = true
 checks = [
-  { name = "pi-mcp-headless-smoke", kind = "agent-prompt", prompt = "preflights/pi-mcp.md", expect_tool_calls = ["mcp__files__list_allowed_directories"] },
+  { name = "pi-mcp-headless-smoke", kind = "agent-prompt", prompt = "preflights/pi-mcp.md", expect_tool_calls = ["mcp__files_list_allowed_directories"] },
 ]
 
 [[vessels]]

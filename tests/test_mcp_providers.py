@@ -10,6 +10,7 @@ from yacht.domain.model import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
 from yacht.harnesses.mcp_config import (
     MCP_INSTALL_PROVIDERS,
     McpConfigError,
+    provider_mcp_namespace,
     render_provider_mcp_config,
     supported_mcp_install_provider,
 )
@@ -128,6 +129,17 @@ class ProviderRegistryTests(unittest.TestCase):
             render_provider_mcp_config(
                 provider, (("rig-one", first), ("rig-two", second))
             )
+
+
+class ProviderNamespaceTests(unittest.TestCase):
+    def test_pi_adapter_namespace_is_single_underscore_delimited(self) -> None:
+        # pi-mcp-adapter's "mcp" toolPrefix names tools
+        # mcp__<server>_<tool> with hyphens sanitized to underscores —
+        # NOT Claude Code's mcp__<server>__<tool> convention.
+        provider = MCP_INSTALL_PROVIDERS[("pi-mcp-adapter", "pi")]
+
+        self.assertEqual(provider_mcp_namespace(provider, "files"), "mcp__files_")
+        self.assertEqual(provider_mcp_namespace(provider, "repo-map"), "mcp__repo_map_")
 
 
 class ProviderResolutionTests(unittest.TestCase):
@@ -361,10 +373,14 @@ class ProviderCapabilityGateTests(unittest.TestCase):
         )
 
 
+# The shape a real pi-mcp-adapter session preserves: the observable
+# tool is the mcp gateway, and the per-server evidence is the prefixed
+# inner name carried in the gateway call's arguments (ADR 0024).
 PI_JSONL = "\n".join(
     [
         '{"type": "agent_start"}',
-        '{"type": "turn_end", "toolResults": [{"toolName": "mcp__files__list_directory"}]}',
+        '{"type": "message_end", "message": {"role": "assistant", "api": "anthropic", "content": [{"type": "toolCall", "name": "mcp", "arguments": {"tool": "mcp__files_list_directory", "args": {"path": "/app"}}}]}}',
+        '{"type": "turn_end", "toolResults": [{"toolName": "mcp"}]}',
         '{"type": "message_end", "message": {"role": "assistant", "api": "anthropic", "content": [{"type": "text", "text": "done"}]}}',
         '{"type": "agent_end"}',
     ]
@@ -372,11 +388,25 @@ PI_JSONL = "\n".join(
 
 
 class PiObservedToolCallTests(unittest.TestCase):
-    def test_parses_tool_calls_from_pi_jsonl(self) -> None:
+    def test_parses_gateway_inner_names_and_tool_results(self) -> None:
         self.assertEqual(
             tool_calls_from_pi_jsonl(PI_JSONL),
-            ("mcp__files__list_directory",),
+            ("mcp__files_list_directory", "mcp"),
         )
+
+    def test_gateway_calls_without_an_inner_tool_yield_only_the_gateway(
+        self,
+    ) -> None:
+        stream = "\n".join(
+            [
+                '{"type": "agent_start"}',
+                '{"type": "message_end", "message": {"role": "assistant", "api": "anthropic", "content": [{"type": "toolCall", "name": "mcp", "arguments": {"server": "files"}}]}}',
+                '{"type": "turn_end", "toolResults": [{"toolName": "mcp"}]}',
+                '{"type": "agent_end"}',
+            ]
+        )
+
+        self.assertEqual(tool_calls_from_pi_jsonl(stream), ("mcp",))
 
     def test_non_pi_output_is_unmeasured(self) -> None:
         self.assertIsNone(tool_calls_from_pi_jsonl("plain text output"))
@@ -389,7 +419,7 @@ class PiObservedToolCallTests(unittest.TestCase):
 
             calls, source = _observed_tool_calls(trial_dir)
 
-        self.assertEqual(calls, ["mcp__files__list_directory"])
+        self.assertEqual(calls, ["mcp__files_list_directory", "mcp"])
         self.assertEqual(source, PI_JSONL_EVIDENCE)
 
     def test_missing_pi_output_stays_unmeasured(self) -> None:

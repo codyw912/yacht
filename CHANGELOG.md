@@ -9,11 +9,21 @@
   mcp-server step when the harness supports it natively or a rigged tool
   provides it. pi-mcp-adapter on pi is the first supported provider:
   yacht renders the adapter's `.pi/agent/mcp.json` with `directTools` on
-  and the delimited `mcp` tool prefix, so delivery stays measurable.
+  and the `mcp` tool prefix, which pins the adapter's
+  `mcp__<server>_<tool>` naming so delivery stays measurable.
 - MCP delivery expectations now key on the namespace guarantee rather
-  than the harness list, and harbor trials preserve pi's JSONL stream as
-  tool-call evidence, so stock-versus-extended MCP comparisons extend to
-  pi with delivery evidence on the treatment side.
+  than the harness list, with per-provider markers: Claude Code's
+  native `mcp__<server>__` convention for claude-code, the adapter's
+  `mcp__<server>_` for pi. Harbor trials preserve pi's JSONL stream as
+  tool-call evidence — including the inner tool name a call through the
+  adapter's `mcp` gateway carries — so stock-versus-extended MCP
+  comparisons extend to pi with delivery evidence on the treatment
+  side, live-validated end to end.
+- The harbor launcher installs pi from its current npm home
+  (`@earendil-works/pi-coding-agent`; harbor 0.20.0 still names the
+  retired scope) and repairs nvm's default alias after install, so
+  fresh sessions on official node task images resolve the pi that was
+  actually installed.
 - Harbor job rendering now refuses mcp-server steps for a harness with
   neither native support nor a declared provider (previously they were
   silently passed through to an agent that could not honor them), and

@@ -19,6 +19,7 @@ from yacht.harnesses.claude_code import (
     mcp_server_namespace,
     tool_calls_from_session_transcript,
 )
+from yacht.harnesses.mcp_config import provider_mcp_namespace
 from yacht.harnesses.pi import PI_JSONL_EVIDENCE, tool_calls_from_pi_jsonl
 from yacht.courses.terminal_bench.harness import HARBOR_JOB_NAME
 from yacht.domain.model import (
@@ -197,12 +198,13 @@ def _agent_to_json(
 _SKILL_INSTALL_TARGET = re.compile(r"^\.claude/skills/([^/]+)/SKILL\.md$")
 _FRONTMATTER_NAME = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 
-# The mcp__<server>__ convention is guaranteed either natively, by
-# Claude Code's own rendering of MCP tools, or by a rigged provider
-# whose rendered configuration pins the delimited convention for a
-# harness that doesn't natively namespace (ADR 0024). A harness with
-# neither guarantee gets no MCP expectation rather than a marker its
-# transcripts can never match.
+# A per-server tool-name convention is guaranteed either natively —
+# Claude Code names MCP tools mcp__<server>__<tool> — or by a rigged
+# provider whose rendered configuration pins its own convention for a
+# harness that doesn't natively namespace (ADR 0024); the provider's
+# marker comes from its namespace_format, which need not match Claude
+# Code's. A harness with neither guarantee gets no MCP expectation
+# rather than a marker its transcripts can never match.
 _MCP_NAMESPACED_HARNESSES = {"claude-code"}
 
 
@@ -270,11 +272,15 @@ def _tool_expectations(
             if server in seen_servers:
                 continue
             seen_servers.add(server)
+            if runtime.harness in _MCP_NAMESPACED_HARNESSES:
+                marker = mcp_server_namespace(server)
+            else:
+                marker = provider_mcp_namespace(provider, server)
             expectations.append(
                 {
                     "tool": server,
                     "kind": "mcp-server",
-                    "expected_calls": [mcp_server_namespace(server)],
+                    "expected_calls": [marker],
                 }
             )
     return expectations

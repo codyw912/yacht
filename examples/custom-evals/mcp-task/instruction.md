@@ -3,5 +3,5 @@ Create `/app/inventory.txt` listing the names of the `.txt` files in
 paths, no other files).
 
 If MCP filesystem tools are available in your session (tool names
-starting with `mcp__files__`), use them to enumerate the directory
+starting with `mcp__files`), use them to enumerate the directory
 instead of shell commands.

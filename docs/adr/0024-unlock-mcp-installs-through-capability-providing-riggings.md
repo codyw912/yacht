@@ -4,6 +4,22 @@
 
 Accepted
 
+Amended 2026-08-01: live validation corrected two factual claims below.
+pi-mcp-adapter's `directTools` mode with `toolPrefix = "mcp"` names
+tools `mcp__<server>_<tool>` (single underscore before the tool,
+hyphens in server names sanitized to underscores) — not the
+`mcp__<server>__<tool>` convention this document assumed — and in a
+fresh trial home the adapter cannot register direct tools at all on
+its first session, because registration reads a metadata cache that
+does not exist yet; the agent reaches servers through the adapter's
+`mcp` gateway tool instead. Delivery stays measurable because the
+gateway call's arguments carry the prefixed inner tool name in the
+preserved transcript, and yacht's evidence mining surfaces it. The
+decision stands: expectations key on the provider's namespace
+guarantee — now recorded per provider as its real naming convention —
+and the rendered settings pin that convention for every route to a
+server's tools.
+
 ## Context
 
 ADR 0022 made MCP servers measurable for delivery, and the capability
