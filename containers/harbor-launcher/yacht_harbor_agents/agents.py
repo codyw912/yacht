@@ -20,7 +20,7 @@ from harbor.environments.base import BaseEnvironment
 
 from harbor.agents.installed.node_install import nvm_node_install_snippet
 
-from yacht_harbor_agents import declared_support
+from yacht_harbor_agents import declared_support, episodes
 from yacht_harbor_agents.rigging import (
     PI_NODE_ALIAS_REPAIR_COMMAND,
     PI_PACKAGE,
@@ -44,6 +44,49 @@ async def apply_rigging_steps(
                 f"rigging step failed with exit code {result.return_code}: "
                 f"{command}\n{detail}"
             )
+
+
+async def run_episode_verifier(
+    environment: BaseEnvironment,
+    task_dir: Path,
+    episode_dir: Path,
+    verifier_dir: Path,
+) -> float | None:
+    """Mirror harbor's verifier protocol between episodes (ADR 0025).
+
+    The task's verify_between flag asserts the verifier is
+    side-effect-free; upload, exec, and removal are hygiene, not a
+    guarantee. The reward returned here never grades the trial — the
+    final harbor-run verifier remains grading truth.
+    """
+    tests_dir = task_dir / "tests"
+    if not tests_dir.is_dir():
+        raise episodes.EpisodePlanError(
+            f"verify_between requires a tests directory at {tests_dir}"
+        )
+    await environment.upload_dir(source_dir=tests_dir, target_dir="/tests")
+    await environment.exec(command="chmod +x /tests/test.sh", user="root")
+    await environment.exec(
+        command="/tests/test.sh > /logs/verifier/episode-stdout.txt 2>&1 || true"
+    )
+    if not environment.capabilities.mounted:
+        await environment.download_dir(
+            source_dir="/logs/verifier", target_dir=str(verifier_dir)
+        )
+    reward = episodes.read_reward(verifier_dir)
+    episode_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("reward.json", "reward.txt", "episode-stdout.txt"):
+        source = verifier_dir / name
+        if source.is_file():
+            source.rename(episode_dir / name)
+    await environment.exec(
+        command=(
+            "rm -rf /tests /logs/verifier/reward.json "
+            "/logs/verifier/reward.txt /logs/verifier/episode-stdout.txt"
+        ),
+        user="root",
+    )
+    return reward
 
 
 class YachtClaudeCode(ClaudeCode):
