@@ -8,12 +8,14 @@ by yacht's own step model.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from harbor.agents.installed.base import BaseInstalledAgent
+from harbor.agents.installed.base import BaseInstalledAgent, NonZeroAgentExitCodeError
 from harbor.agents.installed.claude_code import ClaudeCode
 from harbor.agents.installed.pi import Pi
 from harbor.environments.base import BaseEnvironment
@@ -30,6 +32,10 @@ from yacht_harbor_agents.rigging import (
 
 class RiggingStepError(RuntimeError):
     pass
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 async def apply_rigging_steps(
@@ -98,15 +104,130 @@ class YachtClaudeCode(ClaudeCode):
         self,
         logs_dir: Path,
         rigging_steps: list[dict[str, Any]] | None = None,
+        episodes: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ):
         self._rigging_steps = list(rigging_steps or [])
+        self._episodes_kwarg = dict(episodes or {})
+        self._episode_costs: list[float | None] = []
         super().__init__(logs_dir, *args, **kwargs)
 
     async def install(self, environment: BaseEnvironment) -> None:
         await super().install(environment)
         await apply_rigging_steps(environment, self._rigging_steps)
+
+    async def run(self, instruction, environment: BaseEnvironment, context) -> None:
+        plan, task_dir = self._episode_plan()
+        if plan is None:
+            await super().run(instruction, environment, context)
+            return
+        await self._run_episodes(plan, task_dir, instruction, environment, context)
+
+    def _episode_plan(self) -> tuple[dict[str, Any] | None, Path | None]:
+        if not self._episodes_kwarg:
+            return None, None
+        task_name, task_dir = episodes.task_identity(self.logs_dir.parent)
+        plan = episodes.plan_for_task(self._episodes_kwarg, task_name)
+        return plan, task_dir
+
+    async def _run_episodes(
+        self,
+        plan: dict[str, Any],
+        task_dir: Path,
+        instruction: str,
+        environment: BaseEnvironment,
+        context,
+    ) -> None:
+        episodes_dir = self.logs_dir / "episodes"
+        if plan.get("max_turns") is not None:
+            # Touches harbor internals directly: CliFlag resolution lives
+            # in agents/installed/base.py (verified fact carried from
+            # Tasks 3-4). Re-check this on every harbor image upgrade.
+            self._flag_kwargs["max_turns"] = plan["max_turns"]
+            self._resolved_flags = self._resolve_flag_values()
+        records: list[dict[str, Any]] = []
+        to_resolution: int | None = None
+        failure: Exception | None = None
+        for index in range(1, plan["max"] + 1):
+            text = instruction if index == 1 else plan["instructions"][index - 2]
+            episode_dir = episodes_dir / f"{index:03d}"
+            episode_dir.mkdir(parents=True, exist_ok=True)
+            (episode_dir / "instruction.md").write_text(text, encoding="utf-8")
+            started_at = _utc_now()
+            timed_out = False
+            error: Exception | None = None
+            try:
+                timeout = plan.get("timeout_seconds")
+                if timeout:
+                    async with asyncio.timeout(timeout):
+                        await super().run(text, environment, context)
+                else:
+                    await super().run(text, environment, context)
+            except TimeoutError:
+                timed_out = True
+                await environment.exec(
+                    command="pkill -f 'claude --verbose' || true"
+                )
+            except NonZeroAgentExitCodeError as exc:
+                error = exc
+            finished_at = _utc_now()
+            result = self._snapshot_episode(episode_dir)
+            ended = episodes.claude_episode_ended(
+                result["subtype"], timed_out, error is not None
+            )
+            self._episode_costs.append(result["cost_usd"])
+            record = episodes.episode_record(
+                index=index,
+                ended=ended,
+                started_at=started_at,
+                finished_at=finished_at,
+                usage=result["usage"],
+                cost_usd=result["cost_usd"],
+            )
+            if ended == episodes.ENDED_ERROR:
+                records.append(record)
+                failure = error or RuntimeError(
+                    f"episode {index} ended in error without an exception"
+                )
+                break
+            if (
+                plan["verify_between"]
+                and index < plan["max"]
+                and to_resolution is None
+            ):
+                reward = await run_episode_verifier(
+                    environment, task_dir, episode_dir, self.logs_dir.parent / "verifier"
+                )
+                if reward is not None:
+                    record["reward"] = reward
+                    if reward >= 1.0:
+                        to_resolution = index
+            records.append(record)
+            if to_resolution is not None:
+                break
+        episodes.write_relay_summary(episodes_dir, records, to_resolution)
+        if failure is not None:
+            raise failure
+
+    def _snapshot_episode(self, episode_dir: Path) -> dict[str, Any]:
+        stream_path = self.logs_dir / "claude-code.txt"
+        text = ""
+        if stream_path.is_file():
+            text = stream_path.read_text(encoding="utf-8", errors="replace")
+            (episode_dir / "claude-code.txt").write_text(text, encoding="utf-8")
+        manifest = episodes.sessions_manifest(self.logs_dir / "sessions" / "projects")
+        (episode_dir / "sessions-manifest.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        return episodes.parse_claude_stream_result(text)
+
+    def populate_context_post_run(self, context) -> None:
+        super().populate_context_post_run(context)
+        if self._episode_costs and all(
+            cost is not None for cost in self._episode_costs
+        ):
+            context.cost_usd = sum(self._episode_costs)
 
 
 class YachtPi(Pi):
