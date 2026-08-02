@@ -228,7 +228,12 @@ The task attempt carries a validated top-level `episodes` block —
 `{count, items, to_resolution?}`, where each item has `index`, `ended`
 (`natural` | `cap` | `timeout` | `error`), and optional `started_at`,
 `finished_at`, `usage`, `cost_usd`, `reward`. Attempt-level usage and
-cost sum across episodes.
+cost sum across episodes — except when any episode records no cost
+(e.g. it timed out before the harness emitted its result line), in
+which case the trial-level cost falls back to the harness's own
+accounting, which for claude-code reflects only the final episode's
+stream; relay cost is then undercounted, and the per-episode records
+above show the gap.
 
 ### Statistics
 

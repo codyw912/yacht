@@ -436,6 +436,75 @@ class MergedDeclaredEvidenceTests(unittest.TestCase):
         merged_partial = episodes.merged_declared_evidence(partial_cache)
         self.assertNotIn("cache_read_tokens", merged_partial["usage"])
 
+    def test_cache_read_tokens_omitted_when_any_value_is_invalid(self) -> None:
+        # A native (non-evidence_map) declared harness may emit a
+        # non-integer or negative cache_read_tokens; the merge must treat
+        # that episode as "not having it" (degrade, never raise) rather
+        # than crash with ValueError/TypeError inside int() (final-review.md
+        # Minor 2).
+        invalid_type = [
+            {
+                "response": "a",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "cache_read_tokens": "lots",
+                },
+            },
+            {
+                "response": "b",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "cache_read_tokens": 4,
+                },
+            },
+        ]
+        merged = episodes.merged_declared_evidence(invalid_type)
+        self.assertNotIn("cache_read_tokens", merged["usage"])
+
+        negative_value = [
+            {
+                "response": "a",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "cache_read_tokens": -1,
+                },
+            },
+            {
+                "response": "b",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "cache_read_tokens": 4,
+                },
+            },
+        ]
+        merged = episodes.merged_declared_evidence(negative_value)
+        self.assertNotIn("cache_read_tokens", merged["usage"])
+
+        bool_value = [
+            {
+                "response": "a",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "cache_read_tokens": True,
+                },
+            },
+            {
+                "response": "b",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "cache_read_tokens": 4,
+                },
+            },
+        ]
+        merged = episodes.merged_declared_evidence(bool_value)
+        self.assertNotIn("cache_read_tokens", merged["usage"])
+
     def test_cost_omitted_when_any_episode_lacks_it(self) -> None:
         per_episode = [
             {

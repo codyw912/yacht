@@ -254,6 +254,21 @@ def _read_reward_txt(path: Path) -> float | None:
         return None
 
 
+def _has_valid_cache_read_tokens(episode: dict[str, Any]) -> bool:
+    """Whether `episode`'s usage carries a non-negative int cache_read_tokens.
+
+    A native (non-evidence_map) declared harness is not validated
+    launcher-side before merge, so a non-int or negative value here
+    counts as "not having it" — the existing sum-only-if-every-episode-
+    has-it rule then correctly omits the field instead of crashing.
+    """
+    usage = episode.get("usage")
+    if not isinstance(usage, dict) or "cache_read_tokens" not in usage:
+        return False
+    value = usage["cache_read_tokens"]
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
 def merged_declared_evidence(per_episode: list[dict[str, Any]]) -> dict[str, Any]:
     """Fold per-episode yacht.harness-evidence.v1 docs into one.
 
@@ -281,7 +296,7 @@ def merged_declared_evidence(per_episode: list[dict[str, Any]]) -> dict[str, Any
         "input_tokens": total_input,
         "output_tokens": total_output,
     }
-    if all("cache_read_tokens" in episode.get("usage", {}) for episode in per_episode):
+    if all(_has_valid_cache_read_tokens(episode) for episode in per_episode):
         usage["cache_read_tokens"] = sum(
             int(episode["usage"]["cache_read_tokens"]) for episode in per_episode
         )

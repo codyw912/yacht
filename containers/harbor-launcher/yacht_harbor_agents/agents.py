@@ -204,6 +204,12 @@ class YachtClaudeCode(ClaudeCode):
                         f"episode {index} ended in error without an exception"
                     )
                     break
+                # Appended before verify_between runs (not after) so a
+                # completed episode is never dropped from summary.json if
+                # the inter-episode verifier itself raises (upload/exec/
+                # download/rename failure) — the reward assignment below
+                # mutates this same dict by reference once it lands.
+                records.append(record)
                 if (
                     plan["verify_between"]
                     and index < plan["max"]
@@ -216,7 +222,6 @@ class YachtClaudeCode(ClaudeCode):
                         record["reward"] = reward
                         if reward >= 1.0:
                             to_resolution = index
-                records.append(record)
                 if to_resolution is not None:
                     break
         finally:
@@ -512,6 +517,12 @@ class YachtDeclared(BaseInstalledAgent):
                         cost_usd=cost_usd,
                     )
 
+                # Appended before verify_between runs (not after) so a
+                # completed episode is never dropped from summary.json if
+                # the inter-episode verifier itself raises (upload/exec/
+                # download/rename failure) — the reward assignment below
+                # mutates this same dict by reference once it lands.
+                records.append(record)
                 if (
                     plan["verify_between"]
                     and index < plan["max"]
@@ -527,7 +538,6 @@ class YachtDeclared(BaseInstalledAgent):
                         record["reward"] = reward
                         if reward >= 1.0:
                             to_resolution = index
-                records.append(record)
                 if to_resolution is not None:
                     break
         finally:
