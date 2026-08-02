@@ -148,6 +148,9 @@ def _attempt_from_trial(
     tool_expectations = _tool_expectations(regatta, vessel, runtime)
     if tool_expectations:
         artifact["tool_expectations"] = tool_expectations
+    episodes = trial.get("episodes") if isinstance(trial, dict) else None
+    if isinstance(episodes, dict):
+        artifact["episodes"] = episodes
     return artifact
 
 
@@ -422,6 +425,9 @@ def _machine_evidence(trial: dict[str, Any] | None) -> dict[str, Any]:
         cost = usage.get("cost_usd")
         if isinstance(cost, (int, float)) and not isinstance(cost, bool) and cost >= 0:
             evidence["cost"] = {"total": cost}
+    episodes = trial.get("episodes")
+    if isinstance(episodes, dict) and isinstance(episodes.get("items"), list):
+        evidence["episodes"] = episodes["items"]
     exception = trial.get("exception")
     if isinstance(exception, dict):
         evidence["exception"] = {

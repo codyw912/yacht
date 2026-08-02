@@ -67,6 +67,12 @@ def _write_task_directory(root: Path) -> Path:
     task_dir.mkdir(parents=True)
     (task_dir / "instruction.md").write_text("Print a greeting.\n", encoding="utf-8")
     (task_dir / "Dockerfile").write_text("FROM alpine:3.20\n", encoding="utf-8")
+    (task_dir / "task.toml").write_text(
+        '[metadata]\nauthor = "yacht"\ndescription = "Greet the user."\n'
+        'difficulty = "easy"\n\n[verifier]\ntimeout_sec = 60.0\n\n'
+        "[agent]\ntimeout_sec = 300.0\n",
+        encoding="utf-8",
+    )
     return tasks_dir
 
 

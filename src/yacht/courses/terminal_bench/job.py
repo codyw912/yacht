@@ -16,6 +16,7 @@ from yacht.contracts.schemas import (
     TERMINAL_BENCH_JOB_SCHEMA,
     validate_terminal_bench_job_document,
 )
+from yacht.courses.episodes import render_episode_plan
 from yacht.harnesses.mcp_config import (
     McpInstallProvider,
     render_provider_mcp_config,
@@ -68,10 +69,14 @@ def render_terminal_bench_job(
     declaration = _declaration_payload(regatta, runtime)
     if declaration is not None:
         agent["declaration"] = declaration
+    tasks = [str(task.id) for task in regatta.course.tasks]
+    episodes = _episode_plans(regatta.course.adapter, tasks, harness)
+    if episodes:
+        agent["episodes"] = episodes
     job = {
         "schema": TERMINAL_BENCH_JOB_SCHEMA,
         "dataset": _dataset(regatta.course.adapter),
-        "tasks": [str(task.id) for task in regatta.course.tasks],
+        "tasks": tasks,
         "agent": agent,
         "launcher_image": _launcher_image(runtime),
         "secret_env": _secret_env(regatta, runtime, riggings),
@@ -94,6 +99,25 @@ def _dataset(adapter: Any) -> dict[str, str]:
         "name": str(adapter.dataset),
         "version": str(adapter.split),
     }
+
+
+def _episode_plans(
+    adapter: Any, tasks: list[str], harness: str
+) -> dict[str, dict[str, Any]]:
+    if adapter.kind != "custom-eval":
+        return {}
+    root = Path(str(adapter.dataset))
+    plans: dict[str, dict[str, Any]] = {}
+    for task_id in tasks:
+        plan = render_episode_plan(root / task_id)
+        if plan is not None:
+            plans[task_id] = plan
+    if plans and harness == "pi":
+        raise ConfigError(
+            "episodic tasks are not supported on the pi harness yet: "
+            + ", ".join(sorted(plans))
+        )
+    return plans
 
 
 def _launcher_image(runtime: RuntimeRecipe) -> str:

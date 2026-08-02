@@ -1,0 +1,17 @@
+[metadata]
+author = "yacht"
+description = "Smoke relay: two cold episodes against one workspace."
+difficulty = "easy"
+
+[verifier]
+timeout_sec = 60.0
+
+[agent]
+# Covers the whole relay: both episodes plus inter-episode verification.
+timeout_sec = 900.0
+
+[episodes]
+max = 2
+verify_between = true
+max_turns = 15
+timeout_seconds = 300

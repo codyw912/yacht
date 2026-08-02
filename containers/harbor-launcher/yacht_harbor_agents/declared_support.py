@@ -51,11 +51,29 @@ def run_command(
     *,
     model: str,
     instruction: str,
+    max_turns: int | None = None,
 ) -> str:
-    """Shell command string that runs the declared harness in-container."""
-    argv = [
-        item.replace("{model}", model) for item in declaration.get("command", [])
-    ]
+    """Shell command string that runs the declared harness in-container.
+
+    `{max_turns}` in a command item is a per-episode cap: declared
+    harnesses have no uniform flag for it, so a declaration that wants
+    one names the placeholder itself and the episode plan's `max_turns`
+    fills it in. A declaration using the placeholder with no cap set is
+    a configuration defect (raised, not silently dropped); a cap set
+    with no placeholder in the command is fine — the episode loop's
+    wall-clock timeout is the only backstop for that harness.
+    """
+    argv = []
+    for item in declaration.get("command", []):
+        rendered = item.replace("{model}", model)
+        if "{max_turns}" in rendered:
+            if max_turns is None:
+                raise DeclaredAgentError(
+                    f"declared harness {declaration.get('name')} command uses "
+                    "{max_turns} but the task sets no per-episode cap"
+                )
+            rendered = rendered.replace("{max_turns}", str(max_turns))
+        argv.append(rendered)
     if not argv:
         raise DeclaredAgentError(
             f"declared harness {declaration.get('name')} has no command; "

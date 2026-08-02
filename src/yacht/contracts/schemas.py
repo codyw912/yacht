@@ -1331,6 +1331,8 @@ def validate_terminal_bench_job_document(document: dict[str, Any]) -> None:
             _require_object(entry, f"terminal-bench job.agent.{key}[{index}]")
     if "declaration" in agent:
         _require_object(agent["declaration"], "terminal-bench job.agent.declaration")
+    if "episodes" in agent:
+        _validate_job_episode_plans(agent["episodes"], document["tasks"])
     _require_non_empty_string(
         document["launcher_image"], "terminal-bench job.launcher_image"
     )
@@ -1338,6 +1340,35 @@ def validate_terminal_bench_job_document(document: dict[str, Any]) -> None:
     for index, name in enumerate(secret_env):
         _require_non_empty_string(name, f"terminal-bench job.secret_env[{index}]")
     _require_non_empty_string(document["vessel"], "terminal-bench job.vessel")
+
+
+def _validate_job_episode_plans(value: Any, tasks: Any) -> None:
+    episodes = _require_object(value, "terminal-bench job.agent.episodes")
+    task_names = {str(task) for task in tasks} if isinstance(tasks, list) else set()
+    for task_name, plan_value in episodes.items():
+        path = f"terminal-bench job.agent.episodes[{task_name}]"
+        _require_non_empty_string(task_name, "terminal-bench job.agent.episodes key")
+        if task_name not in task_names:
+            raise SchemaValidationError(f"{path} does not match any task in the job")
+        plan = _require_object(plan_value, path)
+        _require_keys(plan, ("max", "verify_between", "instructions"), path)
+        maximum = plan["max"]
+        if isinstance(maximum, bool) or not isinstance(maximum, int) or maximum < 2:
+            raise SchemaValidationError(f"{path}.max must be an integer >= 2")
+        if not isinstance(plan["verify_between"], bool):
+            raise SchemaValidationError(f"{path}.verify_between must be a boolean")
+        instructions = _require_list(plan["instructions"], f"{path}.instructions")
+        if len(instructions) != maximum - 1:
+            raise SchemaValidationError(
+                f"{path}.instructions must contain max - 1 entries"
+            )
+        for index, entry in enumerate(instructions):
+            _require_non_empty_string(entry, f"{path}.instructions[{index}]")
+        for key in ("max_turns", "timeout_seconds"):
+            if key in plan:
+                bound = plan[key]
+                if isinstance(bound, bool) or not isinstance(bound, int) or bound < 1:
+                    raise SchemaValidationError(f"{path}.{key} must be an integer >= 1")
 
 
 def validate_course_grading_report_document(document: dict[str, Any]) -> None:
@@ -1665,6 +1696,52 @@ def validate_task_attempt_document(document: dict[str, Any]) -> None:
     _validate_redacted_secret_refs(document["secret_refs"], "secret_refs")
     if "tool_expectations" in document:
         _validate_tool_expectations(document["tool_expectations"])
+    if "episodes" in document:
+        _validate_task_attempt_episodes(document["episodes"])
+
+
+_EPISODE_ENDINGS = {"natural", "cap", "timeout", "error"}
+
+
+def _validate_task_attempt_episodes(value: Any) -> None:
+    episodes = _require_object(value, "episodes")
+    _require_keys(episodes, ("count", "items"), "episodes")
+    count = episodes["count"]
+    if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+        raise SchemaValidationError("episodes.count must be an integer >= 1")
+    items = _require_list(episodes["items"], "episodes.items")
+    if len(items) != count:
+        raise SchemaValidationError("episodes.items must contain count entries")
+    if "to_resolution" in episodes:
+        to_resolution = episodes["to_resolution"]
+        if (
+            isinstance(to_resolution, bool)
+            or not isinstance(to_resolution, int)
+            or not 1 <= to_resolution <= count
+        ):
+            raise SchemaValidationError(
+                "episodes.to_resolution must be an integer between 1 and count"
+            )
+    for index, item_value in enumerate(items):
+        path = f"episodes.items[{index}]"
+        item = _require_object(item_value, path)
+        _require_keys(item, ("index", "ended"), path)
+        item_index = item["index"]
+        if (
+            isinstance(item_index, bool)
+            or not isinstance(item_index, int)
+            or item_index < 1
+        ):
+            raise SchemaValidationError(f"{path}.index must be an integer >= 1")
+        _require_allowed_value(item["ended"], _EPISODE_ENDINGS, f"{path}.ended")
+        for key in ("started_at", "finished_at"):
+            if key in item:
+                _require_non_empty_string(item[key], f"{path}.{key}")
+        if "usage" in item:
+            _validate_numeric_evidence_map(item["usage"], f"{path}.usage")
+        for key in ("cost_usd", "reward"):
+            if key in item:
+                _require_non_negative_number(item[key], f"{path}.{key}")
 
 
 def _validate_tool_expectations(value: Any) -> None:

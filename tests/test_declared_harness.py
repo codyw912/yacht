@@ -490,6 +490,12 @@ vessels = ["yach-baseline", "yach-candidate"]
         tasks_dir = root / "evals" / "hello-task"
         tasks_dir.mkdir(parents=True, exist_ok=True)
         (tasks_dir / "instruction.md").write_text("Greet.", encoding="utf-8")
+        (tasks_dir / "task.toml").write_text(
+            '[metadata]\nauthor = "yacht"\ndescription = "Greet the user."\n'
+            'difficulty = "easy"\n\n[verifier]\ntimeout_sec = 60.0\n\n'
+            "[agent]\ntimeout_sec = 300.0\n",
+            encoding="utf-8",
+        )
         config_path = root / "regatta.toml"
         config_path.write_text(config, encoding="utf-8")
         return config_path

@@ -170,6 +170,8 @@ def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any
         kwargs["rigging_steps"] = list(agent["rigging_steps"])
     if agent.get("declaration"):
         kwargs["declaration"] = dict(agent["declaration"])
+    if agent.get("episodes"):
+        kwargs["episodes"] = dict(agent["episodes"])
     agent_config: dict[str, Any] = {
         "import_path": str(agent["import_path"]),
         "model_name": str(agent["model"]),
@@ -339,6 +341,9 @@ def _trial_summary(result_path: Path) -> dict[str, Any]:
     usage = _trial_usage(result)
     if usage is not None:
         summary["usage"] = usage
+    episodes = _trial_episodes(result_path.parent)
+    if episodes is not None:
+        summary["episodes"] = episodes
     return summary
 
 
@@ -395,6 +400,89 @@ def _trial_usage(result: dict[str, Any]) -> dict[str, Any] | None:
         and not isinstance(agent_result.get(field), bool)
     }
     return usage or None
+
+
+_EPISODE_ENDINGS = {"natural", "cap", "timeout", "error"}
+
+
+def _is_non_negative_number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
+    )
+
+
+def _valid_episode_item(item: Any) -> bool:
+    """Mirror schemas.py's `_validate_task_attempt_episodes` item rules.
+
+    Kept as a local mirror (not an import of that private validator)
+    because this check is intentionally stricter on numeric fields
+    (rejecting bools) than that validator currently is — see the
+    finding-1 fix note in final-fix-report.md. Re-check this against
+    `schemas.py::_validate_task_attempt_episodes` if that function's
+    rules change.
+    """
+    if not isinstance(item, dict):
+        return False
+    index = item.get("index")
+    if isinstance(index, bool) or not isinstance(index, int) or index < 1:
+        return False
+    ended = item.get("ended")
+    if not isinstance(ended, str) or ended not in _EPISODE_ENDINGS:
+        return False
+    for key in ("started_at", "finished_at"):
+        if key in item and (not isinstance(item[key], str) or not item[key]):
+            return False
+    if "usage" in item:
+        usage = item["usage"]
+        if not isinstance(usage, dict):
+            return False
+        for usage_key, usage_value in usage.items():
+            if not isinstance(usage_key, str) or not usage_key:
+                return False
+            if not _is_non_negative_number(usage_value):
+                return False
+    for key in ("cost_usd", "reward"):
+        if key in item and not _is_non_negative_number(item[key]):
+            return False
+    return True
+
+
+def _trial_episodes(trial_dir: Path) -> dict[str, Any] | None:
+    """Relay evidence from the agent's episodes/summary.json (ADR 0025).
+
+    Malformed evidence degrades to absent — an unreadable relay is
+    unmeasured, never invented. Item shape is validated to the same
+    requirements the attempt validator
+    (schemas.py::_validate_task_attempt_episodes) will later enforce,
+    so a task-authored out-of-range value (e.g. a verifier writing -1
+    to reward.txt) degrades this block to absent instead of surviving
+    to abort the whole vessel's attempt translation."""
+    summary_path = trial_dir / "agent" / "episodes" / "summary.json"
+    if not summary_path.is_file():
+        return None
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    count = payload.get("count")
+    items = payload.get("items")
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+        return None
+    if not isinstance(items, list) or len(items) != count:
+        return None
+    if not all(_valid_episode_item(item) for item in items):
+        return None
+    episodes: dict[str, Any] = {"count": count, "items": items}
+    to_resolution = payload.get("to_resolution")
+    if (
+        isinstance(to_resolution, int)
+        and not isinstance(to_resolution, bool)
+        and 1 <= to_resolution <= count
+    ):
+        episodes["to_resolution"] = to_resolution
+    return episodes
 
 
 def _load_job(path: Path) -> dict[str, Any]:

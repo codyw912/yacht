@@ -154,6 +154,18 @@ def _write_trial(trials_dir: Path, result: dict[str, Any]) -> None:
     (trial_dir / "result.json").write_text(json.dumps(result), encoding="utf-8")
 
 
+def _write_trial_episodes(
+    trials_dir: Path,
+    trial_name: str,
+    episodes: dict[str, Any],
+) -> None:
+    """Write episodes/summary.json to a trial directory."""
+    trial_dir = trials_dir / "harbor" / trial_name
+    episodes_dir = trial_dir / "agent" / "episodes"
+    episodes_dir.mkdir(parents=True, exist_ok=True)
+    (episodes_dir / "summary.json").write_text(json.dumps(episodes), encoding="utf-8")
+
+
 class TerminalBenchJobTests(unittest.TestCase):
     def test_renders_job_with_pinned_agent_and_mcp_rigging(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -556,6 +568,190 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                     roster_ids=["hello-world"],
                 )
 
+    def test_trial_summary_includes_episodes_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            episodes_data = {
+                "count": 2,
+                "items": [
+                    {
+                        "index": 1,
+                        "ended": "cap",
+                        "started_at": "2026-08-01T10:00:00Z",
+                        "finished_at": "2026-08-01T10:01:00Z",
+                        "usage": {
+                            "input_tokens": 500,
+                            "output_tokens": 200,
+                        },
+                        "cost_usd": 0.015,
+                    },
+                    {
+                        "index": 2,
+                        "ended": "natural",
+                        "started_at": "2026-08-01T10:01:00Z",
+                        "finished_at": "2026-08-01T10:02:00Z",
+                        "usage": {
+                            "input_tokens": 400,
+                            "output_tokens": 150,
+                        },
+                        "cost_usd": 0.012,
+                        "reward": 1.0,
+                    },
+                ],
+                "to_resolution": 2,
+            }
+            _write_trial_episodes(trials_dir, trial_name, episodes_data)
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertEqual(trial["task_name"], "relay-task")
+            self.assertIn("episodes", trial)
+            self.assertEqual(trial["episodes"]["count"], 2)
+            self.assertEqual(len(trial["episodes"]["items"]), 2)
+            self.assertEqual(trial["episodes"]["to_resolution"], 2)
+            self.assertEqual(trial["episodes"]["items"][0]["index"], 1)
+            self.assertEqual(trial["episodes"]["items"][1]["reward"], 1.0)
+
+    def test_trial_summary_omits_episodes_when_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            _write_trial(trials_dir, _trial_result("hello-world", reward=1))
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["hello-world"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
+
+    def test_trial_summary_omits_episodes_on_corrupt_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            trial_dir = trials_dir / "harbor" / trial_name
+            episodes_dir = trial_dir / "agent" / "episodes"
+            episodes_dir.mkdir(parents=True, exist_ok=True)
+            (episodes_dir / "summary.json").write_text(
+                "{ invalid json", encoding="utf-8"
+            )
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
+
+    def test_trial_summary_omits_episodes_on_wrong_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            _write_trial_episodes(
+                trials_dir,
+                trial_name,
+                {"count": "2"},  # count should be int, not str
+            )
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
+
+    def test_trial_summary_omits_episodes_when_items_mismatch_count(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            _write_trial_episodes(
+                trials_dir,
+                trial_name,
+                {
+                    "count": 2,
+                    "items": [{"index": 1}],  # only 1 item but count says 2
+                },
+            )
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
+
+    def test_trial_summary_omits_episodes_when_count_is_zero(self) -> None:
+        # The attempt validator hard-requires episodes.count >= 1
+        # (schemas.py _validate_task_attempt_episodes); a count of 0 passes
+        # this reader's prior checks (isinstance int, len(items) == count)
+        # so it must be rejected explicitly, the same way an out-of-range
+        # item value must be (final-review.md Important 1).
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            _write_trial_episodes(
+                trials_dir,
+                trial_name,
+                {"count": 0, "items": []},
+            )
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
+
+    def test_trial_summary_omits_episodes_when_reward_is_negative(self) -> None:
+        # A verify_between task's tests/test.sh writing a sentinel -1 to
+        # reward.txt on internal error is a real convention; the trial
+        # summary must degrade to absent rather than pass the item
+        # through, since the attempt validator hard-requires reward >= 0
+        # (final-review.md Important 1).
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trials_dir = Path(temp_dir)
+            result = _trial_result("relay-task", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            _write_trial_episodes(
+                trials_dir,
+                trial_name,
+                {
+                    "count": 2,
+                    "items": [
+                        {"index": 1, "ended": "cap"},
+                        {"index": 2, "ended": "natural", "reward": -1},
+                    ],
+                },
+            )
+
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["relay-task"],
+            )
+
+            trial = report["trials"][0]
+            self.assertNotIn("episodes", trial)
+
     def test_runs_job_and_writes_native_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -709,6 +905,36 @@ class TerminalBenchHarnessTests(unittest.TestCase):
             },
         )
 
+    def test_harbor_run_config_forwards_episode_plans(self) -> None:
+        job = {
+            "schema": "yacht.terminal-bench-job.v1",
+            "dataset": {"name": "terminal-bench/terminal-bench-2", "version": "2.0"},
+            "tasks": ["relay-task"],
+            "vessel": "claude-baseline",
+            "agent": {
+                "name": "claude-code",
+                "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
+                "version": "2.1.211",
+                "model": "claude-haiku-4-5",
+                "env": {},
+                "mcp_servers": [],
+                "rigging_steps": [],
+                "episodes": {
+                    "relay-task": {
+                        "max": 2,
+                        "verify_between": False,
+                        "instructions": ["x"],
+                    }
+                },
+            },
+        }
+
+        config = harbor_run_config(job, trials_dir=Path("/tmp/trials"))
+
+        self.assertEqual(
+            config["agents"][0]["kwargs"]["episodes"]["relay-task"]["max"], 2
+        )
+
 
 class TerminalBenchAttemptsFromTrialsTests(unittest.TestCase):
     def test_synthesizes_attempts_for_missing_and_errored_trials(self) -> None:
@@ -789,6 +1015,160 @@ class TerminalBenchAttemptsFromTrialsTests(unittest.TestCase):
                 },
             )
             self.assertEqual(summary["status"], "validated")
+
+    def test_attempt_carries_episodes_block_and_metrics_are_unchanged(self) -> None:
+        from yacht.courses.terminal_bench.attempts_from_trials import (
+            write_terminal_bench_attempts_from_trials,
+        )
+        from yacht.courses.terminal_bench.harness import native_report_from_trials
+
+        episodes_data = {
+            "count": 2,
+            "to_resolution": 2,
+            "items": [
+                {
+                    "index": 1,
+                    "ended": "cap",
+                    "started_at": "2026-08-01T10:00:00Z",
+                    "finished_at": "2026-08-01T10:01:00Z",
+                    "usage": {"input_tokens": 500, "output_tokens": 200},
+                    "cost_usd": 0.015,
+                },
+                {
+                    "index": 2,
+                    "ended": "natural",
+                    "started_at": "2026-08-01T10:01:00Z",
+                    "finished_at": "2026-08-01T10:02:00Z",
+                    "usage": {"input_tokens": 400, "output_tokens": 150},
+                    "cost_usd": 0.012,
+                    "reward": 1.0,
+                },
+            ],
+        }
+
+        def _write_attempts(*, with_episodes: bool) -> dict[str, Any]:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                config_path = _write_config(root)
+                logbook_dir = root / "logbook"
+                write_terminal_bench_rollout_plan(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    vessel_name="claude-baseline",
+                    comparison_name="claude-vs-claude-fff",
+                )
+                trials_dir = root / "trials"
+                result = _trial_result("hello-world", reward=1)
+                trial_name = result["trial_name"]
+                _write_trial(trials_dir, result)
+                if with_episodes:
+                    _write_trial_episodes(trials_dir, trial_name, episodes_data)
+                report = native_report_from_trials(
+                    trials_dir=trials_dir,
+                    roster_ids=["hello-world", "fix-permissions"],
+                )
+                with patch(
+                    "yacht.courses.terminal_bench.attempts_from_trials."
+                    "native_report_path_from_launcher_handoff",
+                    return_value=_written_report(root, report),
+                ):
+                    write_terminal_bench_attempts_from_trials(
+                        config_path=config_path,
+                        logbook_dir=logbook_dir,
+                        vessel_name="claude-baseline",
+                        comparison_name="claude-vs-claude-fff",
+                    )
+                return json.loads(
+                    (
+                        logbook_dir
+                        / "task-attempts/claude-vs-claude-fff/claude-baseline"
+                        / "hello-world.json"
+                    ).read_text(encoding="utf-8")
+                )
+
+        baseline_attempt = _write_attempts(with_episodes=False)
+        episodic_attempt = _write_attempts(with_episodes=True)
+
+        self.assertNotIn("episodes", baseline_attempt)
+        self.assertEqual(episodic_attempt["episodes"], episodes_data)
+        self.assertEqual(
+            episodic_attempt["agent"]["machine_evidence"]["episodes"],
+            episodes_data["items"],
+        )
+        self.assertEqual(episodic_attempt["metrics"], baseline_attempt["metrics"])
+
+    def test_attempt_translation_survives_a_negative_reward_episode(self) -> None:
+        # End-to-end guard for final-review.md Important 1: a task-authored
+        # verifier writing reward=-1 must not raise SchemaValidationError
+        # out of write_terminal_bench_attempts_from_trials and abort the
+        # whole vessel's attempt translation — the episodes block degrades
+        # to absent for that trial instead.
+        from yacht.courses.terminal_bench.attempts_from_trials import (
+            write_terminal_bench_attempts_from_trials,
+        )
+        from yacht.courses.terminal_bench.harness import native_report_from_trials
+
+        episodes_data = {
+            "count": 2,
+            "to_resolution": 2,
+            "items": [
+                {
+                    "index": 1,
+                    "ended": "cap",
+                    "started_at": "2026-08-01T10:00:00Z",
+                    "finished_at": "2026-08-01T10:01:00Z",
+                },
+                {
+                    "index": 2,
+                    "ended": "natural",
+                    "started_at": "2026-08-01T10:01:00Z",
+                    "finished_at": "2026-08-01T10:02:00Z",
+                    "reward": -1,
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = _write_config(root)
+            logbook_dir = root / "logbook"
+            write_terminal_bench_rollout_plan(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                vessel_name="claude-baseline",
+                comparison_name="claude-vs-claude-fff",
+            )
+            trials_dir = root / "trials"
+            result = _trial_result("hello-world", reward=1)
+            trial_name = result["trial_name"]
+            _write_trial(trials_dir, result)
+            _write_trial_episodes(trials_dir, trial_name, episodes_data)
+            report = native_report_from_trials(
+                trials_dir=trials_dir,
+                roster_ids=["hello-world", "fix-permissions"],
+            )
+            with patch(
+                "yacht.courses.terminal_bench.attempts_from_trials."
+                "native_report_path_from_launcher_handoff",
+                return_value=_written_report(root, report),
+            ):
+                # Must not raise SchemaValidationError.
+                write_terminal_bench_attempts_from_trials(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    vessel_name="claude-baseline",
+                    comparison_name="claude-vs-claude-fff",
+                )
+            attempt = json.loads(
+                (
+                    logbook_dir
+                    / "task-attempts/claude-vs-claude-fff/claude-baseline"
+                    / "hello-world.json"
+                ).read_text(encoding="utf-8")
+            )
+
+        self.assertNotIn("episodes", attempt)
+        self.assertNotIn("episodes", attempt["agent"]["machine_evidence"])
 
 
 def _written_report(root: Path, report: dict[str, Any]) -> Path:
@@ -1096,6 +1476,143 @@ class ProviderJobRenderingTests(unittest.TestCase):
         self.assertEqual(
             [server["name"] for server in job["agent"]["mcp_servers"]], ["files"]
         )
+
+
+CUSTOM_EVAL_EPISODIC_CONFIG = """
+[regatta]
+name = "custom-eval-episodic"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "relay-course"
+
+[[course.tasks]]
+id = "relay-task"
+title = "Relay task with an episode plan"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "evals"
+split = "v1"
+harness = "harbor"
+
+[secrets.anthropic]
+source = "env"
+name = "ANTHROPIC_API_KEY"
+
+[runtimes.harbor-claude]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "claude-code"
+harness_version = "2.1.211"
+required_secrets = ["anthropic"]
+
+[runtimes.harbor-pi]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "pi"
+harness_version = "0.74.0"
+required_secrets = ["anthropic"]
+
+[[vessels]]
+name = "claude-baseline"
+model = "claude-haiku-4-5"
+runtime = "harbor-claude"
+
+[[vessels]]
+name = "pi-baseline"
+model = "anthropic/claude-haiku-4-5"
+runtime = "harbor-pi"
+
+[[comparisons]]
+name = "claude-vs-pi"
+course = "relay-course"
+vessels = ["claude-baseline", "pi-baseline"]
+"""
+
+
+def _write_custom_eval_relay_task(root: Path, *, episodes_table: str | None) -> Path:
+    tasks_dir = root / "evals"
+    task_dir = tasks_dir / "relay-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "instruction.md").write_text("episode one\n", encoding="utf-8")
+    body = (
+        "[metadata]\n"
+        'author = "yacht"\n'
+        'description = "Episodic relay smoke task."\n'
+        'difficulty = "easy"\n'
+        "\n"
+        "[verifier]\n"
+        "timeout_sec = 60.0\n"
+        "\n"
+        "[agent]\n"
+        "timeout_sec = 300.0\n"
+    )
+    if episodes_table is not None:
+        body += "\n" + episodes_table
+    (task_dir / "task.toml").write_text(body, encoding="utf-8")
+    tests_dir = task_dir / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test.sh").write_text(
+        "#!/bin/bash\nset -uo pipefail\nexit 0\n", encoding="utf-8"
+    )
+    environment_dir = task_dir / "environment"
+    environment_dir.mkdir()
+    (environment_dir / "Dockerfile").write_text("FROM alpine:3.20\n", encoding="utf-8")
+    if episodes_table is not None:
+        episodes_dir = task_dir / "episodes"
+        episodes_dir.mkdir()
+        (episodes_dir / "002.md").write_text("delta two\n", encoding="utf-8")
+    return tasks_dir
+
+
+def _write_custom_eval_episodic_config(root: Path) -> Path:
+    config_path = root / "regatta.toml"
+    config_path.write_text(CUSTOM_EVAL_EPISODIC_CONFIG, encoding="utf-8")
+    return config_path
+
+
+class EpisodicJobRenderingTests(unittest.TestCase):
+    def test_render_job_embeds_episode_plans_for_episodic_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_custom_eval_relay_task(root, episodes_table="[episodes]\nmax = 2\n")
+            config_path = _write_custom_eval_episodic_config(root)
+            regatta = load_regatta(config_path)
+
+            job = render_terminal_bench_job(
+                regatta=regatta, vessel_name="claude-baseline"
+            )
+
+        self.assertEqual(
+            job["agent"]["episodes"]["relay-task"]["instructions"], ["delta two\n"]
+        )
+        self.assertEqual(job["agent"]["episodes"]["relay-task"]["max"], 2)
+
+    def test_render_job_omits_episodes_key_when_no_task_is_episodic(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_custom_eval_relay_task(root, episodes_table=None)
+            config_path = _write_custom_eval_episodic_config(root)
+            regatta = load_regatta(config_path)
+
+            job = render_terminal_bench_job(
+                regatta=regatta, vessel_name="claude-baseline"
+            )
+
+        self.assertNotIn("episodes", job["agent"])
+
+    def test_render_job_rejects_episodic_tasks_on_pi(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_custom_eval_relay_task(root, episodes_table="[episodes]\nmax = 2\n")
+            config_path = _write_custom_eval_episodic_config(root)
+            regatta = load_regatta(config_path)
+
+            with self.assertRaisesRegex(ConfigError, "pi"):
+                render_terminal_bench_job(regatta=regatta, vessel_name="pi-baseline")
 
 
 if __name__ == "__main__":
