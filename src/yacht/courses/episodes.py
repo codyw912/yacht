@@ -71,8 +71,7 @@ def render_episode_plan(task_dir: Path) -> dict[str, Any] | None:
         "max": maximum,
         "verify_between": verify_between,
         "instructions": [
-            deltas.get(index, continue_instruction)
-            for index in range(2, maximum + 1)
+            deltas.get(index, continue_instruction) for index in range(2, maximum + 1)
         ],
     }
     for key in ("max_turns", "timeout_seconds"):
@@ -128,9 +127,7 @@ def _delta_texts(task_dir: Path) -> dict[int, str]:
     return deltas
 
 
-def _require_contiguous(
-    deltas: dict[int, str], maximum: int, task_dir: Path
-) -> None:
+def _require_contiguous(deltas: dict[int, str], maximum: int, task_dir: Path) -> None:
     if not deltas:
         return
     top = max(deltas)
@@ -155,7 +152,5 @@ def _positive_int(
             raise ConfigError(f"{task_dir} [episodes] must set {key}")
         return None
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ConfigError(
-            f"{task_dir} [episodes] {key} must be an integer >= 1"
-        )
+        raise ConfigError(f"{task_dir} [episodes] {key} must be an integer >= 1")
     return value

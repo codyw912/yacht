@@ -1478,9 +1478,7 @@ class TerminalBenchJobSchemaTests(unittest.TestCase):
             }
         }
 
-        with self.assertRaisesRegex(
-            ValueError, "episodes\\[task-1\\].instructions"
-        ):
+        with self.assertRaisesRegex(ValueError, "episodes\\[task-1\\].instructions"):
             validate_terminal_bench_job_document(document)
 
     def test_job_rejects_episode_plan_for_task_not_in_job(self) -> None:
@@ -1493,9 +1491,7 @@ class TerminalBenchJobSchemaTests(unittest.TestCase):
             }
         }
 
-        with self.assertRaisesRegex(
-            ValueError, "does not match any task in the job"
-        ):
+        with self.assertRaisesRegex(ValueError, "does not match any task in the job"):
             validate_terminal_bench_job_document(document)
 
     def test_job_rejects_episode_plan_non_boolean_verify_between(self) -> None:
@@ -1504,9 +1500,7 @@ class TerminalBenchJobSchemaTests(unittest.TestCase):
             "task-1": {"max": 2, "verify_between": "yes", "instructions": ["x"]}
         }
 
-        with self.assertRaisesRegex(
-            ValueError, "episodes\\[task-1\\].verify_between"
-        ):
+        with self.assertRaisesRegex(ValueError, "episodes\\[task-1\\].verify_between"):
             validate_terminal_bench_job_document(document)
 
 

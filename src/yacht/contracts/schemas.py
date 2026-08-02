@@ -1349,9 +1349,7 @@ def _validate_job_episode_plans(value: Any, tasks: Any) -> None:
         path = f"terminal-bench job.agent.episodes[{task_name}]"
         _require_non_empty_string(task_name, "terminal-bench job.agent.episodes key")
         if task_name not in task_names:
-            raise SchemaValidationError(
-                f"{path} does not match any task in the job"
-            )
+            raise SchemaValidationError(f"{path} does not match any task in the job")
         plan = _require_object(plan_value, path)
         _require_keys(plan, ("max", "verify_between", "instructions"), path)
         maximum = plan["max"]
@@ -1370,9 +1368,7 @@ def _validate_job_episode_plans(value: Any, tasks: Any) -> None:
             if key in plan:
                 bound = plan[key]
                 if isinstance(bound, bool) or not isinstance(bound, int) or bound < 1:
-                    raise SchemaValidationError(
-                        f"{path}.{key} must be an integer >= 1"
-                    )
+                    raise SchemaValidationError(f"{path}.{key} must be an integer >= 1")
 
 
 def validate_course_grading_report_document(document: dict[str, Any]) -> None:

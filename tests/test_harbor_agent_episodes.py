@@ -81,9 +81,7 @@ class RunCommandMaxTurnsTests(unittest.TestCase):
 
 class PlanForTaskTests(unittest.TestCase):
     def test_happy_path_returns_validated_plan(self) -> None:
-        result = episodes.plan_for_task(
-            {"relay-task": VALID_PLAN}, "relay-task"
-        )
+        result = episodes.plan_for_task({"relay-task": VALID_PLAN}, "relay-task")
         self.assertEqual(result["max"], 3)
         self.assertTrue(result["verify_between"])
         self.assertEqual(result["instructions"], ["continue one", "continue two"])
@@ -347,9 +345,7 @@ class ReadRewardTests(unittest.TestCase):
     def test_multi_key_json_without_reward_falls_back_to_txt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             verifier_dir = Path(tmp)
-            (verifier_dir / "reward.json").write_text(
-                json.dumps({"a": 1.0, "b": 2.0})
-            )
+            (verifier_dir / "reward.json").write_text(json.dumps({"a": 1.0, "b": 2.0}))
             (verifier_dir / "reward.txt").write_text("0.5")
             self.assertEqual(episodes.read_reward(verifier_dir), 0.5)
 
@@ -614,11 +610,14 @@ class WriteRelaySummaryTests(unittest.TestCase):
             episodes_dir = Path(tmp)
             episodes.write_relay_summary(episodes_dir, [], 3)
             text = (episodes_dir / "summary.json").read_text(encoding="utf-8")
-            expected = json.dumps(
-                {"count": 0, "items": [], "to_resolution": 3},
-                indent=2,
-                sort_keys=True,
-            ) + "\n"
+            expected = (
+                json.dumps(
+                    {"count": 0, "items": [], "to_resolution": 3},
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n"
+            )
             self.assertEqual(text, expected)
 
 

@@ -111,9 +111,7 @@ class RenderEpisodePlanTest(unittest.TestCase):
             with self.assertRaisesRegex(ConfigError, "2.md"):
                 render_episode_plan(task_dir)
         with TemporaryDirectory() as tmp:
-            task_dir = _write_task(
-                Path(tmp), episodes_table="[episodes]\nmax = true\n"
-            )
+            task_dir = _write_task(Path(tmp), episodes_table="[episodes]\nmax = true\n")
             with self.assertRaisesRegex(ConfigError, "max"):
                 render_episode_plan(task_dir)
 
