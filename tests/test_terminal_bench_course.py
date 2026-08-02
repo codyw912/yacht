@@ -163,9 +163,7 @@ def _write_trial_episodes(
     trial_dir = trials_dir / "harbor" / trial_name
     episodes_dir = trial_dir / "agent" / "episodes"
     episodes_dir.mkdir(parents=True, exist_ok=True)
-    (episodes_dir / "summary.json").write_text(
-        json.dumps(episodes), encoding="utf-8"
-    )
+    (episodes_dir / "summary.json").write_text(json.dumps(episodes), encoding="utf-8")
 
 
 class TerminalBenchJobTests(unittest.TestCase):
@@ -1286,15 +1284,13 @@ vessels = ["claude-baseline", "pi-baseline"]
 """
 
 
-def _write_custom_eval_relay_task(
-    root: Path, *, episodes_table: str | None
-) -> Path:
+def _write_custom_eval_relay_task(root: Path, *, episodes_table: str | None) -> Path:
     tasks_dir = root / "evals"
     task_dir = tasks_dir / "relay-task"
     task_dir.mkdir(parents=True)
     (task_dir / "instruction.md").write_text("episode one\n", encoding="utf-8")
     body = (
-        '[metadata]\n'
+        "[metadata]\n"
         'author = "yacht"\n'
         'description = "Episodic relay smoke task."\n'
         'difficulty = "easy"\n'
@@ -1315,9 +1311,7 @@ def _write_custom_eval_relay_task(
     )
     environment_dir = task_dir / "environment"
     environment_dir.mkdir()
-    (environment_dir / "Dockerfile").write_text(
-        "FROM alpine:3.20\n", encoding="utf-8"
-    )
+    (environment_dir / "Dockerfile").write_text("FROM alpine:3.20\n", encoding="utf-8")
     if episodes_table is not None:
         episodes_dir = task_dir / "episodes"
         episodes_dir.mkdir()
@@ -1335,9 +1329,7 @@ class EpisodicJobRenderingTests(unittest.TestCase):
     def test_render_job_embeds_episode_plans_for_episodic_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            _write_custom_eval_relay_task(
-                root, episodes_table="[episodes]\nmax = 2\n"
-            )
+            _write_custom_eval_relay_task(root, episodes_table="[episodes]\nmax = 2\n")
             config_path = _write_custom_eval_episodic_config(root)
             regatta = load_regatta(config_path)
 
@@ -1366,9 +1358,7 @@ class EpisodicJobRenderingTests(unittest.TestCase):
     def test_render_job_rejects_episodic_tasks_on_pi(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            _write_custom_eval_relay_task(
-                root, episodes_table="[episodes]\nmax = 2\n"
-            )
+            _write_custom_eval_relay_task(root, episodes_table="[episodes]\nmax = 2\n")
             config_path = _write_custom_eval_episodic_config(root)
             regatta = load_regatta(config_path)
 
