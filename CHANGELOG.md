@@ -1,6 +1,45 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 - Episodic Trials
+
+### Episodic trials (ADR 0025)
+
+- A custom-eval task can declare an episodic trial with an `[episodes]`
+  table in its task.toml plus `episodes/00k.md` delta files: the
+  yacht-owned agent invokes the harness up to N times cold inside one
+  Harbor trial, against one persistent workspace, delivering episode
+  k's instruction alone — never a union. Plans are rendered and
+  validated host-side at job-render time and embedded in the job, so
+  the content digest pins the whole relay and malformed relays fail
+  before any container starts.
+- Per-episode caps are harness-native — claude-code's `--max-turns`,
+  a `{max_turns}` placeholder for declared harness commands — with a
+  wall-clock backstop. Hitting a cap or the timeout is a normal
+  episode ending; a harness error aborts the trial preserving the
+  episodes recorded so far. pi rejects episodic tasks at render time.
+- Opt-in inter-episode verification mirrors Harbor's verifier protocol
+  between episodes: a passing reward ends the relay early, making
+  episodes-to-resolution measurable, and every episode boundary gains
+  a reward sample. The final Harbor-run verifier remains grading
+  truth; a mid-relay pass contradicted by the final verdict is
+  preserved as a visible mismatch.
+- Per-episode evidence — delivered instruction, harness streams,
+  session manifests, rewards — lands under `episodes/00k/` in the
+  preserved trial directory, and trial summaries and task attempts
+  carry a validated `episodes` block. Malformed relay evidence
+  degrades to unmeasured instead of aborting attempt translation. One
+  trial contributes exactly one paired outcome regardless of episode
+  count; a repetition of an episodic task is a complete fresh relay.
+- A two-episode example relay ships in
+  `examples/custom-evals/relay-task`, and episodic task authoring is
+  documented in `docs/reference/custom-evals.md`.
+
+### Fixes
+
+- Every path that crosses the launcher container boundary — docker
+  bind mounts and the in-container `jobs_dir` — is absolutized, so a
+  relative `--logbook` runs instead of failing preflight with "mount
+  path must be absolute".
 
 ### MCP installs through capability-providing riggings (ADR 0024)
 
