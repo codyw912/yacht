@@ -368,6 +368,56 @@
           "type": "string",
           "minLength": 1
         },
+        "tool_call_evidence": {
+          "type": "string",
+          "minLength": 1
+        },
+        "machine_evidence": {
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "string",
+              "minLength": 1
+            },
+            "event_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "api": {
+              "type": "string",
+              "minLength": 1
+            },
+            "provider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "response_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "usage": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "cost": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "tool_calls": {
+              "$ref": "#/$defs/stringArray"
+            }
+          }
+        },
         "skill_stages": {
           "type": "array",
           "items": {
