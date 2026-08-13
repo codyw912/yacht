@@ -28,6 +28,7 @@ class OmpJsonlParserTests(unittest.TestCase):
         self.assertEqual(parsed["provider"], "xai-oauth")
         self.assertEqual(parsed["usage_source"], "reported")
         self.assertEqual(parsed["skill_stages"], ())
+        self.assertEqual(parsed["ended"], "natural")
 
     def test_parses_captured_tool_execution(self) -> None:
         parsed = parse_omp_jsonl(TOOL_FIXTURE.read_text(encoding="utf-8"))

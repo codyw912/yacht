@@ -49,7 +49,7 @@ COURSE_GRADING_SCHEMAS = {
 
 # Kept in sync with yacht.harnesses.registry.supported_harness_names()
 # by a test; imported directly it would create an import cycle.
-BUILT_IN_HARNESS_NAMES = {"claude-code", "local-smoke", "pi"}
+BUILT_IN_HARNESS_NAMES = {"claude-code", "codex", "local-smoke", "omp", "pi"}
 HARNESS_PROMPT_MODES = {"argument", "stdin"}
 HARNESS_EVIDENCE_SOURCES = {"stdout", "file"}
 METRICS_USAGE_SOURCES = {"reported", "estimated", "unreported"}
@@ -2304,13 +2304,14 @@ def _validate_tool_invocations(value: Any, path: str) -> None:
             )
 
 
-
 def _validate_invocation_skill_stages(value: Any, path: str) -> None:
     stages = _require_object(value, path)
     _require_keys(stages, ("available", "selected", "loaded"), path)
     for key in ("available", "selected", "loaded"):
         counts = _require_object(stages.get(key), f"{path}.{key}")
-        _require_keys(counts, ("observed_attempts", "measured_attempts"), f"{path}.{key}")
+        _require_keys(
+            counts, ("observed_attempts", "measured_attempts"), f"{path}.{key}"
+        )
         observed = counts.get("observed_attempts")
         measured = counts.get("measured_attempts")
         _require_non_negative_int(observed, f"{path}.{key}.observed_attempts")

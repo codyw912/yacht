@@ -125,6 +125,23 @@ class BuildProvenanceTests(unittest.TestCase):
         self.assertIsNone(provenance["runtime"]["image"])
         self.assertEqual(provenance["tools"], [])
 
+    def test_prefers_observed_harness_version_over_runtime_pin(self) -> None:
+        runtime = RuntimeRecipe(
+            name="codex-host",
+            backend="host-nix",
+            harness="codex",
+            harness_version="0.147.0",
+            command=("codex",),
+        )
+        provenance = build_provenance(
+            regatta=_regatta({}),
+            vessel=Vessel(name="baseline", model="mock", rigging=()),
+            instance=_instance(runtime),
+            machine_evidence={"harness_version": "codex-cli 0.147.1"},
+        )
+
+        self.assertEqual(provenance["harness"]["version"], "codex-cli 0.147.1")
+
     def test_image_tag_without_version_suffix_resolves_to_null(self) -> None:
         runtime = RuntimeRecipe(
             name="latest-image",

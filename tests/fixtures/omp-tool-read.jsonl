@@ -2,5 +2,5 @@
 {"type":"agent_start"}
 {"type":"tool_execution_start","toolName":"read"}
 {"type":"tool_execution_end","toolName":"read","isError":false}
-{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"OK"}]}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"OK"}],"usage":{"input":170,"output":18,"cacheRead":6016,"cacheWrite":0,"totalTokens":6204,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}
 {"type":"agent_end"}
