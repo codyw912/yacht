@@ -46,8 +46,7 @@ def render_skill_installs(
     """
     if harness is None or harness not in _SKILL_INSTALL_RENDERERS:
         raise SkillConfigError(
-            f"runtime harness {harness} does not support rigging "
-            "install method skill"
+            f"runtime harness {harness} does not support rigging install method skill"
         )
     return _SKILL_INSTALL_RENDERERS[harness](steps)
 
@@ -58,9 +57,7 @@ def _render_claude_code_skill_installs(
     renders: list[SkillInstallRender] = []
     for origin_name, step in steps:
         if step.content is None:
-            raise SkillConfigError(
-                f"skill install {step.target} is missing content"
-            )
+            raise SkillConfigError(f"skill install {step.target} is missing content")
         renders.append(
             SkillInstallRender(
                 origin_name=origin_name,
@@ -72,6 +69,26 @@ def _render_claude_code_skill_installs(
     return tuple(renders)
 
 
+def _render_agent_skills_installs(
+    steps: tuple[tuple[str, RiggingInstallStep], ...],
+) -> tuple[SkillInstallRender, ...]:
+    renders: list[SkillInstallRender] = []
+    for origin_name, step in steps:
+        if step.content is None:
+            raise SkillConfigError(f"skill install {step.target} is missing content")
+        renders.append(
+            SkillInstallRender(
+                origin_name=origin_name,
+                skill_name=step.target,
+                target=f".agents/skills/{step.target}/SKILL.md",
+                content=step.content,
+            )
+        )
+    return tuple(renders)
+
+
 _SKILL_INSTALL_RENDERERS = {
     "claude-code": _render_claude_code_skill_installs,
+    "codex": _render_agent_skills_installs,
+    "omp": _render_agent_skills_installs,
 }

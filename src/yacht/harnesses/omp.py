@@ -1,8 +1,7 @@
 """Parse OMP `--mode json` stdout.
 
-The event types and usage field names come from a captured
-`omp -p --mode json --no-session` stream. Skill stages stay empty until
-a native skill-prompt event is captured.
+The event types, usage field names, and native `skill://` reads come from
+captured `omp -p --mode json --no-session` streams.
 """
 
 from __future__ import annotations
@@ -231,6 +230,7 @@ class SubprocessOmpTaskLauncher:
                 usage_source=_usage_source(evidence),
             ),
             machine_evidence=_machine_evidence(evidence, harness_version),
+            skill_stages=_skill_stages_from_evidence(evidence),
         )
 
 
@@ -344,6 +344,15 @@ def _tool_calls_from_evidence(evidence: dict[str, Any] | None) -> tuple[str, ...
     return tool_calls
 
 
+def _skill_stages_from_evidence(
+    evidence: dict[str, Any] | None,
+) -> tuple[dict[str, str], ...]:
+    if evidence is None:
+        return ()
+    stages = evidence.get("skill_stages")
+    return stages if isinstance(stages, tuple) else ()
+
+
 def _tokens(evidence: dict[str, Any] | None) -> int:
     if evidence is None:
         return 0
@@ -374,7 +383,7 @@ def parse_omp_jsonl(output: str) -> dict[str, Any] | None:
     parsed: dict[str, Any] = {
         "response": _text_from_message(message),
         "usage_source": "reported" if usage else "unreported",
-        "skill_stages": (),
+        "skill_stages": _skill_stages(events),
         "tool_calls": _tool_calls(events),
         "ended": "natural",
     }
@@ -469,3 +478,58 @@ def _tool_calls(events: list[dict[str, Any]]) -> tuple[str, ...]:
         if isinstance(name, str) and name:
             names.append(name)
     return tuple(dict.fromkeys(names))
+
+
+def _skill_stages(events: list[dict[str, Any]]) -> tuple[dict[str, str], ...]:
+    selected: dict[str, bool] = {}
+    calls: dict[str, str] = {}
+    for event in events:
+        event_type = event.get("type")
+        if event_type == "tool_execution_start" and event.get("toolName") == "read":
+            args = event.get("args")
+            if not isinstance(args, dict):
+                continue
+            skill = _skill_name(args.get("path"))
+            call_id = event.get("toolCallId")
+            if skill is None or not isinstance(call_id, str):
+                continue
+            selected[skill] = False
+            calls[call_id] = skill
+        elif event_type == "tool_execution_end" and event.get("toolName") == "read":
+            call_id = event.get("toolCallId")
+            if not isinstance(call_id, str) or call_id not in calls:
+                continue
+            if _result_has_skill_body(event.get("result")):
+                selected[calls[call_id]] = True
+    return tuple(
+        {
+            "skill": skill,
+            "available": "unmeasured",
+            "selected": "observed",
+            "loaded": "observed" if loaded else "unmeasured",
+            "evidence_source": OMP_JSONL_EVIDENCE,
+        }
+        for skill, loaded in selected.items()
+    )
+
+
+def _skill_name(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.startswith("skill://"):
+        return None
+    name = value.removeprefix("skill://").split("/", 1)[0]
+    return name or None
+
+
+def _result_has_skill_body(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    content = value.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(item, dict)
+        and item.get("type") == "text"
+        and isinstance(item.get("text"), str)
+        and bool(item["text"])
+        for item in content
+    )

@@ -1,13 +1,14 @@
 """Parse Codex `exec --json` stdout.
 
-The event types and usage field names come from a captured
-`codex exec --json --ephemeral` stream. Skill stages stay empty until
-a native skill event is captured.
+The event types and usage field names come from captured
+`codex exec --json --ephemeral` streams. Skill reads are recognized from
+commands targeting the shared `.agents/skills/<name>/SKILL.md` layout.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -41,6 +42,9 @@ class CodexStreamJsonError(ValueError):
 
 
 CODEX_HEADLESS_FLAGS = ("exec", "--json", "--ephemeral")
+
+
+_AGENT_SKILL_PATH = re.compile(r"(?:^|[\s/])\.agents/skills/([^/]+)/SKILL\.md")
 
 
 @dataclass(frozen=True)
@@ -220,6 +224,7 @@ class SubprocessCodexTaskLauncher:
                 usage_source=_usage_source(evidence),
             ),
             machine_evidence=_machine_evidence(evidence, harness_version),
+            skill_stages=_skill_stages_from_evidence(evidence),
         )
 
 
@@ -342,6 +347,15 @@ def _tokens(evidence: dict[str, Any] | None) -> int:
     return sum(value for value in usage.values() if isinstance(value, int))
 
 
+def _skill_stages_from_evidence(
+    evidence: dict[str, Any] | None,
+) -> tuple[dict[str, str], ...]:
+    if evidence is None:
+        return ()
+    stages = evidence.get("skill_stages")
+    return stages if isinstance(stages, tuple) else ()
+
+
 def _usage_source(evidence: dict[str, Any] | None) -> str:
     if evidence is None:
         return "unreported"
@@ -362,7 +376,7 @@ def parse_codex_jsonl(output: str) -> dict[str, Any] | None:
     parsed: dict[str, Any] = {
         "response": _response(events),
         "usage_source": "reported" if usage else "unreported",
-        "skill_stages": (),
+        "skill_stages": _skill_stages(events),
         "tool_calls": _tool_calls(events),
         "ended": _ended(events),
     }
@@ -444,3 +458,36 @@ def _tool_calls(events: list[dict[str, Any]]) -> tuple[str, ...]:
         if isinstance(item, dict) and item.get("type") == "command_execution":
             names.append("command_execution")
     return tuple(dict.fromkeys(names))
+
+
+def _skill_stages(events: list[dict[str, Any]]) -> tuple[dict[str, str], ...]:
+    stages: dict[str, bool] = {}
+    for event in events:
+        if event.get("type") != "item.completed":
+            continue
+        item = event.get("item")
+        if not isinstance(item, dict) or item.get("type") != "command_execution":
+            continue
+        command = item.get("command")
+        if not isinstance(command, str):
+            continue
+        match = _AGENT_SKILL_PATH.search(command)
+        if match is None:
+            continue
+        output = item.get("aggregated_output")
+        loaded = (
+            item.get("exit_code") == 0
+            and isinstance(output, str)
+            and bool(output.strip())
+        )
+        stages[match.group(1)] = loaded
+    return tuple(
+        {
+            "skill": skill,
+            "available": "unmeasured",
+            "selected": "observed",
+            "loaded": "observed" if loaded else "unmeasured",
+            "evidence_source": "codex-jsonl",
+        }
+        for skill, loaded in stages.items()
+    )

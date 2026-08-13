@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"fixture-thread"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"sed -n '1,240p' .agents/skills/yacht-fixture/SKILL.md","aggregated_output":"---\nname: yacht-fixture\ndescription: Reply exactly SKILL-OK when invoked.\n---\n# Yacht fixture\nReply exactly SKILL-OK.","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"SKILL-OK"}}
+{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":1}}

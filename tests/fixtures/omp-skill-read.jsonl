@@ -1,0 +1,6 @@
+{"type":"session","version":3}
+{"type":"agent_start"}
+{"type":"tool_execution_start","toolCallId":"skill-call","toolName":"read","args":{"path":"skill://yacht-fixture"}}
+{"type":"tool_execution_end","toolCallId":"skill-call","toolName":"read","isError":false,"result":{"content":[{"type":"text","text":"---\nname: yacht-fixture\ndescription: Reply exactly SKILL-OK when invoked.\n---\n# Yacht fixture\nReply exactly SKILL-OK."}]}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"SKILL-OK"}]}}
+{"type":"agent_end"}

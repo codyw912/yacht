@@ -127,6 +127,15 @@ class TaskAttemptTests(unittest.TestCase):
                         },
                         "cost": {"total": 0.00123},
                     },
+                    skill_stages=(
+                        {
+                            "skill": "team-conventions",
+                            "available": "unmeasured",
+                            "selected": "observed",
+                            "loaded": "observed",
+                            "evidence_source": "omp-jsonl",
+                        },
+                    ),
                 ),
             )
 
@@ -143,6 +152,18 @@ class TaskAttemptTests(unittest.TestCase):
             self.assertEqual(artifact["agent"]["exit_code"], 0)
             self.assertEqual(artifact["agent"]["tool_calls"], ["fff"])
             self.assertEqual(artifact["agent"]["transcript_path"], str(transcript_path))
+            self.assertEqual(
+                artifact["agent"]["skill_stages"],
+                [
+                    {
+                        "skill": "team-conventions",
+                        "available": "unmeasured",
+                        "selected": "observed",
+                        "loaded": "observed",
+                        "evidence_source": "omp-jsonl",
+                    }
+                ],
+            )
             self.assertEqual(
                 artifact["runtime_context"]["setup_results"],
                 [

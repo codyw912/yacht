@@ -5,6 +5,7 @@ from yacht.harnesses.omp import parse_omp_jsonl
 
 OK_FIXTURE = Path("tests/fixtures/omp-print-ok.jsonl")
 TOOL_FIXTURE = Path("tests/fixtures/omp-tool-read.jsonl")
+SKILL_FIXTURE = Path("tests/fixtures/omp-skill-read.jsonl")
 
 
 class OmpJsonlParserTests(unittest.TestCase):
@@ -38,6 +39,24 @@ class OmpJsonlParserTests(unittest.TestCase):
         self.assertEqual(parsed["tool_calls"], ("read",))
         self.assertEqual(parsed["response"], "OK")
         self.assertEqual(parsed["skill_stages"], ())
+
+    def test_parses_captured_skill_body_read(self) -> None:
+        parsed = parse_omp_jsonl(SKILL_FIXTURE.read_text(encoding="utf-8"))
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(
+            parsed["skill_stages"],
+            (
+                {
+                    "skill": "yacht-fixture",
+                    "available": "unmeasured",
+                    "selected": "observed",
+                    "loaded": "observed",
+                    "evidence_source": "omp-jsonl",
+                },
+            ),
+        )
 
     def test_empty_stdout_from_process_failure_is_unmeasured(self) -> None:
         # Captured `omp --model definitely-not-a-real-model` wrote no JSONL

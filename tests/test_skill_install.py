@@ -47,8 +47,10 @@ def _skill_step(
 
 
 class SkillInstallSupportTests(unittest.TestCase):
-    def test_claude_code_supports_skill_installs(self) -> None:
+    def test_supported_harnesses_include_omp_and_codex(self) -> None:
         self.assertTrue(supports_skill_installs("claude-code"))
+        self.assertTrue(supports_skill_installs("codex"))
+        self.assertTrue(supports_skill_installs("omp"))
 
     def test_pi_does_not_support_skill_installs(self) -> None:
         self.assertFalse(supports_skill_installs("pi"))
@@ -57,7 +59,9 @@ class SkillInstallSupportTests(unittest.TestCase):
 
 class ClaudeCodeSkillRenderTests(unittest.TestCase):
     def test_renders_skill_into_claude_project_layout(self) -> None:
-        renders = render_skill_installs("claude-code", (("team-conventions-skill", _skill_step()),))
+        renders = render_skill_installs(
+            "claude-code", (("team-conventions-skill", _skill_step()),)
+        )
 
         self.assertEqual(len(renders), 1)
         self.assertEqual(
@@ -67,6 +71,17 @@ class ClaudeCodeSkillRenderTests(unittest.TestCase):
         self.assertEqual(renders[0].content, SKILL_BODY)
         self.assertEqual(renders[0].skill_name, "team-conventions")
         self.assertEqual(renders[0].origin_name, "team-conventions-skill")
+
+    def test_renders_omp_and_codex_skills_into_agent_skills_layout(self) -> None:
+        for harness in ("omp", "codex"):
+            with self.subTest(harness=harness):
+                renders = render_skill_installs(
+                    harness, (("team-conventions-skill", _skill_step()),)
+                )
+
+                self.assertEqual(
+                    renders[0].target, ".agents/skills/team-conventions/SKILL.md"
+                )
 
     def test_unsupported_harness_fails_before_tokens(self) -> None:
         with self.assertRaisesRegex(SkillConfigError, "does not support"):
@@ -80,6 +95,7 @@ class ClaudeCodeSkillRenderTests(unittest.TestCase):
                 "claude-code",
                 (("team-conventions-skill", _skill_step(content=None)),),
             )
+
 
 def _skill_rigging() -> RiggingRecipe:
     return RiggingRecipe(name="team-conventions-skill", install=(_skill_step(),))
@@ -112,7 +128,6 @@ class SkillCapabilityGateTests(unittest.TestCase):
 
         self.assertEqual(len(reasons), 1)
         self.assertIn("does not support rigging install method skill", reasons[0])
-
 
 
 def _skill_config(
@@ -200,7 +215,6 @@ class SkillInstallConfigTests(unittest.TestCase):
                 load_regatta(config_path)
 
 
-
 class SkillSetupPlanTests(unittest.TestCase):
     def test_plans_claude_code_skill_as_native_file(self) -> None:
         plan = plan_rigging_setup(
@@ -217,9 +231,6 @@ class SkillSetupPlanTests(unittest.TestCase):
         )
         self.assertEqual(plan.files[0].content, SKILL_BODY)
         self.assertEqual(plan.files[0].origin_name, "team-conventions-skill")
-
-
-
 
 
 class SkillHarborJobTests(unittest.TestCase):
@@ -271,6 +282,7 @@ class SkillHarborJobTests(unittest.TestCase):
             with self.assertRaisesRegex(ConfigError, "does not support"):
                 render_terminal_bench_job(regatta=regatta, vessel_name="with-skill")
 
+
 class SkillExpectationTests(unittest.TestCase):
     def test_logical_skill_install_uses_skill_target_not_claude_path(self) -> None:
         body = """\
@@ -285,9 +297,7 @@ description: Team conventions.
             config_path = Path(temp_dir) / "regatta.toml"
             config_path.write_text(
                 _skill_config(
-                    'method = "skill"\n'
-                    'target = "conventions"\n'
-                    f'content = """{body}"""'
+                    f'method = "skill"\ntarget = "conventions"\ncontent = """{body}"""'
                 ),
                 encoding="utf-8",
             )
@@ -505,9 +515,6 @@ class SkillStageEvidenceTests(unittest.TestCase):
         self.assertIn("selected 1/1", table)
         self.assertIn("loaded 0/0", table)
         self.assertIn("available 0/0", table)
-
-
-
 
 
 def _write_staged_attempt(
