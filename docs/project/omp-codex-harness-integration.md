@@ -2,6 +2,8 @@
 
 Status: proposed
 
+Implementation order: [OMP and Codex harness expansion](omp-codex-harness-expansion.md).
+
 ## Outcome
 
 Make OMP and Codex first-class Yacht harnesses so the same course can compare
@@ -103,6 +105,11 @@ must not use session resume. Use Yacht's wall-clock backstop and a documented
 harness-native turn cap where one exists.
 
 ## Suggested implementation slices
+
+The expansion plan reorders these so skill-install generalization lands
+first (as slice 0). Follow
+[that order](omp-codex-harness-expansion.md#agreed-order), not the
+list below.
 
 1. Add native JSONL parser fixtures and pure parser tests for each harness.
 2. Add single-shot prompt and task adapters with version/provenance capture.

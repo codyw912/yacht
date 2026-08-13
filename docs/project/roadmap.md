@@ -9,8 +9,10 @@ that expands harnesses, rigging, runtime trust, course selection, and evaluator
 adapters should take priority over polishing a single Pi+fff smoke path.
 
 For the current implementation backlog, see
-[Audit follow-ups](audit-followups.md). The earlier architecture-cleanup
-backlog is kept in
+[Audit follow-ups](audit-followups.md). The OMP and Codex expansion is
+sequenced in
+[OMP and Codex harness expansion](omp-codex-harness-expansion.md).
+The earlier architecture-cleanup backlog is kept in
 [Next phase opportunities](next-phase-opportunities.md).
 
 ## 1. Generalized Benchmark Surface
