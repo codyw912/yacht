@@ -177,6 +177,35 @@ class SchemaTests(unittest.TestCase):
 
         validate_task_attempt_document(document)
 
+    def test_task_attempt_skill_stages_validate(self) -> None:
+        document = _valid_task_attempt_document()
+        document["agent"]["skill_stages"] = [
+            {
+                "skill": "team-conventions",
+                "available": "unmeasured",
+                "selected": "observed",
+                "loaded": "unmeasured",
+                "evidence_source": "claude-code-session-transcript",
+            }
+        ]
+
+        validate_task_attempt_document(document)
+
+    def test_task_attempt_skill_stages_require_evidence_source(self) -> None:
+        document = _valid_task_attempt_document()
+        document["agent"]["skill_stages"] = [
+            {
+                "skill": "team-conventions",
+                "available": "unmeasured",
+                "selected": "observed",
+                "loaded": "unmeasured",
+            }
+        ]
+
+        with self.assertRaisesRegex(ValueError, "evidence_source"):
+            validate_task_attempt_document(document)
+
+
     def test_task_attempt_episodes_block_validates(self) -> None:
         document = _valid_task_attempt_document()
         document["episodes"] = {

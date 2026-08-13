@@ -5,6 +5,7 @@ from typing import Any
 
 from yacht.domain.model import RiggingInstallStep, RiggingRecipe, RuntimeRecipe
 from yacht.harnesses.mcp_config import McpInstallProvider, supports_mcp_server_installs
+from yacht.harnesses.skill_config import supports_skill_installs
 from yacht.reports.surface_metadata import harness_for_runtime
 from yacht.runtimes.tool_capabilities import (
     ToolCapability,
@@ -21,12 +22,14 @@ SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
         "package",
         "preinstalled",
         "custom-command",
+        "skill",
     ),
     "harbor": (
         "agent-extension",
         "config-file",
         "mcp-server",
         "package",
+        "skill",
     ),
     "host-nix": (
         "agent-extension",
@@ -35,6 +38,7 @@ SUPPORTED_INSTALL_METHODS_BY_BACKEND: dict[str, tuple[str, ...]] = {
         "package",
         "preinstalled",
         "custom-command",
+        "skill",
     ),
 }
 
@@ -184,6 +188,25 @@ def _step_support(
                 False,
                 f"config-file install target {step.target} must be a relative "
                 "path inside the trial home without traversal",
+            )
+    if step.method == "skill":
+        runtime_harness = harness_for_runtime(runtime)
+        if not supports_skill_installs(runtime_harness):
+            return (
+                False,
+                f"runtime harness {runtime_harness} does not support "
+                "rigging install method skill",
+            )
+        if "/" in step.target or step.target in {".", ".."}:
+            return (
+                False,
+                f"skill install target {step.target} must be a skill name, "
+                "not a path",
+            )
+        if step.content is None:
+            return (
+                False,
+                f"skill install {step.target} requires content",
             )
     return True, None
 

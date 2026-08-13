@@ -17,6 +17,7 @@ from yacht.contracts.schemas import (
 from yacht.harnesses.claude_code import (
     SESSION_TRANSCRIPT_EVIDENCE,
     mcp_server_namespace,
+    skill_stages_from_session_transcript,
     tool_calls_from_session_transcript,
 )
 from yacht.harnesses.mcp_config import provider_mcp_namespace
@@ -195,6 +196,10 @@ def _agent_to_json(
     }
     if evidence_source is not None:
         payload["tool_call_evidence"] = evidence_source
+    if evidence_source == SESSION_TRANSCRIPT_EVIDENCE:
+        skill_stages = _session_skill_stages(Path(trial_dir) / "agent" / "sessions")
+        if skill_stages:
+            payload["skill_stages"] = skill_stages
     return payload
 
 
@@ -292,6 +297,9 @@ def _tool_expectations(
 def _installed_skill_names(rigging: RiggingRecipe) -> list[str]:
     names = []
     for step in rigging.install:
+        if step.method == "skill":
+            names.append(_skill_name_from_content(step.content) or step.target)
+            continue
         if step.method != "config-file":
             continue
         match = _SKILL_INSTALL_TARGET.match(step.target)
@@ -321,6 +329,28 @@ def _skill_for_tool(tool_name: str, installed_skills: list[str]) -> str:
     if len(installed_skills) == 1:
         return installed_skills[0]
     return tool_name
+
+
+def _session_skill_stages(sessions_dir: Path) -> list[dict[str, str]]:
+    if not sessions_dir.is_dir():
+        return []
+    stages: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for transcript_path in sorted(sessions_dir.rglob("*.jsonl")):
+        try:
+            text = transcript_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        parsed = skill_stages_from_session_transcript(text)
+        if parsed is None:
+            continue
+        for stage in parsed:
+            name = stage["skill"]
+            if name in seen:
+                continue
+            seen.add(name)
+            stages.append(stage)
+    return stages
 
 
 def _observed_tool_calls(trial_dir: Path) -> tuple[list[str], str | None]:

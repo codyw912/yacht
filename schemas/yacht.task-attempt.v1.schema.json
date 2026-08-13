@@ -367,6 +367,42 @@
         "transcript_path": {
           "type": "string",
           "minLength": 1
+        },
+        "skill_stages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "skill",
+              "available",
+              "selected",
+              "loaded",
+              "evidence_source"
+            ],
+            "properties": {
+              "skill": {
+                "type": "string",
+                "minLength": 1
+              },
+              "available": {
+                "type": "string",
+                "enum": ["observed", "absent", "unmeasured"]
+              },
+              "selected": {
+                "type": "string",
+                "enum": ["observed", "absent", "unmeasured"]
+              },
+              "loaded": {
+                "type": "string",
+                "enum": ["observed", "absent", "unmeasured"]
+              },
+              "evidence_source": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
         }
       }
     },

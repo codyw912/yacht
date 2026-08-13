@@ -61,6 +61,7 @@ class RealBenchmarkRunbookTests(unittest.TestCase):
                         "package",
                         "preinstalled",
                         "custom-command",
+                        "skill",
                     ],
                     "install_checks": [
                         {
