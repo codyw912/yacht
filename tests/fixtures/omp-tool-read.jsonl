@@ -1,0 +1,6 @@
+{"type":"session","version":3}
+{"type":"agent_start"}
+{"type":"tool_execution_start","toolName":"read"}
+{"type":"tool_execution_end","toolName":"read","isError":false}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"OK"}]}}
+{"type":"agent_end"}

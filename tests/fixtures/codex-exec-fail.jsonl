@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"fixture-thread"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"model metadata not found"}}
+{"type":"turn.started"}
+{"type":"error","message":"invalid request"}
+{"type":"turn.failed","error":{"message":"invalid request"}}
