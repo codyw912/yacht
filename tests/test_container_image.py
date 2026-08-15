@@ -238,3 +238,20 @@ class ContainerImageTests(unittest.TestCase):
             [check.kind for check in codex_runtime.preflight.checks],
             ["command", "command", "env", "command", "install-only"],
         )
+
+    def test_omp_and_codex_container_smokes_use_repo_owned_images(self) -> None:
+        omp = load_regatta(Path("examples/container-omp-runtime-smoke.toml"))
+        self.assertEqual(
+            omp.runtime_recipes["omp-container"].image,
+            "yacht/omp-runtime:omp-17.2.15",
+        )
+        self.assertEqual(omp.runtime_recipes["omp-container"].backend, "container")
+        self.assertEqual(omp.runtime_recipes["omp-container"].command, ("omp",))
+
+        codex = load_regatta(Path("examples/container-codex-runtime-smoke.toml"))
+        self.assertEqual(
+            codex.runtime_recipes["codex-container"].image,
+            "yacht/codex-runtime:codex-0.147.0",
+        )
+        self.assertEqual(codex.runtime_recipes["codex-container"].backend, "container")
+        self.assertEqual(codex.runtime_recipes["codex-container"].command, ("codex",))
