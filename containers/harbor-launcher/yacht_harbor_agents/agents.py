@@ -21,12 +21,17 @@ from harbor.agents.installed.pi import Pi
 from harbor.environments.base import BaseEnvironment
 
 from harbor.agents.installed.node_install import nvm_node_install_snippet
-
 from yacht_harbor_agents import declared_support, episodes
+
 from yacht_harbor_agents.rigging import (
+    CODEX_PACKAGE,
+    OMP_PACKAGE,
     PI_NODE_ALIAS_REPAIR_COMMAND,
     PI_PACKAGE,
+    codex_run_command,
+    omp_run_command,
     rigging_commands,
+    version_contains_pin,
 )
 
 
@@ -66,6 +71,28 @@ async def apply_rigging_steps(
                 f"rigging step failed with exit code {result.return_code}: "
                 f"{command}\n{detail}"
             )
+
+
+async def capture_resolved_version(
+    environment: BaseEnvironment,
+    logs_dir: Path,
+    command: str,
+    expected: str | None,
+) -> str:
+    result = await environment.exec(command=command)
+    version = (result.stdout or "").strip()
+    if result.return_code != 0 or not version:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise RiggingStepError(
+            f"failed to capture resolved version ({command}): {detail}"
+        )
+    if expected and not version_contains_pin(version, expected):
+        raise RiggingStepError(
+            f"resolved version {version} does not match configured pin {expected}"
+        )
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    (logs_dir / "resolved-version.txt").write_text(version + "\n", encoding="utf-8")
+    return version
 
 
 async def run_episode_verifier(
@@ -216,7 +243,10 @@ class YachtClaudeCode(ClaudeCode):
                     and to_resolution is None
                 ):
                     reward = await run_episode_verifier(
-                        environment, task_dir, episode_dir, self.logs_dir.parent / "verifier"
+                        environment,
+                        task_dir,
+                        episode_dir,
+                        self.logs_dir.parent / "verifier",
                     )
                     if reward is not None:
                         record["reward"] = reward
@@ -295,6 +325,136 @@ class YachtPi(Pi):
         await apply_rigging_steps(environment, self._rigging_steps)
 
 
+class YachtOmp(BaseInstalledAgent):
+    """Isolated OMP install plus yacht rigging (no user-home copy)."""
+
+    @staticmethod
+    def name() -> str:
+        return "yacht-omp"
+
+    def __init__(
+        self,
+        logs_dir: Path,
+        rigging_steps: list[dict[str, Any]] | None = None,
+        *args,
+        **kwargs,
+    ):
+        self._rigging_steps = list(rigging_steps or [])
+        super().__init__(logs_dir, *args, **kwargs)
+
+    def get_version_command(self) -> str | None:
+        return "omp --version"
+
+    async def install(self, environment: BaseEnvironment) -> None:
+        version_spec = f"@{self._version}" if self._version else "@latest"
+        await self.exec_as_root(
+            environment,
+            command="apt-get update && apt-get install -y curl",
+            env={"DEBIAN_FRONTEND": "noninteractive"},
+        )
+        await self.exec_as_agent(
+            environment,
+            command=(
+                "set -euo pipefail; "
+                f"{nvm_node_install_snippet()} && "
+                f"npm install -g {OMP_PACKAGE}{version_spec} && "
+                "omp --version"
+            ),
+        )
+        result = await environment.exec(command=PI_NODE_ALIAS_REPAIR_COMMAND)
+        if result.return_code != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RiggingStepError(
+                "node alias repair failed with exit code "
+                f"{result.return_code}: {PI_NODE_ALIAS_REPAIR_COMMAND}\n{detail}"
+            )
+        await apply_rigging_steps(environment, self._rigging_steps)
+        resolved = await capture_resolved_version(
+            environment,
+            self.logs_dir,
+            ". ~/.nvm/nvm.sh; omp --version",
+            self._version,
+        )
+        self._version = resolved
+
+    async def run(self, instruction, environment: BaseEnvironment, context) -> None:
+        result = await environment.exec(
+            command=omp_run_command(
+                instruction=str(instruction),
+                model=str(self.model_name or "") or None,
+            )
+        )
+        if result.return_code != 0:
+            raise NonZeroAgentExitCodeError(
+                f"omp exited with code {result.return_code}"
+            )
+
+
+class YachtCodex(BaseInstalledAgent):
+    """Isolated Codex install plus yacht rigging (no user-home copy)."""
+
+    @staticmethod
+    def name() -> str:
+        return "yacht-codex"
+
+    def __init__(
+        self,
+        logs_dir: Path,
+        rigging_steps: list[dict[str, Any]] | None = None,
+        *args,
+        **kwargs,
+    ):
+        self._rigging_steps = list(rigging_steps or [])
+        super().__init__(logs_dir, *args, **kwargs)
+
+    def get_version_command(self) -> str | None:
+        return "codex --version"
+
+    async def install(self, environment: BaseEnvironment) -> None:
+        version_spec = f"@{self._version}" if self._version else "@latest"
+        await self.exec_as_root(
+            environment,
+            command="apt-get update && apt-get install -y curl",
+            env={"DEBIAN_FRONTEND": "noninteractive"},
+        )
+        await self.exec_as_agent(
+            environment,
+            command=(
+                "set -euo pipefail; "
+                f"{nvm_node_install_snippet()} && "
+                f"npm install -g {CODEX_PACKAGE}{version_spec} && "
+                "codex --version"
+            ),
+        )
+        result = await environment.exec(command=PI_NODE_ALIAS_REPAIR_COMMAND)
+        if result.return_code != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RiggingStepError(
+                "node alias repair failed with exit code "
+                f"{result.return_code}: {PI_NODE_ALIAS_REPAIR_COMMAND}\n{detail}"
+            )
+        await apply_rigging_steps(environment, self._rigging_steps)
+        resolved = await capture_resolved_version(
+            environment,
+            self.logs_dir,
+            ". ~/.nvm/nvm.sh; codex --version",
+            self._version,
+        )
+        self._version = resolved
+
+    async def run(self, instruction, environment: BaseEnvironment, context) -> None:
+        result = await environment.exec(
+            command=codex_run_command(
+                instruction=str(instruction),
+                model=str(self.model_name or "") or None,
+            )
+        )
+        if result.return_code != 0:
+            raise NonZeroAgentExitCodeError(
+                f"codex exited with code {result.return_code}"
+            )
+
+
 class YachtDeclared(BaseInstalledAgent):
     """Generic Harbor agent for config-declared harnesses (ADR 0016).
 
@@ -356,9 +516,7 @@ class YachtDeclared(BaseInstalledAgent):
             return Path(str(path))
         url = install.get("url")
         if not url:
-            raise RuntimeError(
-                "declared harness install must set url or path"
-            )
+            raise RuntimeError("declared harness install must set url or path")
         target = self.logs_dir / "harness-artifact"
         target.parent.mkdir(parents=True, exist_ok=True)
         urllib.request.urlretrieve(str(url), target)

@@ -32,6 +32,8 @@ CODEX_JSONL_EVENT_TYPES = frozenset(
     )
 )
 
+CODEX_JSONL_EVIDENCE = "codex-jsonl"
+
 
 class CodexAdapterNotConfigured(ValueError):
     """Raised when Codex execution is requested without a launcher."""
@@ -321,7 +323,7 @@ def _write_transcript(
 def _machine_evidence(
     evidence: dict[str, Any] | None, harness_version: str | None = None
 ) -> dict[str, Any]:
-    machine_evidence: dict[str, Any] = {"format": "codex-jsonl"}
+    machine_evidence: dict[str, Any] = {"format": CODEX_JSONL_EVIDENCE}
     if evidence is not None:
         machine_evidence.update(evidence)
     if harness_version is not None:

@@ -1,0 +1,100 @@
+# Measure a skill claim on Codex: stock versus a logical `skill` install.
+#
+#   uv run yacht run examples/custom-eval-codex-skill-ab-smoke.toml \
+#     --logbook /private/tmp/yacht-codex-skill-ab \
+#     --workspace . \
+#     --secret openai=@env:OPENAI_API_KEY
+#
+# Token-free bar: `uv run yacht preflight` with the install-only check.
+# Requirements: Docker running, uv, OPENAI_API_KEY exported, and the
+# pinned launcher image built:
+#
+#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+
+[regatta]
+name = "custom-eval-codex-skill-ab-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "team-conventions-ab"
+
+[[course.tasks]]
+id = "convention-task"
+title = "Add a tool module following team conventions"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "custom-evals"
+split = "v1"
+harness = "harbor"
+
+[secrets.openai]
+source = "env"
+name = "OPENAI_API_KEY"
+
+[runtimes.harbor-codex]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "codex"
+harness_version = "0.147.0"
+required_secrets = ["openai"]
+
+[runtimes.harbor-codex.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "openai-secret", kind = "env", env = ["OPENAI_API_KEY"] },
+  { name = "workspace-writable", kind = "command", command = ["sh", "-c", "test -w ."] },
+  { name = "agent-install", kind = "install-only" },
+]
+[tools.team-conventions]
+kind = "agent-skill"
+description = "Team conventions for tool modules, packaged as an agent skill."
+interfaces = ["agent-skill"]
+install_methods = ["skill"]
+
+[riggings.team-conventions-skill]
+tools = ["team-conventions"]
+instructions = "Consult the team-conventions skill before writing tool modules."
+
+[[riggings.team-conventions-skill.install]]
+method = "skill"
+target = "team-conventions"
+content = """
+---
+name: team-conventions
+description: Team conventions for tool modules in /app/tools. Use when adding or changing a tool module.
+---
+
+# Tool module conventions
+
+Every tool module in `/app/tools` must:
+
+1. Define a module-level `TOOL_NAME` string constant naming the tool.
+2. Define `run(args) -> int` as the entrypoint, returning `0` on
+   success.
+3. Register itself by appending its `TOOL_NAME` as a new line to
+   `/app/tools/registry.txt`.
+
+A module that does not register itself in `registry.txt` will not be
+loaded, even if the code is otherwise correct.
+"""
+
+[[vessels]]
+name = "codex-baseline"
+model = "openai/gpt-5.2"
+runtime = "harbor-codex"
+
+[[vessels]]
+name = "codex-with-skill"
+model = "openai/gpt-5.2"
+runtime = "harbor-codex"
+rigging = ["team-conventions-skill"]
+
+[[comparisons]]
+name = "skill-vs-baseline"
+course = "team-conventions-ab"
+vessels = ["codex-baseline", "codex-with-skill"]

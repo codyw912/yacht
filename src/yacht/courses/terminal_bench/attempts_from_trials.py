@@ -20,7 +20,9 @@ from yacht.harnesses.claude_code import (
     skill_stages_from_session_transcript,
     tool_calls_from_session_transcript,
 )
+from yacht.harnesses.codex import CODEX_JSONL_EVIDENCE, parse_codex_jsonl
 from yacht.harnesses.mcp_config import provider_mcp_namespace
+from yacht.harnesses.omp import OMP_JSONL_EVIDENCE, parse_omp_jsonl
 from yacht.harnesses.pi import PI_JSONL_EVIDENCE, tool_calls_from_pi_jsonl
 from yacht.courses.terminal_bench.harness import HARBOR_JOB_NAME
 from yacht.domain.model import (
@@ -200,6 +202,10 @@ def _agent_to_json(
         skill_stages = _session_skill_stages(Path(trial_dir) / "agent" / "sessions")
         if skill_stages:
             payload["skill_stages"] = skill_stages
+    elif evidence_source in {OMP_JSONL_EVIDENCE, CODEX_JSONL_EVIDENCE}:
+        skill_stages = _native_stream_skill_stages(Path(trial_dir), evidence_source)
+        if skill_stages:
+            payload["skill_stages"] = skill_stages
     return payload
 
 
@@ -366,6 +372,16 @@ def _observed_tool_calls(trial_dir: Path) -> tuple[list[str], str | None]:
     session_calls = _session_tool_calls(trial_dir / "agent" / "sessions")
     if session_calls is not None:
         return session_calls, SESSION_TRANSCRIPT_EVIDENCE
+    omp_calls = _native_stream_tool_calls(
+        trial_dir / "agent" / "omp.jsonl", parse_omp_jsonl
+    )
+    if omp_calls is not None:
+        return list(omp_calls), OMP_JSONL_EVIDENCE
+    codex_calls = _native_stream_tool_calls(
+        trial_dir / "agent" / "codex.jsonl", parse_codex_jsonl
+    )
+    if codex_calls is not None:
+        return list(codex_calls), CODEX_JSONL_EVIDENCE
     pi_calls = _pi_output_tool_calls(trial_dir / "agent" / "pi.txt")
     if pi_calls is not None:
         return list(pi_calls), PI_JSONL_EVIDENCE
@@ -418,6 +434,47 @@ def _pi_output_tool_calls(output_path: Path) -> tuple[str, ...] | None:
     except (OSError, UnicodeDecodeError):
         return None
     return tool_calls_from_pi_jsonl(text)
+
+
+def _native_stream_tool_calls(output_path: Path, parser) -> tuple[str, ...] | None:
+    if not output_path.is_file():
+        return None
+    try:
+        text = output_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    parsed = parser(text)
+    if parsed is None:
+        return None
+    tool_calls = parsed.get("tool_calls")
+    if not isinstance(tool_calls, tuple):
+        return ()
+    return tool_calls
+
+
+def _native_stream_skill_stages(
+    trial_dir: Path, evidence_source: str
+) -> list[dict[str, str]]:
+    if evidence_source == OMP_JSONL_EVIDENCE:
+        path = trial_dir / "agent" / "omp.jsonl"
+        parser = parse_omp_jsonl
+    elif evidence_source == CODEX_JSONL_EVIDENCE:
+        path = trial_dir / "agent" / "codex.jsonl"
+        parser = parse_codex_jsonl
+    else:
+        return []
+    if not path.is_file():
+        return []
+    try:
+        parsed = parser(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return []
+    if parsed is None:
+        return []
+    stages = parsed.get("skill_stages")
+    if not isinstance(stages, tuple):
+        return []
+    return [dict(stage) for stage in stages]
 
 
 def _machine_evidence(trial: dict[str, Any] | None) -> dict[str, Any]:

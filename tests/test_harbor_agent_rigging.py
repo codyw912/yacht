@@ -136,6 +136,33 @@ class HarborAgentRiggingTests(unittest.TestCase):
             HARBOR_AGENT_EXTENSION_HARNESSES,
         )
 
+    def test_omp_and_codex_run_commands_quote_and_pin_native_flags(self) -> None:
+        import shlex
+
+        omp = rigging.omp_run_command(
+            instruction="solve 'it'",
+            model="openai/gpt-5.2",
+        )
+        self.assertIn("omp -p --mode json --no-session --auto-approve", omp)
+        self.assertIn("--model openai/gpt-5.2", omp)
+        self.assertIn(shlex.quote("solve 'it'"), omp)
+        self.assertIn("> /logs/agent/omp.jsonl", omp)
+
+        codex = rigging.codex_run_command(
+            instruction="solve 'it'",
+            model="openai/gpt-5.2",
+        )
+        self.assertIn("codex exec --json --ephemeral", codex)
+        self.assertIn("--dangerously-bypass-approvals-and-sandbox", codex)
+        self.assertIn("--model openai/gpt-5.2", codex)
+        self.assertIn(shlex.quote("solve 'it'"), codex)
+        self.assertIn("> /logs/agent/codex.jsonl", codex)
+
+    def test_version_contains_pin_reads_cli_banner(self) -> None:
+        self.assertTrue(rigging.version_contains_pin("omp/17.2.15", "17.2.15"))
+        self.assertTrue(rigging.version_contains_pin("codex-cli 0.147.0", "0.147.0"))
+        self.assertFalse(rigging.version_contains_pin("omp/17.2.15", "9.9.9"))
+
 
 if __name__ == "__main__":
     unittest.main()

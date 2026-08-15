@@ -81,7 +81,37 @@ def run_terminal_bench_install_only(
         }
         return {"status": "failed", "evidence": evidence}
 
+    expected_version = str(job["agent"]["version"])
+    harness = str(job["agent"]["name"])
+    if harness in {"omp", "codex"}:
+        resolved_path = Path(trial["trial_dir"]) / "agent" / "resolved-version.txt"
+        if not resolved_path.is_file():
+            evidence["error"] = (
+                "trial result does not record the resolved agent version"
+            )
+            evidence["expected_version"] = expected_version
+            return {"status": "failed", "evidence": evidence}
+        try:
+            resolved_version = resolved_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            evidence["error"] = (
+                "trial result does not record the resolved agent version"
+            )
+            evidence["expected_version"] = expected_version
+            return {"status": "failed", "evidence": evidence}
+        evidence["resolved_version"] = resolved_version
+        if not _version_contains_pin(resolved_version, expected_version):
+            evidence["error"] = (
+                "resolved agent version "
+                f"{resolved_version} does not match configured pin "
+                f"{expected_version}"
+            )
+            evidence["expected_version"] = expected_version
+            return {"status": "failed", "evidence": evidence}
+        return {"status": "passed", "evidence": evidence}
+
     installed_version = None
+    agent_info = trial.get("agent_info")
     if isinstance(agent_info, dict):
         version = agent_info.get("version")
         if isinstance(version, str) and version:
@@ -89,7 +119,6 @@ def run_terminal_bench_install_only(
     if installed_version is None:
         evidence["error"] = "trial result does not record the installed agent version"
         return {"status": "failed", "evidence": evidence}
-
     return {"status": "passed", "evidence": evidence}
 
 
@@ -103,3 +132,10 @@ def _first_trial_result(work_dir: Path) -> dict[str, Any] | None:
             payload["trial_dir"] = str(result_path.parent)
             return payload
     return None
+
+
+def _version_contains_pin(resolved: str, expected: str) -> bool:
+    if not resolved or not expected:
+        return False
+    tokens = resolved.replace("/", " ").split()
+    return expected in tokens or resolved == expected

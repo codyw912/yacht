@@ -9,6 +9,10 @@ PI_AGENT_VERSION = "0.74.0"
 PI_AGENT_PACKAGE = "@earendil-works/pi-coding-agent"
 CLAUDE_CODE_VERSION = "2.1.211"
 CLAUDE_CODE_PACKAGE = "@anthropic-ai/claude-code"
+OMP_VERSION = "17.2.15"
+OMP_PACKAGE = "@oh-my-pi/pi-coding-agent"
+CODEX_VERSION = "0.147.0"
+CODEX_PACKAGE = "@openai/codex"
 
 
 class ContainerImageTests(unittest.TestCase):
@@ -196,3 +200,41 @@ class ContainerImageTests(unittest.TestCase):
         )
         self.assertIn("WORKDIR /workspace", contents)
         self.assertIn("USER yacht", contents)
+
+    def test_omp_and_codex_dockerfiles_build_pinned_clis(self) -> None:
+        omp = Path("containers/omp-runtime/Dockerfile").read_text(encoding="utf-8")
+        self.assertIn(f"ARG OMP_VERSION={OMP_VERSION}", omp)
+        self.assertIn(f"npm install -g {OMP_PACKAGE}@$OMP_VERSION", omp)
+        self.assertIn("USER yacht", omp)
+
+        codex = Path("containers/codex-runtime/Dockerfile").read_text(encoding="utf-8")
+        self.assertIn(f"ARG CODEX_VERSION={CODEX_VERSION}", codex)
+        self.assertIn(f"npm install -g {CODEX_PACKAGE}@$CODEX_VERSION", codex)
+        self.assertIn("USER yacht", codex)
+
+    def test_omp_and_codex_smoke_examples_pin_harbor_preflight(self) -> None:
+        omp = load_regatta(Path("examples/custom-eval-omp-skill-ab-smoke.toml"))
+        omp_runtime = omp.runtime_recipes["harbor-omp"]
+        self.assertEqual(omp_runtime.harness, "omp")
+        self.assertEqual(omp_runtime.harness_version, "17.2.15")
+        self.assertEqual(
+            [check.name for check in omp_runtime.preflight.checks],
+            [
+                "docker-daemon",
+                "harbor-launcher-image",
+                "openai-secret",
+                "workspace-writable",
+                "agent-install",
+            ],
+        )
+        self.assertEqual(omp_runtime.preflight.checks[2].kind, "env")
+        self.assertEqual(omp_runtime.preflight.checks[4].kind, "install-only")
+
+        codex = load_regatta(Path("examples/custom-eval-codex-skill-ab-smoke.toml"))
+        codex_runtime = codex.runtime_recipes["harbor-codex"]
+        self.assertEqual(codex_runtime.harness, "codex")
+        self.assertEqual(codex_runtime.harness_version, "0.147.0")
+        self.assertEqual(
+            [check.kind for check in codex_runtime.preflight.checks],
+            ["command", "command", "env", "command", "install-only"],
+        )

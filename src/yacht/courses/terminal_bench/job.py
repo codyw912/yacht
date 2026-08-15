@@ -30,6 +30,8 @@ TERMINAL_BENCH_JOB_FILENAME = "terminal-bench-job.json"
 
 HARBOR_AGENT_BY_HARNESS = {
     "claude-code": "yacht_harbor_agents.agents:YachtClaudeCode",
+    "codex": "yacht_harbor_agents.agents:YachtCodex",
+    "omp": "yacht_harbor_agents.agents:YachtOmp",
     "pi": "yacht_harbor_agents.agents:YachtPi",
 }
 

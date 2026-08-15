@@ -24,6 +24,8 @@ _AGENT_EXTENSION_INSTALLERS = {
 # release (0.73.1) predates every current pi extension build. YachtPi
 # overrides the harness install to this package.
 PI_PACKAGE = "@earendil-works/pi-coding-agent"
+OMP_PACKAGE = "@oh-my-pi/pi-coding-agent"
+CODEX_PACKAGE = "@openai/codex"
 
 # Official node base images set NODE_VERSION; nvm's installer
 # pre-installs that version and pins the default alias to it, so a
@@ -33,6 +35,43 @@ PI_PACKAGE = "@earendil-works/pi-coding-agent"
 # right after the harness install, and every later session (rigging
 # steps and harbor's own pi run alike) resolves the right bin.
 PI_NODE_ALIAS_REPAIR_COMMAND = ". ~/.nvm/nvm.sh; nvm alias default node"
+
+
+def omp_run_command(*, instruction: str, model: str | None = None) -> str:
+    argv = ["omp", "-p", "--mode", "json", "--no-session", "--auto-approve"]
+    if model:
+        argv.extend(["--model", model])
+    argv.append(instruction)
+    quoted = " ".join(shlex.quote(item) for item in argv)
+    return (
+        "set -euo pipefail; . ~/.nvm/nvm.sh; "
+        f"{quoted} > /logs/agent/omp.jsonl 2> /logs/agent/omp.stderr"
+    )
+
+
+def codex_run_command(*, instruction: str, model: str | None = None) -> str:
+    argv = [
+        "codex",
+        "exec",
+        "--json",
+        "--ephemeral",
+        "--dangerously-bypass-approvals-and-sandbox",
+    ]
+    if model:
+        argv.extend(["--model", model])
+    argv.append(instruction)
+    quoted = " ".join(shlex.quote(item) for item in argv)
+    return (
+        "set -euo pipefail; . ~/.nvm/nvm.sh; "
+        f"{quoted} > /logs/agent/codex.jsonl 2> /logs/agent/codex.stderr"
+    )
+
+
+def version_contains_pin(resolved: str, expected: str) -> bool:
+    if not resolved or not expected:
+        return False
+    tokens = resolved.replace("/", " ").split()
+    return expected in tokens or resolved == expected
 
 
 def rigging_commands(steps: list[dict[str, Any]]) -> list[str]:

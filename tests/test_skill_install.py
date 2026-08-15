@@ -264,6 +264,49 @@ class SkillHarborJobTests(unittest.TestCase):
             ],
         )
 
+    def test_job_renders_omp_and_codex_skills_and_harbor_agents(self) -> None:
+        for harness, import_path, skill_target in (
+            (
+                "omp",
+                "yacht_harbor_agents.agents:YachtOmp",
+                ".agents/skills/team-conventions/SKILL.md",
+            ),
+            (
+                "codex",
+                "yacht_harbor_agents.agents:YachtCodex",
+                ".agents/skills/team-conventions/SKILL.md",
+            ),
+        ):
+            with self.subTest(harness=harness):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    config_path = Path(temp_dir) / "regatta.toml"
+                    config_path.write_text(
+                        _skill_config(
+                            'method = "skill"\n'
+                            'target = "team-conventions"\n'
+                            f'content = """{SKILL_BODY}"""',
+                            backend="harbor",
+                            harness=harness,
+                        ),
+                        encoding="utf-8",
+                    )
+                    job = render_terminal_bench_job(
+                        regatta=load_regatta(config_path),
+                        vessel_name="with-skill",
+                    )
+
+                self.assertEqual(job["agent"]["import_path"], import_path)
+                self.assertEqual(
+                    job["agent"]["rigging_steps"],
+                    [
+                        {
+                            "method": "config-file",
+                            "target": skill_target,
+                            "content": SKILL_BODY,
+                        }
+                    ],
+                )
+
     def test_job_rejects_skill_on_unsupported_harness(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "regatta.toml"
@@ -359,6 +402,37 @@ class SkillStageEvidenceTests(unittest.TestCase):
                 }
             ],
         )
+
+    def test_omp_and_codex_native_streams_emit_skill_stages(self) -> None:
+        fixtures = Path("tests/fixtures")
+        cases = (
+            ("omp.jsonl", "omp-skill-read.jsonl", "yacht-fixture", "omp-jsonl"),
+            ("codex.jsonl", "codex-exec-skill.jsonl", "yacht-fixture", "codex-jsonl"),
+        )
+        for filename, fixture, skill, source in cases:
+            with self.subTest(filename=filename):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    trial_dir = Path(temp_dir)
+                    agent_dir = trial_dir / "agent"
+                    agent_dir.mkdir(parents=True)
+                    (agent_dir / filename).write_text(
+                        fixtures.joinpath(fixture).read_text(encoding="utf-8"),
+                        encoding="utf-8",
+                    )
+                    agent = _agent_to_json(None, str(trial_dir), True)
+
+                self.assertEqual(
+                    agent["skill_stages"],
+                    [
+                        {
+                            "skill": skill,
+                            "available": "unmeasured",
+                            "selected": "observed",
+                            "loaded": "observed",
+                            "evidence_source": source,
+                        }
+                    ],
+                )
 
     def test_harness_evidence_skill_name_is_not_claude_selection(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
