@@ -148,6 +148,31 @@ class MachinePreflightTests(unittest.TestCase):
             self.assertEqual(fff_mode["status"], "failed")
             self.assertEqual(fff_mode["evidence"]["missing_env"], ["PI_FFF_MODE"])
 
+    def test_env_check_records_names_not_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            artifact_path = root / "logbook" / "preflight" / "pi-plus-fff.json"
+            regatta, instance = _prepared_runtime(root, vessel_index=1)
+            instance = replace(
+                instance,
+                env={**instance.env, "PI_FFF_MODE": "super-secret-mode"},
+            )
+
+            artifact = execute_machine_preflight(
+                regatta=regatta,
+                vessel=regatta.vessels[1],
+                instance=instance,
+                artifact_path=artifact_path,
+                command_runner=_passing_command,
+            )
+
+            fff_mode = _check_by_name(artifact, "fff-mode")
+            self.assertEqual(fff_mode["status"], "passed")
+            self.assertEqual(fff_mode["evidence"]["present_env"], ["PI_FFF_MODE"])
+            self.assertNotIn(
+                "super-secret-mode", artifact_path.read_text(encoding="utf-8")
+            )
+
     def test_execute_machine_preflight_fails_path_outside_trial_home(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
