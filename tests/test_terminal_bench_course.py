@@ -485,6 +485,33 @@ class TerminalBenchHarnessTests(unittest.TestCase):
             str(Path.cwd() / "relay-logbook" / "trials"),
         )
 
+    def test_harbor_run_config_forwards_secret_env_as_templates(self) -> None:
+        job = {
+            "dataset": {"name": "terminal-bench/terminal-bench-2", "version": "2.0"},
+            "tasks": ["hello-world"],
+            "secret_env": ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
+            "agent": {
+                "name": "omp",
+                "import_path": "yacht_harbor_agents.agents:YachtOmp",
+                "version": "17.2.15",
+                "model": "openai/gpt-5.6-luna",
+                "env": {"FFF_MODE": "mcp"},
+                "mcp_servers": [],
+                "rigging_steps": [],
+            },
+        }
+
+        run_config = harbor_run_config(job, trials_dir=Path("/tmp/trials"))
+
+        self.assertEqual(
+            run_config["agents"][0]["env"],
+            {
+                "FFF_MODE": "mcp",
+                "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+                "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+            },
+        )
+
     def test_translates_trials_into_normalized_native_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             trials_dir = Path(temp_dir)

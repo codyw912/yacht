@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from yacht.cli import main
 from yacht.courses.task_directory import task_directory_digest
+from yacht.courses.terminal_bench.harness import harbor_run_config
 from yacht.courses.terminal_bench.job import render_terminal_bench_job
 from yacht.domain.model import load_regatta
 
@@ -80,6 +81,14 @@ class OmpCodexFactorialCourseTests(unittest.TestCase):
         ]
         self.assertEqual(omp_targets, [skill_step["target"]])
         self.assertEqual(codex_targets, [skill_step["target"]])
+        for job in jobs.values():
+            self.assertEqual(job["secret_env"], ["OPENAI_API_KEY"])
+            self.assertEqual(
+                harbor_run_config(job, trials_dir=Path("/tmp/trials"))["agents"][0][
+                    "env"
+                ],
+                {"OPENAI_API_KEY": "${OPENAI_API_KEY}"},
+            )
 
     def test_yacht_run_accepts_omp_and_codex_together(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
