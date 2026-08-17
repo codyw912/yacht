@@ -95,7 +95,7 @@ def codex_run_command(*, instruction: str, model: str | None = None) -> str:
         "--dangerously-bypass-approvals-and-sandbox",
     ]
     if model:
-        argv.extend(["--model", model])
+        argv.extend(["--model", model.rsplit("/", 1)[-1]])
     argv.append(instruction)
     quoted = " ".join(shlex.quote(item) for item in argv)
     return (

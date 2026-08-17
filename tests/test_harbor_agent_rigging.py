@@ -157,7 +157,8 @@ class HarborAgentRiggingTests(unittest.TestCase):
         )
         self.assertIn("codex exec --json --ephemeral", codex)
         self.assertIn("--dangerously-bypass-approvals-and-sandbox", codex)
-        self.assertIn("--model openai/gpt-5.2", codex)
+        self.assertIn("--model gpt-5.2", codex)
+        self.assertNotIn("--model openai/gpt-5.2", codex)
         self.assertIn(shlex.quote("solve 'it'"), codex)
         self.assertIn("> /logs/agent/codex.jsonl", codex)
 
