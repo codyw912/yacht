@@ -85,12 +85,12 @@ loaded, even if the code is otherwise correct.
 
 [[vessels]]
 name = "omp-baseline"
-model = "openai/gpt-5.4-mini"
+model = "openai/gpt-5.6-luna"
 runtime = "harbor-omp"
 
 [[vessels]]
 name = "omp-with-skill"
-model = "openai/gpt-5.4-mini"
+model = "openai/gpt-5.6-luna"
 runtime = "harbor-omp"
 rigging = ["team-conventions-skill"]
 

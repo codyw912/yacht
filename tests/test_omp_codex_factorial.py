@@ -17,7 +17,7 @@ class OmpCodexFactorialCourseTests(unittest.TestCase):
 
         self.assertEqual(
             {vessel.model for vessel in regatta.vessels},
-            {"openai/gpt-5.4-mini"},
+            {"openai/gpt-5.6-luna"},
         )
         self.assertEqual(
             [task.id for task in regatta.course.tasks],
