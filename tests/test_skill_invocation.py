@@ -152,6 +152,22 @@ class ObservedToolCallsTests(unittest.TestCase):
                     self.assertEqual(calls, expected)
                     self.assertEqual(measured, source)
 
+    def test_episode_native_streams_measure_tool_calls(self) -> None:
+        fixtures = Path("tests/fixtures")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trial_dir = Path(temp_dir)
+            episode = trial_dir / "agent" / "episodes" / "001"
+            episode.mkdir(parents=True)
+            (episode / "omp.jsonl").write_text(
+                fixtures.joinpath("omp-skill-read.jsonl").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+
+            calls, source = _observed_tool_calls(trial_dir)
+
+            self.assertEqual(calls, ["read"])
+            self.assertEqual(source, "omp-jsonl")
+
 
 class ToolExpectationTests(unittest.TestCase):
     def test_skill_expectation_uses_frontmatter_name(self) -> None:

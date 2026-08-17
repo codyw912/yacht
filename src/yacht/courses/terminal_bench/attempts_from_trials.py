@@ -373,12 +373,12 @@ def _observed_tool_calls(trial_dir: Path) -> tuple[list[str], str | None]:
     if session_calls is not None:
         return session_calls, SESSION_TRANSCRIPT_EVIDENCE
     omp_calls = _native_stream_tool_calls(
-        trial_dir / "agent" / "omp.jsonl", parse_omp_jsonl
+        _native_stream_paths(trial_dir, "omp.jsonl"), parse_omp_jsonl
     )
     if omp_calls is not None:
         return list(omp_calls), OMP_JSONL_EVIDENCE
     codex_calls = _native_stream_tool_calls(
-        trial_dir / "agent" / "codex.jsonl", parse_codex_jsonl
+        _native_stream_paths(trial_dir, "codex.jsonl"), parse_codex_jsonl
     )
     if codex_calls is not None:
         return list(codex_calls), CODEX_JSONL_EVIDENCE
@@ -436,45 +436,65 @@ def _pi_output_tool_calls(output_path: Path) -> tuple[str, ...] | None:
     return tool_calls_from_pi_jsonl(text)
 
 
-def _native_stream_tool_calls(output_path: Path, parser) -> tuple[str, ...] | None:
-    if not output_path.is_file():
+def _native_stream_paths(trial_dir: Path, name: str) -> list[Path]:
+    root = trial_dir / "agent" / name
+    if root.is_file():
+        return [root]
+    episodes_dir = trial_dir / "agent" / "episodes"
+    if not episodes_dir.is_dir():
+        return []
+    return sorted(episodes_dir.glob(f"*/{name}"))
+
+
+def _native_stream_tool_calls(paths: list[Path], parser) -> tuple[str, ...] | None:
+    observed: list[str] = []
+    measured = False
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        parsed = parser(text)
+        if parsed is None:
+            continue
+        measured = True
+        tool_calls = parsed.get("tool_calls")
+        if isinstance(tool_calls, tuple):
+            observed.extend(tool_calls)
+    if not measured:
         return None
-    try:
-        text = output_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
-    parsed = parser(text)
-    if parsed is None:
-        return None
-    tool_calls = parsed.get("tool_calls")
-    if not isinstance(tool_calls, tuple):
-        return ()
-    return tool_calls
+    return tuple(dict.fromkeys(observed))
 
 
 def _native_stream_skill_stages(
     trial_dir: Path, evidence_source: str
 ) -> list[dict[str, str]]:
     if evidence_source == OMP_JSONL_EVIDENCE:
-        path = trial_dir / "agent" / "omp.jsonl"
+        paths = _native_stream_paths(trial_dir, "omp.jsonl")
         parser = parse_omp_jsonl
     elif evidence_source == CODEX_JSONL_EVIDENCE:
-        path = trial_dir / "agent" / "codex.jsonl"
+        paths = _native_stream_paths(trial_dir, "codex.jsonl")
         parser = parse_codex_jsonl
     else:
         return []
-    if not path.is_file():
-        return []
-    try:
-        parsed = parser(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError):
-        return []
-    if parsed is None:
-        return []
-    stages = parsed.get("skill_stages")
-    if not isinstance(stages, tuple):
-        return []
-    return [dict(stage) for stage in stages]
+    stages: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for path in paths:
+        try:
+            parsed = parser(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            continue
+        if parsed is None:
+            continue
+        for stage in parsed.get("skill_stages") or ():
+            if not isinstance(stage, dict):
+                continue
+            name = stage.get("skill")
+            if not isinstance(name, str) or name in seen:
+                continue
+            seen.add(name)
+            stages.append(dict(stage))
+    return stages
 
 
 def _machine_evidence(trial: dict[str, Any] | None) -> dict[str, Any]:

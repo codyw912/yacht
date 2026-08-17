@@ -199,10 +199,13 @@ def claude_episode_ended(subtype: str | None, timed_out: bool, errored: bool) ->
 
 def parse_omp_stream_result(text: str) -> dict[str, Any]:
     """Usage, cost, and completion from a captured OMP `--mode json` stream."""
+    events = _jsonl_objects(text)
+    if events is None:
+        return {"ended": None, "usage": None, "cost_usd": None}
     ended = None
     usage = None
     cost_usd = None
-    for event in _jsonl_objects(text):
+    for event in events:
         if event.get("type") == "agent_end":
             ended = ENDED_NATURAL
         if event.get("type") != "message_end":
@@ -220,9 +223,12 @@ def parse_omp_stream_result(text: str) -> dict[str, Any]:
 
 def parse_codex_stream_result(text: str) -> dict[str, Any]:
     """Usage and completion from a captured Codex `exec --json` stream."""
+    events = _jsonl_objects(text)
+    if events is None:
+        return {"ended": None, "usage": None, "cost_usd": None}
     ended = None
     usage = None
-    for event in _jsonl_objects(text):
+    for event in events:
         event_type = event.get("type")
         if event_type in {"turn.failed", "error"}:
             ended = ENDED_ERROR
@@ -259,7 +265,7 @@ def snapshot_stream(logs_dir: Path, episode_dir: Path, name: str) -> str:
     return text
 
 
-def _jsonl_objects(text: str) -> list[dict[str, Any]]:
+def _jsonl_objects(text: str) -> list[dict[str, Any]] | None:
     events: list[dict[str, Any]] = []
     for line in text.splitlines():
         if not line.strip():
@@ -267,9 +273,10 @@ def _jsonl_objects(text: str) -> list[dict[str, Any]]:
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
-            continue
-        if isinstance(event, dict):
-            events.append(event)
+            return None
+        if not isinstance(event, dict):
+            return None
+        events.append(event)
     return events
 
 

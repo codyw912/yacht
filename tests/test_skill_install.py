@@ -434,6 +434,25 @@ class SkillStageEvidenceTests(unittest.TestCase):
                     ],
                 )
 
+    def test_episode_native_streams_emit_skill_stages(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trial_dir = Path(temp_dir)
+            episode = trial_dir / "agent" / "episodes" / "002"
+            episode.mkdir(parents=True)
+            episode.joinpath("codex.jsonl").write_text(
+                Path("tests/fixtures/codex-exec-skill.jsonl").read_text(
+                    encoding="utf-8"
+                ),
+                encoding="utf-8",
+            )
+            agent = _agent_to_json(None, str(trial_dir), True)
+
+        self.assertEqual(
+            agent["skill_stages"][0]["evidence_source"],
+            "codex-jsonl",
+        )
+        self.assertEqual(agent["skill_stages"][0]["skill"], "yacht-fixture")
+
     def test_harness_evidence_skill_name_is_not_claude_selection(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             trial_dir = Path(temp_dir)

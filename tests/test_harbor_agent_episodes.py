@@ -346,6 +346,18 @@ class OmpCodexStreamResultTests(unittest.TestCase):
         self.assertIsNone(result["ended"])
         self.assertIsNone(result["usage"])
 
+    def test_malformed_line_with_valid_completion_is_unmeasured(self) -> None:
+        ok = Path("tests/fixtures/codex-exec-ok.jsonl").read_text(encoding="utf-8")
+        mixed = "{not json\n" + ok
+        result = episodes.parse_codex_stream_result(mixed)
+        self.assertIsNone(result["ended"])
+        self.assertIsNone(result["usage"])
+
+        omp = Path("tests/fixtures/omp-print-ok.jsonl").read_text(encoding="utf-8")
+        result = episodes.parse_omp_stream_result("{not json\n" + omp)
+        self.assertIsNone(result["ended"])
+        self.assertIsNone(result["usage"])
+
     def test_jsonl_timeout_wins_over_natural_stream(self) -> None:
         self.assertEqual(
             episodes.jsonl_episode_ended(episodes.ENDED_NATURAL, True, False),
