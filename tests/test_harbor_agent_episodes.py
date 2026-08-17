@@ -364,6 +364,40 @@ class OmpCodexStreamResultTests(unittest.TestCase):
             episodes.ENDED_TIMEOUT,
         )
 
+    def test_merge_stream_usages_sums_complete_keys_only(self) -> None:
+        merged = episodes.merge_stream_usages(
+            [
+                {"input_tokens": 10, "output_tokens": 2, "cache_read_tokens": 1},
+                {"input_tokens": 5, "output_tokens": 3},
+            ]
+        )
+        self.assertEqual(merged, {"input_tokens": 15, "output_tokens": 5})
+
+    def test_merge_stream_usages_is_unmeasured_if_any_episode_missing(self) -> None:
+        self.assertIsNone(
+            episodes.merge_stream_usages(
+                [{"input_tokens": 10, "output_tokens": 2}, None]
+            )
+        )
+
+    def test_apply_usage_to_context_sets_harbor_fields(self) -> None:
+        class Context:
+            n_input_tokens = None
+            n_output_tokens = None
+            n_cache_tokens = None
+            cost_usd = None
+
+        context = Context()
+        episodes.apply_usage_to_context(
+            context,
+            {"input_tokens": 4, "output_tokens": 1, "cache_read_tokens": 2},
+            0.5,
+        )
+        self.assertEqual(context.n_input_tokens, 4)
+        self.assertEqual(context.n_output_tokens, 1)
+        self.assertEqual(context.n_cache_tokens, 2)
+        self.assertEqual(context.cost_usd, 0.5)
+
     def test_jsonl_nonzero_exit_is_error(self) -> None:
         self.assertEqual(
             episodes.jsonl_episode_ended(episodes.ENDED_NATURAL, False, True),

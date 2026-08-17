@@ -253,6 +253,47 @@ def jsonl_episode_ended(
     return ENDED_ERROR
 
 
+def merge_stream_usages(usages: list[dict[str, Any] | None]) -> dict[str, int] | None:
+    """Sum per-key usage when every episode reported that key."""
+    if not usages or any(not isinstance(usage, dict) for usage in usages):
+        return None
+    merged: dict[str, int] = {}
+    for key in (
+        "input_tokens",
+        "output_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+    ):
+        values = [usage.get(key) for usage in usages]
+        if any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+            for value in values
+        ):
+            continue
+        merged[key] = sum(values)
+    return merged or None
+
+
+def merge_stream_costs(costs: list[float | None]) -> float | None:
+    if not costs or any(cost is None for cost in costs):
+        return None
+    return float(sum(costs))
+
+
+def apply_usage_to_context(
+    context: Any, usage: dict[str, int] | None, cost_usd: float | None
+) -> None:
+    if isinstance(usage, dict):
+        if "input_tokens" in usage:
+            context.n_input_tokens = usage["input_tokens"]
+        if "output_tokens" in usage:
+            context.n_output_tokens = usage["output_tokens"]
+        if "cache_read_tokens" in usage:
+            context.n_cache_tokens = usage["cache_read_tokens"]
+    if cost_usd is not None:
+        context.cost_usd = cost_usd
+
+
 def snapshot_stream(logs_dir: Path, episode_dir: Path, name: str) -> str:
     """Copy a native JSONL stream into the episode dir and clear the source."""
     source = logs_dir / name

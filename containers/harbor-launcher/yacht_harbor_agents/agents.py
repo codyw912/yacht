@@ -325,6 +325,13 @@ class YachtPi(Pi):
         await apply_rigging_steps(environment, self._rigging_steps)
 
 
+def _read_local_stream(logs_dir: Path, name: str, parse_result) -> dict[str, Any]:
+    path = logs_dir / name
+    if not path.is_file():
+        return {"ended": None, "usage": None, "cost_usd": None}
+    return parse_result(path.read_text(encoding="utf-8", errors="replace"))
+
+
 async def run_jsonl_episodes(
     *,
     logs_dir: Path,
@@ -336,7 +343,7 @@ async def run_jsonl_episodes(
     stream_name: str,
     pkill_pattern: str,
     parse_result,
-) -> list[float | None]:
+) -> tuple[list[dict[str, Any] | None], list[float | None]]:
     """Cold-session relay for a JSONL-emitting CLI (OMP, Codex).
 
     Each episode starts a fresh process. `--no-session` / `--ephemeral`
@@ -346,6 +353,7 @@ async def run_jsonl_episodes(
     """
     episodes_dir = logs_dir / "episodes"
     records: list[dict[str, Any]] = []
+    usages: list[dict[str, Any] | None] = []
     costs: list[float | None] = []
     to_resolution: int | None = None
     failure: Exception | None = None
@@ -379,6 +387,7 @@ async def run_jsonl_episodes(
             ended = episodes.jsonl_episode_ended(
                 parsed.get("ended"), timed_out, error is not None
             )
+            usages.append(parsed.get("usage"))
             costs.append(parsed.get("cost_usd"))
             record = episodes.episode_record(
                 index=index,
@@ -413,7 +422,7 @@ async def run_jsonl_episodes(
             episodes.write_relay_summary(episodes_dir, records, to_resolution)
     if failure is not None:
         raise failure
-    return costs
+    return usages, costs
 
 
 class YachtOmp(BaseInstalledAgent):
@@ -433,7 +442,8 @@ class YachtOmp(BaseInstalledAgent):
     ):
         self._rigging_steps = list(rigging_steps or [])
         self._episodes_kwarg = dict(episodes or {})
-        self._episode_costs: list[float | None] = []
+        self._recorded_usage: dict[str, int] | None = None
+        self._recorded_cost: float | None = None
         super().__init__(logs_dir, *args, **kwargs)
 
     def get_version_command(self) -> str | None:
@@ -474,7 +484,7 @@ class YachtOmp(BaseInstalledAgent):
     async def run(self, instruction, environment: BaseEnvironment, context) -> None:
         plan, task_dir = resolve_episode_plan(self._episodes_kwarg, self.logs_dir)
         if plan is not None:
-            self._episode_costs = await run_jsonl_episodes(
+            usages, costs = await run_jsonl_episodes(
                 logs_dir=self.logs_dir,
                 plan=plan,
                 task_dir=task_dir,
@@ -488,6 +498,8 @@ class YachtOmp(BaseInstalledAgent):
                 pkill_pattern="omp -p --mode json",
                 parse_result=episodes.parse_omp_stream_result,
             )
+            self._recorded_usage = episodes.merge_stream_usages(usages)
+            self._recorded_cost = episodes.merge_stream_costs(costs)
             return
         result = await environment.exec(
             command=omp_run_command(
@@ -499,13 +511,17 @@ class YachtOmp(BaseInstalledAgent):
             raise NonZeroAgentExitCodeError(
                 f"omp exited with code {result.return_code}"
             )
+        parsed = _read_local_stream(
+            self.logs_dir, "omp.jsonl", episodes.parse_omp_stream_result
+        )
+        self._recorded_usage = parsed.get("usage")
+        self._recorded_cost = parsed.get("cost_usd")
 
     def populate_context_post_run(self, context) -> None:
         super().populate_context_post_run(context)
-        if self._episode_costs and all(
-            cost is not None for cost in self._episode_costs
-        ):
-            context.cost_usd = sum(self._episode_costs)
+        episodes.apply_usage_to_context(
+            context, self._recorded_usage, self._recorded_cost
+        )
 
 
 class YachtCodex(BaseInstalledAgent):
@@ -525,7 +541,8 @@ class YachtCodex(BaseInstalledAgent):
     ):
         self._rigging_steps = list(rigging_steps or [])
         self._episodes_kwarg = dict(episodes or {})
-        self._episode_costs: list[float | None] = []
+        self._recorded_usage: dict[str, int] | None = None
+        self._recorded_cost: float | None = None
         super().__init__(logs_dir, *args, **kwargs)
 
     def get_version_command(self) -> str | None:
@@ -566,7 +583,7 @@ class YachtCodex(BaseInstalledAgent):
     async def run(self, instruction, environment: BaseEnvironment, context) -> None:
         plan, task_dir = resolve_episode_plan(self._episodes_kwarg, self.logs_dir)
         if plan is not None:
-            self._episode_costs = await run_jsonl_episodes(
+            usages, costs = await run_jsonl_episodes(
                 logs_dir=self.logs_dir,
                 plan=plan,
                 task_dir=task_dir,
@@ -580,6 +597,8 @@ class YachtCodex(BaseInstalledAgent):
                 pkill_pattern="codex exec --json",
                 parse_result=episodes.parse_codex_stream_result,
             )
+            self._recorded_usage = episodes.merge_stream_usages(usages)
+            self._recorded_cost = episodes.merge_stream_costs(costs)
             return
         result = await environment.exec(
             command=codex_run_command(
@@ -591,13 +610,17 @@ class YachtCodex(BaseInstalledAgent):
             raise NonZeroAgentExitCodeError(
                 f"codex exited with code {result.return_code}"
             )
+        parsed = _read_local_stream(
+            self.logs_dir, "codex.jsonl", episodes.parse_codex_stream_result
+        )
+        self._recorded_usage = parsed.get("usage")
+        self._recorded_cost = parsed.get("cost_usd")
 
     def populate_context_post_run(self, context) -> None:
         super().populate_context_post_run(context)
-        if self._episode_costs and all(
-            cost is not None for cost in self._episode_costs
-        ):
-            context.cost_usd = sum(self._episode_costs)
+        episodes.apply_usage_to_context(
+            context, self._recorded_usage, self._recorded_cost
+        )
 
 
 class YachtDeclared(BaseInstalledAgent):

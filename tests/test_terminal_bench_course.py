@@ -1170,6 +1170,48 @@ class TerminalBenchAttemptsFromTrialsTests(unittest.TestCase):
         self.assertNotIn("episodes", attempt)
         self.assertNotIn("episodes", attempt["agent"]["machine_evidence"])
 
+    def test_metrics_sum_episode_usages_when_trial_usage_missing(self) -> None:
+        from yacht.courses.terminal_bench.attempts_from_trials import _metrics
+
+        trial = {
+            "started_at": "2026-08-01T10:00:00Z",
+            "finished_at": "2026-08-01T10:02:00Z",
+            "episodes": {
+                "count": 2,
+                "items": [
+                    {
+                        "index": 1,
+                        "ended": "natural",
+                        "usage": {"input_tokens": 10, "output_tokens": 2},
+                    },
+                    {
+                        "index": 2,
+                        "ended": "natural",
+                        "usage": {"input_tokens": 5, "output_tokens": 3},
+                    },
+                ],
+            },
+        }
+        self.assertEqual(_metrics(trial)["tokens"], 20)
+
+    def test_metrics_stay_unmeasured_if_any_episode_lacks_usage(self) -> None:
+        from yacht.courses.terminal_bench.attempts_from_trials import _metrics
+
+        trial = {
+            "episodes": {
+                "count": 2,
+                "items": [
+                    {
+                        "index": 1,
+                        "ended": "natural",
+                        "usage": {"input_tokens": 10, "output_tokens": 2},
+                    },
+                    {"index": 2, "ended": "timeout"},
+                ],
+            },
+        }
+        self.assertEqual(_metrics(trial)["tokens"], 0)
+
 
 def _written_report(root: Path, report: dict[str, Any]) -> Path:
     report_path = root / "native-report" / "claude-baseline.run-1.json"

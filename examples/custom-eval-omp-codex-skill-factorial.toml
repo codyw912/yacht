@@ -1,0 +1,141 @@
+# Factorial skill claim: treatment effect within each harness.
+#
+#   Codex  stock vs skill
+#   OMP    stock vs skill
+#
+# Primary estimates are the within-harness skill effects. Do not treat
+# the raw OMP-versus-Codex outcome delta as the effect of the skill.
+# Course, prompt, model, launcher image, and skill content are held
+# constant. Both CLIs accept the same OpenAI model.
+#
+#   uv run yacht run examples/custom-eval-omp-codex-skill-factorial.toml \
+#     --logbook /private/tmp/yacht-omp-codex-skill \
+#     --workspace . \
+#     --secret openai=@env:OPENAI_API_KEY
+#
+# Token-free bar: `uv run yacht preflight` (install-only).
+# Requirements: Docker running, uv, OPENAI_API_KEY, and:
+#
+#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+
+[regatta]
+name = "custom-eval-omp-codex-skill-factorial"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "team-conventions-ab"
+
+[[course.tasks]]
+id = "convention-task"
+title = "Add a tool module following team conventions"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "custom-evals"
+split = "v1"
+harness = "harbor"
+
+[secrets.openai]
+source = "env"
+name = "OPENAI_API_KEY"
+
+[runtimes.harbor-omp]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "omp"
+harness_version = "17.2.15"
+required_secrets = ["openai"]
+
+[runtimes.harbor-omp.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "openai-secret", kind = "env", env = ["OPENAI_API_KEY"] },
+  { name = "workspace-writable", kind = "command", command = ["sh", "-c", "test -w ."] },
+  { name = "agent-install", kind = "install-only" },
+]
+
+[runtimes.harbor-codex]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "codex"
+harness_version = "0.147.0"
+required_secrets = ["openai"]
+
+[runtimes.harbor-codex.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "openai-secret", kind = "env", env = ["OPENAI_API_KEY"] },
+  { name = "workspace-writable", kind = "command", command = ["sh", "-c", "test -w ."] },
+  { name = "agent-install", kind = "install-only" },
+]
+
+[tools.team-conventions]
+kind = "agent-skill"
+description = "Team conventions for tool modules, packaged as an agent skill."
+interfaces = ["agent-skill"]
+install_methods = ["skill"]
+
+[riggings.team-conventions-skill]
+tools = ["team-conventions"]
+instructions = "Consult the team-conventions skill before writing tool modules."
+
+[[riggings.team-conventions-skill.install]]
+method = "skill"
+target = "team-conventions"
+content = """
+---
+name: team-conventions
+description: Team conventions for tool modules in /app/tools. Use when adding or changing a tool module.
+---
+
+# Tool module conventions
+
+Every tool module in `/app/tools` must:
+
+1. Define a module-level `TOOL_NAME` string constant naming the tool.
+2. Define `run(args) -> int` as the entrypoint, returning `0` on
+   success.
+3. Register itself by appending its `TOOL_NAME` as a new line to
+   `/app/tools/registry.txt`.
+
+A module that does not register itself in `registry.txt` will not be
+loaded, even if the code is otherwise correct.
+"""
+
+[[vessels]]
+name = "omp-baseline"
+model = "openai/gpt-5.2"
+runtime = "harbor-omp"
+
+[[vessels]]
+name = "omp-with-skill"
+model = "openai/gpt-5.2"
+runtime = "harbor-omp"
+rigging = ["team-conventions-skill"]
+
+[[vessels]]
+name = "codex-baseline"
+model = "openai/gpt-5.2"
+runtime = "harbor-codex"
+
+[[vessels]]
+name = "codex-with-skill"
+model = "openai/gpt-5.2"
+runtime = "harbor-codex"
+rigging = ["team-conventions-skill"]
+
+[[comparisons]]
+name = "omp-skill-vs-baseline"
+course = "team-conventions-ab"
+vessels = ["omp-baseline", "omp-with-skill"]
+
+[[comparisons]]
+name = "codex-skill-vs-baseline"
+course = "team-conventions-ab"
+vessels = ["codex-baseline", "codex-with-skill"]

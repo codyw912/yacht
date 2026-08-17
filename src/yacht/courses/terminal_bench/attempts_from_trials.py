@@ -547,6 +547,8 @@ def _metrics(trial: dict[str, Any] | None) -> dict[str, Any]:
     duration = 0.0
     if trial is not None:
         usage = trial.get("usage")
+        if not _has_token_counts(usage):
+            usage = _usage_from_episodes(trial.get("episodes"))
         if isinstance(usage, dict):
             for key in ("input_tokens", "output_tokens"):
                 value = usage.get(key)
@@ -554,6 +556,41 @@ def _metrics(trial: dict[str, Any] | None) -> dict[str, Any]:
                     tokens += max(value, 0)
         duration = _duration_seconds(trial)
     return {"tokens": tokens, "duration_seconds": duration}
+
+
+def _has_token_counts(usage: Any) -> bool:
+    if not isinstance(usage, dict):
+        return False
+    return any(
+        isinstance(usage.get(key), int) and not isinstance(usage.get(key), bool)
+        for key in ("input_tokens", "output_tokens")
+    )
+
+
+def _usage_from_episodes(episodes: Any) -> dict[str, int] | None:
+    if not isinstance(episodes, dict):
+        return None
+    items = episodes.get("items")
+    if not isinstance(items, list) or not items:
+        return None
+    usages: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            return None
+        usage = item.get("usage")
+        if not isinstance(usage, dict):
+            return None
+        usages.append(usage)
+    merged: dict[str, int] = {}
+    for key in ("input_tokens", "output_tokens", "cache_read_tokens"):
+        values = [usage.get(key) for usage in usages]
+        if any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+            for value in values
+        ):
+            continue
+        merged[key] = sum(values)
+    return merged or None
 
 
 def _duration_seconds(trial: dict[str, Any]) -> float:
