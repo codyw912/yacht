@@ -1,6 +1,9 @@
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from yacht.cli import main
 from yacht.courses.task_directory import task_directory_digest
 from yacht.courses.terminal_bench.job import render_terminal_bench_job
 from yacht.domain.model import load_regatta
@@ -14,7 +17,7 @@ class OmpCodexFactorialCourseTests(unittest.TestCase):
 
         self.assertEqual(
             {vessel.model for vessel in regatta.vessels},
-            {"openai/gpt-5.2"},
+            {"openai/gpt-5.4-mini"},
         )
         self.assertEqual(
             [task.id for task in regatta.course.tasks],
@@ -77,6 +80,38 @@ class OmpCodexFactorialCourseTests(unittest.TestCase):
         ]
         self.assertEqual(omp_targets, [skill_step["target"]])
         self.assertEqual(codex_targets, [skill_step["target"]])
+
+    def test_yacht_run_accepts_omp_and_codex_together(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch(
+                    "yacht.cli.commands.regatta.write_real_benchmark_runbook",
+                    return_value={},
+                ),
+                patch(
+                    "yacht.cli.commands.regatta.run_real_benchmark_eval",
+                    return_value={
+                        "status": "complete",
+                        "regatta": "custom-eval-omp-codex-skill-factorial",
+                        "course": "team-conventions-ab",
+                    },
+                ) as eval_mock,
+            ):
+                exit_code = main(
+                    [
+                        "run",
+                        str(FACTORIAL),
+                        "--logbook",
+                        temp_dir,
+                        "--workspace",
+                        temp_dir,
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(eval_mock.call_args.kwargs["agent_name"], "codex, omp")
+        self.assertIsNone(eval_mock.call_args.kwargs["agent_prompt_runner_factory"])
+        self.assertIsNone(eval_mock.call_args.kwargs["task_agent"])
 
 
 if __name__ == "__main__":

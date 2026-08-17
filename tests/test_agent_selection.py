@@ -4,6 +4,7 @@ from contextlib import redirect_stderr
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.config.agent_selection import configured_harness_name
@@ -133,7 +134,22 @@ vessels = ["codex-baseline", "codex-challenger"]
             stdout = StringIO()
             stderr = StringIO()
 
-            with redirect_stdout(stdout), redirect_stderr(stderr):
+            with (
+                patch(
+                    "yacht.cli.commands.regatta.write_real_benchmark_runbook",
+                    return_value={},
+                ),
+                patch(
+                    "yacht.cli.commands.regatta.run_real_benchmark_eval",
+                    return_value={
+                        "status": "complete",
+                        "regatta": "codex-comparison",
+                        "course": "swe-bench-lite",
+                    },
+                ) as eval_mock,
+                redirect_stdout(stdout),
+                redirect_stderr(stderr),
+            ):
                 exit_code = main(
                     [
                         "run",
@@ -145,12 +161,8 @@ vessels = ["codex-baseline", "codex-challenger"]
                     ]
                 )
 
-            self.assertEqual(exit_code, 1)
-            self.assertEqual(stdout.getvalue(), "")
-            self.assertIn(
-                "unsupported agent preflight adapter codex",
-                stderr.getvalue(),
-            )
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(eval_mock.call_args.kwargs["agent_name"], "codex")
 
 
 if __name__ == "__main__":

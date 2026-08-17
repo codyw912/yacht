@@ -58,10 +58,6 @@ def run_real_benchmark_repetitions(
     if eval_runner is None:
         if agent_name is None:
             raise ConfigError("real benchmark repetitions require an agent name")
-        if agent_prompt_runner_factory is None or task_agent is None:
-            raise ConfigError(
-                "real benchmark repetitions require an agent prompt runner and task agent"
-            )
         eval_runner = _real_benchmark_eval_runner(
             config_path=config_path,
             workspace_path=workspace_path,
