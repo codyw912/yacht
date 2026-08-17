@@ -199,15 +199,17 @@ def claude_episode_ended(subtype: str | None, timed_out: bool, errored: bool) ->
 
 def parse_omp_stream_result(text: str) -> dict[str, Any]:
     """Usage, cost, and completion from a captured OMP `--mode json` stream."""
+    unmeasured = {"ended": None, "usage": None, "cost_usd": None}
     events = _jsonl_objects(text)
     if events is None:
-        return {"ended": None, "usage": None, "cost_usd": None}
-    ended = None
+        return unmeasured
+    if not any(event.get("type") == "agent_start" for event in events):
+        return unmeasured
+    if not any(event.get("type") == "agent_end" for event in events):
+        return unmeasured
     usage = None
     cost_usd = None
     for event in events:
-        if event.get("type") == "agent_end":
-            ended = ENDED_NATURAL
         if event.get("type") != "message_end":
             continue
         message = event.get("message")
@@ -218,14 +220,21 @@ def parse_omp_stream_result(text: str) -> dict[str, Any]:
             usage = parsed_usage
         if parsed_cost is not None:
             cost_usd = parsed_cost
-    return {"ended": ended, "usage": usage, "cost_usd": cost_usd}
+    return {"ended": ENDED_NATURAL, "usage": usage, "cost_usd": cost_usd}
 
 
 def parse_codex_stream_result(text: str) -> dict[str, Any]:
     """Usage and completion from a captured Codex `exec --json` stream."""
+    unmeasured = {"ended": None, "usage": None, "cost_usd": None}
     events = _jsonl_objects(text)
     if events is None:
-        return {"ended": None, "usage": None, "cost_usd": None}
+        return unmeasured
+    if not any(event.get("type") == "turn.started" for event in events):
+        return unmeasured
+    if not any(
+        event.get("type") in {"turn.completed", "turn.failed"} for event in events
+    ):
+        return unmeasured
     ended = None
     usage = None
     for event in events:

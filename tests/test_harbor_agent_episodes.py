@@ -346,6 +346,24 @@ class OmpCodexStreamResultTests(unittest.TestCase):
         self.assertIsNone(result["ended"])
         self.assertIsNone(result["usage"])
 
+    def test_end_without_start_does_not_measure_usage(self) -> None:
+        omp = episodes.parse_omp_stream_result(
+            '{"type":"message_end","message":{"role":"assistant","usage":'
+            '{"input":10,"output":2,"cacheRead":0,"cacheWrite":0,'
+            '"cost":{"total":0.1}}}}\n{"type":"agent_end"}\n'
+        )
+        self.assertIsNone(omp["ended"])
+        self.assertIsNone(omp["usage"])
+        self.assertIsNone(omp["cost_usd"])
+
+        codex = episodes.parse_codex_stream_result(
+            '{"type":"turn.completed","usage":{"input_tokens":10,'
+            '"output_tokens":2,"cached_input_tokens":0,'
+            '"cache_write_input_tokens":0}}\n'
+        )
+        self.assertIsNone(codex["ended"])
+        self.assertIsNone(codex["usage"])
+
     def test_malformed_line_with_valid_completion_is_unmeasured(self) -> None:
         ok = Path("tests/fixtures/codex-exec-ok.jsonl").read_text(encoding="utf-8")
         mixed = "{not json\n" + ok
