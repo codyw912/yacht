@@ -1,5 +1,8 @@
 import base64
 import importlib.util
+import json
+import os
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -163,13 +166,35 @@ class HarborAgentRiggingTests(unittest.TestCase):
         self.assertIn("CODEX_HOME=/tmp/codex-home", setup)
         self.assertIn("process.env.OPENAI_API_KEY", setup)
         self.assertNotIn("sk-", setup)
-        self.assertIn("/tmp/codex-secrets/auth.json", setup)
 
         command = rigging.codex_run_command(
             instruction="solve it",
             model="openai/gpt-5.6-luna",
         )
         self.assertLess(command.index(setup), command.index("codex exec"))
+
+        dummy = "sk-dummy-yacht-codex-auth"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir) / "codex-home"
+            secrets = Path(temp_dir) / "codex-secrets"
+            rewritten = setup.replace("/tmp/codex-home", str(home)).replace(
+                "/tmp/codex-secrets", str(secrets)
+            )
+            env = os.environ.copy()
+            env["OPENAI_API_KEY"] = dummy
+            completed = subprocess.run(
+                ["bash", "-lc", rewritten],
+                check=True,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            auth = home / "auth.json"
+            payload = json.loads(auth.read_text(encoding="utf-8"))
+            self.assertTrue(auth.is_symlink())
+            self.assertEqual(payload, {"OPENAI_API_KEY": dummy})
+            self.assertEqual(stat.S_IMODE(auth.stat().st_mode), 0o600)
+            self.assertEqual(completed.stdout, "")
 
     def test_version_contains_pin_reads_cli_banner(self) -> None:
         self.assertTrue(rigging.version_contains_pin("omp/17.2.15", "17.2.15"))
