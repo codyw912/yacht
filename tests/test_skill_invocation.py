@@ -168,6 +168,25 @@ class ObservedToolCallsTests(unittest.TestCase):
             self.assertEqual(calls, ["read"])
             self.assertEqual(source, "omp-jsonl")
 
+    def test_mixed_malformed_and_valid_episode_streams_are_unmeasured(self) -> None:
+        fixtures = Path("tests/fixtures")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trial_dir = Path(temp_dir)
+            first = trial_dir / "agent" / "episodes" / "001"
+            second = trial_dir / "agent" / "episodes" / "002"
+            first.mkdir(parents=True)
+            second.mkdir(parents=True)
+            (first / "omp.jsonl").write_text(
+                fixtures.joinpath("omp-skill-read.jsonl").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            (second / "omp.jsonl").write_text("{not json\n", encoding="utf-8")
+
+            calls, source = _observed_tool_calls(trial_dir)
+
+            self.assertEqual(calls, [])
+            self.assertIsNone(source)
+
 
 class ToolExpectationTests(unittest.TestCase):
     def test_skill_expectation_uses_frontmatter_name(self) -> None:

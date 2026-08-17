@@ -453,6 +453,25 @@ class SkillStageEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(agent["skill_stages"][0]["skill"], "yacht-fixture")
 
+    def test_mixed_malformed_and_valid_episode_streams_omit_skill_stages(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trial_dir = Path(temp_dir)
+            first = trial_dir / "agent" / "episodes" / "001"
+            second = trial_dir / "agent" / "episodes" / "002"
+            first.mkdir(parents=True)
+            second.mkdir(parents=True)
+            first.joinpath("codex.jsonl").write_text(
+                Path("tests/fixtures/codex-exec-skill.jsonl").read_text(
+                    encoding="utf-8"
+                ),
+                encoding="utf-8",
+            )
+            second.joinpath("codex.jsonl").write_text("{not json\n", encoding="utf-8")
+            agent = _agent_to_json(None, str(trial_dir), True)
+
+        self.assertNotIn("skill_stages", agent)
+        self.assertEqual(agent["tool_calls"], [])
+
     def test_harness_evidence_skill_name_is_not_claude_selection(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             trial_dir = Path(temp_dir)

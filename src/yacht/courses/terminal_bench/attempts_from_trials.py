@@ -447,22 +447,20 @@ def _native_stream_paths(trial_dir: Path, name: str) -> list[Path]:
 
 
 def _native_stream_tool_calls(paths: list[Path], parser) -> tuple[str, ...] | None:
+    if not paths:
+        return None
     observed: list[str] = []
-    measured = False
     for path in paths:
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
-            continue
+            return None
         parsed = parser(text)
         if parsed is None:
-            continue
-        measured = True
+            return None
         tool_calls = parsed.get("tool_calls")
         if isinstance(tool_calls, tuple):
             observed.extend(tool_calls)
-    if not measured:
-        return None
     return tuple(dict.fromkeys(observed))
 
 
@@ -483,9 +481,9 @@ def _native_stream_skill_stages(
         try:
             parsed = parser(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError):
-            continue
+            return []
         if parsed is None:
-            continue
+            return []
         for stage in parsed.get("skill_stages") or ():
             if not isinstance(stage, dict):
                 continue
