@@ -158,6 +158,19 @@ class HarborAgentRiggingTests(unittest.TestCase):
         self.assertIn(shlex.quote("solve 'it'"), codex)
         self.assertIn("> /logs/agent/codex.jsonl", codex)
 
+    def test_codex_run_command_writes_auth_json_from_env(self) -> None:
+        setup = rigging.codex_auth_setup_command()
+        self.assertIn("CODEX_HOME=/tmp/codex-home", setup)
+        self.assertIn("process.env.OPENAI_API_KEY", setup)
+        self.assertNotIn("sk-", setup)
+        self.assertIn("/tmp/codex-secrets/auth.json", setup)
+
+        command = rigging.codex_run_command(
+            instruction="solve it",
+            model="openai/gpt-5.6-luna",
+        )
+        self.assertLess(command.index(setup), command.index("codex exec"))
+
     def test_version_contains_pin_reads_cli_banner(self) -> None:
         self.assertTrue(rigging.version_contains_pin("omp/17.2.15", "17.2.15"))
         self.assertTrue(rigging.version_contains_pin("codex-cli 0.147.0", "0.147.0"))

@@ -60,6 +60,32 @@ def omp_run_command(*, instruction: str, model: str | None = None) -> str:
     )
 
 
+def codex_auth_setup_command() -> str:
+    """Write OPENAI_API_KEY into CODEX_HOME/auth.json.
+
+    Codex exec does not send a bearer from the env var alone. Harbor's
+    official agent materializes auth.json the same way. The key is
+    expanded inside the task container; this helper never embeds it.
+    """
+    writer = (
+        "const fs=require('fs');"
+        "if(!process.env.OPENAI_API_KEY)"
+        "{console.error('OPENAI_API_KEY is required');process.exit(1)}"
+        "fs.mkdirSync('/tmp/codex-secrets',{recursive:true});"
+        "fs.writeFileSync("
+        "'/tmp/codex-secrets/auth.json',"
+        "JSON.stringify({OPENAI_API_KEY:process.env.OPENAI_API_KEY})+'\\n',"
+        "{mode:0o600}"
+        ")"
+    )
+    return (
+        "export CODEX_HOME=/tmp/codex-home; "
+        'mkdir -p "$CODEX_HOME" /tmp/codex-secrets; '
+        f"node -e {shlex.quote(writer)}; "
+        'ln -sfn /tmp/codex-secrets/auth.json "$CODEX_HOME/auth.json"'
+    )
+
+
 def codex_run_command(*, instruction: str, model: str | None = None) -> str:
     argv = [
         "codex",
@@ -74,6 +100,7 @@ def codex_run_command(*, instruction: str, model: str | None = None) -> str:
     quoted = " ".join(shlex.quote(item) for item in argv)
     return (
         "set -euo pipefail; . ~/.nvm/nvm.sh; "
+        f"{codex_auth_setup_command()}; "
         f"{quoted} > /logs/agent/codex.jsonl 2> /logs/agent/codex.stderr"
     )
 
