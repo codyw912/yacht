@@ -306,6 +306,83 @@ class ClaudeEpisodeEndedTests(unittest.TestCase):
         )
 
 
+class OmpCodexStreamResultTests(unittest.TestCase):
+    def test_parses_captured_omp_usage_and_natural_end(self) -> None:
+        text = Path("tests/fixtures/omp-print-ok.jsonl").read_text(encoding="utf-8")
+        result = episodes.parse_omp_stream_result(text)
+        self.assertEqual(result["ended"], episodes.ENDED_NATURAL)
+        self.assertEqual(
+            result["usage"],
+            {
+                "input_tokens": 5328,
+                "output_tokens": 29,
+                "cache_read_tokens": 128,
+                "cache_write_tokens": 0,
+            },
+        )
+        self.assertEqual(result["cost_usd"], 0.0)
+
+    def test_parses_captured_codex_usage_and_natural_end(self) -> None:
+        text = Path("tests/fixtures/codex-exec-ok.jsonl").read_text(encoding="utf-8")
+        result = episodes.parse_codex_stream_result(text)
+        self.assertEqual(result["ended"], episodes.ENDED_NATURAL)
+        self.assertEqual(
+            result["usage"],
+            {
+                "input_tokens": 16583,
+                "output_tokens": 5,
+                "cache_read_tokens": 9984,
+                "cache_write_tokens": 0,
+            },
+        )
+
+    def test_parses_captured_codex_turn_failed_as_error(self) -> None:
+        text = Path("tests/fixtures/codex-exec-fail.jsonl").read_text(encoding="utf-8")
+        result = episodes.parse_codex_stream_result(text)
+        self.assertEqual(result["ended"], episodes.ENDED_ERROR)
+
+    def test_incomplete_omp_stream_is_unmeasured(self) -> None:
+        result = episodes.parse_omp_stream_result('{"type":"agent_start"}\n')
+        self.assertIsNone(result["ended"])
+        self.assertIsNone(result["usage"])
+
+    def test_jsonl_timeout_wins_over_natural_stream(self) -> None:
+        self.assertEqual(
+            episodes.jsonl_episode_ended(episodes.ENDED_NATURAL, True, False),
+            episodes.ENDED_TIMEOUT,
+        )
+
+    def test_jsonl_nonzero_exit_is_error(self) -> None:
+        self.assertEqual(
+            episodes.jsonl_episode_ended(episodes.ENDED_NATURAL, False, True),
+            episodes.ENDED_ERROR,
+        )
+
+    def test_jsonl_incomplete_stream_is_error(self) -> None:
+        self.assertEqual(
+            episodes.jsonl_episode_ended(None, False, False),
+            episodes.ENDED_ERROR,
+        )
+
+    def test_snapshot_stream_copies_and_clears_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logs_dir = Path(temp_dir) / "agent"
+            episode_dir = Path(temp_dir) / "episodes" / "001"
+            logs_dir.mkdir()
+            (logs_dir / "omp.jsonl").write_text(
+                '{"type":"agent_end"}\n', encoding="utf-8"
+            )
+
+            text = episodes.snapshot_stream(logs_dir, episode_dir, "omp.jsonl")
+
+            self.assertEqual(text, '{"type":"agent_end"}\n')
+            self.assertEqual(
+                (episode_dir / "omp.jsonl").read_text(encoding="utf-8"),
+                '{"type":"agent_end"}\n',
+            )
+            self.assertFalse((logs_dir / "omp.jsonl").exists())
+
+
 class SessionsManifestTests(unittest.TestCase):
     def test_lists_nested_jsonl_files_sorted_by_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

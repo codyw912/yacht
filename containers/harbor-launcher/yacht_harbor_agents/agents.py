@@ -325,6 +325,97 @@ class YachtPi(Pi):
         await apply_rigging_steps(environment, self._rigging_steps)
 
 
+async def run_jsonl_episodes(
+    *,
+    logs_dir: Path,
+    plan: dict[str, Any],
+    task_dir: Path,
+    instruction: str,
+    environment: BaseEnvironment,
+    command_for,
+    stream_name: str,
+    pkill_pattern: str,
+    parse_result,
+) -> list[float | None]:
+    """Cold-session relay for a JSONL-emitting CLI (OMP, Codex).
+
+    Each episode starts a fresh process. `--no-session` / `--ephemeral`
+    stay on the command; files are the only continuity channel. A
+    timeout is a normal episode ending. A nonzero exit aborts the trial
+    after the episodes recorded so far are written.
+    """
+    episodes_dir = logs_dir / "episodes"
+    records: list[dict[str, Any]] = []
+    costs: list[float | None] = []
+    to_resolution: int | None = None
+    failure: Exception | None = None
+    try:
+        for index in range(1, plan["max"] + 1):
+            text = instruction if index == 1 else plan["instructions"][index - 2]
+            episode_dir = episodes_dir / f"{index:03d}"
+            episode_dir.mkdir(parents=True, exist_ok=True)
+            (episode_dir / "instruction.md").write_text(text, encoding="utf-8")
+            started_at = _utc_now()
+            timed_out = False
+            error: Exception | None = None
+            try:
+                timeout = plan.get("timeout_seconds")
+                if timeout:
+                    async with asyncio.timeout(timeout):
+                        result = await environment.exec(command=command_for(text))
+                else:
+                    result = await environment.exec(command=command_for(text))
+                if result.return_code != 0:
+                    error = NonZeroAgentExitCodeError(
+                        f"{stream_name} exited with code {result.return_code} "
+                        f"in episode {index}"
+                    )
+            except TimeoutError:
+                timed_out = True
+                await environment.exec(command=f"pkill -f {pkill_pattern} || true")
+            finished_at = _utc_now()
+            stream = episodes.snapshot_stream(logs_dir, episode_dir, stream_name)
+            parsed = parse_result(stream)
+            ended = episodes.jsonl_episode_ended(
+                parsed.get("ended"), timed_out, error is not None
+            )
+            costs.append(parsed.get("cost_usd"))
+            record = episodes.episode_record(
+                index=index,
+                ended=ended,
+                started_at=started_at,
+                finished_at=finished_at,
+                usage=parsed.get("usage"),
+                cost_usd=parsed.get("cost_usd"),
+            )
+            if ended == episodes.ENDED_ERROR:
+                records.append(record)
+                failure = error or RuntimeError(
+                    f"episode {index} ended in error without an exception"
+                )
+                break
+            records.append(record)
+            if plan["verify_between"] and index < plan["max"] and to_resolution is None:
+                reward = await run_episode_verifier(
+                    environment,
+                    task_dir,
+                    episode_dir,
+                    logs_dir.parent / "verifier",
+                )
+                if reward is not None:
+                    record["reward"] = reward
+                    if reward >= 1.0:
+                        to_resolution = index
+            if to_resolution is not None:
+                break
+    finally:
+        if records:
+            episodes.write_relay_summary(episodes_dir, records, to_resolution)
+    if failure is not None:
+        raise failure
+    return costs
+
+
 class YachtOmp(BaseInstalledAgent):
     """Isolated OMP install plus yacht rigging (no user-home copy)."""
 
@@ -336,10 +427,13 @@ class YachtOmp(BaseInstalledAgent):
         self,
         logs_dir: Path,
         rigging_steps: list[dict[str, Any]] | None = None,
+        episodes: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ):
         self._rigging_steps = list(rigging_steps or [])
+        self._episodes_kwarg = dict(episodes or {})
+        self._episode_costs: list[float | None] = []
         super().__init__(logs_dir, *args, **kwargs)
 
     def get_version_command(self) -> str | None:
@@ -378,6 +472,23 @@ class YachtOmp(BaseInstalledAgent):
         self._version = resolved
 
     async def run(self, instruction, environment: BaseEnvironment, context) -> None:
+        plan, task_dir = resolve_episode_plan(self._episodes_kwarg, self.logs_dir)
+        if plan is not None:
+            self._episode_costs = await run_jsonl_episodes(
+                logs_dir=self.logs_dir,
+                plan=plan,
+                task_dir=task_dir,
+                instruction=str(instruction),
+                environment=environment,
+                command_for=lambda text: omp_run_command(
+                    instruction=text,
+                    model=str(self.model_name or "") or None,
+                ),
+                stream_name="omp.jsonl",
+                pkill_pattern="omp -p --mode json",
+                parse_result=episodes.parse_omp_stream_result,
+            )
+            return
         result = await environment.exec(
             command=omp_run_command(
                 instruction=str(instruction),
@@ -388,6 +499,13 @@ class YachtOmp(BaseInstalledAgent):
             raise NonZeroAgentExitCodeError(
                 f"omp exited with code {result.return_code}"
             )
+
+    def populate_context_post_run(self, context) -> None:
+        super().populate_context_post_run(context)
+        if self._episode_costs and all(
+            cost is not None for cost in self._episode_costs
+        ):
+            context.cost_usd = sum(self._episode_costs)
 
 
 class YachtCodex(BaseInstalledAgent):
@@ -401,10 +519,13 @@ class YachtCodex(BaseInstalledAgent):
         self,
         logs_dir: Path,
         rigging_steps: list[dict[str, Any]] | None = None,
+        episodes: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ):
         self._rigging_steps = list(rigging_steps or [])
+        self._episodes_kwarg = dict(episodes or {})
+        self._episode_costs: list[float | None] = []
         super().__init__(logs_dir, *args, **kwargs)
 
     def get_version_command(self) -> str | None:
@@ -443,6 +564,23 @@ class YachtCodex(BaseInstalledAgent):
         self._version = resolved
 
     async def run(self, instruction, environment: BaseEnvironment, context) -> None:
+        plan, task_dir = resolve_episode_plan(self._episodes_kwarg, self.logs_dir)
+        if plan is not None:
+            self._episode_costs = await run_jsonl_episodes(
+                logs_dir=self.logs_dir,
+                plan=plan,
+                task_dir=task_dir,
+                instruction=str(instruction),
+                environment=environment,
+                command_for=lambda text: codex_run_command(
+                    instruction=text,
+                    model=str(self.model_name or "") or None,
+                ),
+                stream_name="codex.jsonl",
+                pkill_pattern="codex exec --json",
+                parse_result=episodes.parse_codex_stream_result,
+            )
+            return
         result = await environment.exec(
             command=codex_run_command(
                 instruction=str(instruction),
@@ -453,6 +591,13 @@ class YachtCodex(BaseInstalledAgent):
             raise NonZeroAgentExitCodeError(
                 f"codex exited with code {result.return_code}"
             )
+
+    def populate_context_post_run(self, context) -> None:
+        super().populate_context_post_run(context)
+        if self._episode_costs and all(
+            cost is not None for cost in self._episode_costs
+        ):
+            context.cost_usd = sum(self._episode_costs)
 
 
 class YachtDeclared(BaseInstalledAgent):

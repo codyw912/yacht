@@ -1701,6 +1701,71 @@ class EpisodicJobRenderingTests(unittest.TestCase):
             with self.assertRaisesRegex(ConfigError, "pi"):
                 render_terminal_bench_job(regatta=regatta, vessel_name="pi-baseline")
 
+    def test_render_job_embeds_episode_plans_for_omp_and_codex(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_custom_eval_relay_task(root, episodes_table="[episodes]\nmax = 2\n")
+            config_path = root / "regatta.toml"
+            config_path.write_text(
+                f"""
+[regatta]
+name = "relay-omp-codex"
+
+[course]
+name = "relay-course"
+
+[[course.tasks]]
+id = "relay-task"
+title = "Relay"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "{root / "evals"}"
+split = "v1"
+harness = "harbor"
+
+[secrets.openai]
+source = "env"
+name = "OPENAI_API_KEY"
+
+[runtimes.harbor-omp]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "omp"
+harness_version = "17.2.15"
+required_secrets = ["openai"]
+
+[runtimes.harbor-codex]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "codex"
+harness_version = "0.147.0"
+required_secrets = ["openai"]
+
+[[vessels]]
+name = "omp-baseline"
+model = "openai/gpt-5.2"
+runtime = "harbor-omp"
+
+[[vessels]]
+name = "codex-baseline"
+model = "openai/gpt-5.2"
+runtime = "harbor-codex"
+""",
+                encoding="utf-8",
+            )
+            regatta = load_regatta(config_path)
+            expected = {
+                "omp-baseline": "yacht_harbor_agents.agents:YachtOmp",
+                "codex-baseline": "yacht_harbor_agents.agents:YachtCodex",
+            }
+            for vessel, import_path in expected.items():
+                with self.subTest(vessel=vessel):
+                    job = render_terminal_bench_job(regatta=regatta, vessel_name=vessel)
+                    self.assertEqual(job["agent"]["import_path"], import_path)
+                    self.assertEqual(job["agent"]["episodes"]["relay-task"]["max"], 2)
+                    self.assertIn("episodes", job["agent"])
+
 
 if __name__ == "__main__":
     unittest.main()
