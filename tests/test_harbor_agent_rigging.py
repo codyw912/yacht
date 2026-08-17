@@ -163,6 +163,14 @@ class HarborAgentRiggingTests(unittest.TestCase):
         self.assertTrue(rigging.version_contains_pin("codex-cli 0.147.0", "0.147.0"))
         self.assertFalse(rigging.version_contains_pin("omp/17.2.15", "9.9.9"))
 
+    def test_omp_install_installs_bun_before_omp(self) -> None:
+        command = rigging.omp_install_command("@17.2.15")
+        self.assertIn("npm install -g bun@1.3.14", command)
+        self.assertIn("npm install -g @oh-my-pi/pi-coding-agent@17.2.15", command)
+        bun_at = command.index("bun@1.3.14")
+        omp_at = command.index("@oh-my-pi/pi-coding-agent@17.2.15")
+        self.assertLess(bun_at, omp_at)
+
 
 if __name__ == "__main__":
     unittest.main()

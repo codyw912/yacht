@@ -26,6 +26,7 @@ _AGENT_EXTENSION_INSTALLERS = {
 PI_PACKAGE = "@earendil-works/pi-coding-agent"
 OMP_PACKAGE = "@oh-my-pi/pi-coding-agent"
 CODEX_PACKAGE = "@openai/codex"
+BUN_PACKAGE = "bun@1.3.14"
 
 # Official node base images set NODE_VERSION; nvm's installer
 # pre-installs that version and pins the default alias to it, so a
@@ -35,6 +36,16 @@ CODEX_PACKAGE = "@openai/codex"
 # right after the harness install, and every later session (rigging
 # steps and harbor's own pi run alike) resolves the right bin.
 PI_NODE_ALIAS_REPAIR_COMMAND = ". ~/.nvm/nvm.sh; nvm alias default node"
+
+
+def omp_install_command(version_spec: str) -> str:
+    """Install bun, then the pinned OMP package. OMP 17.x is a bun binary."""
+    return (
+        "set -euo pipefail; "
+        f"npm install -g {BUN_PACKAGE} && "
+        f"npm install -g {OMP_PACKAGE}{version_spec} && "
+        "omp --version"
+    )
 
 
 def omp_run_command(*, instruction: str, model: str | None = None) -> str:

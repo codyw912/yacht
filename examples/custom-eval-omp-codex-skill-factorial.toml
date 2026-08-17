@@ -13,7 +13,7 @@
 #     --workspace . \
 #     --secret openai=@env:OPENAI_API_KEY
 #
-# Token-free bar: `uv run yacht preflight` (install-only).
+# Token-free bar: `uv run yacht internals preflight` (install-only).
 # Requirements: Docker running, uv, OPENAI_API_KEY, and:
 #
 #   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher

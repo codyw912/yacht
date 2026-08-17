@@ -25,10 +25,10 @@ from yacht_harbor_agents import declared_support, episodes
 
 from yacht_harbor_agents.rigging import (
     CODEX_PACKAGE,
-    OMP_PACKAGE,
     PI_NODE_ALIAS_REPAIR_COMMAND,
     PI_PACKAGE,
     codex_run_command,
+    omp_install_command,
     omp_run_command,
     rigging_commands,
     version_contains_pin,
@@ -461,8 +461,7 @@ class YachtOmp(BaseInstalledAgent):
             command=(
                 "set -euo pipefail; "
                 f"{nvm_node_install_snippet()} && "
-                f"npm install -g {OMP_PACKAGE}{version_spec} && "
-                "omp --version"
+                f"{omp_install_command(version_spec)}"
             ),
         )
         result = await environment.exec(command=PI_NODE_ALIAS_REPAIR_COMMAND)

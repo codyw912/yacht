@@ -5,7 +5,7 @@
 #     --workspace . \
 #     --secret openai=@env:OPENAI_API_KEY
 #
-# Token-free bar: `uv run yacht preflight` with the install-only check.
+# Token-free bar: `uv run yacht internals preflight` with the install-only check.
 # Requirements: Docker running, uv, OPENAI_API_KEY exported, and the
 # pinned launcher image built:
 #

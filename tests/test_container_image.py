@@ -11,6 +11,7 @@ CLAUDE_CODE_VERSION = "2.1.211"
 CLAUDE_CODE_PACKAGE = "@anthropic-ai/claude-code"
 OMP_VERSION = "17.2.15"
 OMP_PACKAGE = "@oh-my-pi/pi-coding-agent"
+BUN_VERSION = "1.3.14"
 CODEX_VERSION = "0.147.0"
 CODEX_PACKAGE = "@openai/codex"
 
@@ -204,6 +205,8 @@ class ContainerImageTests(unittest.TestCase):
     def test_omp_and_codex_dockerfiles_build_pinned_clis(self) -> None:
         omp = Path("containers/omp-runtime/Dockerfile").read_text(encoding="utf-8")
         self.assertIn(f"ARG OMP_VERSION={OMP_VERSION}", omp)
+        self.assertIn(f"ARG BUN_VERSION={BUN_VERSION}", omp)
+        self.assertIn("npm install -g bun@$BUN_VERSION", omp)
         self.assertIn(f"npm install -g {OMP_PACKAGE}@$OMP_VERSION", omp)
         self.assertIn("USER yacht", omp)
 
