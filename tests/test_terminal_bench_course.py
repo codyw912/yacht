@@ -851,6 +851,7 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                         "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
                         "model_name": "claude-haiku-4-5",
                         "kwargs": {"version": "2.1.211"},
+                        "env": {"ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"},
                     }
                 ],
             )
