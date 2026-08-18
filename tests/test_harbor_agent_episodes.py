@@ -405,16 +405,27 @@ class OmpCodexStreamResultTests(unittest.TestCase):
             n_cache_tokens = None
             cost_usd = None
 
-        context = Context()
+        omp = Context()
         episodes.apply_usage_to_context(
-            context,
+            omp,
             {"input_tokens": 4, "output_tokens": 1, "cache_read_tokens": 2},
             0.5,
+            input_includes_cache=False,
         )
-        self.assertEqual(context.n_input_tokens, 4)
-        self.assertEqual(context.n_output_tokens, 1)
-        self.assertEqual(context.n_cache_tokens, 2)
-        self.assertEqual(context.cost_usd, 0.5)
+        self.assertEqual(omp.n_input_tokens, 6)
+        self.assertEqual(omp.n_output_tokens, 1)
+        self.assertEqual(omp.n_cache_tokens, 2)
+        self.assertEqual(omp.cost_usd, 0.5)
+
+        codex = Context()
+        episodes.apply_usage_to_context(
+            codex,
+            {"input_tokens": 4, "output_tokens": 1, "cache_read_tokens": 2},
+            0.5,
+            input_includes_cache=True,
+        )
+        self.assertEqual(codex.n_input_tokens, 4)
+        self.assertEqual(codex.n_cache_tokens, 2)
 
     def test_jsonl_nonzero_exit_is_error(self) -> None:
         self.assertEqual(

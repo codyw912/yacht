@@ -519,7 +519,10 @@ class YachtOmp(BaseInstalledAgent):
     def populate_context_post_run(self, context) -> None:
         super().populate_context_post_run(context)
         episodes.apply_usage_to_context(
-            context, self._recorded_usage, self._recorded_cost
+            context,
+            self._recorded_usage,
+            self._recorded_cost,
+            input_includes_cache=False,
         )
 
 
@@ -618,7 +621,10 @@ class YachtCodex(BaseInstalledAgent):
     def populate_context_post_run(self, context) -> None:
         super().populate_context_post_run(context)
         episodes.apply_usage_to_context(
-            context, self._recorded_usage, self._recorded_cost
+            context,
+            self._recorded_usage,
+            self._recorded_cost,
+            input_includes_cache=True,
         )
 
 

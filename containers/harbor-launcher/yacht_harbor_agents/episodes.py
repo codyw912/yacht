@@ -290,11 +290,32 @@ def merge_stream_costs(costs: list[float | None]) -> float | None:
 
 
 def apply_usage_to_context(
-    context: Any, usage: dict[str, int] | None, cost_usd: float | None
+    context: Any,
+    usage: dict[str, int] | None,
+    cost_usd: float | None,
+    *,
+    input_includes_cache: bool,
 ) -> None:
+    """Copy native usage onto Harbor AgentContext.
+
+    Harbor documents ``n_input_tokens`` as input including cache. Codex
+    already reports that. OMP reports uncached ``input`` plus
+    ``cacheRead``; add them only when ``input_includes_cache`` is false.
+    Raw provider fields on ``usage`` stay unchanged.
+    """
     if isinstance(usage, dict):
-        if "input_tokens" in usage:
-            context.n_input_tokens = usage["input_tokens"]
+        input_tokens = usage.get("input_tokens")
+        cache_read = usage.get("cache_read_tokens")
+        if isinstance(input_tokens, int) and not isinstance(input_tokens, bool):
+            if (
+                not input_includes_cache
+                and isinstance(cache_read, int)
+                and not isinstance(cache_read, bool)
+                and cache_read >= 0
+            ):
+                context.n_input_tokens = input_tokens + cache_read
+            else:
+                context.n_input_tokens = input_tokens
         if "output_tokens" in usage:
             context.n_output_tokens = usage["output_tokens"]
         if "cache_read_tokens" in usage:
