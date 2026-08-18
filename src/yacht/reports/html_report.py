@@ -673,8 +673,7 @@ def _delivery_table(attempt_comparison: dict[str, Any] | None) -> str:
                     )
                 if stage_bits:
                     expected_cell += (
-                        '<br><span class="muted">'
-                        f"{_e('; '.join(stage_bits))}</span>"
+                        f'<br><span class="muted">{_e("; ".join(stage_bits))}</span>'
                     )
 
             rows.append(

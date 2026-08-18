@@ -277,7 +277,6 @@ def _skill_stage_counts(
     return totals if saw else None
 
 
-
 def _observed_namespace_tools(
     measured: list[dict[str, Any]],
     expectation: dict[str, Any],

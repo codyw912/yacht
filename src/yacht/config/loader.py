@@ -583,8 +583,9 @@ def _parse_install_content(
     try:
         return source_path.read_text(encoding="utf-8")
     except FileNotFoundError as error:
-        raise ConfigError(f"{method} install source not found: {source_path}") from error
-
+        raise ConfigError(
+            f"{method} install source not found: {source_path}"
+        ) from error
 
 
 def _parse_preflight_recipe(raw: dict[str, Any]) -> PreflightRecipe:

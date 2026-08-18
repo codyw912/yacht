@@ -200,8 +200,7 @@ def _step_support(
         if "/" in step.target or step.target in {".", ".."}:
             return (
                 False,
-                f"skill install target {step.target} must be a skill name, "
-                "not a path",
+                f"skill install target {step.target} must be a skill name, not a path",
             )
         if step.content is None:
             return (

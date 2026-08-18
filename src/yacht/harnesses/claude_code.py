@@ -454,7 +454,6 @@ def skill_stages_from_session_transcript(text: str) -> list[dict[str, str]] | No
     return stages
 
 
-
 def _tool_calls_from_machine_evidence(
     machine_evidence: dict[str, Any],
 ) -> tuple[str, ...]:

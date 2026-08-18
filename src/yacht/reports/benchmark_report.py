@@ -637,7 +637,6 @@ def _skill_stage_rate_label(stages: Any) -> str:
     return "; ".join(parts)
 
 
-
 def _resolution_decision(
     delta: dict[str, Any],
     statistics: dict[str, Any] | None = None,

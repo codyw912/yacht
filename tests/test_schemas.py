@@ -247,8 +247,6 @@ class SchemaTests(unittest.TestCase):
         self.assertIn("tool_call_evidence", agent)
         self.assertIn("skill_stages", agent)
 
-
-
     def test_task_attempt_episodes_block_validates(self) -> None:
         document = _valid_task_attempt_document()
         document["episodes"] = {
