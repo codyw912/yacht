@@ -40,6 +40,10 @@
   bind mounts and the in-container `jobs_dir` — is absolutized, so a
   relative `--logbook` runs instead of failing preflight with "mount
   path must be absolute".
+- Harbor and host OMP/Codex adapters now report the same token
+  headline: input including cache, plus output. OMP's uncached
+  ``input`` is added to ``cacheRead`` at that boundary; Codex
+  ``input_tokens`` is already inclusive, so cache is not added twice.
 
 ### MCP installs through capability-providing riggings (ADR 0024)
 

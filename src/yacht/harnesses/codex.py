@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from yacht.domain.model import Metrics, RuntimeInstance, Task
+from yacht.harnesses.usage import headline_tokens
 from yacht.preflight import AgentPromptResult, AgentPromptRunner, CommandResult
 from yacht.runtimes.process import subprocess_env
 from yacht.workflows.task_attempts import AgentTaskResult
@@ -346,7 +347,7 @@ def _tokens(evidence: dict[str, Any] | None) -> int:
     usage = evidence.get("usage")
     if not isinstance(usage, dict):
         return 0
-    return sum(value for value in usage.values() if isinstance(value, int))
+    return headline_tokens(usage, input_includes_cache=True)
 
 
 def _skill_stages_from_evidence(
