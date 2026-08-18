@@ -8,8 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from yacht.preflight import AgentPromptResult, CommandResult
-from yacht.preflight.runner import parse_secret_values, run_preflight
-from yacht.domain.model import ConfigError
+from yacht.preflight.runner import run_preflight
 from yacht.cli import main
 from yacht.contracts.schemas import PREFLIGHT_SUMMARY_SCHEMA
 
@@ -147,32 +146,6 @@ vessels = ["baseline", "rigged"]
 
 
 class CliPreflightTests(unittest.TestCase):
-    def test_parse_secret_values_can_read_explicit_env_reference(self) -> None:
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "env-secret"}):
-            secrets = parse_secret_values(["anthropic=@env:ANTHROPIC_API_KEY"])
-
-        self.assertEqual(secrets, {"anthropic": "env-secret"})
-
-    def test_parse_secret_values_reports_missing_explicit_env_reference(self) -> None:
-        with patch.dict("os.environ", {}, clear=True):
-            with self.assertRaisesRegex(
-                ConfigError,
-                "environment variable MISSING_KEY is not set for secret anthropic",
-            ):
-                parse_secret_values(["anthropic=@env:MISSING_KEY"])
-
-    def test_parse_secret_values_rejects_empty_explicit_env_reference(self) -> None:
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""}):
-            with self.assertRaisesRegex(
-                ConfigError,
-                "environment variable ANTHROPIC_API_KEY is empty for secret anthropic",
-            ):
-                parse_secret_values(["anthropic=@env:ANTHROPIC_API_KEY"])
-
-    def test_parse_secret_values_rejects_empty_literal_secret(self) -> None:
-        with self.assertRaisesRegex(ConfigError, "secret anthropic must be non-empty"):
-            parse_secret_values(["anthropic="])
-
     def test_preflight_prepares_container_runtime_and_runs_machine_checks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

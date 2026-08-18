@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +33,7 @@ def run_task_attempts(
     config_path: Path,
     logbook_dir: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     agent_name: str,
     task_agent: TaskAgent | None = None,
 ) -> dict[str, Any]:
@@ -80,7 +81,7 @@ def _run_comparison_task_attempts(
     comparison: Comparison,
     logbook_dir: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     agent: TaskAgent,
 ) -> list[dict[str, str]]:
     return [
@@ -107,7 +108,7 @@ def _run_vessel_task_attempt(
     task: Task,
     logbook_dir: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     agent: TaskAgent,
 ) -> dict[str, str]:
     task = _task_for_attempt(regatta, task)
@@ -214,7 +215,7 @@ def _rigging_instructions(regatta: Regatta, vessel: Vessel) -> tuple[str, ...]:
 
 def _validate_required_secrets(
     regatta: Regatta,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
 ) -> None:
     for comparison in regatta.comparisons:
         for vessel_name in comparison.vessels:

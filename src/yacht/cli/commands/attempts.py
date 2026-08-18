@@ -9,7 +9,7 @@ from yacht.domain.model import ConfigError
 from yacht.config.agent_selection import configured_harness_declarations
 from yacht.harnesses.registry import supported_task_attempt_names
 from yacht.harnesses.registry import task_agent
-from yacht.preflight.runner import parse_secret_values
+from yacht.secret_resolution import resolve_secret_arguments
 from yacht.reports.task_attempt_scorecard import write_task_attempt_scorecard
 from yacht.workflows.task_attempt_runner import run_task_attempts
 
@@ -79,7 +79,7 @@ def _task_attempts(args: argparse.Namespace) -> int:
             config_path=args.config,
             logbook_dir=args.logbook,
             workspace_path=args.workspace,
-            secret_values=parse_secret_values(args.secret),
+            secret_values=resolve_secret_arguments(args.secret),
             agent_name=args.agent,
             task_agent=task_agent(args.agent, _declarations(args)),
         )

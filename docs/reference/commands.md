@@ -80,6 +80,35 @@ uv run yacht status --logbook "$LOGBOOK"
 uv run yacht report --logbook "$LOGBOOK"
 ```
 
+### Supplying secrets
+
+`--secret NAME=@env:VARIABLE` binds a logical secret declared in the
+config to an environment variable. Yacht resolves the variable once, then
+removes it from its own environment and reintroduces the value only for
+runtimes whose `required_secrets` name that secret; artifacts record
+redacted references. Avoid `--secret NAME=value` interactively — a
+literal lands in shell history and process listings.
+
+To resolve the value per command instead of exporting it, use the
+contributor environment's scoped wrappers:
+
+```sh
+yacht-run-anthropic examples/custom-eval-skill-ab-smoke.toml \
+  --logbook "$LOGBOOK" --workspace .
+```
+
+or the explicit form for any other command:
+
+```sh
+secretspec run --scope anthropic \
+  --reason "Yacht agent operation" \
+  -- uv run yacht internals preflight <config> \
+       --logbook "$LOGBOOK" \
+       --secret anthropic=@env:ANTHROPIC_API_KEY
+```
+
+See [Secrets](secrets.md).
+
 ## status
 
 ```sh

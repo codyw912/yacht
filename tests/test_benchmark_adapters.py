@@ -1,3 +1,4 @@
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,9 +7,40 @@ from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.courses.registry import benchmark_adapter
 from yacht.courses.registry import course_adapter
 from yacht.courses.registry import evaluator_adapter
+from yacht.courses.registry import native_harness_command
 from yacht.courses.registry import supported_benchmark_adapter_kinds
 from yacht.courses.registry import supported_course_adapter_harnesses
 from yacht.domain.model import ConfigError, Task, load_regatta
+from yacht.runtimes.process import subprocess_env
+
+
+class NativeHarnessCommandTests(unittest.TestCase):
+    def test_launcher_prefix_imports_yacht_from_a_foreign_cwd(self) -> None:
+        # The launcher runs with cwd set to the vessel's native report
+        # directory. A nested `uv run` had no project to discover there,
+        # so every vessel failed with ModuleNotFoundError: No module named
+        # 'yacht'. Execute it for real from a foreign cwd rather than
+        # asserting argv, which is what let that regression through.
+        for module in (
+            "yacht.courses.swe_bench.harness",
+            "yacht.courses.terminal_bench.harness",
+            "yacht.courses.livecodebench.harness",
+        ):
+            with self.subTest(module=module):
+                argv = tuple(native_harness_command(module)) + ("--help",)
+                with tempfile.TemporaryDirectory() as foreign_cwd:
+                    completed = subprocess.run(
+                        argv,
+                        cwd=foreign_cwd,
+                        env=subprocess_env(argv, {}),
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+
+                self.assertNotIn("No module named", completed.stderr)
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertIn(module, completed.stdout)
 
 
 class BenchmarkAdapterRegistryTests(unittest.TestCase):
@@ -152,11 +184,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(
             command,
             [
-                "uv",
-                "run",
-                "python",
-                "-m",
-                "yacht.courses.terminal_bench.harness",
+                *native_harness_command("yacht.courses.terminal_bench.harness"),
                 "--job",
                 "/tmp/vessels/tb-vessel/terminal-bench-job.json",
                 "--roster",
@@ -193,11 +221,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(
             command,
             [
-                "uv",
-                "run",
-                "python",
-                "-m",
-                "yacht.courses.terminal_bench.harness",
+                *native_harness_command("yacht.courses.terminal_bench.harness"),
                 "--job",
                 "/tmp/vessels/custom-vessel/terminal-bench-job.json",
                 "--roster",
@@ -237,11 +261,7 @@ class BenchmarkAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(
             command,
             [
-                "uv",
-                "run",
-                "python",
-                "-m",
-                "yacht.courses.swe_bench.harness",
+                *native_harness_command("yacht.courses.swe_bench.harness"),
                 "--predictions",
                 "/tmp/candidate-patches.jsonl",
                 "--report-dir",

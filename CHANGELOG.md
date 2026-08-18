@@ -2,6 +2,51 @@
 
 ## Unreleased
 
+### Scoped secrets and a contributor devenv environment
+
+- A resolved `--secret NAME=@env:VAR` reference no longer leaks: Yacht
+  reads the variable exactly once and then removes it from its own
+  environment, so helper subprocesses (git, dataset downloads, rigging
+  installs for vessels that declared nothing) cannot inherit it. The
+  value stays in the in-memory secret map and is reintroduced only for
+  runtimes whose `required_secrets` name that logical secret. Native
+  Harbor/Terminal-Bench launches receive it explicitly, per vessel.
+  Resolution is all-or-nothing: a parse or lookup failure leaves the
+  environment untouched. Only exact referenced names are removed.
+  `parse_secret_values` moved to
+  `yacht.secret_resolution.resolve_secret_arguments`, which returns a
+  `ResolvedSecrets` mapping carrying the blocked variable names.
+- A provider-neutral `secretspec.toml` declares `ANTHROPIC_API_KEY` and
+  `OPENAI_API_KEY` plus one scope each. No provider, vault, item, or
+  field is committed; each operator selects a provider privately with
+  `secretspec config global init`.
+- `devenv.nix` / `devenv.yaml` / `.envrc` add a contributor environment
+  (Python 3.12, uv, Git, SecretSpec 0.19.1 pinned in
+  `nix/secretspec.nix`) with `yacht-check` / `yacht-test` /
+  `yacht-lint` / `yacht-compile` gates and `yacht-run-anthropic` /
+  `yacht-run-openai` scoped live runs. `secretspec: enable: false`: the
+  shell never contacts a provider. `flake.nix` keeps its `default` and
+  `pi` host-nix runtime shells unchanged.
+- Personal provider coordinates (provider alias, vault, item, field) go in
+  an uncommitted `secretspec.local.toml` that `extends` the committed
+  manifest; the `yacht-run-*` wrappers select it when present. A
+  committed per-secret `providers` override would otherwise beat
+  `--provider env` and make the manifest unresolvable without one
+  operator's store.
+- New guide: `docs/reference/secrets.md`.
+
+### Native launcher commands no longer depend on the caller's cwd
+
+- Benchmark launch ran `uv run python -m yacht.courses.<course>.harness`
+  with `cwd` set to the vessel's native report directory. From a source
+  checkout the nested `uv` had no project to discover there, so every
+  vessel failed with `ModuleNotFoundError: No module named 'yacht'` and
+  grading collected nothing. Launcher commands now run Yacht's own
+  interpreter (`yacht.courses.registry.native_harness_command`), which
+  already has `yacht` importable wherever it was installed from. Covered
+  by a test that executes the prefix from a foreign cwd rather than
+  asserting argv, which is what let the regression through.
+
 ### OMP and Codex first-class harnesses
 
 - OMP and Codex join Pi and Claude Code as first-class harnesses.

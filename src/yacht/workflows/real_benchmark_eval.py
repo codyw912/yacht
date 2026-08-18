@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +43,7 @@ from yacht.preflight.runner import AgentPromptRunnerFactory, run_preflight
 from yacht.workflows.readiness_gate import evaluate_readiness_gate
 from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.runtimes.instances import write_runtime_instances_plan
+from yacht.runtimes.secrets import secret_env_by_vessel
 from yacht.reports.surface_metadata import regatta_surfaces_to_json
 from yacht.workflows.task_attempt_runner import TaskAgent, run_task_attempts
 from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
@@ -58,7 +59,7 @@ def run_real_benchmark_eval(
     config_path: Path,
     logbook_dir: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     agent_prompt_runner_factory: AgentPromptRunnerFactory | None,
     agent_name: str,
     task_agent: TaskAgent | None = None,
@@ -315,6 +316,7 @@ def run_real_benchmark_eval(
     benchmark_launch = write_benchmark_launch_result(
         logbook_dir=logbook_dir,
         command_runner=benchmark_command_runner,
+        secret_env_by_vessel=secret_env_by_vessel(regatta, secret_values),
     )
     _progress(progress, f"benchmark launch: {benchmark_launch['status']}")
     _progress(progress, "grading collection: collecting native reports")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,7 +44,7 @@ class HostNixRuntimeResolution:
     def env_with_secret_values(
         self,
         regatta: Regatta,
-        secret_values: dict[str, str],
+        secret_values: Mapping[str, str],
     ) -> dict[str, str]:
         env = dict(self.env)
         for secret_name in self.required_secret_names:

@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 import shlex
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+
+
+def native_harness_command(module: str) -> list[str]:
+    """Argv prefix for a native evaluation harness, independent of cwd.
+
+    The launcher runs with ``cwd`` set to the vessel's native report
+    directory (Harbor and the graders need absolute paths there), so a
+    nested ``uv run`` has no project to discover: from a source checkout
+    every vessel died with ``ModuleNotFoundError: No module named
+    'yacht'``. Yacht's own interpreter already has ``yacht`` importable,
+    wherever it was installed from, so launch that instead of asking a
+    second resolver to find the project again.
+    """
+    return [sys.executable, "-m", module]
 
 
 class CourseAdapterInterface(Protocol):
@@ -322,11 +337,7 @@ class SweBenchEvaluatorAdapter:
         max_workers: int,
     ) -> list[str]:
         return [
-            "uv",
-            "run",
-            "python",
-            "-m",
-            "yacht.courses.swe_bench.harness",
+            *native_harness_command("yacht.courses.swe_bench.harness"),
             "--predictions",
             str(candidate_path),
             "--report-dir",
@@ -468,11 +479,7 @@ class TerminalBenchEvaluatorAdapter:
 
         vessel_dir = candidate_path.parent
         return [
-            "uv",
-            "run",
-            "python",
-            "-m",
-            "yacht.courses.terminal_bench.harness",
+            *native_harness_command("yacht.courses.terminal_bench.harness"),
             "--job",
             str(vessel_dir / TERMINAL_BENCH_JOB_FILENAME),
             "--roster",
@@ -617,11 +624,7 @@ class LiveCodeBenchEvaluatorAdapter:
 
         vessel_dir = candidate_path.parent
         command = [
-            "uv",
-            "run",
-            "python",
-            "-m",
-            "yacht.courses.livecodebench.harness",
+            *native_harness_command("yacht.courses.livecodebench.harness"),
             "--candidates",
             str(candidate_path),
             "--window-file",

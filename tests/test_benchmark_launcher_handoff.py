@@ -1,4 +1,6 @@
 import json
+import shlex
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr
@@ -23,6 +25,7 @@ from yacht.courses.artifacts import candidate_patches_path
 from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
 from yacht.courses.swe_bench.grading import write_swe_bench_grading_report
 from yacht.courses.swe_bench.predictions import write_swe_bench_predictions
+from yacht.courses.registry import native_harness_command
 
 
 class BenchmarkLauncherHandoffTests(unittest.TestCase):
@@ -63,11 +66,7 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             self.assertEqual(
                 vessel["command"],
                 [
-                    "uv",
-                    "run",
-                    "python",
-                    "-m",
-                    "yacht.courses.swe_bench.harness",
+                    *native_harness_command("yacht.courses.swe_bench.harness"),
                     "--predictions",
                     str(
                         logbook_dir
@@ -94,7 +93,7 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             )
             self.assertEqual(
                 vessel["command_preview"],
-                "uv run python -m yacht.courses.swe_bench.harness "
+                f"{shlex.quote(sys.executable)} -m yacht.courses.swe_bench.harness "
                 f"--predictions {logbook_dir}/course-handoff/swe-bench/vessels/pi-baseline/candidate-patches.jsonl "
                 f"--report-dir {logbook_dir}/course-handoff/swe-bench/vessels/pi-baseline/native-report "
                 "--dataset princeton-nlp/SWE-bench_Lite --split test "
@@ -298,7 +297,10 @@ class BenchmarkLauncherHandoffTests(unittest.TestCase):
             self.assertEqual(payload["schema"], "yacht.benchmark-launcher-handoff.v1")
             self.assertEqual(payload["status"], "ready-to-launch")
             command = payload["comparisons"][0]["vessels"][0]["command"]
-            self.assertEqual(command[:3], ["uv", "run", "python"])
+            self.assertEqual(
+                command[:3],
+                native_harness_command("yacht.courses.swe_bench.harness"),
+            )
             self.assertIn("yacht.courses.swe_bench.harness", command)
             self.assertIn("--max-workers", command)
             self.assertIn("3", command)

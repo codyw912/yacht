@@ -1,3 +1,4 @@
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,9 +24,13 @@ from yacht.preflight.execution import (
 
 class RunCommandTests(unittest.TestCase):
     def test_runs_real_subprocess_and_captures_output(self) -> None:
+        # sys.executable, not "python3": the ambient environment decides
+        # what a bare "python3" resolves to (inside `devenv shell` on
+        # macOS the Xcode shim cannot resolve one at all), and this test
+        # is about _run_command, not about PATH resolution.
         with tempfile.TemporaryDirectory() as temp_dir:
             result = _run_command(
-                ("python3", "-c", "import sys; print('out'); sys.exit(3)"),
+                (sys.executable, "-c", "import sys; print('out'); sys.exit(3)"),
                 {"PATH": "/usr/bin:/bin:/usr/local/bin"},
                 Path(temp_dir),
             )

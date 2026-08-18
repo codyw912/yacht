@@ -10,3 +10,15 @@ __pycache__/
 /notes/
 /logs/
 /pi-container-*.json
+/feedback.md
+
+# Contributor devenv environment (devenv.nix / .envrc). devenv.lock is
+# committed; local state and overrides are not.
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+.direnv/
+
+# Personal SecretSpec provider coordinates (vault/item/field). The
+# committed secretspec.toml stays provider-neutral; this extends it.
+/secretspec.local.toml

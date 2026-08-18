@@ -1,4 +1,6 @@
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -145,6 +147,41 @@ class BenchmarkLaunchTests(unittest.TestCase):
             vessel = result["comparisons"][0]["vessels"][0]
             self.assertEqual(vessel["status"], "skipped")
             self.assertEqual(vessel["skipped_reason"], "missing-candidate-patches")
+
+    def test_launch_injects_only_the_declaring_vessels_secret_env(self) -> None:
+        sentinel = "yacht-dummy-sentinel-DO-NOT-USE-launch"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_ready_logbook(Path(temp_dir))
+            write_benchmark_launcher_handoff(logbook_dir=logbook_dir)
+            envs: dict[str, dict[str, str]] = {}
+
+            def fake_run(argv, cwd=None, env=None, **kwargs):
+                envs[str(cwd)] = dict(env or {})
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            # The native launcher forwards ANTHROPIC_API_KEY by name
+            # (docker run -e NAME), so the value has to be in the env
+            # Yacht hands it: once resolved, it is no longer ambient.
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("ANTHROPIC_API_KEY", None)
+                with patch(
+                    "yacht.workflows.benchmark_launch.subprocess.run",
+                    side_effect=fake_run,
+                ):
+                    write_benchmark_launch_result(
+                        logbook_dir=logbook_dir,
+                        secret_env_by_vessel={
+                            "pi-plus-fff": {"ANTHROPIC_API_KEY": sentinel}
+                        },
+                    )
+
+            self.assertEqual(len(envs), 2)
+            for cwd, env in envs.items():
+                with self.subTest(cwd=cwd):
+                    if "pi-plus-fff" in cwd:
+                        self.assertEqual(env["ANTHROPIC_API_KEY"], sentinel)
+                    else:
+                        self.assertNotIn("ANTHROPIC_API_KEY", env)
 
 
 def _prepared_ready_logbook(root: Path) -> Path:

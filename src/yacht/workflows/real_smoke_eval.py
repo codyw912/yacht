@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +23,7 @@ def run_real_smoke_eval(
     config_path: Path,
     logbook_dir: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     agent_prompt_runner_factory: AgentPromptRunnerFactory,
     task_agent: TaskAgent,
     agent_name: str,
