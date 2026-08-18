@@ -5,8 +5,8 @@ This plan sequences the work in
 against what Yacht already ships. The handoff is the outcome and
 acceptance contract. This document is the implementation order.
 
-Status: proposed. Motif is the first demanding consumer, not a Yacht-core
-special case.
+Status: implemented on this branch; not yet released. Motif is the
+first demanding consumer, not a Yacht-core special case.
 
 ## Product priority
 

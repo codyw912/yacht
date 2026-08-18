@@ -25,9 +25,9 @@ coding-agent evaluation.
 
 YACHT runs real end-to-end benchmark comparisons:
 
-- harness adapters for containerized Pi and containerized Claude Code, plus
-  harnesses YACHT does not ship: declared in config and measured through a
-  mapped evidence contract over their own machine-readable output
+- harness adapters for containerized Pi, Claude Code, OMP, and Codex,
+  plus harnesses YACHT does not ship: declared in config and measured
+  through a mapped evidence contract over their own machine-readable output
 - rigging for tools under test: agent extensions, skills, config files,
   pinned npm packages, and MCP servers rendered into the harness's own
   configuration

@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+### OMP and Codex first-class harnesses
+
+- OMP and Codex join Pi and Claude Code as first-class harnesses.
+  Yacht consumes their native JSONL streams (`omp -p --mode json`,
+  `codex exec --json`) instead of a declared-harness wrapper.
+  Malformed or incomplete streams degrade to unmeasured; they are
+  never counted as measured evidence.
+- Skill install is a typed `skill` method. Each adapter renders the
+  native project layout. Delivery stages are `available` /
+  `selected` / `loaded`; missing evidence stays `unmeasured`. Claude
+  Code's `Skill:<name>` is selection, not proof the skill body was
+  inserted.
+- Harbor agents `YachtOmp` and `YachtCodex` install into an isolated
+  task environment. Declared secrets reach the task container through
+  Harbor `agent.env` as `${NAME}` templates. Codex materializes
+  `CODEX_HOME/auth.json` from `OPENAI_API_KEY` and receives the bare
+  model id — Responses rejects a `openai/` prefix.
+- Both harnesses run ADR 0025 cold-session episode relays. A pinned
+  factorial course
+  (`examples/custom-eval-omp-codex-skill-factorial.toml`) compares
+  stock versus skill inside each harness; the raw OMP-versus-Codex
+  outcome delta is not the skill effect.
+- Harbor and host adapters report the same token headline: input
+  including cache, plus output. OMP's uncached `input` is added to
+  `cacheRead` at that boundary; Codex `input_tokens` is already
+  inclusive, so cache is not added twice.
+
 ## 0.10.0 - Episodic Trials
 
 ### Episodic trials (ADR 0025)
@@ -40,10 +69,6 @@
   bind mounts and the in-container `jobs_dir` — is absolutized, so a
   relative `--logbook` runs instead of failing preflight with "mount
   path must be absolute".
-- Harbor and host OMP/Codex adapters now report the same token
-  headline: input including cache, plus output. OMP's uncached
-  ``input`` is added to ``cacheRead`` at that boundary; Codex
-  ``input_tokens`` is already inclusive, so cache is not added twice.
 
 ### MCP installs through capability-providing riggings (ADR 0024)
 
