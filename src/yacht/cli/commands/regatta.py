@@ -9,9 +9,11 @@ from yacht.cli import output
 from yacht.config.agent_selection import configured_harness_declarations
 from yacht.config.agent_selection import configured_harness_name
 from yacht.config.loader import load_regatta
+from yacht.courses.registry import course_adapter
 from yacht.domain.model import ConfigError, run_regatta
 from yacht.harnesses.registry import agent_prompt_runner_factory
 from yacht.harnesses.registry import task_agent
+from yacht.reports.surface_metadata import regatta_surfaces_to_json
 from yacht.preflight.runner import parse_secret_values
 from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
 from yacht.workflows.real_benchmark_repetitions import run_real_benchmark_repetitions
@@ -152,8 +154,7 @@ def _run_smoke(args: argparse.Namespace) -> int:
 
 def _run_benchmark(args: argparse.Namespace) -> int:
     try:
-        agent_name = configured_harness_name(args.config)
-        harness_declarations = configured_harness_declarations(args.config)
+        agent_name, prompt_factory, bound_task_agent = _eval_binding(args.config)
         write_real_benchmark_runbook(
             config_path=args.config,
             logbook_dir=args.logbook,
@@ -165,10 +166,8 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             logbook_dir=args.logbook,
             workspace_path=args.workspace,
             secret_values=parse_secret_values(args.secret),
-            agent_prompt_runner_factory=agent_prompt_runner_factory(
-                agent_name, harness_declarations
-            ),
-            task_agent=task_agent(agent_name, harness_declarations),
+            agent_prompt_runner_factory=prompt_factory,
+            task_agent=bound_task_agent,
             agent_name=agent_name,
             max_workers=args.max_workers,
             progress=output.stderr_progress,
@@ -185,8 +184,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
 
 def _run_benchmark_repetitions(args: argparse.Namespace) -> int:
     try:
-        agent_name = configured_harness_name(args.config)
-        harness_declarations = configured_harness_declarations(args.config)
+        agent_name, prompt_factory, bound_task_agent = _eval_binding(args.config)
         summary = run_real_benchmark_repetitions(
             config_path=args.config,
             logbook_dir=args.logbook,
@@ -194,10 +192,8 @@ def _run_benchmark_repetitions(args: argparse.Namespace) -> int:
             secret_values=parse_secret_values(args.secret),
             repetitions=args.repetitions,
             agent_name=agent_name,
-            agent_prompt_runner_factory=agent_prompt_runner_factory(
-                agent_name, harness_declarations
-            ),
-            task_agent=task_agent(agent_name, harness_declarations),
+            agent_prompt_runner_factory=prompt_factory,
+            task_agent=bound_task_agent,
             max_workers=args.max_workers,
             progress=output.stderr_progress,
         )
@@ -225,3 +221,25 @@ def _validate(args: argparse.Namespace) -> int:
         return 0
     print(f"valid regatta config: {regatta.name}")
     return 0
+
+
+def _eval_binding(config_path: Path):
+    """Host adapters need one harness. Harbor native rollout does not."""
+    regatta = load_regatta(config_path)
+    declarations = configured_harness_declarations(config_path)
+    if regatta.course.adapter is not None:
+        adapter = course_adapter(regatta.course.adapter.kind)
+        if adapter.native_rollout and regatta.course.adapter.harness == "harbor":
+            names = tuple(regatta_surfaces_to_json(regatta).get("agent_harnesses", ()))
+            if not names:
+                raise ConfigError(
+                    "real benchmark commands require at least one configured "
+                    "agent harness; found none"
+                )
+            return ", ".join(str(name) for name in names), None, None
+    name = configured_harness_name(config_path)
+    return (
+        name,
+        agent_prompt_runner_factory(name, declarations),
+        task_agent(name, declarations),
+    )

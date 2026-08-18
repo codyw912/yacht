@@ -177,6 +177,76 @@ class SchemaTests(unittest.TestCase):
 
         validate_task_attempt_document(document)
 
+    def test_task_attempt_skill_stages_validate(self) -> None:
+        document = _valid_task_attempt_document()
+        document["agent"]["skill_stages"] = [
+            {
+                "skill": "team-conventions",
+                "available": "unmeasured",
+                "selected": "observed",
+                "loaded": "unmeasured",
+                "evidence_source": "claude-code-session-transcript",
+            }
+        ]
+
+        validate_task_attempt_document(document)
+
+    def test_task_attempt_skill_stages_require_evidence_source(self) -> None:
+        document = _valid_task_attempt_document()
+        document["agent"]["skill_stages"] = [
+            {
+                "skill": "team-conventions",
+                "available": "unmeasured",
+                "selected": "observed",
+                "loaded": "unmeasured",
+            }
+        ]
+
+        with self.assertRaisesRegex(ValueError, "evidence_source"):
+            validate_task_attempt_document(document)
+
+    def test_published_schema_declares_emitted_attempt_agent_keys(self) -> None:
+        from yacht.courses.terminal_bench.attempts_from_trials import _agent_to_json
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trial_dir = Path(temp_dir)
+            sessions = trial_dir / "agent" / "sessions" / "projects" / "-app"
+            sessions.mkdir(parents=True)
+            (sessions / "session.jsonl").write_text(
+                json.dumps(
+                    {
+                        "type": "assistant",
+                        "message": {
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "name": "Skill",
+                                    "input": {"skill": "team-conventions"},
+                                }
+                            ]
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            agent = _agent_to_json(None, str(trial_dir), True)
+
+        schema = json.loads(
+            Path("schemas/yacht.task-attempt.v1.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        agent_schema = schema["$defs"]["agent"]
+        self.assertFalse(agent_schema["additionalProperties"])
+        declared = set(agent_schema["properties"])
+        self.assertEqual(set(agent) - declared, set())
+        for key in ("machine_evidence", "tool_call_evidence", "skill_stages"):
+            self.assertIn(key, declared)
+        self.assertIn("machine_evidence", agent)
+        self.assertIn("tool_call_evidence", agent)
+        self.assertIn("skill_stages", agent)
+
     def test_task_attempt_episodes_block_validates(self) -> None:
         document = _valid_task_attempt_document()
         document["episodes"] = {

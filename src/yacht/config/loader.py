@@ -569,14 +569,14 @@ def _parse_install_content(
     config_dir: Path,
 ) -> str | None:
     content = str(step["content"]) if "content" in step else None
-    if method != "config-file":
+    if method not in {"config-file", "skill"}:
         return content
     if content is not None and "source" in step:
-        raise ConfigError("config-file install must not define both content and source")
+        raise ConfigError(f"{method} install must not define both content and source")
     if content is not None:
         return content
     if "source" not in step:
-        raise ConfigError("config-file install requires content or source")
+        raise ConfigError(f"{method} install requires content or source")
     source_path = Path(str(step["source"]))
     if not source_path.is_absolute():
         source_path = config_dir / source_path
@@ -584,7 +584,7 @@ def _parse_install_content(
         return source_path.read_text(encoding="utf-8")
     except FileNotFoundError as error:
         raise ConfigError(
-            f"config-file install source not found: {source_path}"
+            f"{method} install source not found: {source_path}"
         ) from error
 
 

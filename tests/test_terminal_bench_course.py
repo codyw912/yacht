@@ -485,6 +485,33 @@ class TerminalBenchHarnessTests(unittest.TestCase):
             str(Path.cwd() / "relay-logbook" / "trials"),
         )
 
+    def test_harbor_run_config_forwards_secret_env_as_templates(self) -> None:
+        job = {
+            "dataset": {"name": "terminal-bench/terminal-bench-2", "version": "2.0"},
+            "tasks": ["hello-world"],
+            "secret_env": ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
+            "agent": {
+                "name": "omp",
+                "import_path": "yacht_harbor_agents.agents:YachtOmp",
+                "version": "17.2.15",
+                "model": "openai/gpt-5.6-luna",
+                "env": {"FFF_MODE": "mcp"},
+                "mcp_servers": [],
+                "rigging_steps": [],
+            },
+        }
+
+        run_config = harbor_run_config(job, trials_dir=Path("/tmp/trials"))
+
+        self.assertEqual(
+            run_config["agents"][0]["env"],
+            {
+                "FFF_MODE": "mcp",
+                "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+                "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+            },
+        )
+
     def test_translates_trials_into_normalized_native_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             trials_dir = Path(temp_dir)
@@ -824,6 +851,7 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                         "import_path": "yacht_harbor_agents.agents:YachtClaudeCode",
                         "model_name": "claude-haiku-4-5",
                         "kwargs": {"version": "2.1.211"},
+                        "env": {"ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"},
                     }
                 ],
             )
@@ -1170,6 +1198,48 @@ class TerminalBenchAttemptsFromTrialsTests(unittest.TestCase):
         self.assertNotIn("episodes", attempt)
         self.assertNotIn("episodes", attempt["agent"]["machine_evidence"])
 
+    def test_metrics_sum_episode_usages_when_trial_usage_missing(self) -> None:
+        from yacht.courses.terminal_bench.attempts_from_trials import _metrics
+
+        trial = {
+            "started_at": "2026-08-01T10:00:00Z",
+            "finished_at": "2026-08-01T10:02:00Z",
+            "episodes": {
+                "count": 2,
+                "items": [
+                    {
+                        "index": 1,
+                        "ended": "natural",
+                        "usage": {"input_tokens": 10, "output_tokens": 2},
+                    },
+                    {
+                        "index": 2,
+                        "ended": "natural",
+                        "usage": {"input_tokens": 5, "output_tokens": 3},
+                    },
+                ],
+            },
+        }
+        self.assertEqual(_metrics(trial)["tokens"], 20)
+
+    def test_metrics_stay_unmeasured_if_any_episode_lacks_usage(self) -> None:
+        from yacht.courses.terminal_bench.attempts_from_trials import _metrics
+
+        trial = {
+            "episodes": {
+                "count": 2,
+                "items": [
+                    {
+                        "index": 1,
+                        "ended": "natural",
+                        "usage": {"input_tokens": 10, "output_tokens": 2},
+                    },
+                    {"index": 2, "ended": "timeout"},
+                ],
+            },
+        }
+        self.assertEqual(_metrics(trial)["tokens"], 0)
+
 
 def _written_report(root: Path, report: dict[str, Any]) -> Path:
     report_path = root / "native-report" / "claude-baseline.run-1.json"
@@ -1212,6 +1282,7 @@ class TerminalBenchInstallOnlyTests(unittest.TestCase):
                 summary["evidence"]["agent"],
                 {"name": "claude-code", "version": "2.1.211"},
             )
+            self.assertNotIn("resolved_version", summary["evidence"])
             self.assertEqual(summary["evidence"]["task"], "hello-world")
             self.assertEqual(commands[0][-1], "--install-only")
             run_config = json.loads(
@@ -1220,6 +1291,92 @@ class TerminalBenchInstallOnlyTests(unittest.TestCase):
                 )
             )
             self.assertEqual(run_config["datasets"][0]["task_names"], ["hello-world"])
+
+    def test_omp_install_only_requires_resolved_version_to_match_pin(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / "evals" / "convention-task"
+            task_dir.mkdir(parents=True)
+            (task_dir / "instruction.md").write_text("solve\n", encoding="utf-8")
+            (task_dir / "Dockerfile").write_text("FROM alpine:3.20\n", encoding="utf-8")
+            (task_dir / "task.toml").write_text(
+                '[metadata]\nauthor = "yacht"\ndescription = "x"\n'
+                'difficulty = "easy"\n\n[verifier]\ntimeout_sec = 60.0\n\n'
+                "[agent]\ntimeout_sec = 300.0\n",
+                encoding="utf-8",
+            )
+            config_path = root / "regatta.toml"
+            config_path.write_text(
+                f"""
+[regatta]
+name = "omp-install-only"
+
+[course]
+name = "tiny"
+
+[[course.tasks]]
+id = "convention-task"
+title = "Task"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "{root / "evals"}"
+split = "v1"
+harness = "harbor"
+
+[secrets.openai]
+source = "env"
+name = "OPENAI_API_KEY"
+
+[runtimes.harbor-omp]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "omp"
+harness_version = "17.2.15"
+required_secrets = ["openai"]
+
+[[vessels]]
+name = "omp-baseline"
+model = "openai/gpt-5.2"
+runtime = "harbor-omp"
+""",
+                encoding="utf-8",
+            )
+            from yacht.courses.terminal_bench.install_only import (
+                run_terminal_bench_install_only,
+            )
+
+            def fake_runner(argv, cwd):
+                result = {
+                    "task_name": "convention-task",
+                    "trial_name": "convention-task__abc1234",
+                    "agent_info": {"name": "omp", "version": "17.2.15"},
+                }
+                _write_trial(root / "install-only", result)
+                resolved = (
+                    root
+                    / "install-only"
+                    / "harbor"
+                    / "convention-task__abc1234"
+                    / "agent"
+                )
+                resolved.mkdir(parents=True)
+                (resolved / "resolved-version.txt").write_text(
+                    "omp/9.9.9\n", encoding="utf-8"
+                )
+                return CommandResult(exit_code=0, stdout="", stderr="")
+
+            summary = run_terminal_bench_install_only(
+                regatta=load_regatta(config_path),
+                vessel_name="omp-baseline",
+                work_dir=root / "install-only",
+                command_runner=fake_runner,
+            )
+
+            self.assertEqual(summary["status"], "failed")
+            self.assertIn("does not match configured pin", summary["evidence"]["error"])
+            self.assertEqual(summary["evidence"]["resolved_version"], "omp/9.9.9")
+            self.assertEqual(summary["evidence"]["expected_version"], "17.2.15")
 
     def test_fails_when_harbor_run_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1613,6 +1770,71 @@ class EpisodicJobRenderingTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ConfigError, "pi"):
                 render_terminal_bench_job(regatta=regatta, vessel_name="pi-baseline")
+
+    def test_render_job_embeds_episode_plans_for_omp_and_codex(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_custom_eval_relay_task(root, episodes_table="[episodes]\nmax = 2\n")
+            config_path = root / "regatta.toml"
+            config_path.write_text(
+                f"""
+[regatta]
+name = "relay-omp-codex"
+
+[course]
+name = "relay-course"
+
+[[course.tasks]]
+id = "relay-task"
+title = "Relay"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "{root / "evals"}"
+split = "v1"
+harness = "harbor"
+
+[secrets.openai]
+source = "env"
+name = "OPENAI_API_KEY"
+
+[runtimes.harbor-omp]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "omp"
+harness_version = "17.2.15"
+required_secrets = ["openai"]
+
+[runtimes.harbor-codex]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "codex"
+harness_version = "0.147.0"
+required_secrets = ["openai"]
+
+[[vessels]]
+name = "omp-baseline"
+model = "openai/gpt-5.2"
+runtime = "harbor-omp"
+
+[[vessels]]
+name = "codex-baseline"
+model = "openai/gpt-5.2"
+runtime = "harbor-codex"
+""",
+                encoding="utf-8",
+            )
+            regatta = load_regatta(config_path)
+            expected = {
+                "omp-baseline": "yacht_harbor_agents.agents:YachtOmp",
+                "codex-baseline": "yacht_harbor_agents.agents:YachtCodex",
+            }
+            for vessel, import_path in expected.items():
+                with self.subTest(vessel=vessel):
+                    job = render_terminal_bench_job(regatta=regatta, vessel_name=vessel)
+                    self.assertEqual(job["agent"]["import_path"], import_path)
+                    self.assertEqual(job["agent"]["episodes"]["relay-task"]["max"], 2)
+                    self.assertIn("episodes", job["agent"])
 
 
 if __name__ == "__main__":

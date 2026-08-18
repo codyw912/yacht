@@ -17,6 +17,7 @@ from yacht.harnesses.mcp_config import (
     render_mcp_config,
     render_provider_mcp_config,
 )
+from yacht.harnesses.skill_config import SkillConfigError, render_skill_installs
 from yacht.reports.surface_metadata import harness_for_runtime
 from yacht.runtimes.capabilities import unsupported_rigging_capability_reasons
 from yacht.runtimes.process import subprocess_env
@@ -80,6 +81,7 @@ def plan_rigging_setup(
     commands = []
     files = []
     mcp_steps = []
+    skill_steps: list[tuple[str, RiggingInstallStep]] = []
     for rigging in riggings:
         for step in rigging.install:
             if step.method == "config-file":
@@ -87,6 +89,9 @@ def plan_rigging_setup(
                 continue
             if step.method == "mcp-server":
                 mcp_steps.append((rigging.name, step))
+                continue
+            if step.method == "skill":
+                skill_steps.append((rigging.name, step))
                 continue
             command = _setup_command(
                 runtime=runtime,
@@ -96,6 +101,22 @@ def plan_rigging_setup(
             )
             if command is not None:
                 commands.append(command)
+    if skill_steps:
+        try:
+            renders = render_skill_installs(
+                harness_for_runtime(runtime),
+                tuple(skill_steps),
+            )
+        except SkillConfigError as error:
+            raise RiggingSetupError(str(error)) from error
+        files.extend(
+            RiggingSetupFile(
+                origin_name=render.origin_name,
+                target=render.target,
+                content=render.content,
+            )
+            for render in renders
+        )
     return RiggingSetupPlan(
         commands=tuple(commands),
         files=tuple(files),

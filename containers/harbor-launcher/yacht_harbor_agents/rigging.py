@@ -24,6 +24,9 @@ _AGENT_EXTENSION_INSTALLERS = {
 # release (0.73.1) predates every current pi extension build. YachtPi
 # overrides the harness install to this package.
 PI_PACKAGE = "@earendil-works/pi-coding-agent"
+OMP_PACKAGE = "@oh-my-pi/pi-coding-agent"
+CODEX_PACKAGE = "@openai/codex"
+BUN_PACKAGE = "bun@1.3.14"
 
 # Official node base images set NODE_VERSION; nvm's installer
 # pre-installs that version and pins the default alias to it, so a
@@ -33,6 +36,80 @@ PI_PACKAGE = "@earendil-works/pi-coding-agent"
 # right after the harness install, and every later session (rigging
 # steps and harbor's own pi run alike) resolves the right bin.
 PI_NODE_ALIAS_REPAIR_COMMAND = ". ~/.nvm/nvm.sh; nvm alias default node"
+
+
+def omp_install_command(version_spec: str) -> str:
+    """Install bun, then the pinned OMP package. OMP 17.x is a bun binary."""
+    return (
+        "set -euo pipefail; "
+        f"npm install -g {BUN_PACKAGE} && "
+        f"npm install -g {OMP_PACKAGE}{version_spec} && "
+        "omp --version"
+    )
+
+
+def omp_run_command(*, instruction: str, model: str | None = None) -> str:
+    argv = ["omp", "-p", "--mode", "json", "--no-session", "--auto-approve"]
+    if model:
+        argv.extend(["--model", model])
+    argv.append(instruction)
+    quoted = " ".join(shlex.quote(item) for item in argv)
+    return (
+        "set -euo pipefail; . ~/.nvm/nvm.sh; "
+        f"{quoted} > /logs/agent/omp.jsonl 2> /logs/agent/omp.stderr"
+    )
+
+
+def codex_auth_setup_command() -> str:
+    """Write OPENAI_API_KEY into CODEX_HOME/auth.json.
+
+    Codex exec does not send a bearer from the env var alone. Harbor's
+    official agent materializes auth.json the same way. The key is
+    expanded inside the task container; this helper never embeds it.
+    """
+    writer = (
+        "const fs=require('fs');"
+        "if(!process.env.OPENAI_API_KEY)"
+        "{console.error('OPENAI_API_KEY is required');process.exit(1)}"
+        "fs.mkdirSync('/tmp/codex-secrets',{recursive:true});"
+        "fs.writeFileSync("
+        "'/tmp/codex-secrets/auth.json',"
+        "JSON.stringify({OPENAI_API_KEY:process.env.OPENAI_API_KEY})+'\\n',"
+        "{mode:0o600}"
+        ")"
+    )
+    return (
+        "export CODEX_HOME=/tmp/codex-home; "
+        'mkdir -p "$CODEX_HOME" /tmp/codex-secrets; '
+        f"node -e {shlex.quote(writer)}; "
+        'ln -sfn /tmp/codex-secrets/auth.json "$CODEX_HOME/auth.json"'
+    )
+
+
+def codex_run_command(*, instruction: str, model: str | None = None) -> str:
+    argv = [
+        "codex",
+        "exec",
+        "--json",
+        "--ephemeral",
+        "--dangerously-bypass-approvals-and-sandbox",
+    ]
+    if model:
+        argv.extend(["--model", model.rsplit("/", 1)[-1]])
+    argv.append(instruction)
+    quoted = " ".join(shlex.quote(item) for item in argv)
+    return (
+        "set -euo pipefail; . ~/.nvm/nvm.sh; "
+        f"{codex_auth_setup_command()}; "
+        f"{quoted} > /logs/agent/codex.jsonl 2> /logs/agent/codex.stderr"
+    )
+
+
+def version_contains_pin(resolved: str, expected: str) -> bool:
+    if not resolved or not expected:
+        return False
+    tokens = resolved.replace("/", " ").split()
+    return expected in tokens or resolved == expected
 
 
 def rigging_commands(steps: list[dict[str, Any]]) -> list[str]:

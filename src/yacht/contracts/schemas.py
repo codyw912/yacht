@@ -49,7 +49,7 @@ COURSE_GRADING_SCHEMAS = {
 
 # Kept in sync with yacht.harnesses.registry.supported_harness_names()
 # by a test; imported directly it would create an import cycle.
-BUILT_IN_HARNESS_NAMES = {"claude-code", "local-smoke", "pi"}
+BUILT_IN_HARNESS_NAMES = {"claude-code", "codex", "local-smoke", "omp", "pi"}
 HARNESS_PROMPT_MODES = {"argument", "stdin"}
 HARNESS_EVIDENCE_SOURCES = {"stdout", "file"}
 METRICS_USAGE_SOURCES = {"reported", "estimated", "unreported"}
@@ -82,6 +82,7 @@ RIGGING_INSTALL_METHODS = {
     "config-file",
     "preinstalled",
     "custom-command",
+    "skill",
 }
 PREFLIGHT_CHECK_KINDS = {
     "agent-prompt",
@@ -2271,6 +2272,11 @@ def _validate_tool_invocations(value: Any, path: str) -> None:
                 entry.get("observed_tools"),
                 f"{entry_path}.observed_tools",
             )
+        if "skill_stages" in entry:
+            _validate_invocation_skill_stages(
+                entry.get("skill_stages"),
+                f"{entry_path}.skill_stages",
+            )
         if entry.get("status") == "unmeasured":
             continue
         _require_non_negative_int(
@@ -2295,6 +2301,24 @@ def _validate_tool_invocations(value: Any, path: str) -> None:
             _validate_rate_interval(
                 entry.get("completed_invocation_interval"),
                 f"{entry_path}.completed_invocation_interval",
+            )
+
+
+def _validate_invocation_skill_stages(value: Any, path: str) -> None:
+    stages = _require_object(value, path)
+    _require_keys(stages, ("available", "selected", "loaded"), path)
+    for key in ("available", "selected", "loaded"):
+        counts = _require_object(stages.get(key), f"{path}.{key}")
+        _require_keys(
+            counts, ("observed_attempts", "measured_attempts"), f"{path}.{key}"
+        )
+        observed = counts.get("observed_attempts")
+        measured = counts.get("measured_attempts")
+        _require_non_negative_int(observed, f"{path}.{key}.observed_attempts")
+        _require_non_negative_int(measured, f"{path}.{key}.measured_attempts")
+        if observed > measured:
+            raise SchemaValidationError(
+                f"{path}.{key}.observed_attempts must be <= measured_attempts"
             )
 
 
@@ -2516,6 +2540,34 @@ def _validate_task_attempt_agent(value: Any) -> None:
         )
     if "machine_evidence" in agent:
         _validate_task_attempt_machine_evidence(agent["machine_evidence"])
+    if "skill_stages" in agent:
+        _validate_skill_stages(agent["skill_stages"])
+
+
+_SKILL_STAGE_STATES = {"observed", "absent", "unmeasured"}
+
+
+def _validate_skill_stages(value: Any) -> None:
+    stages = _require_list(value, "agent.skill_stages")
+    for index, stage_value in enumerate(stages):
+        path = f"agent.skill_stages[{index}]"
+        stage = _require_object(stage_value, path)
+        _require_keys(
+            stage,
+            ("skill", "available", "selected", "loaded", "evidence_source"),
+            path,
+        )
+        _require_non_empty_string(stage.get("skill"), f"{path}.skill")
+        _require_non_empty_string(
+            stage.get("evidence_source"),
+            f"{path}.evidence_source",
+        )
+        for key in ("available", "selected", "loaded"):
+            _require_allowed_value(
+                stage.get(key),
+                _SKILL_STAGE_STATES,
+                f"{path}.{key}",
+            )
 
 
 def _validate_task_attempt_machine_evidence(value: Any) -> None:

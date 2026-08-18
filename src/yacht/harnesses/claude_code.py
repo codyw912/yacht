@@ -423,6 +423,37 @@ def tool_calls_from_session_transcript(text: str) -> tuple[str, ...] | None:
     return _tool_calls_from_events(events)
 
 
+def skill_stages_from_session_transcript(text: str) -> list[dict[str, str]] | None:
+    """Skill delivery stages from a Claude Code session JSONL.
+
+    Skill tool-use input is selected only. loaded stays unmeasured
+    because this parser does not inspect insertion evidence.
+    Returns None when the text is not recognizable session JSONL.
+    """
+    tool_calls = tool_calls_from_session_transcript(text)
+    if tool_calls is None:
+        return None
+    stages: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for call in tool_calls:
+        if not call.startswith("Skill:"):
+            continue
+        name = call.removeprefix("Skill:")
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        stages.append(
+            {
+                "skill": name,
+                "available": "unmeasured",
+                "selected": "observed",
+                "loaded": "unmeasured",
+                "evidence_source": SESSION_TRANSCRIPT_EVIDENCE,
+            }
+        )
+    return stages
+
+
 def _tool_calls_from_machine_evidence(
     machine_evidence: dict[str, Any],
 ) -> tuple[str, ...]:

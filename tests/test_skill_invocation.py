@@ -125,6 +125,68 @@ class ObservedToolCallsTests(unittest.TestCase):
             self.assertEqual(calls, [])
             self.assertIsNone(source)
 
+    def test_omp_and_codex_native_streams_measure_tool_calls(self) -> None:
+        fixtures = Path("tests/fixtures")
+        cases = (
+            ("omp.jsonl", "omp-skill-read.jsonl", "omp-jsonl", ["read"]),
+            (
+                "codex.jsonl",
+                "codex-exec-skill.jsonl",
+                "codex-jsonl",
+                ["command_execution"],
+            ),
+        )
+        for filename, fixture, source, expected in cases:
+            with self.subTest(filename=filename):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    trial_dir = Path(temp_dir)
+                    agent_dir = trial_dir / "agent"
+                    agent_dir.mkdir(parents=True)
+                    (agent_dir / filename).write_text(
+                        fixtures.joinpath(fixture).read_text(encoding="utf-8"),
+                        encoding="utf-8",
+                    )
+
+                    calls, measured = _observed_tool_calls(trial_dir)
+
+                    self.assertEqual(calls, expected)
+                    self.assertEqual(measured, source)
+
+    def test_episode_native_streams_measure_tool_calls(self) -> None:
+        fixtures = Path("tests/fixtures")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trial_dir = Path(temp_dir)
+            episode = trial_dir / "agent" / "episodes" / "001"
+            episode.mkdir(parents=True)
+            (episode / "omp.jsonl").write_text(
+                fixtures.joinpath("omp-skill-read.jsonl").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+
+            calls, source = _observed_tool_calls(trial_dir)
+
+            self.assertEqual(calls, ["read"])
+            self.assertEqual(source, "omp-jsonl")
+
+    def test_mixed_malformed_and_valid_episode_streams_are_unmeasured(self) -> None:
+        fixtures = Path("tests/fixtures")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trial_dir = Path(temp_dir)
+            first = trial_dir / "agent" / "episodes" / "001"
+            second = trial_dir / "agent" / "episodes" / "002"
+            first.mkdir(parents=True)
+            second.mkdir(parents=True)
+            (first / "omp.jsonl").write_text(
+                fixtures.joinpath("omp-skill-read.jsonl").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            (second / "omp.jsonl").write_text("{not json\n", encoding="utf-8")
+
+            calls, source = _observed_tool_calls(trial_dir)
+
+            self.assertEqual(calls, [])
+            self.assertIsNone(source)
+
 
 class ToolExpectationTests(unittest.TestCase):
     def test_skill_expectation_uses_frontmatter_name(self) -> None:

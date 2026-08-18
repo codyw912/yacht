@@ -17,9 +17,12 @@ from yacht.contracts.schemas import (
 from yacht.harnesses.claude_code import (
     SESSION_TRANSCRIPT_EVIDENCE,
     mcp_server_namespace,
+    skill_stages_from_session_transcript,
     tool_calls_from_session_transcript,
 )
+from yacht.harnesses.codex import CODEX_JSONL_EVIDENCE, parse_codex_jsonl
 from yacht.harnesses.mcp_config import provider_mcp_namespace
+from yacht.harnesses.omp import OMP_JSONL_EVIDENCE, parse_omp_jsonl
 from yacht.harnesses.pi import PI_JSONL_EVIDENCE, tool_calls_from_pi_jsonl
 from yacht.courses.terminal_bench.harness import HARBOR_JOB_NAME
 from yacht.domain.model import (
@@ -195,6 +198,14 @@ def _agent_to_json(
     }
     if evidence_source is not None:
         payload["tool_call_evidence"] = evidence_source
+    if evidence_source == SESSION_TRANSCRIPT_EVIDENCE:
+        skill_stages = _session_skill_stages(Path(trial_dir) / "agent" / "sessions")
+        if skill_stages:
+            payload["skill_stages"] = skill_stages
+    elif evidence_source in {OMP_JSONL_EVIDENCE, CODEX_JSONL_EVIDENCE}:
+        skill_stages = _native_stream_skill_stages(Path(trial_dir), evidence_source)
+        if skill_stages:
+            payload["skill_stages"] = skill_stages
     return payload
 
 
@@ -292,6 +303,9 @@ def _tool_expectations(
 def _installed_skill_names(rigging: RiggingRecipe) -> list[str]:
     names = []
     for step in rigging.install:
+        if step.method == "skill":
+            names.append(_skill_name_from_content(step.content) or step.target)
+            continue
         if step.method != "config-file":
             continue
         match = _SKILL_INSTALL_TARGET.match(step.target)
@@ -323,6 +337,28 @@ def _skill_for_tool(tool_name: str, installed_skills: list[str]) -> str:
     return tool_name
 
 
+def _session_skill_stages(sessions_dir: Path) -> list[dict[str, str]]:
+    if not sessions_dir.is_dir():
+        return []
+    stages: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for transcript_path in sorted(sessions_dir.rglob("*.jsonl")):
+        try:
+            text = transcript_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        parsed = skill_stages_from_session_transcript(text)
+        if parsed is None:
+            continue
+        for stage in parsed:
+            name = stage["skill"]
+            if name in seen:
+                continue
+            seen.add(name)
+            stages.append(stage)
+    return stages
+
+
 def _observed_tool_calls(trial_dir: Path) -> tuple[list[str], str | None]:
     """Observed tool calls from the trial's preserved evidence, with the
     source that measured them. (calls=[], source=None) means unmeasured —
@@ -336,6 +372,16 @@ def _observed_tool_calls(trial_dir: Path) -> tuple[list[str], str | None]:
     session_calls = _session_tool_calls(trial_dir / "agent" / "sessions")
     if session_calls is not None:
         return session_calls, SESSION_TRANSCRIPT_EVIDENCE
+    omp_calls = _native_stream_tool_calls(
+        _native_stream_paths(trial_dir, "omp.jsonl"), parse_omp_jsonl
+    )
+    if omp_calls is not None:
+        return list(omp_calls), OMP_JSONL_EVIDENCE
+    codex_calls = _native_stream_tool_calls(
+        _native_stream_paths(trial_dir, "codex.jsonl"), parse_codex_jsonl
+    )
+    if codex_calls is not None:
+        return list(codex_calls), CODEX_JSONL_EVIDENCE
     pi_calls = _pi_output_tool_calls(trial_dir / "agent" / "pi.txt")
     if pi_calls is not None:
         return list(pi_calls), PI_JSONL_EVIDENCE
@@ -390,6 +436,65 @@ def _pi_output_tool_calls(output_path: Path) -> tuple[str, ...] | None:
     return tool_calls_from_pi_jsonl(text)
 
 
+def _native_stream_paths(trial_dir: Path, name: str) -> list[Path]:
+    root = trial_dir / "agent" / name
+    if root.is_file():
+        return [root]
+    episodes_dir = trial_dir / "agent" / "episodes"
+    if not episodes_dir.is_dir():
+        return []
+    return sorted(episodes_dir.glob(f"*/{name}"))
+
+
+def _native_stream_tool_calls(paths: list[Path], parser) -> tuple[str, ...] | None:
+    if not paths:
+        return None
+    observed: list[str] = []
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return None
+        parsed = parser(text)
+        if parsed is None:
+            return None
+        tool_calls = parsed.get("tool_calls")
+        if isinstance(tool_calls, tuple):
+            observed.extend(tool_calls)
+    return tuple(dict.fromkeys(observed))
+
+
+def _native_stream_skill_stages(
+    trial_dir: Path, evidence_source: str
+) -> list[dict[str, str]]:
+    if evidence_source == OMP_JSONL_EVIDENCE:
+        paths = _native_stream_paths(trial_dir, "omp.jsonl")
+        parser = parse_omp_jsonl
+    elif evidence_source == CODEX_JSONL_EVIDENCE:
+        paths = _native_stream_paths(trial_dir, "codex.jsonl")
+        parser = parse_codex_jsonl
+    else:
+        return []
+    stages: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for path in paths:
+        try:
+            parsed = parser(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            return []
+        if parsed is None:
+            return []
+        for stage in parsed.get("skill_stages") or ():
+            if not isinstance(stage, dict):
+                continue
+            name = stage.get("skill")
+            if not isinstance(name, str) or name in seen:
+                continue
+            seen.add(name)
+            stages.append(dict(stage))
+    return stages
+
+
 def _machine_evidence(trial: dict[str, Any] | None) -> dict[str, Any]:
     evidence: dict[str, Any] = {"format": MACHINE_EVIDENCE_FORMAT}
     if trial is None:
@@ -442,6 +547,8 @@ def _metrics(trial: dict[str, Any] | None) -> dict[str, Any]:
     duration = 0.0
     if trial is not None:
         usage = trial.get("usage")
+        if not _has_token_counts(usage):
+            usage = _usage_from_episodes(trial.get("episodes"))
         if isinstance(usage, dict):
             for key in ("input_tokens", "output_tokens"):
                 value = usage.get(key)
@@ -449,6 +556,41 @@ def _metrics(trial: dict[str, Any] | None) -> dict[str, Any]:
                     tokens += max(value, 0)
         duration = _duration_seconds(trial)
     return {"tokens": tokens, "duration_seconds": duration}
+
+
+def _has_token_counts(usage: Any) -> bool:
+    if not isinstance(usage, dict):
+        return False
+    return any(
+        isinstance(usage.get(key), int) and not isinstance(usage.get(key), bool)
+        for key in ("input_tokens", "output_tokens")
+    )
+
+
+def _usage_from_episodes(episodes: Any) -> dict[str, int] | None:
+    if not isinstance(episodes, dict):
+        return None
+    items = episodes.get("items")
+    if not isinstance(items, list) or not items:
+        return None
+    usages: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            return None
+        usage = item.get("usage")
+        if not isinstance(usage, dict):
+            return None
+        usages.append(usage)
+    merged: dict[str, int] = {}
+    for key in ("input_tokens", "output_tokens", "cache_read_tokens"):
+        values = [usage.get(key) for usage in usages]
+        if any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+            for value in values
+        ):
+            continue
+        merged[key] = sum(values)
+    return merged or None
 
 
 def _duration_seconds(trial: dict[str, Any]) -> float:

@@ -1,0 +1,12 @@
+{"type":"session","version":3,"id":"fixture-session","cwd":"/tmp/yacht-fixture"}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"user","content":[{"type":"text","text":"prompt"}]}}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"prompt"}]}}
+{"type":"message_start","message":{"role":"assistant","content":[{"type":"text","text":""}],"api":"openai-responses","provider":"xai-oauth","model":"grok-4.6"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_start","contentIndex":0}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"OK"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_end","contentIndex":0,"content":"OK"}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"OK"}],"api":"openai-responses","provider":"xai-oauth","model":"grok-4.6","usage":{"input":5328,"output":29,"cacheRead":128,"cacheWrite":0,"totalTokens":5485,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}
+{"type":"turn_end","message":{"role":"assistant","content":[{"type":"text","text":"OK"}],"api":"openai-responses","provider":"xai-oauth","model":"grok-4.6","usage":{"input":5328,"output":29,"cacheRead":128,"cacheWrite":0,"totalTokens":5485,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}
+{"type":"agent_end","messages":[{"role":"user","content":[{"type":"text","text":"prompt"}]},{"role":"assistant","content":[{"type":"text","text":"OK"}],"api":"openai-responses","provider":"xai-oauth","model":"grok-4.6"}]}

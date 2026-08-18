@@ -1,0 +1,49 @@
+# Token-free runtime image check for the pinned Codex container.
+#
+#   docker build -t yacht/codex-runtime:codex-0.147.0 containers/codex-runtime
+#   uv run yacht doctor examples/container-codex-runtime-smoke.toml
+#
+# Harbor install-only still uses the launcher image. This recipe exists
+# so `yacht doctor` inspects the repo-owned Codex runtime image.
+
+[regatta]
+name = "container-codex-runtime-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "container-runtime-smoke"
+tasks = [
+  { id = "container-codex-smoke-1", title = "Container Codex runtime smoke", difficulty = 1 },
+]
+
+[runtimes.codex-container]
+backend = "container"
+harness = "codex"
+image = "yacht/codex-runtime:codex-0.147.0"
+command = ["codex"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+
+[runtimes.codex-container.preflight]
+required = true
+checks = [
+  { name = "codex-present", kind = "command", command = ["codex", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[[vessels]]
+name = "codex-container-a"
+model = "smoke"
+runtime = "codex-container"
+
+[[vessels]]
+name = "codex-container-b"
+model = "smoke"
+runtime = "codex-container"
+
+[[comparisons]]
+name = "container-codex-runtime"
+course = "container-runtime-smoke"
+vessels = ["codex-container-a", "codex-container-b"]

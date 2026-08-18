@@ -22,6 +22,7 @@ from yacht.harnesses.mcp_config import (
     render_provider_mcp_config,
     supports_mcp_server_installs,
 )
+from yacht.harnesses.skill_config import SkillConfigError, render_skill_installs
 from yacht.runtimes.tool_capabilities import provided_mcp_install_provider
 
 
@@ -29,6 +30,8 @@ TERMINAL_BENCH_JOB_FILENAME = "terminal-bench-job.json"
 
 HARBOR_AGENT_BY_HARNESS = {
     "claude-code": "yacht_harbor_agents.agents:YachtClaudeCode",
+    "codex": "yacht_harbor_agents.agents:YachtCodex",
+    "omp": "yacht_harbor_agents.agents:YachtOmp",
     "pi": "yacht_harbor_agents.agents:YachtPi",
 }
 
@@ -37,6 +40,7 @@ SUPPORTED_RIGGING_INSTALL_METHODS = (
     "config-file",
     "mcp-server",
     "package",
+    "skill",
 )
 
 _PACKAGE_PIN = re.compile(r"@\d+(?:\.\d+)+(?:[-+][\w.-]+)?$")
@@ -302,6 +306,7 @@ def _rigging_steps(
     native = supports_mcp_server_installs(harness)
     steps: list[dict[str, Any]] = []
     mcp_steps: list[tuple[str, RiggingInstallStep]] = []
+    skill_steps: list[tuple[str, RiggingInstallStep]] = []
     for rigging in riggings:
         for step in rigging.install:
             _require_supported_method(rigging, step)
@@ -315,6 +320,9 @@ def _rigging_steps(
                         "provides it"
                     )
                 mcp_steps.append((rigging.name, step))
+                continue
+            if step.method == "skill":
+                skill_steps.append((rigging.name, step))
                 continue
             if step.method == "package" and not _PACKAGE_PIN.search(step.target):
                 raise ConfigError(
@@ -348,6 +356,19 @@ def _rigging_steps(
                 "target": render.target,
                 "content": render.content,
             }
+        )
+    if skill_steps:
+        try:
+            renders = render_skill_installs(harness, tuple(skill_steps))
+        except SkillConfigError as error:
+            raise ConfigError(str(error)) from error
+        steps.extend(
+            {
+                "method": "config-file",
+                "target": render.target,
+                "content": render.content,
+            }
+            for render in renders
         )
     return steps
 

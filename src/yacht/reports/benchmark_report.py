@@ -600,8 +600,7 @@ def _delivery_decision(delivery: dict[str, Any] | None) -> str:
         return "delivery -"
     status = str(delivery.get("status"))
     rates = ", ".join(
-        f"{tool.get('tool')} {tool.get('invoked_attempts', '?')}/"
-        f"{tool.get('measured_attempts')}"
+        _delivery_tool_rate(tool)
         for tool in delivery.get("tools", ())
         if tool.get("status") == "measured"
     )
@@ -610,6 +609,32 @@ def _delivery_decision(delivery: dict[str, Any] | None) -> str:
     if status == "not-delivered":
         return f"NOT DELIVERED ({rates})" if rates else "NOT DELIVERED"
     return "delivery unmeasured"
+
+
+def _delivery_tool_rate(tool: dict[str, Any]) -> str:
+    label = (
+        f"{tool.get('tool')} {tool.get('invoked_attempts', '?')}/"
+        f"{tool.get('measured_attempts')}"
+    )
+    stages = _skill_stage_rate_label(tool.get("skill_stages"))
+    if stages:
+        return f"{label}; {stages}"
+    return label
+
+
+def _skill_stage_rate_label(stages: Any) -> str:
+    if not isinstance(stages, dict):
+        return ""
+    parts = []
+    for key in ("available", "selected", "loaded"):
+        counts = stages.get(key)
+        if not isinstance(counts, dict):
+            continue
+        parts.append(
+            f"{key} {counts.get('observed_attempts', 0)}/"
+            f"{counts.get('measured_attempts', 0)}"
+        )
+    return "; ".join(parts)
 
 
 def _resolution_decision(

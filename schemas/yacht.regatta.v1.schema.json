@@ -95,7 +95,8 @@
             "container-image",
             "config-file",
             "preinstalled",
-            "custom-command"
+            "custom-command",
+            "skill"
           ]
         },
         "target": {

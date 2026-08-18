@@ -222,6 +222,37 @@ class RunDoctorTests(unittest.TestCase):
 
         self.assertEqual(report["status"], "passed")
 
+    def test_omp_and_codex_runtime_smokes_inspect_repo_owned_images(self) -> None:
+        inspected: list[str] = []
+
+        def runner(argv):
+            if argv[:3] == ("docker", "image", "inspect"):
+                inspected.append(argv[3])
+            return _ok_runner(argv)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for config in (
+                Path("examples/container-omp-runtime-smoke.toml"),
+                Path("examples/container-codex-runtime-smoke.toml"),
+            ):
+                report = run_doctor(
+                    config_path=config,
+                    logbook_dir=Path(temp_dir) / "logbook",
+                    check_swebench=False,
+                    which=_which_all,
+                    command_runner=runner,
+                    env={},
+                )
+                self.assertEqual(report["status"], "passed")
+
+        self.assertEqual(
+            inspected,
+            [
+                "yacht/omp-runtime:omp-17.2.15",
+                "yacht/codex-runtime:codex-0.147.0",
+            ],
+        )
+
 
 class DoctorRenderingTests(unittest.TestCase):
     def test_text_report_shows_status_markers_and_hints(self) -> None:

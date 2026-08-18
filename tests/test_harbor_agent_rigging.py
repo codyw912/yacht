@@ -1,5 +1,8 @@
 import base64
 import importlib.util
+import json
+import os
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -135,6 +138,77 @@ class HarborAgentRiggingTests(unittest.TestCase):
             set(rigging._AGENT_EXTENSION_INSTALLERS),
             HARBOR_AGENT_EXTENSION_HARNESSES,
         )
+
+    def test_omp_and_codex_run_commands_quote_and_pin_native_flags(self) -> None:
+        import shlex
+
+        omp = rigging.omp_run_command(
+            instruction="solve 'it'",
+            model="openai/gpt-5.2",
+        )
+        self.assertIn("omp -p --mode json --no-session --auto-approve", omp)
+        self.assertIn("--model openai/gpt-5.2", omp)
+        self.assertIn(shlex.quote("solve 'it'"), omp)
+        self.assertIn("> /logs/agent/omp.jsonl", omp)
+
+        codex = rigging.codex_run_command(
+            instruction="solve 'it'",
+            model="openai/gpt-5.2",
+        )
+        self.assertIn("codex exec --json --ephemeral", codex)
+        self.assertIn("--dangerously-bypass-approvals-and-sandbox", codex)
+        self.assertIn("--model gpt-5.2", codex)
+        self.assertNotIn("--model openai/gpt-5.2", codex)
+        self.assertIn(shlex.quote("solve 'it'"), codex)
+        self.assertIn("> /logs/agent/codex.jsonl", codex)
+
+    def test_codex_run_command_writes_auth_json_from_env(self) -> None:
+        setup = rigging.codex_auth_setup_command()
+        self.assertIn("CODEX_HOME=/tmp/codex-home", setup)
+        self.assertIn("process.env.OPENAI_API_KEY", setup)
+        self.assertNotIn("sk-", setup)
+
+        command = rigging.codex_run_command(
+            instruction="solve it",
+            model="openai/gpt-5.6-luna",
+        )
+        self.assertLess(command.index(setup), command.index("codex exec"))
+
+        dummy = "sk-dummy-yacht-codex-auth"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir) / "codex-home"
+            secrets = Path(temp_dir) / "codex-secrets"
+            rewritten = setup.replace("/tmp/codex-home", str(home)).replace(
+                "/tmp/codex-secrets", str(secrets)
+            )
+            env = os.environ.copy()
+            env["OPENAI_API_KEY"] = dummy
+            completed = subprocess.run(
+                ["bash", "-lc", rewritten],
+                check=True,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            auth = home / "auth.json"
+            payload = json.loads(auth.read_text(encoding="utf-8"))
+            self.assertTrue(auth.is_symlink())
+            self.assertEqual(payload, {"OPENAI_API_KEY": dummy})
+            self.assertEqual(stat.S_IMODE(auth.stat().st_mode), 0o600)
+            self.assertEqual(completed.stdout, "")
+
+    def test_version_contains_pin_reads_cli_banner(self) -> None:
+        self.assertTrue(rigging.version_contains_pin("omp/17.2.15", "17.2.15"))
+        self.assertTrue(rigging.version_contains_pin("codex-cli 0.147.0", "0.147.0"))
+        self.assertFalse(rigging.version_contains_pin("omp/17.2.15", "9.9.9"))
+
+    def test_omp_install_installs_bun_before_omp(self) -> None:
+        command = rigging.omp_install_command("@17.2.15")
+        self.assertIn("npm install -g bun@1.3.14", command)
+        self.assertIn("npm install -g @oh-my-pi/pi-coding-agent@17.2.15", command)
+        bun_at = command.index("bun@1.3.14")
+        omp_at = command.index("@oh-my-pi/pi-coding-agent@17.2.15")
+        self.assertLess(bun_at, omp_at)
 
 
 if __name__ == "__main__":

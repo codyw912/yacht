@@ -40,7 +40,9 @@ class EpisodePlanError(RuntimeError):
     pass
 
 
-def plan_for_task(episodes_kwarg: dict[str, Any] | None, task_name: str) -> dict[str, Any] | None:
+def plan_for_task(
+    episodes_kwarg: dict[str, Any] | None, task_name: str
+) -> dict[str, Any] | None:
     """The validated episode plan for `task_name`, or None if not episodic.
 
     `episodes_kwarg` is the agent's `episodes` kwarg: a mapping of task
@@ -62,7 +64,9 @@ def plan_for_task(episodes_kwarg: dict[str, Any] | None, task_name: str) -> dict
 
     maximum = plan.get("max")
     if isinstance(maximum, bool) or not isinstance(maximum, int) or maximum < 2:
-        raise EpisodePlanError(f"episode plan for {task_name}: max must be an integer >= 2")
+        raise EpisodePlanError(
+            f"episode plan for {task_name}: max must be an integer >= 2"
+        )
 
     verify_between = plan.get("verify_between")
     if not isinstance(verify_between, bool):
@@ -193,6 +197,198 @@ def claude_episode_ended(subtype: str | None, timed_out: bool, errored: bool) ->
     return ENDED_ERROR
 
 
+def parse_omp_stream_result(text: str) -> dict[str, Any]:
+    """Usage, cost, and completion from a captured OMP `--mode json` stream."""
+    unmeasured = {"ended": None, "usage": None, "cost_usd": None}
+    events = _jsonl_objects(text)
+    if events is None:
+        return unmeasured
+    if not any(event.get("type") == "agent_start" for event in events):
+        return unmeasured
+    if not any(event.get("type") == "agent_end" for event in events):
+        return unmeasured
+    usage = None
+    cost_usd = None
+    for event in events:
+        if event.get("type") != "message_end":
+            continue
+        message = event.get("message")
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        parsed_usage, parsed_cost = _omp_usage(message.get("usage"))
+        if parsed_usage is not None:
+            usage = parsed_usage
+        if parsed_cost is not None:
+            cost_usd = parsed_cost
+    return {"ended": ENDED_NATURAL, "usage": usage, "cost_usd": cost_usd}
+
+
+def parse_codex_stream_result(text: str) -> dict[str, Any]:
+    """Usage and completion from a captured Codex `exec --json` stream."""
+    unmeasured = {"ended": None, "usage": None, "cost_usd": None}
+    events = _jsonl_objects(text)
+    if events is None:
+        return unmeasured
+    if not any(event.get("type") == "turn.started" for event in events):
+        return unmeasured
+    if not any(
+        event.get("type") in {"turn.completed", "turn.failed"} for event in events
+    ):
+        return unmeasured
+    ended = None
+    usage = None
+    for event in events:
+        event_type = event.get("type")
+        if event_type in {"turn.failed", "error"}:
+            ended = ENDED_ERROR
+        elif event_type == "turn.completed":
+            ended = ENDED_NATURAL
+            parsed = _codex_usage(event.get("usage"))
+            if parsed is not None:
+                usage = parsed
+    return {"ended": ended, "usage": usage, "cost_usd": None}
+
+
+def jsonl_episode_ended(
+    stream_ended: str | None, timed_out: bool, errored: bool
+) -> str:
+    """Classify an OMP or Codex episode. Neither CLI has a native turn cap."""
+    if timed_out:
+        return ENDED_TIMEOUT
+    if errored or stream_ended == ENDED_ERROR:
+        return ENDED_ERROR
+    if stream_ended == ENDED_NATURAL:
+        return ENDED_NATURAL
+    return ENDED_ERROR
+
+
+def merge_stream_usages(usages: list[dict[str, Any] | None]) -> dict[str, int] | None:
+    """Sum per-key usage when every episode reported that key."""
+    if not usages or any(not isinstance(usage, dict) for usage in usages):
+        return None
+    merged: dict[str, int] = {}
+    for key in (
+        "input_tokens",
+        "output_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+    ):
+        values = [usage.get(key) for usage in usages]
+        if any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+            for value in values
+        ):
+            continue
+        merged[key] = sum(values)
+    return merged or None
+
+
+def merge_stream_costs(costs: list[float | None]) -> float | None:
+    if not costs or any(cost is None for cost in costs):
+        return None
+    return float(sum(costs))
+
+
+def apply_usage_to_context(
+    context: Any,
+    usage: dict[str, int] | None,
+    cost_usd: float | None,
+    *,
+    input_includes_cache: bool,
+) -> None:
+    """Copy native usage onto Harbor AgentContext.
+
+    Harbor documents ``n_input_tokens`` as input including cache. Codex
+    already reports that. OMP reports uncached ``input`` plus
+    ``cacheRead``; add them only when ``input_includes_cache`` is false.
+    Raw provider fields on ``usage`` stay unchanged.
+    """
+    if isinstance(usage, dict):
+        input_tokens = usage.get("input_tokens")
+        cache_read = usage.get("cache_read_tokens")
+        if isinstance(input_tokens, int) and not isinstance(input_tokens, bool):
+            if (
+                not input_includes_cache
+                and isinstance(cache_read, int)
+                and not isinstance(cache_read, bool)
+                and cache_read >= 0
+            ):
+                context.n_input_tokens = input_tokens + cache_read
+            else:
+                context.n_input_tokens = input_tokens
+        if "output_tokens" in usage:
+            context.n_output_tokens = usage["output_tokens"]
+        if "cache_read_tokens" in usage:
+            context.n_cache_tokens = usage["cache_read_tokens"]
+    if cost_usd is not None:
+        context.cost_usd = cost_usd
+
+
+def snapshot_stream(logs_dir: Path, episode_dir: Path, name: str) -> str:
+    """Copy a native JSONL stream into the episode dir and clear the source."""
+    source = logs_dir / name
+    text = ""
+    if source.is_file():
+        text = source.read_text(encoding="utf-8", errors="replace")
+        episode_dir.mkdir(parents=True, exist_ok=True)
+        (episode_dir / name).write_text(text, encoding="utf-8")
+        source.unlink()
+    return text
+
+
+def _jsonl_objects(text: str) -> list[dict[str, Any]] | None:
+    events: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(event, dict):
+            return None
+        events.append(event)
+    return events
+
+
+def _omp_usage(usage: Any) -> tuple[dict[str, int] | None, float | None]:
+    if not isinstance(usage, dict):
+        return None, None
+    parsed: dict[str, int] = {}
+    for source, dest in (
+        ("input", "input_tokens"),
+        ("output", "output_tokens"),
+        ("cacheRead", "cache_read_tokens"),
+        ("cacheWrite", "cache_write_tokens"),
+    ):
+        value = usage.get(source)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            parsed[dest] = value
+    cost_usd = None
+    cost = usage.get("cost")
+    if isinstance(cost, dict):
+        total = cost.get("total")
+        if isinstance(total, (int, float)) and not isinstance(total, bool):
+            cost_usd = float(total)
+    return (parsed or None), cost_usd
+
+
+def _codex_usage(usage: Any) -> dict[str, int] | None:
+    if not isinstance(usage, dict):
+        return None
+    parsed: dict[str, int] = {}
+    for source, dest in (
+        ("input_tokens", "input_tokens"),
+        ("output_tokens", "output_tokens"),
+        ("cached_input_tokens", "cache_read_tokens"),
+        ("cache_write_input_tokens", "cache_write_tokens"),
+    ):
+        value = usage.get(source)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            parsed[dest] = value
+    return parsed or None
+
+
 def sessions_manifest(sessions_root: Path) -> list[dict[str, Any]]:
     """`{"path", "size"}` for every `*.jsonl` session file under root."""
     if not sessions_root.is_dir():
@@ -291,7 +487,9 @@ def merged_declared_evidence(per_episode: list[dict[str, Any]]) -> dict[str, Any
     response = str(per_episode[-1].get("response", ""))
 
     total_input = sum(int(episode["usage"]["input_tokens"]) for episode in per_episode)
-    total_output = sum(int(episode["usage"]["output_tokens"]) for episode in per_episode)
+    total_output = sum(
+        int(episode["usage"]["output_tokens"]) for episode in per_episode
+    )
     usage: dict[str, Any] = {
         "input_tokens": total_input,
         "output_tokens": total_output,
@@ -312,7 +510,11 @@ def merged_declared_evidence(per_episode: list[dict[str, Any]]) -> dict[str, Any
         for call in episode.get("tool_calls") or []:
             name = call.get("name")
             count = call.get("count")
-            if isinstance(name, str) and isinstance(count, int) and not isinstance(count, bool):
+            if (
+                isinstance(name, str)
+                and isinstance(count, int)
+                and not isinstance(count, bool)
+            ):
                 tool_calls[name] = tool_calls.get(name, 0) + count
     if tool_calls:
         document["tool_calls"] = [

@@ -1,0 +1,49 @@
+# Token-free runtime image check for the pinned OMP container.
+#
+#   docker build -t yacht/omp-runtime:omp-17.2.15 containers/omp-runtime
+#   uv run yacht doctor examples/container-omp-runtime-smoke.toml
+#
+# Harbor install-only still uses the launcher image. This recipe exists
+# so `yacht doctor` inspects the repo-owned OMP runtime image.
+
+[regatta]
+name = "container-omp-runtime-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "container-runtime-smoke"
+tasks = [
+  { id = "container-omp-smoke-1", title = "Container OMP runtime smoke", difficulty = 1 },
+]
+
+[runtimes.omp-container]
+backend = "container"
+harness = "omp"
+image = "yacht/omp-runtime:omp-17.2.15"
+command = ["omp"]
+container_home = "/home/yacht"
+container_workspace = "/workspace"
+
+[runtimes.omp-container.preflight]
+required = true
+checks = [
+  { name = "omp-present", kind = "command", command = ["omp", "--version"] },
+  { name = "runtime-home-isolated", kind = "path-isolation", env = ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"] },
+]
+
+[[vessels]]
+name = "omp-container-a"
+model = "smoke"
+runtime = "omp-container"
+
+[[vessels]]
+name = "omp-container-b"
+model = "smoke"
+runtime = "omp-container"
+
+[[comparisons]]
+name = "container-omp-runtime"
+course = "container-runtime-smoke"
+vessels = ["omp-container-a", "omp-container-b"]

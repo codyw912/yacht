@@ -306,6 +306,158 @@ class ClaudeEpisodeEndedTests(unittest.TestCase):
         )
 
 
+class OmpCodexStreamResultTests(unittest.TestCase):
+    def test_parses_captured_omp_usage_and_natural_end(self) -> None:
+        text = Path("tests/fixtures/omp-print-ok.jsonl").read_text(encoding="utf-8")
+        result = episodes.parse_omp_stream_result(text)
+        self.assertEqual(result["ended"], episodes.ENDED_NATURAL)
+        self.assertEqual(
+            result["usage"],
+            {
+                "input_tokens": 5328,
+                "output_tokens": 29,
+                "cache_read_tokens": 128,
+                "cache_write_tokens": 0,
+            },
+        )
+        self.assertEqual(result["cost_usd"], 0.0)
+
+    def test_parses_captured_codex_usage_and_natural_end(self) -> None:
+        text = Path("tests/fixtures/codex-exec-ok.jsonl").read_text(encoding="utf-8")
+        result = episodes.parse_codex_stream_result(text)
+        self.assertEqual(result["ended"], episodes.ENDED_NATURAL)
+        self.assertEqual(
+            result["usage"],
+            {
+                "input_tokens": 16583,
+                "output_tokens": 5,
+                "cache_read_tokens": 9984,
+                "cache_write_tokens": 0,
+            },
+        )
+
+    def test_parses_captured_codex_turn_failed_as_error(self) -> None:
+        text = Path("tests/fixtures/codex-exec-fail.jsonl").read_text(encoding="utf-8")
+        result = episodes.parse_codex_stream_result(text)
+        self.assertEqual(result["ended"], episodes.ENDED_ERROR)
+
+    def test_incomplete_omp_stream_is_unmeasured(self) -> None:
+        result = episodes.parse_omp_stream_result('{"type":"agent_start"}\n')
+        self.assertIsNone(result["ended"])
+        self.assertIsNone(result["usage"])
+
+    def test_end_without_start_does_not_measure_usage(self) -> None:
+        omp = episodes.parse_omp_stream_result(
+            '{"type":"message_end","message":{"role":"assistant","usage":'
+            '{"input":10,"output":2,"cacheRead":0,"cacheWrite":0,'
+            '"cost":{"total":0.1}}}}\n{"type":"agent_end"}\n'
+        )
+        self.assertIsNone(omp["ended"])
+        self.assertIsNone(omp["usage"])
+        self.assertIsNone(omp["cost_usd"])
+
+        codex = episodes.parse_codex_stream_result(
+            '{"type":"turn.completed","usage":{"input_tokens":10,'
+            '"output_tokens":2,"cached_input_tokens":0,'
+            '"cache_write_input_tokens":0}}\n'
+        )
+        self.assertIsNone(codex["ended"])
+        self.assertIsNone(codex["usage"])
+
+    def test_malformed_line_with_valid_completion_is_unmeasured(self) -> None:
+        ok = Path("tests/fixtures/codex-exec-ok.jsonl").read_text(encoding="utf-8")
+        mixed = "{not json\n" + ok
+        result = episodes.parse_codex_stream_result(mixed)
+        self.assertIsNone(result["ended"])
+        self.assertIsNone(result["usage"])
+
+        omp = Path("tests/fixtures/omp-print-ok.jsonl").read_text(encoding="utf-8")
+        result = episodes.parse_omp_stream_result("{not json\n" + omp)
+        self.assertIsNone(result["ended"])
+        self.assertIsNone(result["usage"])
+
+    def test_jsonl_timeout_wins_over_natural_stream(self) -> None:
+        self.assertEqual(
+            episodes.jsonl_episode_ended(episodes.ENDED_NATURAL, True, False),
+            episodes.ENDED_TIMEOUT,
+        )
+
+    def test_merge_stream_usages_sums_complete_keys_only(self) -> None:
+        merged = episodes.merge_stream_usages(
+            [
+                {"input_tokens": 10, "output_tokens": 2, "cache_read_tokens": 1},
+                {"input_tokens": 5, "output_tokens": 3},
+            ]
+        )
+        self.assertEqual(merged, {"input_tokens": 15, "output_tokens": 5})
+
+    def test_merge_stream_usages_is_unmeasured_if_any_episode_missing(self) -> None:
+        self.assertIsNone(
+            episodes.merge_stream_usages(
+                [{"input_tokens": 10, "output_tokens": 2}, None]
+            )
+        )
+
+    def test_apply_usage_to_context_sets_harbor_fields(self) -> None:
+        class Context:
+            n_input_tokens = None
+            n_output_tokens = None
+            n_cache_tokens = None
+            cost_usd = None
+
+        omp = Context()
+        episodes.apply_usage_to_context(
+            omp,
+            {"input_tokens": 4, "output_tokens": 1, "cache_read_tokens": 2},
+            0.5,
+            input_includes_cache=False,
+        )
+        self.assertEqual(omp.n_input_tokens, 6)
+        self.assertEqual(omp.n_output_tokens, 1)
+        self.assertEqual(omp.n_cache_tokens, 2)
+        self.assertEqual(omp.cost_usd, 0.5)
+
+        codex = Context()
+        episodes.apply_usage_to_context(
+            codex,
+            {"input_tokens": 4, "output_tokens": 1, "cache_read_tokens": 2},
+            0.5,
+            input_includes_cache=True,
+        )
+        self.assertEqual(codex.n_input_tokens, 4)
+        self.assertEqual(codex.n_cache_tokens, 2)
+
+    def test_jsonl_nonzero_exit_is_error(self) -> None:
+        self.assertEqual(
+            episodes.jsonl_episode_ended(episodes.ENDED_NATURAL, False, True),
+            episodes.ENDED_ERROR,
+        )
+
+    def test_jsonl_incomplete_stream_is_error(self) -> None:
+        self.assertEqual(
+            episodes.jsonl_episode_ended(None, False, False),
+            episodes.ENDED_ERROR,
+        )
+
+    def test_snapshot_stream_copies_and_clears_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logs_dir = Path(temp_dir) / "agent"
+            episode_dir = Path(temp_dir) / "episodes" / "001"
+            logs_dir.mkdir()
+            (logs_dir / "omp.jsonl").write_text(
+                '{"type":"agent_end"}\n', encoding="utf-8"
+            )
+
+            text = episodes.snapshot_stream(logs_dir, episode_dir, "omp.jsonl")
+
+            self.assertEqual(text, '{"type":"agent_end"}\n')
+            self.assertEqual(
+                (episode_dir / "omp.jsonl").read_text(encoding="utf-8"),
+                '{"type":"agent_end"}\n',
+            )
+            self.assertFalse((logs_dir / "omp.jsonl").exists())
+
+
 class SessionsManifestTests(unittest.TestCase):
     def test_lists_nested_jsonl_files_sorted_by_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

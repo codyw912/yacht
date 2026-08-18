@@ -177,8 +177,11 @@ def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any
         "model_name": str(agent["model"]),
         "kwargs": kwargs,
     }
-    if agent.get("env"):
-        agent_config["env"] = dict(agent["env"])
+    env = dict(agent.get("env") or {})
+    for name in job.get("secret_env") or ():
+        env.setdefault(str(name), f"${{{name}}}")
+    if env:
+        agent_config["env"] = env
     if agent.get("mcp_servers"):
         agent_config["mcp_servers"] = [
             {"transport": "stdio", **dict(server)} for server in agent["mcp_servers"]

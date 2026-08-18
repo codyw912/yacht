@@ -26,6 +26,7 @@ class AgentTaskResult:
     transcript_path: Path
     metrics: Metrics
     machine_evidence: dict[str, Any] = field(default_factory=dict)
+    skill_stages: tuple[dict[str, str], ...] = ()
 
 
 def write_task_attempt(
@@ -163,6 +164,8 @@ def _agent_to_json(result: AgentTaskResult) -> dict[str, Any]:
     }
     if result.machine_evidence:
         agent["machine_evidence"] = result.machine_evidence
+    if result.skill_stages:
+        agent["skill_stages"] = list(result.skill_stages)
     return agent
 
 

@@ -188,6 +188,9 @@ def _tool_invocations(attempts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         observed_tools = _observed_namespace_tools(measured, expectation)
         if observed_tools:
             entry["observed_tools"] = observed_tools
+        stage_counts = _skill_stage_counts(measured, expectation)
+        if stage_counts is not None:
+            entry["skill_stages"] = stage_counts
         if completed:
             entry.update(
                 {
@@ -207,15 +210,71 @@ def _tool_invocations(attempts: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _invoked(attempt: dict[str, Any], expectation: dict[str, Any]) -> bool:
+    """Whether the attempt delivered the expected treatment.
+
+    For agent-skill, prefer observed skill_stages: loaded when that
+    stage is measured, otherwise selected. A Skill:<name> tool call is
+    not treated as loaded. Other kinds still match expected_calls.
+    """
+    if str(expectation.get("kind")) == "agent-skill":
+        stage = _skill_stage_for(attempt, expectation)
+        if stage is not None:
+            if stage.get("loaded") == "observed":
+                return True
+            if stage.get("loaded") == "unmeasured":
+                return stage.get("selected") == "observed"
+            return False
     observed = [str(call) for call in attempt["agent"]["tool_calls"]]
     expected_calls = [str(call) for call in expectation["expected_calls"]]
     if str(expectation.get("kind")) == "mcp-server":
-        # An MCP expectation is a delimited namespace marker
-        # (mcp__<server>__), delivered when any tool under it fired.
         return any(
             call.startswith(marker) for call in observed for marker in expected_calls
         )
     return any(call in set(observed) for call in expected_calls)
+
+
+def _skill_stage_for(
+    attempt: dict[str, Any],
+    expectation: dict[str, Any],
+) -> dict[str, Any] | None:
+    stages = attempt.get("agent", {}).get("skill_stages")
+    if not isinstance(stages, list):
+        return None
+    tool = str(expectation.get("tool", ""))
+    expected_calls = [str(call) for call in expectation.get("expected_calls", ())]
+    for stage in stages:
+        if not isinstance(stage, dict):
+            continue
+        name = str(stage.get("skill", ""))
+        if name == tool or f"Skill:{name}" in expected_calls:
+            return stage
+    return None
+
+
+def _skill_stage_counts(
+    measured: list[dict[str, Any]],
+    expectation: dict[str, Any],
+) -> dict[str, dict[str, int]] | None:
+    if str(expectation.get("kind")) != "agent-skill":
+        return None
+    totals = {
+        key: {"observed_attempts": 0, "measured_attempts": 0}
+        for key in ("available", "selected", "loaded")
+    }
+    saw = False
+    for attempt in measured:
+        stage = _skill_stage_for(attempt, expectation)
+        if stage is None:
+            continue
+        saw = True
+        for key in totals:
+            state = stage.get(key)
+            if state == "observed":
+                totals[key]["observed_attempts"] += 1
+                totals[key]["measured_attempts"] += 1
+            elif state == "absent":
+                totals[key]["measured_attempts"] += 1
+    return totals if saw else None
 
 
 def _observed_namespace_tools(

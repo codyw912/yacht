@@ -96,7 +96,9 @@ def build_provenance(
         "yacht": {"version": __version__},
         "harness": {
             "name": harness_for_runtime(runtime),
-            "version": _harness_version_from_image(runtime.image),
+            "version": _observed_harness_version(machine_evidence)
+            or runtime.harness_version
+            or _harness_version_from_image(runtime.image),
         },
         "model": {
             "configured": vessel.model,
@@ -118,6 +120,11 @@ def _harness_version_from_image(image: str | None) -> str | None:
     if match is None:
         return None
     return match.group(1)
+
+
+def _observed_harness_version(machine_evidence: dict[str, Any]) -> str | None:
+    value = machine_evidence.get("harness_version")
+    return value if isinstance(value, str) and value else None
 
 
 def _resolved_model(machine_evidence: dict[str, Any]) -> str | None:

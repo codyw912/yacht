@@ -660,6 +660,22 @@ def _delivery_table(attempt_comparison: dict[str, Any] | None) -> str:
                     '<br><span class="muted">observed: '
                     f"{_e(', '.join(observed_tools))}</span>"
                 )
+            stages = entry.get("skill_stages")
+            if isinstance(stages, dict):
+                stage_bits = []
+                for key in ("available", "selected", "loaded"):
+                    counts = stages.get(key)
+                    if not isinstance(counts, dict):
+                        continue
+                    stage_bits.append(
+                        f"{key} {counts.get('observed_attempts', 0)}/"
+                        f"{counts.get('measured_attempts', 0)}"
+                    )
+                if stage_bits:
+                    expected_cell += (
+                        f'<br><span class="muted">{_e("; ".join(stage_bits))}</span>'
+                    )
+
             rows.append(
                 f"<tr><td><code>{_e(name)}</code></td>"
                 f"<td><code>{_e(str(entry.get('tool')))}</code></td>"

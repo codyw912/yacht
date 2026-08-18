@@ -283,7 +283,7 @@ def _execute_env_check(
 ) -> dict[str, object]:
     check = effective_check.check
     missing = [name for name in check.env if name not in instance.env]
-    present = {name: instance.env[name] for name in check.env if name in instance.env}
+    present = [name for name in check.env if name in instance.env]
     evidence: dict[str, object] = {"present_env": present}
     if missing:
         evidence["missing_env"] = missing

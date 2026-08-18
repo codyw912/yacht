@@ -10,7 +10,17 @@ from yacht.harnesses.claude_code import (
     SubprocessClaudeCodePromptLauncher,
     SubprocessClaudeCodeTaskLauncher,
 )
+from yacht.harnesses.codex import (
+    CodexAdapter,
+    SubprocessCodexPromptLauncher,
+    SubprocessCodexTaskLauncher,
+)
 from yacht.harnesses.local_smoke import LocalSmokeAgentAdapter
+from yacht.harnesses.omp import (
+    OmpAdapter,
+    SubprocessOmpPromptLauncher,
+    SubprocessOmpTaskLauncher,
+)
 from yacht.harnesses.pi import (
     PiAdapter,
     SubprocessPiPromptLauncher,
@@ -154,6 +164,30 @@ def _claude_code_task_agent() -> TaskAgent:
     return ClaudeCodeAdapter(task_launcher=SubprocessClaudeCodeTaskLauncher())
 
 
+def _codex_prompt_runner_factory() -> AgentPromptRunnerFactory:
+    adapter = CodexAdapter(launcher=SubprocessCodexPromptLauncher())
+    return lambda instance, transcript_dir: adapter.agent_prompt_runner(
+        instance=instance,
+        transcript_dir=transcript_dir,
+    )
+
+
+def _codex_task_agent() -> TaskAgent:
+    return CodexAdapter(task_launcher=SubprocessCodexTaskLauncher())
+
+
+def _omp_prompt_runner_factory() -> AgentPromptRunnerFactory:
+    adapter = OmpAdapter(launcher=SubprocessOmpPromptLauncher())
+    return lambda instance, transcript_dir: adapter.agent_prompt_runner(
+        instance=instance,
+        transcript_dir=transcript_dir,
+    )
+
+
+def _omp_task_agent() -> TaskAgent:
+    return OmpAdapter(task_launcher=SubprocessOmpTaskLauncher())
+
+
 def _local_smoke_prompt_runner_factory() -> AgentPromptRunnerFactory:
     adapter = LocalSmokeAgentAdapter()
     return lambda instance, transcript_dir: adapter.agent_prompt_runner(
@@ -172,6 +206,11 @@ _HARNESS_ADAPTERS: dict[str, HarnessAdapter] = {
         _agent_prompt_runner_factory=_claude_code_prompt_runner_factory,
         _task_agent=_claude_code_task_agent,
     ),
+    "codex": RegisteredHarnessAdapter(
+        name="codex",
+        _agent_prompt_runner_factory=_codex_prompt_runner_factory,
+        _task_agent=_codex_task_agent,
+    ),
     "local-smoke": RegisteredHarnessAdapter(
         name="local-smoke",
         _agent_prompt_runner_factory=_local_smoke_prompt_runner_factory,
@@ -181,5 +220,10 @@ _HARNESS_ADAPTERS: dict[str, HarnessAdapter] = {
         name="pi",
         _agent_prompt_runner_factory=_pi_prompt_runner_factory,
         _task_agent=_pi_task_agent,
+    ),
+    "omp": RegisteredHarnessAdapter(
+        name="omp",
+        _agent_prompt_runner_factory=_omp_prompt_runner_factory,
+        _task_agent=_omp_task_agent,
     ),
 }

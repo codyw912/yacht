@@ -21,12 +21,17 @@ from harbor.agents.installed.pi import Pi
 from harbor.environments.base import BaseEnvironment
 
 from harbor.agents.installed.node_install import nvm_node_install_snippet
-
 from yacht_harbor_agents import declared_support, episodes
+
 from yacht_harbor_agents.rigging import (
+    CODEX_PACKAGE,
     PI_NODE_ALIAS_REPAIR_COMMAND,
     PI_PACKAGE,
+    codex_run_command,
+    omp_install_command,
+    omp_run_command,
     rigging_commands,
+    version_contains_pin,
 )
 
 
@@ -66,6 +71,28 @@ async def apply_rigging_steps(
                 f"rigging step failed with exit code {result.return_code}: "
                 f"{command}\n{detail}"
             )
+
+
+async def capture_resolved_version(
+    environment: BaseEnvironment,
+    logs_dir: Path,
+    command: str,
+    expected: str | None,
+) -> str:
+    result = await environment.exec(command=command)
+    version = (result.stdout or "").strip()
+    if result.return_code != 0 or not version:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise RiggingStepError(
+            f"failed to capture resolved version ({command}): {detail}"
+        )
+    if expected and not version_contains_pin(version, expected):
+        raise RiggingStepError(
+            f"resolved version {version} does not match configured pin {expected}"
+        )
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    (logs_dir / "resolved-version.txt").write_text(version + "\n", encoding="utf-8")
+    return version
 
 
 async def run_episode_verifier(
@@ -216,7 +243,10 @@ class YachtClaudeCode(ClaudeCode):
                     and to_resolution is None
                 ):
                     reward = await run_episode_verifier(
-                        environment, task_dir, episode_dir, self.logs_dir.parent / "verifier"
+                        environment,
+                        task_dir,
+                        episode_dir,
+                        self.logs_dir.parent / "verifier",
                     )
                     if reward is not None:
                         record["reward"] = reward
@@ -295,6 +325,309 @@ class YachtPi(Pi):
         await apply_rigging_steps(environment, self._rigging_steps)
 
 
+def _read_local_stream(logs_dir: Path, name: str, parse_result) -> dict[str, Any]:
+    path = logs_dir / name
+    if not path.is_file():
+        return {"ended": None, "usage": None, "cost_usd": None}
+    return parse_result(path.read_text(encoding="utf-8", errors="replace"))
+
+
+async def run_jsonl_episodes(
+    *,
+    logs_dir: Path,
+    plan: dict[str, Any],
+    task_dir: Path,
+    instruction: str,
+    environment: BaseEnvironment,
+    command_for,
+    stream_name: str,
+    pkill_pattern: str,
+    parse_result,
+) -> tuple[list[dict[str, Any] | None], list[float | None]]:
+    """Cold-session relay for a JSONL-emitting CLI (OMP, Codex).
+
+    Each episode starts a fresh process. `--no-session` / `--ephemeral`
+    stay on the command; files are the only continuity channel. A
+    timeout is a normal episode ending. A nonzero exit aborts the trial
+    after the episodes recorded so far are written.
+    """
+    episodes_dir = logs_dir / "episodes"
+    records: list[dict[str, Any]] = []
+    usages: list[dict[str, Any] | None] = []
+    costs: list[float | None] = []
+    to_resolution: int | None = None
+    failure: Exception | None = None
+    try:
+        for index in range(1, plan["max"] + 1):
+            text = instruction if index == 1 else plan["instructions"][index - 2]
+            episode_dir = episodes_dir / f"{index:03d}"
+            episode_dir.mkdir(parents=True, exist_ok=True)
+            (episode_dir / "instruction.md").write_text(text, encoding="utf-8")
+            started_at = _utc_now()
+            timed_out = False
+            error: Exception | None = None
+            try:
+                timeout = plan.get("timeout_seconds")
+                if timeout:
+                    async with asyncio.timeout(timeout):
+                        result = await environment.exec(command=command_for(text))
+                else:
+                    result = await environment.exec(command=command_for(text))
+                if result.return_code != 0:
+                    error = NonZeroAgentExitCodeError(
+                        f"{stream_name} exited with code {result.return_code} "
+                        f"in episode {index}"
+                    )
+            except TimeoutError:
+                timed_out = True
+                await environment.exec(command=f"pkill -f {pkill_pattern} || true")
+            finished_at = _utc_now()
+            stream = episodes.snapshot_stream(logs_dir, episode_dir, stream_name)
+            parsed = parse_result(stream)
+            ended = episodes.jsonl_episode_ended(
+                parsed.get("ended"), timed_out, error is not None
+            )
+            usages.append(parsed.get("usage"))
+            costs.append(parsed.get("cost_usd"))
+            record = episodes.episode_record(
+                index=index,
+                ended=ended,
+                started_at=started_at,
+                finished_at=finished_at,
+                usage=parsed.get("usage"),
+                cost_usd=parsed.get("cost_usd"),
+            )
+            if ended == episodes.ENDED_ERROR:
+                records.append(record)
+                failure = error or RuntimeError(
+                    f"episode {index} ended in error without an exception"
+                )
+                break
+            records.append(record)
+            if plan["verify_between"] and index < plan["max"] and to_resolution is None:
+                reward = await run_episode_verifier(
+                    environment,
+                    task_dir,
+                    episode_dir,
+                    logs_dir.parent / "verifier",
+                )
+                if reward is not None:
+                    record["reward"] = reward
+                    if reward >= 1.0:
+                        to_resolution = index
+            if to_resolution is not None:
+                break
+    finally:
+        if records:
+            episodes.write_relay_summary(episodes_dir, records, to_resolution)
+    if failure is not None:
+        raise failure
+    return usages, costs
+
+
+class YachtOmp(BaseInstalledAgent):
+    """Isolated OMP install plus yacht rigging (no user-home copy)."""
+
+    @staticmethod
+    def name() -> str:
+        return "yacht-omp"
+
+    def __init__(
+        self,
+        logs_dir: Path,
+        rigging_steps: list[dict[str, Any]] | None = None,
+        episodes: dict[str, Any] | None = None,
+        *args,
+        **kwargs,
+    ):
+        self._rigging_steps = list(rigging_steps or [])
+        self._episodes_kwarg = dict(episodes or {})
+        self._recorded_usage: dict[str, int] | None = None
+        self._recorded_cost: float | None = None
+        super().__init__(logs_dir, *args, **kwargs)
+
+    def get_version_command(self) -> str | None:
+        return "omp --version"
+
+    async def install(self, environment: BaseEnvironment) -> None:
+        version_spec = f"@{self._version}" if self._version else "@latest"
+        await self.exec_as_root(
+            environment,
+            command="apt-get update && apt-get install -y curl",
+            env={"DEBIAN_FRONTEND": "noninteractive"},
+        )
+        await self.exec_as_agent(
+            environment,
+            command=(
+                "set -euo pipefail; "
+                f"{nvm_node_install_snippet()} && "
+                f"{omp_install_command(version_spec)}"
+            ),
+        )
+        result = await environment.exec(command=PI_NODE_ALIAS_REPAIR_COMMAND)
+        if result.return_code != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RiggingStepError(
+                "node alias repair failed with exit code "
+                f"{result.return_code}: {PI_NODE_ALIAS_REPAIR_COMMAND}\n{detail}"
+            )
+        await apply_rigging_steps(environment, self._rigging_steps)
+        resolved = await capture_resolved_version(
+            environment,
+            self.logs_dir,
+            ". ~/.nvm/nvm.sh; omp --version",
+            self._version,
+        )
+        self._version = resolved
+
+    async def run(self, instruction, environment: BaseEnvironment, context) -> None:
+        plan, task_dir = resolve_episode_plan(self._episodes_kwarg, self.logs_dir)
+        if plan is not None:
+            usages, costs = await run_jsonl_episodes(
+                logs_dir=self.logs_dir,
+                plan=plan,
+                task_dir=task_dir,
+                instruction=str(instruction),
+                environment=environment,
+                command_for=lambda text: omp_run_command(
+                    instruction=text,
+                    model=str(self.model_name or "") or None,
+                ),
+                stream_name="omp.jsonl",
+                pkill_pattern="omp -p --mode json",
+                parse_result=episodes.parse_omp_stream_result,
+            )
+            self._recorded_usage = episodes.merge_stream_usages(usages)
+            self._recorded_cost = episodes.merge_stream_costs(costs)
+            return
+        result = await environment.exec(
+            command=omp_run_command(
+                instruction=str(instruction),
+                model=str(self.model_name or "") or None,
+            )
+        )
+        if result.return_code != 0:
+            raise NonZeroAgentExitCodeError(
+                f"omp exited with code {result.return_code}"
+            )
+        parsed = _read_local_stream(
+            self.logs_dir, "omp.jsonl", episodes.parse_omp_stream_result
+        )
+        self._recorded_usage = parsed.get("usage")
+        self._recorded_cost = parsed.get("cost_usd")
+
+    def populate_context_post_run(self, context) -> None:
+        super().populate_context_post_run(context)
+        episodes.apply_usage_to_context(
+            context,
+            self._recorded_usage,
+            self._recorded_cost,
+            input_includes_cache=False,
+        )
+
+
+class YachtCodex(BaseInstalledAgent):
+    """Isolated Codex install plus yacht rigging (no user-home copy)."""
+
+    @staticmethod
+    def name() -> str:
+        return "yacht-codex"
+
+    def __init__(
+        self,
+        logs_dir: Path,
+        rigging_steps: list[dict[str, Any]] | None = None,
+        episodes: dict[str, Any] | None = None,
+        *args,
+        **kwargs,
+    ):
+        self._rigging_steps = list(rigging_steps or [])
+        self._episodes_kwarg = dict(episodes or {})
+        self._recorded_usage: dict[str, int] | None = None
+        self._recorded_cost: float | None = None
+        super().__init__(logs_dir, *args, **kwargs)
+
+    def get_version_command(self) -> str | None:
+        return "codex --version"
+
+    async def install(self, environment: BaseEnvironment) -> None:
+        version_spec = f"@{self._version}" if self._version else "@latest"
+        await self.exec_as_root(
+            environment,
+            command="apt-get update && apt-get install -y curl",
+            env={"DEBIAN_FRONTEND": "noninteractive"},
+        )
+        await self.exec_as_agent(
+            environment,
+            command=(
+                "set -euo pipefail; "
+                f"{nvm_node_install_snippet()} && "
+                f"npm install -g {CODEX_PACKAGE}{version_spec} && "
+                "codex --version"
+            ),
+        )
+        result = await environment.exec(command=PI_NODE_ALIAS_REPAIR_COMMAND)
+        if result.return_code != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RiggingStepError(
+                "node alias repair failed with exit code "
+                f"{result.return_code}: {PI_NODE_ALIAS_REPAIR_COMMAND}\n{detail}"
+            )
+        await apply_rigging_steps(environment, self._rigging_steps)
+        resolved = await capture_resolved_version(
+            environment,
+            self.logs_dir,
+            ". ~/.nvm/nvm.sh; codex --version",
+            self._version,
+        )
+        self._version = resolved
+
+    async def run(self, instruction, environment: BaseEnvironment, context) -> None:
+        plan, task_dir = resolve_episode_plan(self._episodes_kwarg, self.logs_dir)
+        if plan is not None:
+            usages, costs = await run_jsonl_episodes(
+                logs_dir=self.logs_dir,
+                plan=plan,
+                task_dir=task_dir,
+                instruction=str(instruction),
+                environment=environment,
+                command_for=lambda text: codex_run_command(
+                    instruction=text,
+                    model=str(self.model_name or "") or None,
+                ),
+                stream_name="codex.jsonl",
+                pkill_pattern="codex exec --json",
+                parse_result=episodes.parse_codex_stream_result,
+            )
+            self._recorded_usage = episodes.merge_stream_usages(usages)
+            self._recorded_cost = episodes.merge_stream_costs(costs)
+            return
+        result = await environment.exec(
+            command=codex_run_command(
+                instruction=str(instruction),
+                model=str(self.model_name or "") or None,
+            )
+        )
+        if result.return_code != 0:
+            raise NonZeroAgentExitCodeError(
+                f"codex exited with code {result.return_code}"
+            )
+        parsed = _read_local_stream(
+            self.logs_dir, "codex.jsonl", episodes.parse_codex_stream_result
+        )
+        self._recorded_usage = parsed.get("usage")
+        self._recorded_cost = parsed.get("cost_usd")
+
+    def populate_context_post_run(self, context) -> None:
+        super().populate_context_post_run(context)
+        episodes.apply_usage_to_context(
+            context,
+            self._recorded_usage,
+            self._recorded_cost,
+            input_includes_cache=True,
+        )
+
+
 class YachtDeclared(BaseInstalledAgent):
     """Generic Harbor agent for config-declared harnesses (ADR 0016).
 
@@ -356,9 +689,7 @@ class YachtDeclared(BaseInstalledAgent):
             return Path(str(path))
         url = install.get("url")
         if not url:
-            raise RuntimeError(
-                "declared harness install must set url or path"
-            )
+            raise RuntimeError("declared harness install must set url or path")
         target = self.logs_dir / "harness-artifact"
         target.parent.mkdir(parents=True, exist_ok=True)
         urllib.request.urlretrieve(str(url), target)

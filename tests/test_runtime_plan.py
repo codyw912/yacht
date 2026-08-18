@@ -231,6 +231,7 @@ class RuntimePlanTests(unittest.TestCase):
                         "package",
                         "preinstalled",
                         "custom-command",
+                        "skill",
                     ],
                     "install_checks": [
                         {
@@ -428,6 +429,7 @@ class RuntimePlanTests(unittest.TestCase):
                     "package",
                     "preinstalled",
                     "custom-command",
+                    "skill",
                 ],
             )
             self.assertEqual(rigged_vessel["runtime"]["backend"], "host-nix")

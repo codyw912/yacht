@@ -41,11 +41,16 @@ Run the same checks that CI runs:
 
 ```sh
 uv sync --locked
+./scripts/lint.sh
 uv run --locked -m unittest discover -s tests
 uv run --locked -m compileall src tests
 uv run --locked yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
 uv run --locked yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-smoke-local
 ```
+
+`scripts/lint.sh` is the same `ruff check` and `ruff format --check`
+CI runs before tests. Run it before `jj git push`; jj does not invoke
+Git hooks.
 
 ## PR Workflow
 
