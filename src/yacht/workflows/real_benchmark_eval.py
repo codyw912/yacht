@@ -15,7 +15,7 @@ from yacht.workflows.baseline import (
     load_baseline_record,
     verify_baseline_comparability,
 )
-from yacht.logbook.index import write_run_index
+from yacht.logbook.index import RunIndexLifecycle, start_run_index
 from yacht.workflows.benchmark_grading_collection import (
     BENCHMARK_GRADING_COLLECTION_PATH,
     collect_benchmark_grading_reports,
@@ -35,7 +35,7 @@ from yacht.workflows.benchmark_launcher_handoff import (
 )
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
-from yacht.courses.handoff import write_course_handoff
+from yacht.courses.handoff import COURSE_HANDOFF_PATH, write_course_handoff
 from yacht.reports.next_steps import command_step
 from yacht.reports.preflight_evidence import PREFLIGHT_EVIDENCE_REPORT_PATH
 from yacht.reports.preflight_evidence import write_preflight_evidence_report
@@ -68,6 +68,50 @@ def run_real_benchmark_eval(
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
+    index_lifecycle = start_run_index(
+        logbook_dir=logbook_dir,
+        config_path=config_path,
+        run_kind="real-benchmark",
+        regatta=regatta.name,
+        course=regatta.course.name,
+        comparisons=regatta.comparisons,
+        artifacts=_run_index_artifacts(),
+    )
+    try:
+        return _run_real_benchmark_eval(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            workspace_path=workspace_path,
+            secret_values=secret_values,
+            agent_prompt_runner_factory=agent_prompt_runner_factory,
+            agent_name=agent_name,
+            task_agent=task_agent,
+            benchmark_command_runner=benchmark_command_runner,
+            max_workers=max_workers,
+            progress=progress,
+            regatta=regatta,
+            index_lifecycle=index_lifecycle,
+        )
+    except BaseException as error:
+        index_lifecycle.record_failure(error)
+        raise
+
+
+def _run_real_benchmark_eval(
+    *,
+    config_path: Path,
+    logbook_dir: Path,
+    workspace_path: Path,
+    secret_values: Mapping[str, str],
+    agent_prompt_runner_factory: AgentPromptRunnerFactory | None,
+    agent_name: str,
+    task_agent: TaskAgent | None = None,
+    benchmark_command_runner: CommandRunner | None = None,
+    max_workers: int = 1,
+    progress: ProgressReporter | None = None,
+    regatta: Regatta,
+    index_lifecycle: RunIndexLifecycle,
+) -> dict[str, Any]:
     surfaces = regatta_surfaces_to_json(regatta)
     _progress(
         progress,
@@ -109,9 +153,9 @@ def run_real_benchmark_eval(
                     logbook_dir=logbook_dir,
                     next_steps=_baseline_failure_next_steps(str(error)),
                 ),
-                config_path=config_path,
-                comparisons=regatta.comparisons,
+                index_lifecycle=index_lifecycle,
             )
+    index_lifecycle.advance("preflight")
     _progress(progress, "preflight: running")
     preflight = run_preflight(
         config_path,
@@ -161,14 +205,14 @@ def run_real_benchmark_eval(
                     blocked_preflight,
                 ),
             ),
-            config_path=config_path,
-            comparisons=regatta.comparisons,
+            index_lifecycle=index_lifecycle,
         )
 
     if regatta.course.adapter is None:
         raise ConfigError("real benchmark eval requires a course adapter")
     adapter = course_adapter(regatta.course.adapter.kind)
 
+    index_lifecycle.advance("task-attempts")
     if adapter.native_rollout:
         _progress(
             progress,
@@ -213,8 +257,7 @@ def run_real_benchmark_eval(
                 ],
                 logbook_dir=logbook_dir,
             ),
-            config_path=config_path,
-            comparisons=regatta.comparisons,
+            index_lifecycle=index_lifecycle,
         )
 
     predictions = []
@@ -264,9 +307,9 @@ def run_real_benchmark_eval(
                 logbook_dir=logbook_dir,
                 next_steps=_prediction_failure_next_steps(logbook_dir),
             ),
-            config_path=config_path,
-            comparisons=regatta.comparisons,
+            index_lifecycle=index_lifecycle,
         )
+    index_lifecycle.advance("launch")
     _progress(progress, "runtime instances: resolving")
     runtime_instances = write_runtime_instances_plan(
         config_path=config_path,
@@ -303,8 +346,7 @@ def run_real_benchmark_eval(
                 ],
                 logbook_dir=logbook_dir,
             ),
-            config_path=config_path,
-            comparisons=regatta.comparisons,
+            index_lifecycle=index_lifecycle,
         )
 
     _progress(progress, "benchmark launcher handoff: writing")
@@ -319,6 +361,7 @@ def run_real_benchmark_eval(
         secret_env_by_vessel=secret_env_by_vessel(regatta, secret_values),
     )
     _progress(progress, f"benchmark launch: {benchmark_launch['status']}")
+    index_lifecycle.advance("grading")
     _progress(progress, "grading collection: collecting native reports")
     grading_collection = collect_benchmark_grading_reports(
         config_path=config_path,
@@ -352,8 +395,7 @@ def run_real_benchmark_eval(
                 skipped=["benchmark-scorecard"],
                 logbook_dir=logbook_dir,
             ),
-            config_path=config_path,
-            comparisons=regatta.comparisons,
+            index_lifecycle=index_lifecycle,
         )
     native_attempts: list[dict[str, Any]] = []
     if adapter.native_rollout:
@@ -401,10 +443,10 @@ def run_real_benchmark_eval(
                     skipped=["benchmark-scorecard"],
                     logbook_dir=logbook_dir,
                 ),
-                config_path=config_path,
-                comparisons=regatta.comparisons,
+                index_lifecycle=index_lifecycle,
             )
 
+    index_lifecycle.advance("scorecard")
     _progress(progress, "benchmark scorecard: writing")
     scorecard = write_benchmark_scorecard(logbook_dir)
     _progress(progress, f"real benchmark eval complete: {scorecard['status']}")
@@ -436,8 +478,7 @@ def run_real_benchmark_eval(
     return _write_summary(
         logbook_dir,
         complete_summary,
-        config_path=config_path,
-        comparisons=regatta.comparisons,
+        index_lifecycle=index_lifecycle,
     )
 
 
@@ -731,8 +772,7 @@ def _write_summary(
     logbook_dir: Path,
     summary: dict[str, Any],
     *,
-    config_path: Path,
-    comparisons: tuple[Any, ...],
+    index_lifecycle: RunIndexLifecycle,
 ) -> dict[str, Any]:
     summary.setdefault("schema", REAL_BENCHMARK_EVAL_SCHEMA)
     validate_real_benchmark_eval_document(summary)
@@ -742,21 +782,19 @@ def _write_summary(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    write_run_index(
-        logbook_dir=logbook_dir,
-        config_path=config_path,
-        run_kind="real-benchmark",
-        status=str(summary["status"]),
-        regatta=str(summary["regatta"]),
-        course=str(summary["course"]),
-        comparisons=comparisons,
-        artifacts=_run_index_artifacts(),
+    status = "blocked" if summary["status"] == "blocked" else "complete"
+    index_lifecycle.finish(
+        status,
+        stage="complete" if status == "complete" else None,
     )
     return summary
 
 
 def _run_index_artifacts() -> dict[str, Path]:
     return {
+        "course_handoff": COURSE_HANDOFF_PATH,
+        "preflight": Path("preflight"),
+        "task_attempts": Path("task-attempts"),
         "real_benchmark_eval": REAL_BENCHMARK_EVAL_PATH,
         "preflight_evidence_report": PREFLIGHT_EVIDENCE_REPORT_PATH,
         "runtime_instances": RUNTIME_INSTANCES_PLAN_PATH,

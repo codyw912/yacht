@@ -29,7 +29,7 @@ class BenchmarkStatusTests(unittest.TestCase):
                         "status": "partial",
                         "updated_at": "2026-06-03T12:00:00Z",
                         "config_path": "/tmp/regatta.toml",
-                        "logbook": str(logbook_dir),
+                        "logbook": "logbook",
                         "regatta": "demo",
                         "course": "course",
                         "comparisons": [
@@ -41,13 +41,11 @@ class BenchmarkStatusTests(unittest.TestCase):
                         ],
                         "artifacts": {
                             "preflight_evidence_report": {
-                                "path": str(
-                                    logbook_dir / "preflight-evidence-report.json"
-                                ),
+                                "path": "logbook/preflight-evidence-report.json",
                                 "present": True,
                             },
                             "benchmark_scorecard": {
-                                "path": str(logbook_dir / "benchmark-scorecard.json"),
+                                "path": "logbook/benchmark-scorecard.json",
                                 "present": False,
                             },
                         },

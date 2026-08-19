@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.test_provisioning import PI_FFF_TYPED_INSTALL, PI_WITH_FFF_CONFIG
-from yacht.logbook.index import RUN_INDEX_PATH
+from yacht.logbook.index import RUN_INDEX_PATH, RunIndexLifecycle
 from yacht.reports.benchmark_status import build_benchmark_status
 from yacht.cli import main
 from yacht.harnesses.pi import (
@@ -145,11 +145,15 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             run_index = json.loads(
                 (logbook_dir / RUN_INDEX_PATH).read_text(encoding="utf-8")
             )
-            self.assertEqual(run_index["schema"], "yacht.run-index.v1")
+            self.assertEqual(run_index["schema"], "yacht.run-index.v2")
             self.assertEqual(run_index["run_kind"], "real-benchmark")
             self.assertEqual(run_index["status"], "complete")
+            self.assertEqual(run_index["stage"], "complete")
+            self.assertRegex(run_index["started_at"], r"^\d{4}-\d{2}-\d{2}T")
+            self.assertRegex(run_index["updated_at"], r"^\d{4}-\d{2}-\d{2}T")
+            self.assertRegex(run_index["terminal_at"], r"^\d{4}-\d{2}-\d{2}T")
             self.assertEqual(run_index["config_path"], str(config_path))
-            self.assertEqual(run_index["logbook"], str(logbook_dir))
+            self.assertNotIn("logbook", run_index)
             self.assertEqual(run_index["regatta"], "pi-fff-comparison")
             self.assertEqual(run_index["course"], "swe-bench-lite")
             self.assertEqual(
@@ -159,6 +163,10 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                     "course": "swe-bench-lite",
                     "vessels": ["pi-baseline", "pi-plus-fff"],
                 },
+            )
+            self.assertEqual(
+                run_index["artifacts"]["benchmark_scorecard"]["path"],
+                "benchmark-scorecard.json",
             )
             self.assertTrue(run_index["artifacts"]["benchmark_scorecard"]["present"])
             self.assertTrue((logbook_dir / "benchmark-scorecard.json").is_file())
@@ -550,6 +558,47 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             status = build_benchmark_status(logbook_dir)
             self.assertEqual(status["status"], "blocked")
             self.assertEqual(status["next_steps"][0]["label"], "Inspect task attempts")
+
+    def test_records_failed_lifecycle_when_benchmark_is_interrupted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, workspace_path, logbook_dir = _write_fixture(root)
+
+            def raise_during_launch(**kwargs: object) -> None:
+                lifecycle = kwargs["index_lifecycle"]
+                assert isinstance(lifecycle, RunIndexLifecycle)
+                lifecycle.advance("launch")
+                raise KeyboardInterrupt("launch interrupted")
+
+            with (
+                patch(
+                    "yacht.workflows.real_benchmark_eval._run_real_benchmark_eval",
+                    side_effect=raise_during_launch,
+                ),
+                self.assertRaisesRegex(KeyboardInterrupt, "launch interrupted"),
+            ):
+                run_real_benchmark_eval(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    workspace_path=workspace_path,
+                    secret_values={},
+                    agent_prompt_runner_factory=None,
+                    agent_name="pi",
+                )
+
+            run_index = json.loads(
+                (logbook_dir / RUN_INDEX_PATH).read_text(encoding="utf-8")
+            )
+            self.assertEqual(run_index["status"], "failed")
+            self.assertEqual(run_index["stage"], "launch")
+            self.assertIn("terminal_at", run_index)
+            self.assertEqual(
+                run_index["artifacts"]["real_benchmark_eval"],
+                {
+                    "path": "real-benchmark-eval.json",
+                    "present": False,
+                },
+            )
 
 
 def _write_fixture(root: Path) -> tuple[Path, Path, Path]:

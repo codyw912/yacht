@@ -8,13 +8,12 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from yacht.contracts.schemas import (
-    RUN_INDEX_SCHEMA,
     RUN_INDEX_V2_SCHEMA,
     SchemaValidationError,
     validate_run_index_document,
 )
 from yacht.domain.model import ConfigError
-from yacht.logbook.io import load_json_object, write_json
+from yacht.logbook.io import load_json_object, write_json_atomic
 
 
 RUN_INDEX_PATH = Path("run-index.json")
@@ -92,6 +91,108 @@ class LogbookSnapshot:
             (artifact for artifact in self.artifacts if artifact.name == name),
             None,
         )
+
+
+class RunIndexLifecycle:
+    def __init__(
+        self,
+        *,
+        logbook_dir: Path,
+        config_path: Path,
+        run_kind: str,
+        regatta: str,
+        course: str,
+        comparisons: Sequence[Any],
+        artifacts: Mapping[str, str | Path],
+    ) -> None:
+        self._logbook_dir = logbook_dir
+        self._artifact_paths = {
+            name: _relative_artifact_path(logbook_dir, path)
+            for name, path in artifacts.items()
+        }
+        timestamp = _timestamp()
+        self._document: dict[str, Any] = {
+            "schema": RUN_INDEX_V2_SCHEMA,
+            "run_kind": run_kind,
+            "status": "running",
+            "stage": "starting",
+            "started_at": timestamp,
+            "updated_at": timestamp,
+            "config_path": str(config_path),
+            "regatta": regatta,
+            "course": course,
+            "comparisons": [
+                _comparison_to_json(comparison) for comparison in comparisons
+            ],
+            "artifacts": {},
+        }
+        self._persist()
+
+    @property
+    def stage(self) -> str:
+        return str(self._document["stage"])
+
+    def advance(self, stage: str) -> None:
+        if self._document["status"] != "running":
+            raise ConfigError("cannot advance a terminal run index")
+        self._persist(stage=stage, updated_at=_timestamp())
+
+    def finish(self, status: str, *, stage: str | None = None) -> None:
+        if self._document["status"] != "running":
+            raise ConfigError("cannot finish a terminal run index")
+        if status not in {"complete", "blocked", "failed"}:
+            raise ConfigError(f"invalid terminal run-index status: {status}")
+        timestamp = _timestamp()
+        updates: dict[str, object] = {
+            "status": status,
+            "updated_at": timestamp,
+            "terminal_at": timestamp,
+        }
+        if stage is not None:
+            updates["stage"] = stage
+        self._persist(**updates)
+
+    def record_failure(self, error: BaseException) -> None:
+        if self._document["status"] != "running":
+            return
+        try:
+            self.finish("failed")
+        except BaseException as index_error:
+            error.add_note(f"could not record run-index failure: {index_error}")
+
+    def _persist(self, **updates: object) -> None:
+        document = {**self._document, **updates}
+        document["artifacts"] = {
+            name: {
+                "path": path.as_posix(),
+                "present": _artifact_present(self._logbook_dir / path),
+            }
+            for name, path in self._artifact_paths.items()
+        }
+        validate_run_index_document(document)
+        write_json_atomic(self._logbook_dir / RUN_INDEX_PATH, document)
+        self._document = document
+
+
+def start_run_index(
+    *,
+    logbook_dir: Path,
+    config_path: Path,
+    run_kind: str,
+    regatta: str,
+    course: str,
+    comparisons: Sequence[Any],
+    artifacts: Mapping[str, str | Path],
+) -> RunIndexLifecycle:
+    return RunIndexLifecycle(
+        logbook_dir=logbook_dir,
+        config_path=config_path,
+        run_kind=run_kind,
+        regatta=regatta,
+        course=course,
+        comparisons=comparisons,
+        artifacts=artifacts,
+    )
 
 
 def read_logbook(logbook_dir: Path) -> LogbookSnapshot:
@@ -297,61 +398,6 @@ def read_run_kind(logbook_dir: Path) -> str | None:
     return str(kind) if kind is not None else None
 
 
-def write_run_index(
-    *,
-    logbook_dir: Path,
-    config_path: Path,
-    run_kind: str,
-    status: str,
-    regatta: str,
-    course: str,
-    comparisons: Sequence[Any],
-    artifacts: Mapping[str, str | Path],
-) -> dict[str, Any]:
-    index = build_run_index(
-        logbook_dir=logbook_dir,
-        config_path=config_path,
-        run_kind=run_kind,
-        status=status,
-        regatta=regatta,
-        course=course,
-        comparisons=comparisons,
-        artifacts=artifacts,
-    )
-    write_json(logbook_dir / RUN_INDEX_PATH, index)
-    return index
-
-
-def build_run_index(
-    *,
-    logbook_dir: Path,
-    config_path: Path,
-    run_kind: str,
-    status: str,
-    regatta: str,
-    course: str,
-    comparisons: Sequence[Any],
-    artifacts: Mapping[str, str | Path],
-) -> dict[str, Any]:
-    index = {
-        "schema": RUN_INDEX_SCHEMA,
-        "run_kind": run_kind,
-        "status": status,
-        "updated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-        "config_path": str(config_path),
-        "logbook": str(logbook_dir),
-        "regatta": regatta,
-        "course": course,
-        "comparisons": [_comparison_to_json(comparison) for comparison in comparisons],
-        "artifacts": {
-            name: _artifact_to_json(logbook_dir, path)
-            for name, path in artifacts.items()
-        },
-    }
-    validate_run_index_document(index)
-    return index
-
-
 def _comparison_to_json(comparison: Any) -> dict[str, Any]:
     if not isinstance(comparison, Mapping):
         return {
@@ -366,11 +412,25 @@ def _comparison_to_json(comparison: Any) -> dict[str, Any]:
     }
 
 
-def _artifact_to_json(logbook_dir: Path, path: str | Path) -> dict[str, Any]:
-    artifact_path = Path(path)
-    if not artifact_path.is_absolute():
-        artifact_path = logbook_dir / artifact_path
-    return {
-        "path": str(artifact_path),
-        "present": artifact_path.exists(),
-    }
+def _relative_artifact_path(logbook_dir: Path, value: str | Path) -> Path:
+    raw_path = Path(value)
+    if "\\" in str(value) or ".." in raw_path.parts:
+        raise ConfigError(f"artifact path escapes the Logbook: {value}")
+    root = logbook_dir.resolve()
+    resolved = (
+        raw_path.resolve() if raw_path.is_absolute() else (root / raw_path).resolve()
+    )
+    if not resolved.is_relative_to(root) or resolved == root:
+        raise ConfigError(f"artifact path escapes the Logbook: {value}")
+    return resolved.relative_to(root)
+
+
+def _artifact_present(path: Path) -> bool:
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
+def _timestamp() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")

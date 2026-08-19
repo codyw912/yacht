@@ -1,7 +1,9 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from yacht.domain.model import ConfigError
 from yacht.logbook.index import (
@@ -9,90 +11,96 @@ from yacht.logbook.index import (
     LogbookState,
     read_logbook,
     require_logbook,
-    write_run_index,
+    start_run_index,
 )
+from yacht.logbook.io import write_json_atomic
 
 
 class LogbookIndexTests(unittest.TestCase):
-    def test_writes_run_index_with_artifact_presence(self) -> None:
+    def test_records_v2_lifecycle_and_refreshes_artifact_presence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             config_path = root / "regatta.toml"
             logbook_dir = root / "logbook"
             (logbook_dir / "preflight").mkdir(parents=True)
-            config_path.write_text('[regatta]\nname = "demo"\n', encoding="utf-8")
             (logbook_dir / "preflight-evidence-report.json").write_text(
                 json.dumps({"status": "ready"}),
                 encoding="utf-8",
             )
+            timestamps = [
+                "2026-08-19T00:00:00Z",
+                "2026-08-19T00:01:00Z",
+                "2026-08-19T00:02:00Z",
+            ]
 
-            index = write_run_index(
-                logbook_dir=logbook_dir,
-                config_path=config_path,
-                run_kind="real-benchmark",
-                status="complete",
-                regatta="demo-regatta",
-                course="demo-course",
-                comparisons=(
-                    {
-                        "name": "demo-comparison",
-                        "course": "demo-course",
-                        "vessels": ("baseline", "challenger"),
+            with patch("yacht.logbook.index._timestamp", side_effect=timestamps):
+                lifecycle = start_run_index(
+                    logbook_dir=logbook_dir,
+                    config_path=config_path,
+                    run_kind="real-benchmark",
+                    regatta="demo-regatta",
+                    course="demo-course",
+                    comparisons=(
+                        {
+                            "name": "demo-comparison",
+                            "course": "demo-course",
+                            "vessels": ("baseline", "challenger"),
+                        },
+                    ),
+                    artifacts={
+                        "preflight_evidence_report": ("preflight-evidence-report.json"),
+                        "benchmark_scorecard": "benchmark-scorecard.json",
                     },
-                ),
-                artifacts={
-                    "preflight_evidence_report": "preflight-evidence-report.json",
-                    "benchmark_scorecard": "benchmark-scorecard.json",
-                },
-            )
+                )
+                started = _read_index(logbook_dir)
+                (logbook_dir / "benchmark-scorecard.json").write_text(
+                    "{}\n",
+                    encoding="utf-8",
+                )
+                lifecycle.advance("scorecard")
+                advanced = _read_index(logbook_dir)
+                lifecycle.finish("complete", stage="complete")
+                finished = _read_index(logbook_dir)
 
-            self.assertEqual(index["schema"], "yacht.run-index.v1")
-            self.assertEqual(index["run_kind"], "real-benchmark")
-            self.assertEqual(index["status"], "complete")
-            self.assertEqual(index["config_path"], str(config_path))
-            self.assertEqual(index["logbook"], str(logbook_dir))
-            self.assertEqual(index["regatta"], "demo-regatta")
-            self.assertEqual(index["course"], "demo-course")
+            self.assertEqual(started["schema"], "yacht.run-index.v2")
+            self.assertEqual(started["status"], "running")
+            self.assertEqual(started["stage"], "starting")
+            self.assertEqual(started["started_at"], timestamps[0])
+            self.assertEqual(started["updated_at"], timestamps[0])
+            self.assertNotIn("terminal_at", started)
+            self.assertEqual(started["config_path"], str(config_path))
+            self.assertNotIn("logbook", started)
             self.assertEqual(
-                index["comparisons"],
-                [
-                    {
-                        "name": "demo-comparison",
-                        "course": "demo-course",
-                        "vessels": ["baseline", "challenger"],
-                    }
-                ],
-            )
-            self.assertRegex(index["updated_at"], r"^\d{4}-\d{2}-\d{2}T")
-            self.assertEqual(
-                index["artifacts"],
+                started["artifacts"],
                 {
                     "preflight_evidence_report": {
-                        "path": str(logbook_dir / "preflight-evidence-report.json"),
+                        "path": "preflight-evidence-report.json",
                         "present": True,
                     },
                     "benchmark_scorecard": {
-                        "path": str(logbook_dir / "benchmark-scorecard.json"),
+                        "path": "benchmark-scorecard.json",
                         "present": False,
                     },
                 },
             )
-            self.assertEqual(
-                json.loads((logbook_dir / RUN_INDEX_PATH).read_text(encoding="utf-8")),
-                index,
-            )
+            self.assertEqual(advanced["stage"], "scorecard")
+            self.assertEqual(advanced["updated_at"], timestamps[1])
+            self.assertTrue(advanced["artifacts"]["benchmark_scorecard"]["present"])
+            self.assertEqual(finished["status"], "complete")
+            self.assertEqual(finished["stage"], "complete")
+            self.assertEqual(finished["terminal_at"], timestamps[2])
+            self.assertEqual(finished["updated_at"], timestamps[2])
 
-    def test_refuses_to_write_an_invalid_run_index(self) -> None:
+    def test_refuses_to_start_an_invalid_run_index(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             logbook_dir = root / "logbook"
 
             with self.assertRaisesRegex(ValueError, "regatta"):
-                write_run_index(
+                start_run_index(
                     logbook_dir=logbook_dir,
                     config_path=root / "regatta.toml",
                     run_kind="real-benchmark",
-                    status="complete",
                     regatta="",
                     course="demo-course",
                     comparisons=(),
@@ -100,6 +108,101 @@ class LogbookIndexTests(unittest.TestCase):
                 )
 
             self.assertFalse((logbook_dir / RUN_INDEX_PATH).exists())
+
+    def test_atomic_write_preserves_previous_index_when_replace_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / RUN_INDEX_PATH
+            write_json_atomic(path, {"status": "previous"})
+
+            with (
+                patch(
+                    "yacht.logbook.io.os.replace",
+                    side_effect=OSError("replace failed"),
+                ),
+                self.assertRaisesRegex(OSError, "replace failed"),
+            ):
+                write_json_atomic(path, {"status": "next"})
+
+            self.assertEqual(_read_index(Path(temp_dir)), {"status": "previous"})
+            self.assertEqual(list(Path(temp_dir).glob(".run-index.json.*.tmp")), [])
+
+    def test_atomic_write_syncs_file_and_parent_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / RUN_INDEX_PATH
+
+            with patch("yacht.logbook.io.os.fsync", wraps=os.fsync) as fsync:
+                write_json_atomic(path, {"status": "complete"})
+
+            expected_calls = 1 if os.name == "nt" else 2
+            self.assertEqual(fsync.call_count, expected_calls)
+
+    def test_invalid_transition_does_not_corrupt_lifecycle(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lifecycle = start_run_index(
+                logbook_dir=root / "logbook",
+                config_path=root / "regatta.toml",
+                run_kind="real-smoke",
+                regatta="demo",
+                course="demo-course",
+                comparisons=(),
+                artifacts={},
+            )
+
+            with self.assertRaisesRegex(ValueError, "stage"):
+                lifecycle.advance("unknown")
+            lifecycle.finish("failed")
+
+            index = _read_index(root / "logbook")
+            self.assertEqual(index["status"], "failed")
+            self.assertEqual(index["stage"], "starting")
+
+    def test_writer_rejects_artifact_outside_logbook(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook = root / "logbook"
+
+            with self.assertRaisesRegex(ConfigError, "escapes the Logbook"):
+                start_run_index(
+                    logbook_dir=logbook,
+                    config_path=root / "regatta.toml",
+                    run_kind="real-benchmark",
+                    regatta="demo",
+                    course="demo-course",
+                    comparisons=(),
+                    artifacts={"outside": root / "outside.json"},
+                )
+
+            self.assertFalse((logbook / RUN_INDEX_PATH).exists())
+
+    def test_failure_recording_does_not_mask_original_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lifecycle = start_run_index(
+                logbook_dir=root / "logbook",
+                config_path=root / "regatta.toml",
+                run_kind="real-smoke",
+                regatta="demo",
+                course="demo-course",
+                comparisons=(),
+                artifacts={},
+            )
+            original_error = RuntimeError("run failed")
+
+            with patch(
+                "yacht.logbook.index.write_json_atomic",
+                side_effect=OSError("disk full"),
+            ):
+                lifecycle.record_failure(original_error)
+
+            self.assertEqual(
+                original_error.__notes__,
+                ["could not record run-index failure: disk full"],
+            )
+            self.assertEqual(
+                _read_index(root / "logbook")["status"],
+                "running",
+            )
 
     def test_reads_current_index_identity_lifecycle_and_references(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -348,6 +451,10 @@ class LogbookIndexTests(unittest.TestCase):
 
             self.assertEqual(snapshot.state, LogbookState.BROKEN)
             self.assertIn("run index artifact", snapshot.error or "")
+
+
+def _read_index(logbook: Path) -> dict[str, object]:
+    return json.loads((logbook / RUN_INDEX_PATH).read_text(encoding="utf-8"))
 
 
 def _v2_index() -> dict[str, object]:

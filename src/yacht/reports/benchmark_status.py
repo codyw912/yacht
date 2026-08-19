@@ -4,10 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from yacht.contracts.schemas import SchemaValidationError, validate_run_index_document
-from yacht.domain.model import ConfigError
-from yacht.logbook.index import RUN_INDEX_PATH
-from yacht.logbook.io import load_json_object
+from yacht.logbook.index import RUN_INDEX_PATH, LogbookSnapshot, require_logbook
 from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.workflows.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
 from yacht.workflows.benchmark_grading_collection import (
@@ -39,7 +36,7 @@ def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
         return _build_repetition_benchmark_status(logbook_dir)
     index_path = logbook_dir / RUN_INDEX_PATH
     if index_path.exists():
-        return _build_indexed_benchmark_status(logbook_dir, index_path)
+        return _build_indexed_benchmark_status(logbook_dir)
     artifacts = [_artifact_status(logbook_dir, label, path) for label, path in _STAGES]
     return {
         "schema": "yacht.benchmark-status.v1",
@@ -51,38 +48,37 @@ def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
     }
 
 
-def _build_indexed_benchmark_status(
-    logbook_dir: Path,
-    index_path: Path,
-) -> dict[str, Any]:
-    run_index = load_json_object(index_path, "run index artifact")
-    try:
-        validate_run_index_document(run_index)
-    except SchemaValidationError as error:
-        raise ConfigError(f"run index artifact {index_path}: {error}") from error
-    artifacts = _indexed_artifacts(run_index)
+def _build_indexed_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
+    snapshot = require_logbook(logbook_dir)
+    artifacts = _indexed_artifacts(snapshot)
     return {
         "schema": "yacht.benchmark-status.v1",
         "logbook": str(logbook_dir),
-        "status": str(run_index["status"]),
-        "run_kind": str(run_index["run_kind"]),
-        "regatta": str(run_index["regatta"]),
-        "course": str(run_index["course"]),
-        "comparisons": run_index["comparisons"],
+        "status": snapshot.status,
+        "run_kind": snapshot.run_kind,
+        "regatta": snapshot.regatta,
+        "course": snapshot.course,
+        "comparisons": [
+            {
+                "name": comparison.name,
+                "course": comparison.course,
+                "vessels": list(comparison.vessels),
+            }
+            for comparison in snapshot.comparisons
+        ],
         "surfaces": load_logbook_surfaces(logbook_dir),
         "artifacts": artifacts,
         "next_steps": _next_steps(logbook_dir, artifacts),
     }
 
 
-def _indexed_artifacts(run_index: dict[str, Any]) -> list[dict[str, Any]]:
-    artifacts = run_index.get("artifacts")
-    if not isinstance(artifacts, dict):
-        return []
+def _indexed_artifacts(snapshot: LogbookSnapshot) -> list[dict[str, Any]]:
     return [
-        _artifact_status_from_path(_artifact_label(name), Path(str(value["path"])))
-        for name, value in artifacts.items()
-        if isinstance(value, dict) and isinstance(value.get("path"), str)
+        _artifact_status_from_path(
+            _artifact_label(artifact.name),
+            artifact.path,
+        )
+        for artifact in snapshot.artifacts
     ]
 
 
@@ -144,6 +140,10 @@ def _artifact_status_from_path(
         "detail": "missing",
     }
     if not path.exists():
+        return artifact
+    if path.is_dir():
+        artifact["state"] = "present"
+        artifact["detail"] = "present"
         return artifact
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))

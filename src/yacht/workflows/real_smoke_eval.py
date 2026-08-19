@@ -4,8 +4,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from yacht.domain.model import load_regatta
-from yacht.logbook.index import write_run_index
+from yacht.domain.model import Regatta, load_regatta
+from yacht.logbook.index import RunIndexLifecycle, start_run_index
 from yacht.preflight.runner import AgentPromptRunnerFactory, run_preflight
 from yacht.reports.smoke_report import SMOKE_REPORT_PATH, write_smoke_report
 from yacht.reports.smoke_readiness import (
@@ -29,6 +29,45 @@ def run_real_smoke_eval(
     agent_name: str,
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
+    index_lifecycle = start_run_index(
+        logbook_dir=logbook_dir,
+        config_path=config_path,
+        run_kind="real-smoke",
+        regatta=regatta.name,
+        course=regatta.course.name,
+        comparisons=regatta.comparisons,
+        artifacts=_run_index_artifacts(),
+    )
+    try:
+        return _run_real_smoke_eval(
+            config_path=config_path,
+            logbook_dir=logbook_dir,
+            workspace_path=workspace_path,
+            secret_values=secret_values,
+            agent_prompt_runner_factory=agent_prompt_runner_factory,
+            task_agent=task_agent,
+            agent_name=agent_name,
+            regatta=regatta,
+            index_lifecycle=index_lifecycle,
+        )
+    except BaseException as error:
+        index_lifecycle.record_failure(error)
+        raise
+
+
+def _run_real_smoke_eval(
+    *,
+    config_path: Path,
+    logbook_dir: Path,
+    workspace_path: Path,
+    secret_values: Mapping[str, str],
+    agent_prompt_runner_factory: AgentPromptRunnerFactory,
+    task_agent: TaskAgent,
+    agent_name: str,
+    regatta: Regatta,
+    index_lifecycle: RunIndexLifecycle,
+) -> dict[str, Any]:
+    index_lifecycle.advance("preflight")
     preflight = run_preflight(
         config_path,
         logbook_dir,
@@ -38,9 +77,7 @@ def run_real_smoke_eval(
     )
     if preflight["status"] != "passed":
         return _write_summary(
-            logbook_dir=logbook_dir,
-            config_path=config_path,
-            comparisons=regatta.comparisons,
+            index_lifecycle=index_lifecycle,
             summary={
                 "status": "blocked",
                 "regatta": preflight["regatta"],
@@ -52,6 +89,7 @@ def run_real_smoke_eval(
             },
         )
 
+    index_lifecycle.advance("task-attempts")
     attempts = run_task_attempts(
         config_path=config_path,
         logbook_dir=logbook_dir,
@@ -60,6 +98,7 @@ def run_real_smoke_eval(
         agent_name=agent_name,
         task_agent=task_agent,
     )
+    index_lifecycle.advance("scorecard")
     scorecard = write_task_attempt_scorecard(logbook_dir)
     smoke_eval = {
         "status": scorecard["status"],
@@ -73,9 +112,7 @@ def run_real_smoke_eval(
     readiness = write_smoke_readiness_report(logbook_dir)
     write_smoke_report(logbook_dir)
     return _write_summary(
-        logbook_dir=logbook_dir,
-        config_path=config_path,
-        comparisons=regatta.comparisons,
+        index_lifecycle=index_lifecycle,
         summary={
             "status": readiness["status"],
             "regatta": readiness["regatta"],
@@ -102,26 +139,21 @@ def _artifacts(logbook_dir: Path) -> dict[str, str]:
 
 def _write_summary(
     *,
-    logbook_dir: Path,
-    config_path: Path,
-    comparisons: tuple[Any, ...],
     summary: dict[str, Any],
+    index_lifecycle: RunIndexLifecycle,
 ) -> dict[str, Any]:
-    write_run_index(
-        logbook_dir=logbook_dir,
-        config_path=config_path,
-        run_kind="real-smoke",
-        status=str(summary["status"]),
-        regatta=str(summary["regatta"]),
-        course=str(summary["course"]),
-        comparisons=comparisons,
-        artifacts=_run_index_artifacts(),
+    status = "blocked" if summary["status"] == "blocked" else "complete"
+    index_lifecycle.finish(
+        status,
+        stage="complete" if status == "complete" else None,
     )
     return summary
 
 
 def _run_index_artifacts() -> dict[str, Path]:
     return {
+        "preflight": Path("preflight"),
+        "task_attempts": Path("task-attempts"),
         "task_attempt_scorecard": TASK_ATTEMPT_SCORECARD_PATH,
         "smoke_readiness_report": SMOKE_READINESS_REPORT_PATH,
         "smoke_report": SMOKE_REPORT_PATH,
