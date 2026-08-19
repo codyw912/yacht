@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 - First-Class OMP and Codex Harnesses
 
 ### Delivery evidence and budget parity
 
