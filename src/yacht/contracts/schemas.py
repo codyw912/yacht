@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from yacht.contracts.json_schema import validation_error
 from yacht.courses.registry import evaluator_adapter
 from yacht.courses.registry import supported_benchmark_adapter_kinds
 from yacht.courses.registry import supported_course_adapter_harnesses
@@ -187,6 +188,23 @@ SMOKE_READINESS_REPORT_VESSEL_STATUSES = {
 
 class SchemaValidationError(ValueError):
     """Raised when a YACHT document does not match its contract."""
+
+
+def _validate_structure(
+    document: Any,
+    schema_name: str,
+    path: str,
+) -> None:
+    error = validation_error(document, schema_name)
+    if error is None:
+        return
+    error_path = path
+    for segment in error.absolute_path:
+        if isinstance(segment, int):
+            error_path += f"[{segment}]"
+        else:
+            error_path += f".{segment}"
+    raise SchemaValidationError(f"{error_path}: {error.message}")
 
 
 def validate_regatta_document(document: dict[str, Any]) -> None:
@@ -657,44 +675,7 @@ def _validate_export_attribution(value: Any, path: str) -> None:
 
 
 def validate_wake_document(document: dict[str, Any]) -> None:
-    _require_object(document, "wake")
-    _require_keys(
-        document,
-        (
-            "schema",
-            "regatta",
-            "course",
-            "vessel",
-            "model",
-            "rigging",
-            "task_id",
-            "task_title",
-            "passed",
-            "metrics",
-        ),
-        "wake",
-    )
-    _require_schema(document, WAKE_SCHEMA, "wake")
-    for key in ("regatta", "course", "vessel", "model", "task_id", "task_title"):
-        _require_non_empty_string(document[key], key)
-    _require_string_list(document["rigging"], "rigging")
-    if not isinstance(document["passed"], bool):
-        raise SchemaValidationError("passed must be a boolean")
-
-    metrics = _require_object(document["metrics"], "metrics")
-    if not isinstance(metrics.get("tokens"), int) or metrics["tokens"] < 0:
-        raise SchemaValidationError("metrics.tokens must be an integer >= 0")
-    if (
-        not isinstance(metrics.get("duration_seconds"), int | float)
-        or metrics["duration_seconds"] < 0
-    ):
-        raise SchemaValidationError("metrics.duration_seconds must be a number >= 0")
-    if "usage_source" in metrics:
-        _require_allowed_value(
-            metrics.get("usage_source"),
-            METRICS_USAGE_SOURCES,
-            "metrics.usage_source",
-        )
+    _validate_structure(document, WAKE_SCHEMA, "wake")
 
 
 def validate_scorecard_document(document: dict[str, Any]) -> None:

@@ -148,7 +148,7 @@ external tools to index, compare, publish, or sign later.
 
 Current state:
 
-- Public schema files live under `schemas/`.
+- Public schema files live under `src/yacht/schemas/`.
 - A large handwritten Python validator in `yacht.contracts` mirrors much of
   that contract.
 
@@ -159,7 +159,7 @@ validation focused on semantic checks that JSON Schema cannot express cleanly.
 
 Likely first slice:
 
-- Inventory which artifact schemas are already represented in `schemas/` but
+- Inventory artifact schemas already represented in `src/yacht/schemas/` but
   still validated only or mostly by handwritten Python.
 - Introduce schema-file loading for one low-risk artifact family.
 - Preserve current `ConfigError` and `SchemaValidationError` ergonomics for

@@ -13,10 +13,10 @@ user should be able to run a small credible benchmark locally, inspect the
 logbook, and use the resulting evidence outside the Python process that
 produced it.
 
-The public schema files under `schemas/` already describe that cross-language
-contract. The reference docs also say that `schemas/` is YACHT's durable
-contract because Python is the current control-plane implementation, not a
-requirement for every future runner, viewer, or hosted service.
+The packaged public schema files under `src/yacht/schemas/` already describe
+that cross-language contract. The reference docs also identify them as YACHT's
+durable contract because Python is the current control-plane implementation,
+not a requirement for consumers of persisted artifacts.
 
 At the same time, `yacht.contracts.schemas` has grown into a large handwritten
 validator that mirrors much of the same structural contract. It also imports
@@ -32,8 +32,8 @@ rows, and user-facing error normalization.
 
 ## Decision
 
-YACHT will treat the JSON Schema files in `schemas/` as the primary structural
-contract for persisted artifacts and regatta configuration.
+YACHT will treat the JSON Schema files in `src/yacht/schemas/` as the primary
+structural contract for persisted artifacts and regatta configuration.
 
 Python validators remain part of the public interface for the control plane,
 but their role is narrowed:

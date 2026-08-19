@@ -65,6 +65,9 @@
         "duration_seconds": {
           "type": "number",
           "minimum": 0
+        },
+        "usage_source": {
+          "enum": ["reported", "estimated", "unreported"]
         }
       }
     }

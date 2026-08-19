@@ -4,7 +4,7 @@ A stage answers one question with one of three states: ``observed`` (we
 saw it), ``absent`` (we looked and it was not there), ``unmeasured`` (the
 stream cannot tell us). The states are pinned by
 ``yacht.contracts.schemas._SKILL_STAGE_STATES`` and by
-``schemas/yacht.task-attempt.v1.schema.json``;
+``src/yacht/schemas/yacht.task-attempt.v1.schema.json``;
 ``tests/test_skill_stages.py`` keeps this module in sync with them.
 
 The distinction that matters: a failed read is evidence, not silence. An

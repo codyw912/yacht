@@ -11,6 +11,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "datasets>=4.8.5",
+    "jsonschema[format]>=4.26.0",
 ]
 
 [project.scripts]

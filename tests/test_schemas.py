@@ -4,8 +4,9 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from yacht.domain.model import ConfigError, run_regatta
+from yacht.contracts.json_schema import schema_text
 from yacht.contracts.schemas import (
+    SchemaValidationError,
     BENCHMARK_AGGREGATE_SCHEMA,
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
     BENCHMARK_GRADING_COLLECTION_SCHEMA,
@@ -55,6 +56,7 @@ from yacht.contracts.schemas import (
     validate_task_attempt_document,
     validate_wake_document,
 )
+from yacht.domain.model import ConfigError, run_regatta
 
 
 VALID_REGATTA_CONFIG = """
@@ -87,10 +89,27 @@ model = "mock-fast"
 """
 
 
+def _valid_wake_document() -> dict[str, Any]:
+    return {
+        "schema": WAKE_SCHEMA,
+        "regatta": "schema-smoke-test",
+        "course": "tiny-course",
+        "vessel": "baseline",
+        "model": "mock-fast",
+        "rigging": [],
+        "task_id": "task-1",
+        "task_title": "Fix a failing test",
+        "passed": True,
+        "metrics": {
+            "tokens": 42,
+            "duration_seconds": 1.5,
+            "usage_source": "reported",
+        },
+    }
+
+
 class SchemaTests(unittest.TestCase):
     def test_contract_schemas_are_json_schema_documents(self) -> None:
-        schema_dir = Path("schemas")
-
         for schema_name in (
             REGATTA_SCHEMA,
             WAKE_SCHEMA,
@@ -114,8 +133,7 @@ class SchemaTests(unittest.TestCase):
             REAL_SMOKE_RUNBOOK_SCHEMA,
             REAL_BENCHMARK_RUNBOOK_SCHEMA,
         ):
-            schema_path = schema_dir / f"{schema_name}.schema.json"
-            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            schema = json.loads(schema_text(schema_name))
 
             self.assertEqual(
                 schema["$schema"],
@@ -127,6 +145,39 @@ class SchemaTests(unittest.TestCase):
             )
             self.assertEqual(schema["type"], "object")
             self.assertFalse(schema["additionalProperties"])
+
+    def test_wake_schema_accepts_reported_usage_source(self) -> None:
+        validate_wake_document(_valid_wake_document())
+
+    def test_wake_schema_reports_missing_fields_with_document_path(self) -> None:
+        document = _valid_wake_document()
+        del document["course"]
+
+        with self.assertRaisesRegex(
+            SchemaValidationError,
+            "wake: 'course' is a required property",
+        ):
+            validate_wake_document(document)
+
+    def test_wake_schema_rejects_unknown_usage_source(self) -> None:
+        document = _valid_wake_document()
+        document["metrics"]["usage_source"] = "guessed"
+
+        with self.assertRaisesRegex(
+            SchemaValidationError,
+            r"wake\.metrics\.usage_source: .*not one of",
+        ):
+            validate_wake_document(document)
+
+    def test_wake_schema_rejects_unknown_fields(self) -> None:
+        document = _valid_wake_document()
+        document["unexpected"] = True
+
+        with self.assertRaisesRegex(
+            SchemaValidationError,
+            "wake: Additional properties are not allowed",
+        ):
+            validate_wake_document(document)
 
     def test_runtime_instances_documents_include_schema_version(self) -> None:
         document = {
@@ -232,11 +283,7 @@ class SchemaTests(unittest.TestCase):
             )
             agent = _agent_to_json(None, str(trial_dir), True)
 
-        schema = json.loads(
-            Path("schemas/yacht.task-attempt.v1.schema.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        schema = json.loads(schema_text(TASK_ATTEMPT_SCHEMA))
         agent_schema = schema["$defs"]["agent"]
         self.assertFalse(agent_schema["additionalProperties"])
         declared = set(agent_schema["properties"])

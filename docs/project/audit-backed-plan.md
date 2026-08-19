@@ -56,7 +56,8 @@ for outside contributors to run and modify.
 
 ADR 0005 records the contract decision:
 
-- JSON Schema files under `schemas/` are the primary structural contract.
+- Packaged JSON Schema files under `src/yacht/schemas/` are the primary
+  structural contract.
 - Python validators remain the call-site interface.
 - Python validation should focus on schema loading, semantic checks, dynamic
   adapter/capability checks, and error normalization.

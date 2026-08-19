@@ -4,12 +4,12 @@ import json
 import unittest
 from pathlib import Path
 
-from yacht.contracts.schemas import _SKILL_STAGE_STATES
+from yacht.contracts.json_schema import schema_text
+from yacht.contracts.schemas import TASK_ATTEMPT_SCHEMA, _SKILL_STAGE_STATES
 from yacht.harnesses import skill_stages
 from yacht.harnesses.codex import parse_codex_jsonl
 from yacht.harnesses.omp import parse_omp_jsonl
 
-TASK_ATTEMPT_SCHEMA = Path("schemas/yacht.task-attempt.v1.schema.json")
 
 OMP_SKILL_BODY = Path("tests/fixtures/omp-skill-read.jsonl")
 OMP_SKILL_UNKNOWN = Path("tests/fixtures/omp-skill-unknown.jsonl")
@@ -25,7 +25,7 @@ class SkillStageVocabularyTests(unittest.TestCase):
         )
 
     def test_states_match_the_task_attempt_schema_enum(self) -> None:
-        schema = json.loads(TASK_ATTEMPT_SCHEMA.read_text(encoding="utf-8"))
+        schema = json.loads(schema_text(TASK_ATTEMPT_SCHEMA))
         stage = schema["$defs"]["agent"]["properties"]["skill_stages"]["items"]
         for name in ("available", "selected", "loaded"):
             with self.subTest(stage=name):

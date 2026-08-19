@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Durable Logbook contracts
+
+- Public JSON Schemas now ship inside the `yacht.schemas` package, so installed
+  wheels validate against the same contract files as source checkouts. A cached
+  Draft 2020-12 validator replaces the Wake artifact's handwritten structural
+  checks, including the previously omitted `metrics.usage_source` contract,
+  while preserving Yacht's existing validation interface and error type.
+
 ## 0.11.0 - First-Class OMP and Codex Harnesses
 
 ### Delivery evidence and budget parity

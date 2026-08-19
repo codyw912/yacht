@@ -1,8 +1,8 @@
 # Schema Contract
 
-YACHT keeps its durable cross-language contract in JSON Schema files under
-`schemas/`. Python is the current control-plane implementation, but persisted
-artifacts should remain consumable by other tools and future runners.
+YACHT keeps its durable cross-language contract in packaged JSON Schema files
+under `src/yacht/schemas/`. Python is the current control-plane implementation,
+but persisted artifacts remain consumable by other tools and future runners.
 
 ## Core Artifacts
 
