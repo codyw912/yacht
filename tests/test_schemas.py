@@ -24,6 +24,7 @@ from yacht.contracts.schemas import (
     REAL_SMOKE_RUNBOOK_SCHEMA,
     REGATTA_SCHEMA,
     RUN_INDEX_SCHEMA,
+    RUN_INDEX_V2_SCHEMA,
     RUNTIME_INSTANCES_SCHEMA,
     SCORECARD_SCHEMA,
     SMOKE_READINESS_REPORT_SCHEMA,
@@ -132,6 +133,7 @@ class SchemaTests(unittest.TestCase):
             SMOKE_READINESS_REPORT_SCHEMA,
             REAL_SMOKE_RUNBOOK_SCHEMA,
             REAL_BENCHMARK_RUNBOOK_SCHEMA,
+            RUN_INDEX_V2_SCHEMA,
         ):
             schema = json.loads(schema_text(schema_name))
 
@@ -1796,6 +1798,33 @@ def _valid_run_index_document() -> dict[str, Any]:
     }
 
 
+def _valid_run_index_v2_document() -> dict[str, Any]:
+    return {
+        "schema": RUN_INDEX_V2_SCHEMA,
+        "run_kind": "real-benchmark",
+        "status": "running",
+        "stage": "preflight",
+        "started_at": "2026-08-19T00:00:00Z",
+        "updated_at": "2026-08-19T00:01:00Z",
+        "config_path": "/tmp/regatta.toml",
+        "regatta": "demo",
+        "course": "demo-course",
+        "comparisons": [],
+        "artifacts": {
+            "benchmark_scorecard": {
+                "path": "benchmark-scorecard.json",
+                "present": False,
+            }
+        },
+        "children": [
+            {
+                "path": "runs/run-1",
+                "status": "complete",
+            }
+        ],
+    }
+
+
 class RunIndexSchemaTests(unittest.TestCase):
     def test_run_index_documents_include_schema_version(self) -> None:
         validate_run_index_document(_valid_run_index_document())
@@ -1816,7 +1845,7 @@ class RunIndexSchemaTests(unittest.TestCase):
 
     def test_run_index_rejects_unknown_schema(self) -> None:
         document = _valid_run_index_document()
-        document["schema"] = "yacht.run-index.v2"
+        document["schema"] = "yacht.run-index.v3"
 
         with self.assertRaisesRegex(ValueError, "schema"):
             validate_run_index_document(document)
@@ -1843,6 +1872,31 @@ class RunIndexSchemaTests(unittest.TestCase):
             ValueError,
             "artifacts.benchmark_scorecard.*present",
         ):
+            validate_run_index_document(document)
+
+    def test_run_index_v2_accepts_relative_references(self) -> None:
+        validate_run_index_document(_valid_run_index_v2_document())
+
+    def test_run_index_v2_requires_terminal_timestamp_when_complete(self) -> None:
+        document = _valid_run_index_v2_document()
+        document["status"] = "complete"
+        document["stage"] = "complete"
+
+        with self.assertRaisesRegex(ValueError, "terminal_at"):
+            validate_run_index_document(document)
+
+    def test_run_index_v2_rejects_terminal_timestamp_while_running(self) -> None:
+        document = _valid_run_index_v2_document()
+        document["terminal_at"] = "2026-08-19T00:02:00Z"
+
+        with self.assertRaisesRegex(ValueError, "terminal_at"):
+            validate_run_index_document(document)
+
+    def test_run_index_v2_rejects_traversal_reference(self) -> None:
+        document = _valid_run_index_v2_document()
+        document["artifacts"]["benchmark_scorecard"]["path"] = "../scorecard.json"
+
+        with self.assertRaisesRegex(ValueError, "path"):
             validate_run_index_document(document)
 
 

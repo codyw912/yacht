@@ -9,6 +9,11 @@
   Draft 2020-12 validator replaces the Wake artifact's handwritten structural
   checks, including the previously omitted `metrics.usage_source` contract,
   while preserving Yacht's existing validation interface and error type.
+- Run-index v2 records portable relative artifact and child-Logbook references,
+  canonical lifecycle status and timestamps, Regatta identity, Course, and
+  Comparisons. The Logbook reader validates indexes, resolves references inside
+  the Logbook, normalizes safe v1 paths after moves, recognizes scorecard-only
+  history, and makes malformed or escaping indexes explicitly broken.
 
 ## 0.11.0 - First-Class OMP and Codex Harnesses
 

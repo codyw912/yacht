@@ -32,6 +32,7 @@ REAL_SMOKE_RUNBOOK_SCHEMA = "yacht.real-smoke-runbook.v1"
 REAL_BENCHMARK_RUNBOOK_SCHEMA = "yacht.real-benchmark-runbook.v1"
 HARNESS_EVIDENCE_SCHEMA = "yacht.harness-evidence.v1"
 RUN_INDEX_SCHEMA = "yacht.run-index.v1"
+RUN_INDEX_V2_SCHEMA = "yacht.run-index.v2"
 BENCHMARK_GRADING_COLLECTION_SCHEMA = "yacht.benchmark-grading-collection.v1"
 REAL_BENCHMARK_REPETITIONS_SCHEMA = "yacht.real-benchmark-repetitions.v1"
 REAL_BENCHMARK_EVAL_SCHEMA = "yacht.real-benchmark-eval.v1"
@@ -153,7 +154,6 @@ BENCHMARK_LAUNCHER_HANDOFF_VESSEL_STATUSES = {
     "ready-to-launch",
 }
 BENCHMARK_LAUNCH_RESULT_STATUSES = {"blocked", "complete", "failed", "partial"}
-RUN_INDEX_RUN_KINDS = {"real-benchmark", "real-smoke"}
 BENCHMARK_GRADING_COLLECTION_STATUSES = {"blocked", "complete", "partial"}
 BENCHMARK_GRADING_COLLECTION_VESSEL_STATUSES = {
     "collected",
@@ -944,56 +944,14 @@ def validate_course_handoff_document(document: dict[str, Any]) -> None:
 
 
 def validate_run_index_document(document: dict[str, Any]) -> None:
-    _require_object(document, "run index")
-    _require_keys(
-        document,
-        (
-            "schema",
-            "run_kind",
-            "status",
-            "updated_at",
-            "config_path",
-            "logbook",
-            "regatta",
-            "course",
-            "comparisons",
-            "artifacts",
-        ),
-        "run index",
-    )
-    _require_schema(document, RUN_INDEX_SCHEMA, "run index")
-    _require_allowed_value(
-        document["run_kind"],
-        RUN_INDEX_RUN_KINDS,
-        "run index.run_kind",
-    )
-    for key in ("status", "updated_at", "config_path", "logbook", "regatta", "course"):
-        _require_non_empty_string(document[key], f"run index.{key}")
-    comparisons = _require_list(document["comparisons"], "run index.comparisons")
-    for index, comparison_value in enumerate(comparisons):
-        comparison_path = f"run index.comparisons[{index}]"
-        comparison = _require_object(comparison_value, comparison_path)
-        _require_keys(comparison, ("name", "course", "vessels"), comparison_path)
-        _require_non_empty_string(comparison["name"], f"{comparison_path}.name")
-        _require_non_empty_string(comparison["course"], f"{comparison_path}.course")
-        vessels = _require_list(comparison["vessels"], f"{comparison_path}.vessels")
-        if not vessels:
-            raise SchemaValidationError(
-                f"{comparison_path}.vessels must contain at least one vessel"
-            )
-        for vessel_index, vessel in enumerate(vessels):
-            _require_non_empty_string(
-                vessel,
-                f"{comparison_path}.vessels[{vessel_index}]",
-            )
-    artifacts = _require_object(document["artifacts"], "run index.artifacts")
-    for name, artifact_value in artifacts.items():
-        artifact_path = f"run index.artifacts.{name}"
-        artifact = _require_object(artifact_value, artifact_path)
-        _require_keys(artifact, ("path", "present"), artifact_path)
-        _require_non_empty_string(artifact["path"], f"{artifact_path}.path")
-        if not isinstance(artifact["present"], bool):
-            raise SchemaValidationError(f"{artifact_path}.present must be a boolean")
+    run_index = _require_object(document, "run index")
+    schema_name = run_index.get("schema")
+    if schema_name not in {RUN_INDEX_SCHEMA, RUN_INDEX_V2_SCHEMA}:
+        raise SchemaValidationError(
+            "run index.schema must be one of "
+            f"{RUN_INDEX_SCHEMA!r}, {RUN_INDEX_V2_SCHEMA!r}"
+        )
+    _validate_structure(run_index, str(schema_name), "run index")
 
 
 def validate_benchmark_grading_collection_document(document: dict[str, Any]) -> None:

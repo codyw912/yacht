@@ -7,7 +7,9 @@ but persisted artifacts remain consumable by other tools and future runners.
 ## Core Artifacts
 
 - `yacht.regatta.v1.schema.json` for regatta configuration.
-- `yacht.run-index.v1.schema.json` for logbook run state and artifact paths.
+- `yacht.run-index.v1.schema.json` for historical absolute-path indexes.
+- `yacht.run-index.v2.schema.json` for portable lifecycle state, relative
+  artifact references, and optional child Logbooks.
 - `yacht.wake.v1.schema.json` for deterministic mock-run wake artifacts.
 - `yacht.scorecard.v1.schema.json` for deterministic mock-run scorecards.
 - `yacht.runtime-instances.v1.schema.json` for redacted runtime snapshots.
