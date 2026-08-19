@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from yacht.logbook.index import LogbookSnapshot, LogbookState
 
 
 def load_logbook_surfaces(logbook_dir: Path) -> dict[str, Any] | None:
@@ -13,6 +14,18 @@ def load_logbook_surfaces(logbook_dir: Path) -> dict[str, Any] | None:
         surfaces = _load_surfaces(path)
         if surfaces is not None:
             return surfaces
+    return None
+
+
+def load_snapshot_surfaces(snapshot: LogbookSnapshot) -> dict[str, Any] | None:
+    if snapshot.state is LogbookState.LEGACY_SCORECARD_ONLY:
+        return load_logbook_surfaces(snapshot.logbook)
+    for name in ("real_benchmark_eval", "real_benchmark_repetitions"):
+        artifact = snapshot.artifact(name)
+        if artifact is not None and artifact.file_present:
+            surfaces = _load_surfaces(artifact.path)
+            if surfaces is not None:
+                return surfaces
     return None
 
 

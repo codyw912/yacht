@@ -4,16 +4,19 @@ import json
 from pathlib import Path
 from typing import Any
 
-from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
-from yacht.reports.benchmark_aggregate import build_benchmark_aggregate
-from yacht.reports.benchmark_aggregate import render_benchmark_aggregate_document
+from yacht.reports.benchmark_aggregate import (
+    BENCHMARK_AGGREGATE_PATH,
+    build_benchmark_aggregate,
+    render_benchmark_aggregate_document,
+)
+from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.workflows.benchmark_grading_collection import (
     BENCHMARK_GRADING_COLLECTION_PATH,
 )
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
-from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.html_report import render_benchmark_html
 from yacht.reports.provenance_format import skill_stage_rate_label
+from yacht.reports.next_steps import relocate_command_steps
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
     SchemaValidationError,
@@ -23,8 +26,10 @@ from yacht.contracts.schemas import (
     validate_task_attempt_document,
     validate_task_attempt_scorecard_document,
 )
-from yacht.reports.surface_summary import format_surface_summary
-from yacht.reports.surface_summary import load_logbook_surfaces
+from yacht.reports.surface_summary import (
+    format_surface_summary,
+    load_snapshot_surfaces,
+)
 from yacht.courses.artifacts import (
     candidate_patches_path,
     grading_report_path,
@@ -33,6 +38,20 @@ from yacht.reports.task_attempt_scorecard import (
     TASK_ATTEMPT_SCORECARD_PATH,
     normalize_task_attempt_scorecard,
 )
+from yacht.logbook.index import (
+    LogbookSnapshot,
+    LogbookState,
+    is_logbook_candidate,
+    require_logbook,
+)
+
+_REPORT_ARTIFACT_PATHS = {
+    "benchmark_scorecard": BENCHMARK_SCORECARD_PATH,
+    "benchmark_aggregate": BENCHMARK_AGGREGATE_PATH,
+    "task_attempt_scorecard": TASK_ATTEMPT_SCORECARD_PATH,
+    "benchmark_launch_result": BENCHMARK_LAUNCH_RESULT_PATH,
+    "benchmark_grading_collection": BENCHMARK_GRADING_COLLECTION_PATH,
+}
 
 
 def render_benchmark_report(
@@ -42,10 +61,18 @@ def render_benchmark_report(
     vessel_name: str | None = None,
     task_id: str | None = None,
 ) -> str:
-    scorecard_path = logbook_dir / BENCHMARK_SCORECARD_PATH
-    if not scorecard_path.exists():
-        aggregate_path = logbook_dir / BENCHMARK_AGGREGATE_PATH
-        if aggregate_path.exists():
+    if not is_logbook_candidate(logbook_dir):
+        raise ConfigError(
+            "benchmark scorecard artifact not found: "
+            f"{logbook_dir / BENCHMARK_SCORECARD_PATH}; "
+            "benchmark aggregate artifact not found: "
+            f"{logbook_dir / BENCHMARK_AGGREGATE_PATH}"
+        )
+    snapshot = require_logbook(logbook_dir)
+    scorecard_path = _present_artifact(snapshot, "benchmark_scorecard")
+    if scorecard_path is None:
+        aggregate_path = _present_artifact(snapshot, "benchmark_aggregate")
+        if aggregate_path is not None:
             if vessel_name is not None or task_id is not None:
                 raise ConfigError(
                     "benchmark report filters require a single-run benchmark "
@@ -53,8 +80,10 @@ def render_benchmark_report(
                 )
             return _render_aggregate_report(aggregate_path, output_format)
         raise ConfigError(
-            f"benchmark scorecard artifact not found: {scorecard_path}; "
-            f"benchmark aggregate artifact not found: {aggregate_path}"
+            "benchmark scorecard artifact not found: "
+            f"{_artifact_location(snapshot, 'benchmark_scorecard')}; "
+            "benchmark aggregate artifact not found: "
+            f"{_artifact_location(snapshot, 'benchmark_aggregate')}"
         )
     scorecard = _load_scorecard(scorecard_path)
     try:
@@ -63,7 +92,11 @@ def render_benchmark_report(
         raise ConfigError(
             f"benchmark scorecard artifact is invalid: {error}"
         ) from error
-    task_attempt_scorecard = _load_task_attempt_scorecard(logbook_dir)
+    scorecard["next_steps"] = relocate_command_steps(
+        scorecard.get("next_steps"),
+        snapshot.logbook,
+    )
+    task_attempt_scorecard = _load_task_attempt_scorecard(snapshot)
     _validate_filters(scorecard, vessel_name, task_id)
     if output_format == "html":
         if vessel_name is not None or task_id is not None:
@@ -74,18 +107,19 @@ def render_benchmark_report(
         return render_benchmark_html(
             scorecard=scorecard,
             task_attempt_scorecard=task_attempt_scorecard,
-            logbook_dir=logbook_dir,
+            logbook_dir=snapshot.logbook,
+            scorecard_path=scorecard_path,
         )
     if output_format == "markdown":
         return _render_scorecard_markdown(
-            logbook_dir,
+            snapshot,
             scorecard,
             task_attempt_scorecard,
             vessel_name,
             task_id,
         )
     return _render_scorecard(
-        logbook_dir,
+        snapshot,
         scorecard,
         task_attempt_scorecard,
         vessel_name,
@@ -146,9 +180,11 @@ def _load_scorecard(path: Path) -> dict[str, Any]:
     return _load_json(path, "benchmark scorecard artifact")
 
 
-def _load_task_attempt_scorecard(logbook_dir: Path) -> dict[str, Any] | None:
-    path = logbook_dir / TASK_ATTEMPT_SCORECARD_PATH
-    if not path.exists():
+def _load_task_attempt_scorecard(
+    snapshot: LogbookSnapshot,
+) -> dict[str, Any] | None:
+    path = _present_artifact(snapshot, "task_attempt_scorecard")
+    if path is None:
         return None
     scorecard = _load_json(path, "task attempt scorecard artifact")
     try:
@@ -171,7 +207,7 @@ def _load_json(path: Path, label: str) -> dict[str, Any]:
 
 
 def _render_scorecard(
-    logbook_dir: Path,
+    snapshot: LogbookSnapshot,
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any] | None,
     vessel_name: str | None,
@@ -181,7 +217,7 @@ def _render_scorecard(
     lines = [
         f"Benchmark scorecard: {scorecard['regatta']} / {scorecard['course']}",
         f"Status: {scorecard['status']}",
-        *_surface_text_lines(logbook_dir),
+        *_surface_text_lines(snapshot),
         "Comparisons: "
         f"{summary['total_comparisons']} | "
         f"Vessels: {summary['total_vessels']} | "
@@ -189,7 +225,7 @@ def _render_scorecard(
         f"Missing: {summary['missing_result_vessels']}",
         _usage_summary_line(task_attempt_scorecard),
         *_decision_summary_lines(scorecard, task_attempt_scorecard),
-        _artifact_line(logbook_dir),
+        _artifact_line(snapshot),
     ]
     lines.extend(_filter_lines(vessel_name, task_id))
     lines.extend(_repetition_budget_lines(scorecard))
@@ -208,7 +244,7 @@ def _render_scorecard(
             _usage_lines(
                 task_attempt_scorecard,
                 scorecard,
-                logbook_dir,
+                snapshot.logbook,
                 vessel_name,
                 task_id,
             )
@@ -223,10 +259,10 @@ def _render_scorecard(
         )
         lines.extend(
             _artifact_drilldown_lines(
-                logbook_dir,
+                snapshot.logbook,
                 scorecard,
                 task_attempt_scorecard,
-                _load_grading_collection(logbook_dir),
+                _load_grading_collection(snapshot),
                 vessel_name,
                 task_id,
             )
@@ -235,7 +271,7 @@ def _render_scorecard(
 
 
 def _render_scorecard_markdown(
-    logbook_dir: Path,
+    snapshot: LogbookSnapshot,
     scorecard: dict[str, Any],
     task_attempt_scorecard: dict[str, Any] | None,
     vessel_name: str | None,
@@ -248,7 +284,7 @@ def _render_scorecard_markdown(
         f"- Regatta: {scorecard['regatta']}",
         f"- Course: {scorecard['course']}",
         f"- Status: {scorecard['status']}",
-        *_surface_markdown_lines(logbook_dir),
+        *_surface_markdown_lines(snapshot),
         f"- Comparisons: {summary['total_comparisons']}",
         f"- Vessels: {summary['total_vessels']}",
         f"- Measured: {summary['measured_vessels']}",
@@ -267,11 +303,13 @@ def _render_scorecard_markdown(
         "",
         "## Artifacts",
         "",
-        f"- Logbook: {logbook_dir}",
-        f"- Benchmark scorecard: {logbook_dir / BENCHMARK_SCORECARD_PATH}",
-        f"- Task attempt scorecard: {logbook_dir / TASK_ATTEMPT_SCORECARD_PATH}",
-        f"- Launch result: {logbook_dir / BENCHMARK_LAUNCH_RESULT_PATH}",
-        f"- Grading collection: {logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH}",
+        f"- Logbook: {snapshot.logbook}",
+        f"- Benchmark scorecard: {_artifact_location(snapshot, 'benchmark_scorecard')}",
+        f"- Task attempt scorecard: "
+        f"{_artifact_location(snapshot, 'task_attempt_scorecard')}",
+        f"- Launch result: {_artifact_location(snapshot, 'benchmark_launch_result')}",
+        f"- Grading collection: "
+        f"{_artifact_location(snapshot, 'benchmark_grading_collection')}",
         "",
         "| Comparison | Baseline | Challenger | Resolved delta | Rate delta | "
         "Measured | Missing | Eligible | Preflight |",
@@ -286,7 +324,7 @@ def _render_scorecard_markdown(
             _usage_markdown_lines(
                 task_attempt_scorecard,
                 scorecard,
-                logbook_dir,
+                snapshot.logbook,
                 vessel_name,
                 task_id,
             )
@@ -301,10 +339,10 @@ def _render_scorecard_markdown(
         )
         lines.extend(
             _artifact_drilldown_markdown_lines(
-                logbook_dir,
+                snapshot.logbook,
                 scorecard,
                 task_attempt_scorecard,
-                _load_grading_collection(logbook_dir),
+                _load_grading_collection(snapshot),
                 vessel_name,
                 task_id,
             )
@@ -312,9 +350,11 @@ def _render_scorecard_markdown(
     return "\n".join(lines) + "\n"
 
 
-def _load_grading_collection(logbook_dir: Path) -> dict[str, Any] | None:
-    path = logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH
-    if not path.exists():
+def _load_grading_collection(
+    snapshot: LogbookSnapshot,
+) -> dict[str, Any] | None:
+    path = _present_artifact(snapshot, "benchmark_grading_collection")
+    if path is None:
         return None
     collection = _load_json(path, "benchmark grading collection artifact")
     try:
@@ -326,15 +366,15 @@ def _load_grading_collection(logbook_dir: Path) -> dict[str, Any] | None:
     return collection
 
 
-def _surface_text_lines(logbook_dir: Path) -> list[str]:
-    summary = format_surface_summary(load_logbook_surfaces(logbook_dir))
+def _surface_text_lines(snapshot: LogbookSnapshot) -> list[str]:
+    summary = format_surface_summary(load_snapshot_surfaces(snapshot))
     if summary is None:
         return []
     return [f"Surfaces: {summary}"]
 
 
-def _surface_markdown_lines(logbook_dir: Path) -> list[str]:
-    summary = format_surface_summary(load_logbook_surfaces(logbook_dir))
+def _surface_markdown_lines(snapshot: LogbookSnapshot) -> list[str]:
+    summary = format_surface_summary(load_snapshot_surfaces(snapshot))
     if summary is None:
         return []
     return [f"- Surfaces: {summary}"]
@@ -1086,14 +1126,35 @@ def _usage_summary_markdown_lines(scorecard: dict[str, Any] | None) -> list[str]
     ]
 
 
-def _artifact_line(logbook_dir: Path) -> str:
+def _artifact_line(snapshot: LogbookSnapshot) -> str:
     return (
-        f"Artifacts: logbook={logbook_dir} | "
-        f"scorecard={logbook_dir / BENCHMARK_SCORECARD_PATH} | "
-        f"attempts={logbook_dir / TASK_ATTEMPT_SCORECARD_PATH} | "
-        f"launch={logbook_dir / BENCHMARK_LAUNCH_RESULT_PATH} | "
-        f"grading={logbook_dir / BENCHMARK_GRADING_COLLECTION_PATH}"
+        f"Artifacts: logbook={snapshot.logbook} | "
+        f"scorecard={_artifact_location(snapshot, 'benchmark_scorecard')} | "
+        f"attempts={_artifact_location(snapshot, 'task_attempt_scorecard')} | "
+        f"launch={_artifact_location(snapshot, 'benchmark_launch_result')} | "
+        f"grading={_artifact_location(snapshot, 'benchmark_grading_collection')}"
     )
+
+
+def _present_artifact(snapshot: LogbookSnapshot, name: str) -> Path | None:
+    artifact = snapshot.artifact(name)
+    return artifact.path if artifact is not None and artifact.file_present else None
+
+
+def _artifact_location(snapshot: LogbookSnapshot, name: str) -> str:
+    artifact = snapshot.artifact(name)
+    if (
+        artifact is not None
+        and snapshot.state is not LogbookState.LEGACY_SCORECARD_ONLY
+    ):
+        return str(artifact.path)
+    default_path = _REPORT_ARTIFACT_PATHS.get(name)
+    if (
+        default_path is not None
+        and snapshot.state is LogbookState.LEGACY_SCORECARD_ONLY
+    ):
+        return str(snapshot.logbook / default_path)
+    return "not indexed"
 
 
 def _usage_vessels(

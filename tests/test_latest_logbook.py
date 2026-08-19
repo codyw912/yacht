@@ -57,6 +57,27 @@ class LatestLogbookTests(unittest.TestCase):
             self.assertEqual(payload["logbook"], str(logbook))
             self.assertEqual(payload["kind"], "benchmark-repetitions")
 
+    def test_malformed_index_is_authoritative_over_legacy_scorecard(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook = _write_logbook(
+                root / "yacht-broken",
+                "benchmark-scorecard.json",
+            )
+            (logbook / "run-index.json").write_text(
+                '{"schema": "yacht.run-index.v2"}\n',
+                encoding="utf-8",
+            )
+
+            report = build_latest_logbook(root)
+
+            self.assertEqual(report["logbook"], str(logbook))
+            self.assertEqual(report["kind"], "broken")
+            self.assertEqual(
+                set(report["artifacts"]),
+                {"run_index"},
+            )
+
     def test_latest_logbook_reports_missing_logbooks_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(

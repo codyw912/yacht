@@ -9,6 +9,7 @@ from yacht.domain.model import ConfigError
 from yacht.logbook.index import (
     RUN_INDEX_PATH,
     LogbookState,
+    is_logbook_candidate,
     read_logbook,
     require_logbook,
     start_run_index,
@@ -442,6 +443,7 @@ class LogbookIndexTests(unittest.TestCase):
             logbook = Path(temp_dir) / "logbook"
             logbook.mkdir()
             (logbook / RUN_INDEX_PATH).symlink_to(logbook / "missing-index.json")
+            self.assertTrue(is_logbook_candidate(logbook))
             (logbook / "benchmark-scorecard.json").write_text(
                 "{}\n",
                 encoding="utf-8",
@@ -451,6 +453,20 @@ class LogbookIndexTests(unittest.TestCase):
 
             self.assertEqual(snapshot.state, LogbookState.BROKEN)
             self.assertIn("run index artifact", snapshot.error or "")
+
+    def test_present_index_symlink_outside_logbook_is_broken(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook = root / "logbook"
+            logbook.mkdir()
+            outside = root / "outside-index.json"
+            outside.write_text(json.dumps(_v2_index()), encoding="utf-8")
+            (logbook / RUN_INDEX_PATH).symlink_to(outside)
+
+            snapshot = read_logbook(logbook)
+
+            self.assertEqual(snapshot.state, LogbookState.BROKEN)
+            self.assertIn("escapes the Logbook", snapshot.error or "")
 
 
 def _read_index(logbook: Path) -> dict[str, object]:

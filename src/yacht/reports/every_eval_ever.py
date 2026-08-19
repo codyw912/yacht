@@ -16,11 +16,9 @@ from typing import Any
 
 from yacht.courses.handoff import load_course_handoff
 from yacht.domain.model import ConfigError
-from yacht.logbook.index import RUN_INDEX_PATH
+from yacht.logbook.index import LogbookSnapshot, LogbookState, require_logbook
 from yacht.logbook.io import load_json_object, write_json
-from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.statistics import CONFIDENCE_LEVEL, wilson_interval
-from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 from yacht.contracts.schemas import (
     EVERY_EVAL_EVER_INSTANCE_SCHEMA_VERSION,
     EVERY_EVAL_EVER_SCHEMA_VERSION,
@@ -147,9 +145,15 @@ def build_every_eval_ever_export(
     logbook_dir: Path,
     retrieved_timestamp: str,
 ) -> list[dict[str, Any]]:
-    handoff = load_course_handoff(logbook_dir)
+    snapshot = require_logbook(logbook_dir)
+    handoff_path = _required_artifact(
+        snapshot,
+        "course_handoff",
+        "course handoff",
+    )
+    handoff = load_course_handoff(logbook_dir, artifact_path=handoff_path)
     scorecard = _load(
-        logbook_dir / BENCHMARK_SCORECARD_PATH,
+        _required_artifact(snapshot, "benchmark_scorecard", "benchmark scorecard"),
         "benchmark scorecard artifact",
     )
     _require_scorecard_matches_handoff(handoff, scorecard)
@@ -164,11 +168,20 @@ def build_every_eval_ever_export(
             '  evaluator_relationship = "first_party"  '
             "# or third_party, collaborative, other"
         )
-    attempts = _optional_load(
-        logbook_dir / TASK_ATTEMPT_SCORECARD_PATH,
-        "task attempt scorecard artifact",
+    attempt_artifact = snapshot.artifact("task_attempt_scorecard")
+    attempts = (
+        _optional_load(
+            attempt_artifact.path,
+            "task attempt scorecard artifact",
+        )
+        if attempt_artifact is not None
+        else None
     )
-    run_timestamp = _run_timestamp(logbook_dir)
+    run_timestamp = (
+        None
+        if snapshot.state is LogbookState.LEGACY_SCORECARD_ONLY
+        else snapshot.updated_at
+    )
     usage_by_vessel = _usage_by_comparison_and_vessel(attempts)
 
     exports = []
@@ -727,15 +740,16 @@ def _baseline_run_date(vessel: dict[str, Any]) -> str | None:
     return None
 
 
-def _run_timestamp(logbook_dir: Path) -> str | None:
-    index_path = logbook_dir / RUN_INDEX_PATH
-    if not index_path.is_file():
-        return None
-    index = load_json_object(index_path, "run index artifact")
-    updated_at = index.get("updated_at")
-    if isinstance(updated_at, str) and updated_at:
-        return updated_at
-    return None
+def _required_artifact(
+    snapshot: LogbookSnapshot,
+    name: str,
+    label: str,
+) -> Path:
+    artifact = snapshot.artifact(name)
+    if artifact is None or not artifact.file_present:
+        path = artifact.path if artifact is not None else snapshot.logbook
+        raise ConfigError(f"{label} artifact not found: {path}")
+    return artifact.path
 
 
 def _sample_ids(vessel: dict[str, Any]) -> list[str]:

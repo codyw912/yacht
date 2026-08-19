@@ -19,10 +19,18 @@ from yacht.logbook.io import load_json_object, write_json_atomic
 RUN_INDEX_PATH = Path("run-index.json")
 
 _LEGACY_ARTIFACT_PATHS = {
+    "course_handoff": Path("course-handoff.json"),
     "benchmark_scorecard": Path("benchmark-scorecard.json"),
     "task_attempt_scorecard": Path("task-attempt-scorecard.json"),
     "scorecard": Path("scorecard.json"),
     "smoke_readiness_report": Path("smoke-readiness-report.json"),
+    "benchmark_aggregate": Path("benchmark-aggregate.json"),
+    "real_benchmark_repetitions": Path("real-benchmark-repetitions.json"),
+    "benchmark_grading_collection": Path("benchmark-grading-collection.json"),
+    "benchmark_launch_result": Path("benchmark-launch-result.json"),
+    "real_benchmark_eval": Path("real-benchmark-eval.json"),
+    "real_smoke_runbook": Path("real-smoke-runbook.json"),
+    "smoke_report": Path("smoke-report.txt"),
 }
 
 
@@ -52,6 +60,10 @@ class ArtifactReference:
             return self.path.exists()
         except OSError:
             return False
+
+    @property
+    def file_present(self) -> bool:
+        return _is_file(self.path)
 
 
 @dataclass(frozen=True)
@@ -195,6 +207,16 @@ def start_run_index(
     )
 
 
+def is_logbook_candidate(logbook_dir: Path) -> bool:
+    index_path = logbook_dir / RUN_INDEX_PATH
+    try:
+        if index_path.exists() or index_path.is_symlink():
+            return True
+    except OSError:
+        return False
+    return any(_is_file(logbook_dir / path) for path in _LEGACY_ARTIFACT_PATHS.values())
+
+
 def read_logbook(logbook_dir: Path) -> LogbookSnapshot:
     """Read one Logbook without interpreting its Scorecard contents."""
     if not logbook_dir.is_dir():
@@ -206,6 +228,10 @@ def read_logbook(logbook_dir: Path) -> LogbookSnapshot:
     index_path = logbook_dir / RUN_INDEX_PATH
     if index_path.exists() or index_path.is_symlink():
         try:
+            root = logbook_dir.resolve()
+            resolved_index = index_path.resolve()
+            if not resolved_index.is_relative_to(root):
+                raise ConfigError("run index artifact escapes the Logbook")
             document = load_json_object(index_path, "run index artifact")
             validate_run_index_document(document)
             return _indexed_logbook(logbook_dir, document)
@@ -384,18 +410,15 @@ def _broken_logbook(logbook_dir: Path, error: str) -> LogbookSnapshot:
     )
 
 
+def _is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 def _optional_string(value: Any) -> str | None:
     return str(value) if value is not None else None
-
-
-def read_run_kind(logbook_dir: Path) -> str | None:
-
-    index_path = logbook_dir / RUN_INDEX_PATH
-    if not index_path.exists():
-        return None
-    index = load_json_object(index_path, "run index artifact")
-    kind = index.get("run_kind")
-    return str(kind) if kind is not None else None
 
 
 def _comparison_to_json(comparison: Any) -> dict[str, Any]:

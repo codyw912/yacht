@@ -141,16 +141,27 @@ def _group_entries(
 
 def _entries_table(root: Path, entries: list[LogbookEntry]) -> str:
     rows = [
-        "<table><tr><th>Logbook</th><th>Updated</th><th>Status</th>"
-        "<th>Problems</th></tr>"
+        "<table><tr><th>Logbook</th><th>Updated</th><th>Lifecycle</th>"
+        "<th>Outcome</th><th>Problems</th></tr>"
     ]
     for entry in entries:
         entry_id = _entry_id(root, entry)
         status = _entry_status(entry)
-        status_class = "fail" if entry.errors else "ok"
+        outcome = _entry_outcome(entry)
+        problems_list = [
+            *entry.errors,
+            *(f"missing artifact: {artifact}" for artifact in entry.missing_artifacts),
+        ]
+        status_class = (
+            "fail"
+            if problems_list
+            or status in {"blocked", "failed"}
+            or outcome in {"blocked", "failed"}
+            else "ok"
+        )
         problems = (
-            "<br>".join(_e(error) for error in entry.errors)
-            if entry.errors
+            "<br>".join(_e(problem) for problem in problems_list)
+            if problems_list
             else '<span class="muted">none</span>'
         )
         rows.append(
@@ -158,6 +169,7 @@ def _entries_table(root: Path, entries: list[LogbookEntry]) -> str:
             f"<code>{_e(entry_id)}</code></a></td>"
             f"<td>{_e(entry.updated_at)}</td>"
             f'<td class="{status_class}">{_e(status)}</td>'
+            f'<td class="{status_class}">{_e(outcome)}</td>'
             f"<td>{problems}</td></tr>"
         )
     rows.append("</table>")
@@ -167,11 +179,17 @@ def _entries_table(root: Path, entries: list[LogbookEntry]) -> str:
 def _entry_status(entry: LogbookEntry) -> str:
     if entry.errors:
         return "broken"
+    if entry.status is not None:
+        return entry.status
     if entry.benchmark_scorecard is not None:
         return str(entry.benchmark_scorecard.get("status", "unknown"))
     if entry.attempt_scorecard is not None:
         return str(entry.attempt_scorecard.get("status", "unknown"))
     return "no scorecards"
+
+
+def _entry_outcome(entry: LogbookEntry) -> str:
+    return entry.outcome or "unknown"
 
 
 def _logbook_page(root: Path, entry: LogbookEntry) -> str:
@@ -180,15 +198,25 @@ def _logbook_page(root: Path, entry: LogbookEntry) -> str:
             scorecard=entry.benchmark_scorecard,
             task_attempt_scorecard=entry.attempt_scorecard,
             logbook_dir=entry.logbook,
+            scorecard_path=entry.benchmark_scorecard_path,
         )
     body = [f"<h1>{_e(_entry_id(root, entry))}</h1>"]
     body.append(
         f'<p class="sub">Logbook <code>{_e(str(entry.logbook))}</code> '
-        f"&middot; updated {_e(entry.updated_at)}</p>"
+        f"&middot; updated {_e(entry.updated_at)} &middot; lifecycle "
+        f"<code>{_e(_entry_status(entry))}</code> &middot; outcome "
+        f"<code>{_e(_entry_outcome(entry))}</code></p>"
     )
     if entry.errors:
         body.append("<h2>Broken artifacts</h2><ul>")
         body.extend(f'<li class="fail">{_e(error)}</li>' for error in entry.errors)
+        body.append("</ul>")
+    if entry.missing_artifacts:
+        body.append("<h2>Missing artifacts</h2><ul>")
+        body.extend(
+            f'<li class="fail">{_e(artifact)}</li>'
+            for artifact in entry.missing_artifacts
+        )
         body.append("</ul>")
     if entry.attempt_scorecard is not None:
         body.append("<h2>Task attempts</h2>")

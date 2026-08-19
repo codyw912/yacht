@@ -4,8 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from yacht.logbook.index import RUN_INDEX_PATH, LogbookSnapshot, require_logbook
-from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
+from yacht.logbook.index import (
+    LogbookSnapshot,
+    LogbookState,
+    is_logbook_candidate,
+    require_logbook,
+)
 from yacht.workflows.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
 from yacht.workflows.benchmark_grading_collection import (
     BENCHMARK_GRADING_COLLECTION_PATH,
@@ -14,13 +18,15 @@ from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.workflows.benchmark_launcher_handoff import BENCHMARK_LAUNCHER_HANDOFF_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
-from yacht.reports.next_steps import command_step
+from yacht.reports.next_steps import command_step, relocate_command_steps
 from yacht.reports.preflight_evidence import PREFLIGHT_EVIDENCE_REPORT_PATH
 from yacht.workflows.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
-from yacht.workflows.real_benchmark_repetitions import REAL_BENCHMARK_REPETITIONS_PATH
 from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
-from yacht.reports.surface_summary import format_surface_summary
-from yacht.reports.surface_summary import load_logbook_surfaces
+from yacht.reports.surface_summary import (
+    format_surface_summary,
+    load_logbook_surfaces,
+    load_snapshot_surfaces,
+)
 from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 
@@ -32,11 +38,18 @@ def render_benchmark_status(logbook_dir: Path, output_format: str = "text") -> s
 
 
 def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
-    if _is_repetition_logbook(logbook_dir):
-        return _build_repetition_benchmark_status(logbook_dir)
-    index_path = logbook_dir / RUN_INDEX_PATH
-    if index_path.exists():
-        return _build_indexed_benchmark_status(logbook_dir)
+    if is_logbook_candidate(logbook_dir):
+        snapshot = require_logbook(logbook_dir)
+        artifact_names = {artifact.name for artifact in snapshot.artifacts}
+        if artifact_names & {"real_benchmark_repetitions", "benchmark_aggregate"}:
+            return _build_repetition_benchmark_status(snapshot)
+        if snapshot.state is LogbookState.LEGACY_SCORECARD_ONLY:
+            return _build_legacy_benchmark_status(logbook_dir)
+        return _build_indexed_benchmark_status(snapshot)
+    return _build_legacy_benchmark_status(logbook_dir)
+
+
+def _build_legacy_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
     artifacts = [_artifact_status(logbook_dir, label, path) for label, path in _STAGES]
     return {
         "schema": "yacht.benchmark-status.v1",
@@ -48,8 +61,8 @@ def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
     }
 
 
-def _build_indexed_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
-    snapshot = require_logbook(logbook_dir)
+def _build_indexed_benchmark_status(snapshot: LogbookSnapshot) -> dict[str, Any]:
+    logbook_dir = snapshot.logbook
     artifacts = _indexed_artifacts(snapshot)
     return {
         "schema": "yacht.benchmark-status.v1",
@@ -66,7 +79,7 @@ def _build_indexed_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
             }
             for comparison in snapshot.comparisons
         ],
-        "surfaces": load_logbook_surfaces(logbook_dir),
+        "surfaces": load_snapshot_surfaces(snapshot),
         "artifacts": artifacts,
         "next_steps": _next_steps(logbook_dir, artifacts),
     }
@@ -96,25 +109,16 @@ _STAGES = (
 )
 
 
-_REPETITION_STAGES = (
-    ("real benchmark repetitions", REAL_BENCHMARK_REPETITIONS_PATH),
-    ("benchmark aggregate", BENCHMARK_AGGREGATE_PATH),
-)
-
-
-def _is_repetition_logbook(logbook_dir: Path) -> bool:
-    return any((logbook_dir / path).exists() for _, path in _REPETITION_STAGES)
-
-
-def _build_repetition_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
-    artifacts = [
-        _artifact_status(logbook_dir, label, path) for label, path in _REPETITION_STAGES
-    ]
+def _build_repetition_benchmark_status(
+    snapshot: LogbookSnapshot,
+) -> dict[str, Any]:
+    logbook_dir = snapshot.logbook
+    artifacts = _indexed_artifacts(snapshot)
     return {
         "schema": "yacht.benchmark-status.v1",
         "logbook": str(logbook_dir),
         "status": _repetition_overall_status(artifacts),
-        "surfaces": load_logbook_surfaces(logbook_dir),
+        "surfaces": load_snapshot_surfaces(snapshot),
         "artifacts": artifacts,
         "next_steps": _repetition_next_steps(logbook_dir, artifacts),
     }
@@ -217,7 +221,7 @@ def _next_steps(
         artifact = _artifact_by_label(artifacts, label)
         steps = artifact.get("next_steps")
         if isinstance(steps, list) and steps:
-            return [step for step in steps if isinstance(step, dict)]
+            return relocate_command_steps(steps, logbook_dir)
 
     if _artifact_by_label(artifacts, "benchmark scorecard")["present"]:
         return [
@@ -263,7 +267,7 @@ def _repetition_next_steps(
     repetitions = _artifact_by_label(artifacts, "real benchmark repetitions")
     steps = repetitions.get("next_steps")
     if isinstance(steps, list) and steps:
-        return [step for step in steps if isinstance(step, dict)]
+        return relocate_command_steps(steps, logbook_dir)
     aggregate = _artifact_by_label(artifacts, "benchmark aggregate")
     if aggregate["present"]:
         return [

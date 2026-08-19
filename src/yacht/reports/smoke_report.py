@@ -10,11 +10,17 @@ from yacht.contracts.schemas import (
     validate_smoke_readiness_report_document,
     validate_task_attempt_scorecard_document,
 )
-from yacht.reports.smoke_readiness import SMOKE_READINESS_REPORT_PATH
-from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
+from yacht.logbook.index import LogbookSnapshot, LogbookState, require_logbook
 
 
 SMOKE_REPORT_PATH = Path("smoke-report.txt")
+
+
+_REPORT_ARTIFACT_PATHS = {
+    "smoke_report": SMOKE_REPORT_PATH,
+    "smoke_readiness_report": Path("smoke-readiness-report.json"),
+    "task_attempt_scorecard": Path("task-attempt-scorecard.json"),
+}
 
 
 def write_smoke_report(logbook_dir: Path) -> str:
@@ -26,17 +32,20 @@ def write_smoke_report(logbook_dir: Path) -> str:
 
 
 def render_smoke_report(logbook_dir: Path, output_format: str = "text") -> str:
-    readiness = _load_readiness(logbook_dir)
-    scorecard = _load_scorecard(logbook_dir)
+    snapshot = require_logbook(logbook_dir)
+    readiness = _load_readiness(snapshot)
+    scorecard = _load_scorecard(snapshot)
     if output_format == "markdown":
-        return _render_markdown(logbook_dir, readiness, scorecard)
-    return _render_text(logbook_dir, readiness, scorecard)
+        return _render_markdown(snapshot, readiness, scorecard)
+    return _render_text(snapshot, readiness, scorecard)
 
 
-def _load_readiness(logbook_dir: Path) -> dict[str, Any]:
-    path = logbook_dir / SMOKE_READINESS_REPORT_PATH
-    if not path.exists():
-        raise ConfigError(f"smoke readiness report artifact not found: {path}")
+def _load_readiness(snapshot: LogbookSnapshot) -> dict[str, Any]:
+    path = _require_artifact(
+        snapshot,
+        "smoke_readiness_report",
+        "smoke readiness report",
+    )
     readiness = _load_json_object(path, "smoke readiness report artifact")
     try:
         validate_smoke_readiness_report_document(readiness)
@@ -47,10 +56,12 @@ def _load_readiness(logbook_dir: Path) -> dict[str, Any]:
     return readiness
 
 
-def _load_scorecard(logbook_dir: Path) -> dict[str, Any]:
-    path = logbook_dir / TASK_ATTEMPT_SCORECARD_PATH
-    if not path.exists():
-        raise ConfigError(f"task attempt scorecard artifact not found: {path}")
+def _load_scorecard(snapshot: LogbookSnapshot) -> dict[str, Any]:
+    path = _require_artifact(
+        snapshot,
+        "task_attempt_scorecard",
+        "task attempt scorecard",
+    )
     scorecard = _load_json_object(path, "task attempt scorecard artifact")
     try:
         validate_task_attempt_scorecard_document(scorecard)
@@ -59,6 +70,19 @@ def _load_scorecard(logbook_dir: Path) -> dict[str, Any]:
             f"task attempt scorecard artifact is invalid: {error}"
         ) from error
     return scorecard
+
+
+def _require_artifact(
+    snapshot: LogbookSnapshot,
+    name: str,
+    label: str,
+) -> Path:
+    artifact = snapshot.artifact(name)
+    if artifact is None:
+        raise ConfigError(f"{label} artifact is not indexed")
+    if not artifact.file_present:
+        raise ConfigError(f"{label} artifact not found: {artifact.path}")
+    return artifact.path
 
 
 def _load_json_object(path: Path, label: str) -> dict[str, Any]:
@@ -72,7 +96,7 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
 
 
 def _render_text(
-    logbook_dir: Path,
+    snapshot: LogbookSnapshot,
     readiness: dict[str, Any],
     scorecard: dict[str, Any],
 ) -> str:
@@ -90,7 +114,7 @@ def _render_text(
         f"Distinct tools: {scorecard_summary['total_distinct_tool_uses']} | "
         f"Tokens: {scorecard_summary['total_tokens']} | "
         f"Cost: {_cost(scorecard_summary['total_cost'])}",
-        _artifact_line(logbook_dir),
+        _artifact_line(snapshot),
         "",
         "comparison | vessel | status | preflight | attempts | tools | expected | "
         "missing | tokens | cost | details",
@@ -103,7 +127,7 @@ def _render_text(
 
 
 def _render_markdown(
-    logbook_dir: Path,
+    snapshot: LogbookSnapshot,
     readiness: dict[str, Any],
     scorecard: dict[str, Any],
 ) -> str:
@@ -123,10 +147,12 @@ def _render_markdown(
         f"- Distinct tools: {scorecard_summary['total_distinct_tool_uses']}",
         f"- Tokens: {scorecard_summary['total_tokens']}",
         f"- Cost: {_cost(scorecard_summary['total_cost'])}",
-        f"- Logbook: `{logbook_dir}`",
-        f"- Smoke report: `{logbook_dir / SMOKE_REPORT_PATH}`",
-        f"- Smoke readiness report: `{logbook_dir / SMOKE_READINESS_REPORT_PATH}`",
-        f"- Task attempt scorecard: `{logbook_dir / TASK_ATTEMPT_SCORECARD_PATH}`",
+        f"- Logbook: `{snapshot.logbook}`",
+        f"- Smoke report: `{_artifact_location(snapshot, 'smoke_report')}`",
+        f"- Smoke readiness report: "
+        f"`{_artifact_location(snapshot, 'smoke_readiness_report')}`",
+        f"- Task attempt scorecard: "
+        f"`{_artifact_location(snapshot, 'task_attempt_scorecard')}`",
         "",
         "| Comparison | Vessel | Status | Preflight | Attempts | Tools | Expected | "
         "Missing | Tokens | Cost | Details |",
@@ -139,13 +165,26 @@ def _render_markdown(
     return "\n".join(lines) + "\n"
 
 
-def _artifact_line(logbook_dir: Path) -> str:
+def _artifact_line(snapshot: LogbookSnapshot) -> str:
     return (
-        f"Artifacts: logbook={logbook_dir} | "
-        f"readiness={logbook_dir / SMOKE_READINESS_REPORT_PATH} | "
-        f"scorecard={logbook_dir / TASK_ATTEMPT_SCORECARD_PATH} | "
-        f"report={logbook_dir / SMOKE_REPORT_PATH}"
+        f"Artifacts: logbook={snapshot.logbook} | "
+        f"readiness={_artifact_location(snapshot, 'smoke_readiness_report')} | "
+        f"scorecard={_artifact_location(snapshot, 'task_attempt_scorecard')} | "
+        f"report={_artifact_location(snapshot, 'smoke_report')}"
     )
+
+
+def _artifact_location(snapshot: LogbookSnapshot, name: str) -> str:
+    artifact = snapshot.artifact(name)
+    if (
+        artifact is not None
+        and snapshot.state is not LogbookState.LEGACY_SCORECARD_ONLY
+    ):
+        return str(artifact.path)
+    default_path = _REPORT_ARTIFACT_PATHS.get(name)
+    if default_path is not None:
+        return str(snapshot.logbook / default_path)
+    return "not indexed"
 
 
 def _vessels(readiness: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
