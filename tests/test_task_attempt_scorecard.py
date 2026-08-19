@@ -247,6 +247,7 @@ class LegacyLogbookReaderTests(unittest.TestCase):
         # loaded document, and indexing a renamed field on a legacy
         # logbook crashed the CLI even while the unit tests passed.
         from yacht.reports.benchmark_report import _load_task_attempt_scorecard
+        from yacht.logbook.index import require_logbook
 
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook = Path(temp_dir)
@@ -254,7 +255,7 @@ class LegacyLogbookReaderTests(unittest.TestCase):
                 json.dumps(_legacy_scorecard()), encoding="utf-8"
             )
 
-            loaded = _load_task_attempt_scorecard(logbook)
+            loaded = _load_task_attempt_scorecard(require_logbook(logbook))
 
             assert loaded is not None
             self.assertIn("total_distinct_tool_uses", loaded["summary"])

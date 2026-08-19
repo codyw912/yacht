@@ -231,6 +231,48 @@ class EveryEvalEverExportTests(unittest.TestCase):
                     retrieved_timestamp=RETRIEVED,
                 )
 
+    def test_export_preserves_legacy_fixed_path_logbooks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook = _logbook(Path(temp_dir))
+            (logbook / "run-index.json").unlink()
+
+            exports = build_every_eval_ever_export(
+                logbook_dir=logbook,
+                retrieved_timestamp=RETRIEVED,
+            )
+
+            self.assertEqual(len(exports), 2)
+            candidate = _by_vessel(exports, "candidate")["document"]
+            self.assertNotIn("evaluation_timestamp", candidate)
+            self.assertNotIn(
+                "evaluation_timestamp",
+                candidate["evaluation_results"][0],
+            )
+
+    def test_export_resolves_moved_indexed_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook = _logbook(Path(temp_dir))
+            artifacts_dir = logbook / "artifacts"
+            artifacts_dir.mkdir()
+            index_path = logbook / "run-index.json"
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+            for name, filename in (
+                ("course_handoff", "course-handoff.json"),
+                ("benchmark_scorecard", "benchmark-scorecard.json"),
+                ("task_attempt_scorecard", "task-attempt-scorecard.json"),
+            ):
+                moved = artifacts_dir / filename
+                (logbook / filename).rename(moved)
+                index["artifacts"][name]["path"] = str(moved)
+            _write(index_path, index)
+
+            exports = build_every_eval_ever_export(
+                logbook_dir=logbook,
+                retrieved_timestamp=RETRIEVED,
+            )
+
+            self.assertEqual(len(exports), 2)
+
     def test_verify_detects_extra_instance_rows(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -458,6 +500,31 @@ def _logbook(
             "run_kind": "real-benchmark",
             "status": "complete",
             "updated_at": RUN_DATE,
+            "config_path": "/tmp/regatta.toml",
+            "logbook": str(logbook),
+            "regatta": "skill-regatta",
+            "course": "team-conventions-ab",
+            "comparisons": [
+                {
+                    "name": "skill-vs-baseline",
+                    "course": "team-conventions-ab",
+                    "vessels": ["control", "candidate"],
+                }
+            ],
+            "artifacts": {
+                "course_handoff": {
+                    "path": str(logbook / "course-handoff.json"),
+                    "present": True,
+                },
+                "benchmark_scorecard": {
+                    "path": str(logbook / "benchmark-scorecard.json"),
+                    "present": True,
+                },
+                "task_attempt_scorecard": {
+                    "path": str(logbook / "task-attempt-scorecard.json"),
+                    "present": True,
+                },
+            },
         },
     )
     attempts_dir = logbook / "task-attempts" / "skill-vs-baseline" / "candidate"

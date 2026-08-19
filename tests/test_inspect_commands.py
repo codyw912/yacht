@@ -9,13 +9,37 @@ from unittest.mock import patch
 
 from yacht.cli import main
 from yacht.logbook.io import write_json
-from yacht.reports.smoke_status import build_smoke_status
+from yacht.reports.smoke_status import build_smoke_status, render_smoke_status
 
 
 def _write_smoke_logbook(logbook_dir: Path) -> None:
     write_json(
         logbook_dir / "run-index.json",
-        {"schema": "yacht.run-index.v1", "run_kind": "real-smoke"},
+        {
+            "schema": "yacht.run-index.v1",
+            "run_kind": "real-smoke",
+            "status": "complete",
+            "updated_at": "2026-07-31T00:00:00Z",
+            "config_path": str(logbook_dir.parent / "regatta.toml"),
+            "logbook": str(logbook_dir),
+            "regatta": "example",
+            "course": "smoke",
+            "comparisons": [],
+            "artifacts": {
+                "real_smoke_runbook": {
+                    "path": str(logbook_dir / "real-smoke-runbook.json"),
+                    "present": False,
+                },
+                "smoke_readiness_report": {
+                    "path": str(logbook_dir / "smoke-readiness-report.json"),
+                    "present": True,
+                },
+                "task_attempt_scorecard": {
+                    "path": str(logbook_dir / "task-attempt-scorecard.json"),
+                    "present": False,
+                },
+            },
+        },
     )
     write_json(
         logbook_dir / "smoke-readiness-report.json",
@@ -191,6 +215,19 @@ class ReportCommandTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertIn("apply to benchmark logbooks", stderr.getvalue())
 
+    def test_report_does_not_fallback_past_malformed_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            _write_malformed_benchmark_logbook(logbook_dir)
+            write_json(logbook_dir / "benchmark-scorecard.json", {})
+            stderr = StringIO()
+
+            with redirect_stdout(StringIO()), redirect_stderr(stderr):
+                exit_code = main(["report", "--logbook", str(logbook_dir)])
+
+            self.assertEqual(exit_code, 1)
+            self.assertIn("run index", stderr.getvalue())
+
     def test_report_writes_output_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
@@ -238,8 +275,60 @@ class SmokeStatusBuilderTests(unittest.TestCase):
             status = build_smoke_status(logbook_dir)
 
             self.assertEqual(status["status"], "ready")
+            self.assertEqual(status["lifecycle_status"], "complete")
+            self.assertEqual(status["readiness_status"], "ready")
             self.assertEqual(status["missing"], [])
             self.assertIn("yacht report", status["next_step"])
+
+    def test_running_smoke_marks_readiness_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            write_json(
+                logbook_dir / "run-index.json",
+                {
+                    "schema": "yacht.run-index.v2",
+                    "run_kind": "real-smoke",
+                    "status": "running",
+                    "stage": "preflight",
+                    "started_at": "2026-08-19T00:00:00Z",
+                    "updated_at": "2026-08-19T00:01:00Z",
+                    "config_path": "/tmp/regatta.toml",
+                    "regatta": "fixture-regatta",
+                    "course": "fixture-course",
+                    "comparisons": [],
+                    "artifacts": {
+                        "smoke_readiness_report": {
+                            "path": "smoke-readiness-report.json",
+                            "present": False,
+                        }
+                    },
+                },
+            )
+
+            status = build_smoke_status(logbook_dir)
+            markdown = render_smoke_status(logbook_dir, "markdown")
+
+            self.assertEqual(status["status"], "running")
+            self.assertEqual(status["lifecycle_status"], "running")
+            self.assertIsNone(status["readiness_status"])
+            self.assertIn("Readiness: `unavailable`", markdown)
+            self.assertNotIn("Readiness: `None`", markdown)
+
+    def test_legacy_smoke_logbook_retains_expected_artifact_checklist(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            write_json(
+                logbook_dir / "smoke-readiness-report.json",
+                {"schema": "yacht.smoke-readiness-report.v1", "status": "ready"},
+            )
+
+            status = build_smoke_status(logbook_dir)
+
+            self.assertEqual(
+                status["missing"],
+                ["run-index", "real-smoke-runbook", "task-attempt-scorecard"],
+            )
+            self.assertIn("yacht run", status["next_step"])
 
     def test_json_round_trips(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

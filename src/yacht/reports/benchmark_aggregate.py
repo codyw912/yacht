@@ -5,6 +5,11 @@ import math
 from pathlib import Path
 from typing import Any
 
+from yacht.logbook.index import (
+    LogbookSnapshot,
+    is_logbook_candidate,
+    require_logbook,
+)
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.html_report import render_benchmark_aggregate_html
 from yacht.reports.statistics import (
@@ -29,10 +34,7 @@ from yacht.reports.provenance_format import (
     provenance_model_label,
     provenance_tools_label,
 )
-from yacht.reports.task_attempt_scorecard import (
-    TASK_ATTEMPT_SCORECARD_PATH,
-    normalize_task_attempt_scorecard,
-)
+from yacht.reports.task_attempt_scorecard import normalize_task_attempt_scorecard
 from yacht.workflows.provenance import collapse_provenance
 
 
@@ -83,9 +85,21 @@ def render_benchmark_aggregate_document(
 
 
 def _load_run(logbook_dir: Path) -> dict[str, Any]:
-    scorecard_path = logbook_dir / BENCHMARK_SCORECARD_PATH
-    if not scorecard_path.exists():
-        raise ConfigError(f"benchmark scorecard artifact not found: {scorecard_path}")
+    if not is_logbook_candidate(logbook_dir):
+        raise ConfigError(
+            "benchmark scorecard artifact not found: "
+            f"{logbook_dir / BENCHMARK_SCORECARD_PATH}"
+        )
+    snapshot = require_logbook(logbook_dir)
+    scorecard_artifact = snapshot.artifact("benchmark_scorecard")
+    if scorecard_artifact is None or not scorecard_artifact.file_present:
+        path = (
+            scorecard_artifact.path
+            if scorecard_artifact is not None
+            else logbook_dir / BENCHMARK_SCORECARD_PATH
+        )
+        raise ConfigError(f"benchmark scorecard artifact not found: {path}")
+    scorecard_path = scorecard_artifact.path
     scorecard = _load_json(scorecard_path, "benchmark scorecard artifact")
     try:
         validate_benchmark_scorecard_document(scorecard)
@@ -96,14 +110,17 @@ def _load_run(logbook_dir: Path) -> dict[str, Any]:
     return {
         "logbook": logbook_dir,
         "scorecard": scorecard,
-        "attempt_scorecard": _load_attempt_scorecard(logbook_dir),
+        "attempt_scorecard": _load_attempt_scorecard(snapshot),
     }
 
 
-def _load_attempt_scorecard(logbook_dir: Path) -> dict[str, Any] | None:
-    path = logbook_dir / TASK_ATTEMPT_SCORECARD_PATH
-    if not path.exists():
+def _load_attempt_scorecard(
+    snapshot: LogbookSnapshot,
+) -> dict[str, Any] | None:
+    artifact = snapshot.artifact("task_attempt_scorecard")
+    if artifact is None or not artifact.file_present:
         return None
+    path = artifact.path
     scorecard = _load_json(path, "task attempt scorecard artifact")
     try:
         validate_task_attempt_scorecard_document(scorecard)

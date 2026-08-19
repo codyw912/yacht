@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from tests.test_benchmark_aggregate import _write_logbook
+from tests.test_serve_collection import _write_v2_index
 from yacht.serve.server import make_server, respond
 
 
@@ -41,6 +42,23 @@ class RespondTests(unittest.TestCase):
             self.assertIn('class="fail"', body)
             self.assertIn("broken", body)
             self.assertIn("not valid JSON", body)
+
+    def test_index_renders_index_lifecycle_and_missing_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook = root / "running"
+            logbook.mkdir()
+            _write_v2_index(
+                logbook,
+                {"benchmark_scorecard": "artifacts/benchmark-scorecard.json"},
+                status="running",
+            )
+
+            status, body = respond(root, "/")
+
+            self.assertEqual(status, 200)
+            self.assertIn(">running</td>", body)
+            self.assertIn("missing artifact: benchmark_scorecard", body)
 
     def test_index_with_no_logbooks_says_so(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

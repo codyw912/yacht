@@ -4,8 +4,9 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from yacht.domain.model import ConfigError, run_regatta
+from yacht.contracts.json_schema import schema_text
 from yacht.contracts.schemas import (
+    SchemaValidationError,
     BENCHMARK_AGGREGATE_SCHEMA,
     BENCHMARK_EXECUTION_PLAN_SCHEMA,
     BENCHMARK_GRADING_COLLECTION_SCHEMA,
@@ -23,6 +24,7 @@ from yacht.contracts.schemas import (
     REAL_SMOKE_RUNBOOK_SCHEMA,
     REGATTA_SCHEMA,
     RUN_INDEX_SCHEMA,
+    RUN_INDEX_V2_SCHEMA,
     RUNTIME_INSTANCES_SCHEMA,
     SCORECARD_SCHEMA,
     SMOKE_READINESS_REPORT_SCHEMA,
@@ -55,6 +57,7 @@ from yacht.contracts.schemas import (
     validate_task_attempt_document,
     validate_wake_document,
 )
+from yacht.domain.model import ConfigError, run_regatta
 
 
 VALID_REGATTA_CONFIG = """
@@ -87,10 +90,27 @@ model = "mock-fast"
 """
 
 
+def _valid_wake_document() -> dict[str, Any]:
+    return {
+        "schema": WAKE_SCHEMA,
+        "regatta": "schema-smoke-test",
+        "course": "tiny-course",
+        "vessel": "baseline",
+        "model": "mock-fast",
+        "rigging": [],
+        "task_id": "task-1",
+        "task_title": "Fix a failing test",
+        "passed": True,
+        "metrics": {
+            "tokens": 42,
+            "duration_seconds": 1.5,
+            "usage_source": "reported",
+        },
+    }
+
+
 class SchemaTests(unittest.TestCase):
     def test_contract_schemas_are_json_schema_documents(self) -> None:
-        schema_dir = Path("schemas")
-
         for schema_name in (
             REGATTA_SCHEMA,
             WAKE_SCHEMA,
@@ -113,9 +133,9 @@ class SchemaTests(unittest.TestCase):
             SMOKE_READINESS_REPORT_SCHEMA,
             REAL_SMOKE_RUNBOOK_SCHEMA,
             REAL_BENCHMARK_RUNBOOK_SCHEMA,
+            RUN_INDEX_V2_SCHEMA,
         ):
-            schema_path = schema_dir / f"{schema_name}.schema.json"
-            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            schema = json.loads(schema_text(schema_name))
 
             self.assertEqual(
                 schema["$schema"],
@@ -127,6 +147,39 @@ class SchemaTests(unittest.TestCase):
             )
             self.assertEqual(schema["type"], "object")
             self.assertFalse(schema["additionalProperties"])
+
+    def test_wake_schema_accepts_reported_usage_source(self) -> None:
+        validate_wake_document(_valid_wake_document())
+
+    def test_wake_schema_reports_missing_fields_with_document_path(self) -> None:
+        document = _valid_wake_document()
+        del document["course"]
+
+        with self.assertRaisesRegex(
+            SchemaValidationError,
+            "wake: 'course' is a required property",
+        ):
+            validate_wake_document(document)
+
+    def test_wake_schema_rejects_unknown_usage_source(self) -> None:
+        document = _valid_wake_document()
+        document["metrics"]["usage_source"] = "guessed"
+
+        with self.assertRaisesRegex(
+            SchemaValidationError,
+            r"wake\.metrics\.usage_source: .*not one of",
+        ):
+            validate_wake_document(document)
+
+    def test_wake_schema_rejects_unknown_fields(self) -> None:
+        document = _valid_wake_document()
+        document["unexpected"] = True
+
+        with self.assertRaisesRegex(
+            SchemaValidationError,
+            "wake: Additional properties are not allowed",
+        ):
+            validate_wake_document(document)
 
     def test_runtime_instances_documents_include_schema_version(self) -> None:
         document = {
@@ -232,11 +285,7 @@ class SchemaTests(unittest.TestCase):
             )
             agent = _agent_to_json(None, str(trial_dir), True)
 
-        schema = json.loads(
-            Path("schemas/yacht.task-attempt.v1.schema.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        schema = json.loads(schema_text(TASK_ATTEMPT_SCHEMA))
         agent_schema = schema["$defs"]["agent"]
         self.assertFalse(agent_schema["additionalProperties"])
         declared = set(agent_schema["properties"])
@@ -1749,6 +1798,33 @@ def _valid_run_index_document() -> dict[str, Any]:
     }
 
 
+def _valid_run_index_v2_document() -> dict[str, Any]:
+    return {
+        "schema": RUN_INDEX_V2_SCHEMA,
+        "run_kind": "real-benchmark",
+        "status": "running",
+        "stage": "preflight",
+        "started_at": "2026-08-19T00:00:00Z",
+        "updated_at": "2026-08-19T00:01:00Z",
+        "config_path": "/tmp/regatta.toml",
+        "regatta": "demo",
+        "course": "demo-course",
+        "comparisons": [],
+        "artifacts": {
+            "benchmark_scorecard": {
+                "path": "benchmark-scorecard.json",
+                "present": False,
+            }
+        },
+        "children": [
+            {
+                "path": "runs/run-1",
+                "status": "complete",
+            }
+        ],
+    }
+
+
 class RunIndexSchemaTests(unittest.TestCase):
     def test_run_index_documents_include_schema_version(self) -> None:
         validate_run_index_document(_valid_run_index_document())
@@ -1769,7 +1845,7 @@ class RunIndexSchemaTests(unittest.TestCase):
 
     def test_run_index_rejects_unknown_schema(self) -> None:
         document = _valid_run_index_document()
-        document["schema"] = "yacht.run-index.v2"
+        document["schema"] = "yacht.run-index.v3"
 
         with self.assertRaisesRegex(ValueError, "schema"):
             validate_run_index_document(document)
@@ -1796,6 +1872,31 @@ class RunIndexSchemaTests(unittest.TestCase):
             ValueError,
             "artifacts.benchmark_scorecard.*present",
         ):
+            validate_run_index_document(document)
+
+    def test_run_index_v2_accepts_relative_references(self) -> None:
+        validate_run_index_document(_valid_run_index_v2_document())
+
+    def test_run_index_v2_requires_terminal_timestamp_when_complete(self) -> None:
+        document = _valid_run_index_v2_document()
+        document["status"] = "complete"
+        document["stage"] = "complete"
+
+        with self.assertRaisesRegex(ValueError, "terminal_at"):
+            validate_run_index_document(document)
+
+    def test_run_index_v2_rejects_terminal_timestamp_while_running(self) -> None:
+        document = _valid_run_index_v2_document()
+        document["terminal_at"] = "2026-08-19T00:02:00Z"
+
+        with self.assertRaisesRegex(ValueError, "terminal_at"):
+            validate_run_index_document(document)
+
+    def test_run_index_v2_rejects_traversal_reference(self) -> None:
+        document = _valid_run_index_v2_document()
+        document["artifacts"]["benchmark_scorecard"]["path"] = "../scorecard.json"
+
+        with self.assertRaisesRegex(ValueError, "path"):
             validate_run_index_document(document)
 
 

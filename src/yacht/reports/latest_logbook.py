@@ -5,25 +5,18 @@ import json
 from pathlib import Path
 from typing import Any
 
-from yacht.logbook.index import RUN_INDEX_PATH, read_run_kind
-from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
-from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
-from yacht.reports.next_steps import command_step
-from yacht.workflows.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
-from yacht.workflows.real_benchmark_repetitions import REAL_BENCHMARK_REPETITIONS_PATH
 from yacht.domain.model import ConfigError
+from yacht.logbook.index import (
+    RUN_INDEX_PATH,
+    LogbookSnapshot,
+    LogbookState,
+    is_logbook_candidate,
+    read_logbook,
+)
+from yacht.reports.next_steps import command_step
 
 
 LATEST_LOGBOOK_SCHEMA = "yacht.latest-logbook.v1"
-
-
-_BENCHMARK_ARTIFACTS = {
-    "real_benchmark_eval": REAL_BENCHMARK_EVAL_PATH,
-    "real_benchmark_repetitions": REAL_BENCHMARK_REPETITIONS_PATH,
-    "benchmark_scorecard": BENCHMARK_SCORECARD_PATH,
-    "benchmark_aggregate": BENCHMARK_AGGREGATE_PATH,
-    "run_index": RUN_INDEX_PATH,
-}
 
 
 def build_latest_logbook(root: Path, *, prefix: str = "yacht-") -> dict[str, Any]:
@@ -94,33 +87,48 @@ def _candidate_logbooks(root: Path, *, prefix: str) -> list[dict[str, Any]]:
 
 
 def _candidate_logbook(logbook: Path) -> dict[str, Any] | None:
-    present = {
-        name: logbook / relative_path
-        for name, relative_path in _BENCHMARK_ARTIFACTS.items()
-        if (logbook / relative_path).is_file()
-    }
-    if not present:
+    if not is_logbook_candidate(logbook):
         return None
-    updated_timestamp = max(path.stat().st_mtime for path in present.values())
+    snapshot = read_logbook(logbook)
+    present = {
+        artifact.name: str(artifact.path)
+        for artifact in snapshot.artifacts
+        if artifact.present
+    }
+    index_path = logbook / RUN_INDEX_PATH
+    if index_path.is_file():
+        present["run_index"] = str(index_path)
+    updated_timestamp = _updated_timestamp(snapshot, index_path)
     return {
         "logbook": str(logbook),
-        "kind": _logbook_kind(present),
+        "kind": _logbook_kind(snapshot),
         "updated_timestamp": updated_timestamp,
         "updated_at": datetime.fromtimestamp(updated_timestamp).isoformat(
             timespec="seconds"
         ),
-        "artifacts": {name: str(path) for name, path in present.items()},
+        "artifacts": present,
     }
 
 
-def _logbook_kind(present: dict[str, Path]) -> str:
-    if "real_benchmark_repetitions" in present or "benchmark_aggregate" in present:
+def _updated_timestamp(snapshot: LogbookSnapshot, index_path: Path) -> float:
+    if snapshot.updated_at is not None:
+        return datetime.fromisoformat(
+            snapshot.updated_at.replace("Z", "+00:00")
+        ).timestamp()
+    if index_path.exists() or index_path.is_symlink():
+        return index_path.lstat().st_mtime
+    return snapshot.logbook.stat().st_mtime
+
+
+def _logbook_kind(snapshot: LogbookSnapshot) -> str:
+    artifact_names = {artifact.name for artifact in snapshot.artifacts}
+    if artifact_names & {"real_benchmark_repetitions", "benchmark_aggregate"}:
         return "benchmark-repetitions"
-    if set(present) == {"run_index"}:
-        run_kind = read_run_kind(present["run_index"].parent)
-        if run_kind is not None:
-            return run_kind
-    return "benchmark"
+    if snapshot.state is LogbookState.BROKEN:
+        return "broken"
+    if snapshot.run_kind == "real-benchmark":
+        return "benchmark"
+    return snapshot.run_kind or "benchmark"
 
 
 def _next_steps(logbook: Path) -> list[dict[str, object]]:

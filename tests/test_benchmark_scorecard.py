@@ -8,6 +8,7 @@ from pathlib import Path
 
 from tests.preflight_artifacts import write_preflight_artifact
 from yacht.reports.benchmark_scorecard import write_benchmark_scorecard
+from yacht.reports.benchmark_report import render_benchmark_report
 from yacht.reports.statistics import repetition_budget, wilson_interval
 from yacht.cli import main
 from yacht.domain.model import ConfigError
@@ -414,6 +415,43 @@ class BenchmarkScorecardTests(unittest.TestCase):
                     ]
                 ),
             )
+
+    def test_benchmark_report_relocates_indexed_next_step_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+            scorecard_path = logbook_dir / "benchmark-scorecard.json"
+            scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
+            recorded_logbook = Path("/tmp/original-logbook")
+            scorecard["next_steps"] = [
+                {
+                    "label": "Write markdown benchmark report",
+                    "reason": "Share the report.",
+                    "command": [
+                        "uv",
+                        "run",
+                        "yacht",
+                        "report",
+                        "--logbook",
+                        str(recorded_logbook),
+                        "--format",
+                        "markdown",
+                        "--output",
+                        str(recorded_logbook / "benchmark-report.md"),
+                    ],
+                    "command_preview": (
+                        f"uv run yacht report --logbook {recorded_logbook} "
+                        "--format markdown --output "
+                        f"{recorded_logbook / 'benchmark-report.md'}"
+                    ),
+                }
+            ]
+            scorecard_path.write_text(json.dumps(scorecard), encoding="utf-8")
+
+            html = render_benchmark_report(logbook_dir, output_format="html")
+
+            self.assertIn(str(logbook_dir / "benchmark-report.md"), html)
+            self.assertNotIn(str(recorded_logbook), html)
 
     def test_benchmark_report_prints_surface_summary_when_available(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

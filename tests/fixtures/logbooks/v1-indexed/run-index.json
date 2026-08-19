@@ -1,0 +1,17 @@
+{
+  "schema": "yacht.run-index.v1",
+  "run_kind": "real-benchmark",
+  "status": "complete",
+  "updated_at": "2026-08-19T00:00:00Z",
+  "config_path": "/tmp/regatta.toml",
+  "logbook": "logbook",
+  "regatta": "fixture-regatta",
+  "course": "fixture-course",
+  "comparisons": [],
+  "artifacts": {
+    "real_benchmark_eval": {
+      "path": "logbook/wake.json",
+      "present": true
+    }
+  }
+}

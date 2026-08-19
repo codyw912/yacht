@@ -50,8 +50,8 @@ def respond(root: Path, request_path: str) -> tuple[int, str]:
             return 200, _vessels_page(root, split.query)
         except ConfigError as error:
             return 400, _bad_request_page(str(error))
-    if len(parts) == 2 and parts[0] == "logbook":
-        entry = _entry_by_id(root, parts[1])
+    if len(parts) >= 2 and parts[0] == "logbook":
+        entry = _entry_by_id(root, "/".join(parts[1:]))
         if entry is not None:
             return 200, _logbook_page(root, entry)
     return 404, _not_found_page(path)
@@ -96,9 +96,18 @@ def make_server(*, root: Path, host: str, port: int) -> ThreadingHTTPServer:
 
 
 def _entry_id(root: Path, entry: LogbookEntry) -> str:
-    if entry.logbook == root:
+    return _logbook_id(root, entry.logbook)
+
+
+def _logbook_id(root: Path, logbook: Path) -> str:
+    root = root.resolve()
+    logbook = logbook.resolve()
+    if logbook == root:
         return ROOT_ENTRY_ID
-    return entry.logbook.name
+    try:
+        return logbook.relative_to(root).as_posix()
+    except ValueError:
+        return logbook.name
 
 
 def _entry_by_id(root: Path, entry_id: str) -> LogbookEntry | None:
@@ -141,16 +150,33 @@ def _group_entries(
 
 def _entries_table(root: Path, entries: list[LogbookEntry]) -> str:
     rows = [
-        "<table><tr><th>Logbook</th><th>Updated</th><th>Status</th>"
-        "<th>Problems</th></tr>"
+        "<table><tr><th>Logbook</th><th>Updated</th><th>Lifecycle</th>"
+        "<th>Outcome</th><th>Problems</th></tr>"
     ]
     for entry in entries:
         entry_id = _entry_id(root, entry)
         status = _entry_status(entry)
-        status_class = "fail" if entry.errors else "ok"
+        outcome = _entry_outcome(entry)
+        problems_list = [
+            *entry.errors,
+            *(f"missing artifact: {artifact}" for artifact in entry.missing_artifacts),
+            *(
+                f"missing child Logbook: {child.path} "
+                f"(recorded {child.recorded_status})"
+                for child in entry.children
+                if not child.present
+            ),
+        ]
+        status_class = (
+            "fail"
+            if problems_list
+            or status in {"blocked", "failed"}
+            or outcome in {"blocked", "failed"}
+            else "ok"
+        )
         problems = (
-            "<br>".join(_e(error) for error in entry.errors)
-            if entry.errors
+            "<br>".join(_e(problem) for problem in problems_list)
+            if problems_list
             else '<span class="muted">none</span>'
         )
         rows.append(
@@ -158,6 +184,7 @@ def _entries_table(root: Path, entries: list[LogbookEntry]) -> str:
             f"<code>{_e(entry_id)}</code></a></td>"
             f"<td>{_e(entry.updated_at)}</td>"
             f'<td class="{status_class}">{_e(status)}</td>'
+            f'<td class="{status_class}">{_e(outcome)}</td>'
             f"<td>{problems}</td></tr>"
         )
     rows.append("</table>")
@@ -167,11 +194,17 @@ def _entries_table(root: Path, entries: list[LogbookEntry]) -> str:
 def _entry_status(entry: LogbookEntry) -> str:
     if entry.errors:
         return "broken"
+    if entry.status is not None:
+        return entry.status
     if entry.benchmark_scorecard is not None:
         return str(entry.benchmark_scorecard.get("status", "unknown"))
     if entry.attempt_scorecard is not None:
         return str(entry.attempt_scorecard.get("status", "unknown"))
     return "no scorecards"
+
+
+def _entry_outcome(entry: LogbookEntry) -> str:
+    return entry.outcome or "unknown"
 
 
 def _logbook_page(root: Path, entry: LogbookEntry) -> str:
@@ -180,15 +213,40 @@ def _logbook_page(root: Path, entry: LogbookEntry) -> str:
             scorecard=entry.benchmark_scorecard,
             task_attempt_scorecard=entry.attempt_scorecard,
             logbook_dir=entry.logbook,
+            scorecard_path=entry.benchmark_scorecard_path,
         )
     body = [f"<h1>{_e(_entry_id(root, entry))}</h1>"]
     body.append(
         f'<p class="sub">Logbook <code>{_e(str(entry.logbook))}</code> '
-        f"&middot; updated {_e(entry.updated_at)}</p>"
+        f"&middot; updated {_e(entry.updated_at)} &middot; lifecycle "
+        f"<code>{_e(_entry_status(entry))}</code> &middot; outcome "
+        f"<code>{_e(_entry_outcome(entry))}</code></p>"
     )
     if entry.errors:
         body.append("<h2>Broken artifacts</h2><ul>")
         body.extend(f'<li class="fail">{_e(error)}</li>' for error in entry.errors)
+        body.append("</ul>")
+    if entry.missing_artifacts:
+        body.append("<h2>Missing artifacts</h2><ul>")
+        body.extend(
+            f'<li class="fail">{_e(artifact)}</li>'
+            for artifact in entry.missing_artifacts
+        )
+        body.append("</ul>")
+    if entry.children:
+        body.append("<h2>Child Logbooks</h2><ul>")
+        for child in entry.children:
+            child_label = (
+                f"{child.path} — recorded {child.recorded_status}; "
+                f"{'present' if child.present else 'missing'}"
+            )
+            if child.present:
+                child_id = _logbook_id(root, child.path)
+                body.append(
+                    f'<li><a href="/logbook/{_e(child_id)}">{_e(child_label)}</a></li>'
+                )
+            else:
+                body.append(f'<li class="fail">{_e(child_label)}</li>')
         body.append("</ul>")
     if entry.attempt_scorecard is not None:
         body.append("<h2>Task attempts</h2>")

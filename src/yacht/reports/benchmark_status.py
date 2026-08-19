@@ -4,11 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from yacht.contracts.schemas import SchemaValidationError, validate_run_index_document
-from yacht.domain.model import ConfigError
-from yacht.logbook.index import RUN_INDEX_PATH
-from yacht.logbook.io import load_json_object
-from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
+from yacht.logbook.index import (
+    LogbookSnapshot,
+    LogbookState,
+    is_logbook_candidate,
+    require_logbook,
+)
 from yacht.workflows.benchmark_execution_plan import BENCHMARK_EXECUTION_PLAN_PATH
 from yacht.workflows.benchmark_grading_collection import (
     BENCHMARK_GRADING_COLLECTION_PATH,
@@ -17,13 +18,15 @@ from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.workflows.benchmark_launcher_handoff import BENCHMARK_LAUNCHER_HANDOFF_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.courses.handoff import COURSE_HANDOFF_PATH
-from yacht.reports.next_steps import command_step
+from yacht.reports.next_steps import command_step, relocate_command_steps
 from yacht.reports.preflight_evidence import PREFLIGHT_EVIDENCE_REPORT_PATH
 from yacht.workflows.real_benchmark_eval import REAL_BENCHMARK_EVAL_PATH
-from yacht.workflows.real_benchmark_repetitions import REAL_BENCHMARK_REPETITIONS_PATH
 from yacht.runtimes.instances import RUNTIME_INSTANCES_PLAN_PATH
-from yacht.reports.surface_summary import format_surface_summary
-from yacht.reports.surface_summary import load_logbook_surfaces
+from yacht.reports.surface_summary import (
+    format_surface_summary,
+    load_logbook_surfaces,
+    load_snapshot_surfaces,
+)
 from yacht.reports.task_attempt_scorecard import TASK_ATTEMPT_SCORECARD_PATH
 
 
@@ -35,11 +38,18 @@ def render_benchmark_status(logbook_dir: Path, output_format: str = "text") -> s
 
 
 def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
-    if _is_repetition_logbook(logbook_dir):
-        return _build_repetition_benchmark_status(logbook_dir)
-    index_path = logbook_dir / RUN_INDEX_PATH
-    if index_path.exists():
-        return _build_indexed_benchmark_status(logbook_dir, index_path)
+    if is_logbook_candidate(logbook_dir):
+        snapshot = require_logbook(logbook_dir)
+        artifact_names = {artifact.name for artifact in snapshot.artifacts}
+        if artifact_names & {"real_benchmark_repetitions", "benchmark_aggregate"}:
+            return _build_repetition_benchmark_status(snapshot)
+        if snapshot.state is LogbookState.LEGACY_SCORECARD_ONLY:
+            return _build_legacy_benchmark_status(logbook_dir)
+        return _build_indexed_benchmark_status(snapshot)
+    return _build_legacy_benchmark_status(logbook_dir)
+
+
+def _build_legacy_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
     artifacts = [_artifact_status(logbook_dir, label, path) for label, path in _STAGES]
     return {
         "schema": "yacht.benchmark-status.v1",
@@ -51,38 +61,37 @@ def build_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
     }
 
 
-def _build_indexed_benchmark_status(
-    logbook_dir: Path,
-    index_path: Path,
-) -> dict[str, Any]:
-    run_index = load_json_object(index_path, "run index artifact")
-    try:
-        validate_run_index_document(run_index)
-    except SchemaValidationError as error:
-        raise ConfigError(f"run index artifact {index_path}: {error}") from error
-    artifacts = _indexed_artifacts(run_index)
+def _build_indexed_benchmark_status(snapshot: LogbookSnapshot) -> dict[str, Any]:
+    logbook_dir = snapshot.logbook
+    artifacts = _indexed_artifacts(snapshot)
     return {
         "schema": "yacht.benchmark-status.v1",
         "logbook": str(logbook_dir),
-        "status": str(run_index["status"]),
-        "run_kind": str(run_index["run_kind"]),
-        "regatta": str(run_index["regatta"]),
-        "course": str(run_index["course"]),
-        "comparisons": run_index["comparisons"],
-        "surfaces": load_logbook_surfaces(logbook_dir),
+        "status": snapshot.status,
+        "run_kind": snapshot.run_kind,
+        "regatta": snapshot.regatta,
+        "course": snapshot.course,
+        "comparisons": [
+            {
+                "name": comparison.name,
+                "course": comparison.course,
+                "vessels": list(comparison.vessels),
+            }
+            for comparison in snapshot.comparisons
+        ],
+        "surfaces": load_snapshot_surfaces(snapshot),
         "artifacts": artifacts,
         "next_steps": _next_steps(logbook_dir, artifacts),
     }
 
 
-def _indexed_artifacts(run_index: dict[str, Any]) -> list[dict[str, Any]]:
-    artifacts = run_index.get("artifacts")
-    if not isinstance(artifacts, dict):
-        return []
+def _indexed_artifacts(snapshot: LogbookSnapshot) -> list[dict[str, Any]]:
     return [
-        _artifact_status_from_path(_artifact_label(name), Path(str(value["path"])))
-        for name, value in artifacts.items()
-        if isinstance(value, dict) and isinstance(value.get("path"), str)
+        _artifact_status_from_path(
+            _artifact_label(artifact.name),
+            artifact.path,
+        )
+        for artifact in snapshot.artifacts
     ]
 
 
@@ -100,26 +109,29 @@ _STAGES = (
 )
 
 
-_REPETITION_STAGES = (
-    ("real benchmark repetitions", REAL_BENCHMARK_REPETITIONS_PATH),
-    ("benchmark aggregate", BENCHMARK_AGGREGATE_PATH),
-)
-
-
-def _is_repetition_logbook(logbook_dir: Path) -> bool:
-    return any((logbook_dir / path).exists() for _, path in _REPETITION_STAGES)
-
-
-def _build_repetition_benchmark_status(logbook_dir: Path) -> dict[str, Any]:
-    artifacts = [
-        _artifact_status(logbook_dir, label, path) for label, path in _REPETITION_STAGES
+def _build_repetition_benchmark_status(
+    snapshot: LogbookSnapshot,
+) -> dict[str, Any]:
+    logbook_dir = snapshot.logbook
+    artifacts = _indexed_artifacts(snapshot)
+    children = [
+        {
+            "path": str(child.path),
+            "status": child.recorded_status,
+            "present": child.present,
+        }
+        for child in snapshot.children
     ]
+    status = snapshot.status or _repetition_overall_status(artifacts)
+    if any(not child["present"] or child["status"] != "complete" for child in children):
+        status = "blocked"
     return {
         "schema": "yacht.benchmark-status.v1",
         "logbook": str(logbook_dir),
-        "status": _repetition_overall_status(artifacts),
-        "surfaces": load_logbook_surfaces(logbook_dir),
+        "status": status,
+        "surfaces": load_snapshot_surfaces(snapshot),
         "artifacts": artifacts,
+        "children": children,
         "next_steps": _repetition_next_steps(logbook_dir, artifacts),
     }
 
@@ -144,6 +156,14 @@ def _artifact_status_from_path(
         "detail": "missing",
     }
     if not path.exists():
+        return artifact
+    if path.suffix != ".json":
+        artifact["state"] = "present"
+        artifact["detail"] = "present"
+        return artifact
+    if path.is_dir():
+        artifact["state"] = "present"
+        artifact["detail"] = "present"
         return artifact
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -217,7 +237,7 @@ def _next_steps(
         artifact = _artifact_by_label(artifacts, label)
         steps = artifact.get("next_steps")
         if isinstance(steps, list) and steps:
-            return [step for step in steps if isinstance(step, dict)]
+            return relocate_command_steps(steps, logbook_dir)
 
     if _artifact_by_label(artifacts, "benchmark scorecard")["present"]:
         return [
@@ -263,7 +283,7 @@ def _repetition_next_steps(
     repetitions = _artifact_by_label(artifacts, "real benchmark repetitions")
     steps = repetitions.get("next_steps")
     if isinstance(steps, list) and steps:
-        return [step for step in steps if isinstance(step, dict)]
+        return relocate_command_steps(steps, logbook_dir)
     aggregate = _artifact_by_label(artifacts, "benchmark aggregate")
     if aggregate["present"]:
         return [
@@ -332,6 +352,7 @@ def _render_text(status: dict[str, Any]) -> str:
         "state | artifact | path | detail",
     ]
     lines.extend(_artifact_row(artifact) for artifact in status["artifacts"])
+    lines.extend(_text_child_lines(status.get("children")))
     lines.extend(["", "Next steps:"])
     lines.extend(_text_next_step_lines(status["next_steps"]))
     return "\n".join(lines) + "\n"
@@ -353,9 +374,39 @@ def _render_markdown(status: dict[str, Any]) -> str:
         f"{artifact['detail']} |"
         for artifact in status["artifacts"]
     )
+    lines.extend(_markdown_child_lines(status.get("children")))
     lines.extend(["", "## Next steps", ""])
     lines.extend(_markdown_next_step_lines(status["next_steps"]))
     return "\n".join(lines) + "\n"
+
+
+def _text_child_lines(children: Any) -> list[str]:
+    if not isinstance(children, list) or not children:
+        return []
+    lines = ["", "recorded | present | child Logbook"]
+    lines.extend(
+        f"{child['status']} | {'yes' if child['present'] else 'no'} | {child['path']}"
+        for child in children
+    )
+    return lines
+
+
+def _markdown_child_lines(children: Any) -> list[str]:
+    if not isinstance(children, list) or not children:
+        return []
+    lines = [
+        "",
+        "### Child Logbooks",
+        "",
+        "| Recorded status | Present | Path |",
+        "| --- | --- | --- |",
+    ]
+    lines.extend(
+        f"| {child['status']} | {'yes' if child['present'] else 'no'} | "
+        f"{child['path']} |"
+        for child in children
+    )
+    return lines
 
 
 def _artifact_row(artifact: dict[str, Any]) -> str:

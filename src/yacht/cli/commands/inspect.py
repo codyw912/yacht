@@ -7,11 +7,10 @@ from pathlib import Path
 
 from yacht.cli import output
 from yacht.domain.model import ConfigError
-from yacht.logbook.index import read_run_kind
+from yacht.logbook.index import is_logbook_candidate, require_logbook
 from yacht.reports.benchmark_report import render_benchmark_report
 from yacht.reports.benchmark_status import render_benchmark_status
 from yacht.reports.latest_logbook import build_latest_logbook
-from yacht.reports.smoke_readiness import SMOKE_READINESS_REPORT_PATH
 from yacht.reports.html_report import render_smoke_html
 from yacht.reports.smoke_report import render_smoke_report
 from yacht.reports.smoke_status import build_smoke_status, render_smoke_status
@@ -175,13 +174,7 @@ def _run_kind(logbook_dir: Path) -> str:
             f"logbook directory not found: {logbook_dir}; run an eval first "
             "or pass --logbook"
         )
-    kind = read_run_kind(logbook_dir)
-    if kind == "real-smoke":
-        return "smoke"
-    if kind is not None:
+    if not is_logbook_candidate(logbook_dir):
         return "benchmark"
-    if (logbook_dir / SMOKE_READINESS_REPORT_PATH).exists() and not (
-        logbook_dir / "benchmark-scorecard.json"
-    ).exists():
-        return "smoke"
-    return "benchmark"
+    snapshot = require_logbook(logbook_dir)
+    return "smoke" if snapshot.run_kind == "real-smoke" else "benchmark"

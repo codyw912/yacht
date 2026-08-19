@@ -54,16 +54,24 @@ class RealSmokeEvalTests(unittest.TestCase):
             run_index = json.loads(
                 (logbook_dir / RUN_INDEX_PATH).read_text(encoding="utf-8")
             )
-            self.assertEqual(run_index["schema"], "yacht.run-index.v1")
+            self.assertEqual(run_index["schema"], "yacht.run-index.v2")
             self.assertEqual(run_index["run_kind"], "real-smoke")
-            self.assertEqual(run_index["status"], "ready")
+            self.assertEqual(run_index["status"], "complete")
+            self.assertEqual(run_index["stage"], "complete")
+            self.assertRegex(run_index["started_at"], r"^\d{4}-\d{2}-\d{2}T")
+            self.assertRegex(run_index["updated_at"], r"^\d{4}-\d{2}-\d{2}T")
+            self.assertRegex(run_index["terminal_at"], r"^\d{4}-\d{2}-\d{2}T")
             self.assertEqual(
                 run_index["config_path"],
                 "examples/local-agent-preflight-smoke.toml",
             )
-            self.assertEqual(run_index["logbook"], str(logbook_dir))
+            self.assertNotIn("logbook", run_index)
             self.assertEqual(run_index["regatta"], "local-agent-preflight-smoke")
             self.assertEqual(run_index["course"], "local-smoke")
+            self.assertEqual(
+                run_index["artifacts"]["smoke_readiness_report"]["path"],
+                "smoke-readiness-report.json",
+            )
             self.assertTrue(run_index["artifacts"]["smoke_readiness_report"]["present"])
             self.assertTrue((logbook_dir / "smoke-readiness-report.json").is_file())
             self.assertTrue((logbook_dir / "smoke-report.txt").is_file())
@@ -378,6 +386,12 @@ class RealSmokeEvalTests(unittest.TestCase):
             )
             self.assertEqual(task_requests, [])
             self.assertFalse((logbook_dir / "task-attempts").exists())
+            run_index = json.loads(
+                (logbook_dir / RUN_INDEX_PATH).read_text(encoding="utf-8")
+            )
+            self.assertEqual(run_index["status"], "blocked")
+            self.assertEqual(run_index["stage"], "preflight")
+            self.assertIn("terminal_at", run_index)
             self.assertFalse((logbook_dir / "smoke-readiness-report.json").exists())
             self.assertFalse((logbook_dir / "smoke-report.txt").exists())
 

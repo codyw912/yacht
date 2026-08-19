@@ -56,11 +56,13 @@ uv run yacht run examples/container-pi-fff-real-benchmark-smoke.toml \
 config: courses without an adapter run as smoke evals (preflight, task
 attempts, smoke readiness), and courses with an adapter run as real benchmarks
 (preflight, task attempts, candidate patch extraction, native launch, grading
-collection, scorecard). It writes the matching runbook artifact first, prints
-progress to stderr, and keeps stdout reserved for the completion summary. Pass
-`--format json` for the machine-readable payload. With `--repetitions N`,
-benchmark runs execute sequentially into `runs/run-001`, `runs/run-002`, and
-so on, then aggregate into `benchmark-aggregate.json` and
+collection, scorecard). It creates `run-index.json` before the first stage,
+then atomically refreshes lifecycle state and artifact presence at durable
+stage boundaries. Progress goes to stderr; stdout remains reserved for the
+completion summary. Pass `--format json` for the machine-readable payload.
+With `--repetitions N`, benchmark runs execute sequentially into
+`runs/run-001`, `runs/run-002`, and so on. The parent index references those
+child Logbooks and inventories `benchmark-aggregate.json` and
 `benchmark-report.md`.
 
 Use `examples/container-pi-fff-real-benchmark-small.toml` for a two-instance
@@ -117,11 +119,16 @@ uv run yacht status --logbook logbook
 uv run yacht status --logbook logbook --format markdown --output logbook/status.md
 ```
 
-`yacht status` is the quick inspection command to run after a workflow. It
-detects whether the logbook holds a smoke or benchmark run, prints artifact
-presence and statuses, and recommends the next command. Without `--logbook`,
-it uses `./logbook` if present, then the most recent yacht logbook in the
-system temp directory.
+`yacht status` is the quick inspection command to run during or after a
+workflow. It reads `run-index.json` as the authoritative lifecycle and artifact
+inventory, reports recorded presence separately from current disk presence,
+and recommends the next command. Smoke output keeps lifecycle (`running`,
+`complete`, `blocked`, or `failed`) separate from the readiness outcome
+(`ready` or `blocked`); readiness remains unavailable until its artifact exists.
+Historical v1 and scorecard-only Logbooks remain readable; a
+malformed current index is visibly broken rather than silently treated as
+legacy. Without `--logbook`, Yacht uses `./logbook` if present, then the most
+recent Yacht Logbook in the system temp directory.
 
 ## report
 
@@ -139,13 +146,15 @@ evidence showing whether a challenger tool was actually used, and per-task
 results. Small samples are labeled so single-run smoke deltas are not
 mistaken for statistically meaningful results.
 
-`yacht report` renders the report for a smoke or benchmark logbook. Benchmark
-reports start with a decision summary that says whether the challenger
-improved, regressed, or tied on resolution, tokens, cost, and duration, then
-include comparison outcomes, usage metrics, per-task outcomes, and per-vessel
-artifact paths when task attempt data is available. Use `--vessel` and
-`--task` to narrow the detailed sections while keeping the full summary for
-context. On a repetition parent logbook, the report renders the aggregate.
+`yacht report` renders the report for a smoke or benchmark Logbook. It resolves
+Scorecards and generated reports from the index inventory, so relative
+artifacts remain readable when the whole Logbook moves. Benchmark reports
+start with a decision summary that says whether the challenger improved,
+regressed, or tied on resolution, tokens, cost, and duration, then include
+comparison outcomes, usage metrics, per-task outcomes, and per-vessel artifact
+paths when task attempt data is available. Use `--vessel` and `--task` to
+narrow the detailed sections while keeping the full summary for context. On a
+repetition parent Logbook, the report renders the indexed aggregate.
 
 When a harness does not report cost, the report prints `-` and marks cost
 deltas unavailable. It never substitutes `$0.00`; aggregate totals and
@@ -159,14 +168,16 @@ uv run yacht serve --root logbooks --port 8080
 ```
 
 `yacht serve` starts a local, read-only dashboard over a directory of
-logbooks (ADR 0010). It scans the root and one level of subdirectories for
-logbooks, groups them by regatta and course on the index page, and renders
-each run with the same HTML the report command produces. Pages are rendered
-from the artifacts on disk at request time — there is no database and no
-ingestion step, so the dashboard is always current and deleting a logbook
-directory removes it. Logbooks with broken or invalid artifacts appear as
-visibly broken entries instead of being skipped. The server binds localhost
-by default and is a single-user inspection tool, not a deployment target.
+Logbooks (ADR 0010). It scans the root and one level of subdirectories for
+Logbooks, then follows indexed child references without counting a child twice.
+Runs are grouped by Regatta and Course on the index page, with lifecycle and
+evaluation outcome in separate columns, and rendered with the same HTML as
+`yacht report`. Pages read indexed artifacts from disk at request time — there
+is no database or ingestion step. Missing indexed artifacts and children stay
+visible, and malformed current indexes appear as broken entries instead of
+being skipped or interpreted through legacy filenames. The server binds
+localhost by default and is a single-user inspection tool, not a deployment
+target.
 
 The `/vessels` view lists every vessel run across all logbooks and supports
 filtering and grouping by provenance facets through URL query parameters —

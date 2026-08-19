@@ -145,6 +145,50 @@ def _attempts() -> dict:
 
 
 class BenchmarkHtmlTests(unittest.TestCase):
+    def test_relocates_persisted_next_step_paths_but_not_placeholders(self) -> None:
+        logbook = Path("/tmp/relocated-logbook")
+        recorded = Path("/tmp/original-logbook")
+        scorecard = _scorecard()
+        scorecard["next_steps"] = [
+            {
+                "label": "Write report",
+                "reason": "Share it.",
+                "command": [
+                    "uv",
+                    "run",
+                    "yacht",
+                    "report",
+                    "--logbook",
+                    str(recorded),
+                    "--output",
+                    str(recorded / "report.md"),
+                ],
+            },
+            {
+                "label": "Start fresh",
+                "reason": "Baseline drifted.",
+                "command": [
+                    "uv",
+                    "run",
+                    "yacht",
+                    "run",
+                    "<regatta.toml>",
+                    "--logbook",
+                    "<new-logbook>",
+                ],
+            },
+        ]
+
+        html = render_benchmark_html(
+            scorecard=scorecard,
+            task_attempt_scorecard=None,
+            logbook_dir=logbook,
+        )
+
+        self.assertIn(str(logbook / "report.md"), html)
+        self.assertNotIn(str(recorded), html)
+        self.assertIn("&lt;new-logbook&gt;", html)
+
     def test_tied_verdict_with_small_sample_badge(self) -> None:
         html = render_benchmark_html(
             scorecard=_scorecard(),
@@ -403,6 +447,7 @@ class SmokeHtmlTests(unittest.TestCase):
         html = render_smoke_html(
             smoke_status={
                 "status": "ready",
+                "lifecycle_status": "complete",
                 "artifacts": [
                     {
                         "name": "run-index",
@@ -417,6 +462,7 @@ class SmokeHtmlTests(unittest.TestCase):
         )
 
         self.assertIn("Smoke status: ready", html)
+        self.assertIn("lifecycle <code>complete</code>", html)
         self.assertIn("present", html)
         self.assertIn("missing", html)
         self.assertIn("yacht report", html)
@@ -427,10 +473,6 @@ class HtmlReportCommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
             output_path = Path(temp_dir) / "report.html"
-            write_json(
-                logbook_dir / "run-index.json",
-                {"schema": "yacht.run-index.v1", "run_kind": "real-benchmark"},
-            )
             write_json(logbook_dir / "benchmark-scorecard.json", _scorecard())
 
             with redirect_stdout(StringIO()):
@@ -454,10 +496,6 @@ class HtmlReportCommandTests(unittest.TestCase):
     def test_report_html_rejects_filters(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
-            write_json(
-                logbook_dir / "run-index.json",
-                {"schema": "yacht.run-index.v1", "run_kind": "real-benchmark"},
-            )
             write_json(logbook_dir / "benchmark-scorecard.json", _scorecard())
             stderr = StringIO()
 

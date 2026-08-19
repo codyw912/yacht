@@ -29,7 +29,7 @@ class BenchmarkStatusTests(unittest.TestCase):
                         "status": "partial",
                         "updated_at": "2026-06-03T12:00:00Z",
                         "config_path": "/tmp/regatta.toml",
-                        "logbook": str(logbook_dir),
+                        "logbook": "logbook",
                         "regatta": "demo",
                         "course": "course",
                         "comparisons": [
@@ -41,13 +41,11 @@ class BenchmarkStatusTests(unittest.TestCase):
                         ],
                         "artifacts": {
                             "preflight_evidence_report": {
-                                "path": str(
-                                    logbook_dir / "preflight-evidence-report.json"
-                                ),
+                                "path": "logbook/preflight-evidence-report.json",
                                 "present": True,
                             },
                             "benchmark_scorecard": {
-                                "path": str(logbook_dir / "benchmark-scorecard.json"),
+                                "path": "logbook/benchmark-scorecard.json",
                                 "present": False,
                             },
                         },
@@ -109,6 +107,7 @@ class BenchmarkStatusTests(unittest.TestCase):
     def test_uses_real_benchmark_eval_next_steps_when_available(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             logbook_dir = Path(temp_dir) / "logbook"
+            recorded_logbook = Path("/tmp/original-logbook")
             logbook_dir.mkdir()
             (logbook_dir / "real-benchmark-eval.json").write_text(
                 json.dumps(
@@ -125,13 +124,33 @@ class BenchmarkStatusTests(unittest.TestCase):
                                     "internals",
                                     "benchmark-launch",
                                     "--logbook",
-                                    str(logbook_dir),
+                                    str(recorded_logbook),
+                                    "--output",
+                                    str(recorded_logbook / "status.md"),
                                 ],
                                 "command_preview": (
-                                    f"uv run yacht internals benchmark-launch --logbook "
-                                    f"{logbook_dir}"
+                                    "uv run yacht internals benchmark-launch "
+                                    f"--logbook {recorded_logbook} --output "
+                                    f"{recorded_logbook / 'status.md'}"
                                 ),
-                            }
+                            },
+                            {
+                                "label": "Start a fresh Logbook",
+                                "reason": "The recorded baseline changed.",
+                                "command": [
+                                    "uv",
+                                    "run",
+                                    "yacht",
+                                    "run",
+                                    "<regatta.toml>",
+                                    "--logbook",
+                                    "<new-logbook>",
+                                ],
+                                "command_preview": (
+                                    "uv run yacht run <regatta.toml> "
+                                    "--logbook <new-logbook>"
+                                ),
+                            },
                         ],
                     }
                 ),
@@ -147,6 +166,9 @@ class BenchmarkStatusTests(unittest.TestCase):
                 f"command: uv run yacht internals benchmark-launch --logbook {logbook_dir}",
                 report,
             )
+            self.assertIn(f"--output {logbook_dir / 'status.md'}", report)
+            self.assertNotIn(str(recorded_logbook), report)
+            self.assertIn("<new-logbook>", report)
 
     def test_renders_surface_summary_when_real_benchmark_eval_is_available(
         self,
@@ -262,6 +284,24 @@ class BenchmarkStatusTests(unittest.TestCase):
 
             self.assertIn("1. Inspect filtered benchmark details", report)
             self.assertIn("--vessel pi-plus-fff --task django__django-11099", report)
+
+    def test_legacy_scorecard_retains_expected_stage_checklist(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            logbook_dir.mkdir()
+            (logbook_dir / "benchmark-scorecard.json").write_text(
+                json.dumps({"status": "complete"}),
+                encoding="utf-8",
+            )
+
+            status = build_benchmark_status(logbook_dir)
+
+            artifacts = {
+                artifact["label"]: artifact for artifact in status["artifacts"]
+            }
+            self.assertEqual(len(artifacts), 10)
+            self.assertEqual(artifacts["benchmark scorecard"]["state"], "complete")
+            self.assertEqual(artifacts["preflight evidence"]["state"], "missing")
 
     def test_benchmark_status_command_writes_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -24,8 +24,12 @@ from yacht.contracts.schemas import (
 COURSE_HANDOFF_PATH = Path("course-handoff.json")
 
 
-def load_course_handoff(logbook_dir: Path) -> dict[str, Any]:
-    handoff_path = logbook_dir / COURSE_HANDOFF_PATH
+def load_course_handoff(
+    logbook_dir: Path,
+    *,
+    artifact_path: Path | None = None,
+) -> dict[str, Any]:
+    handoff_path = artifact_path or logbook_dir / COURSE_HANDOFF_PATH
     if not handoff_path.exists():
         raise ConfigError(f"course handoff artifact not found: {handoff_path}")
     handoff = load_json_object(handoff_path, "course handoff artifact")

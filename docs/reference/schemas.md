@@ -1,16 +1,34 @@
 # Schema Contract
 
-YACHT keeps its durable cross-language contract in JSON Schema files under
-`schemas/`. Python is the current control-plane implementation, but persisted
-artifacts should remain consumable by other tools and future runners.
+YACHT keeps its durable cross-language contract in packaged JSON Schema files
+under `src/yacht/schemas/`. Python is the current control-plane implementation,
+but persisted artifacts remain consumable by other tools and future runners.
 
 ## Core Artifacts
 
 - `yacht.regatta.v1.schema.json` for regatta configuration.
-- `yacht.run-index.v1.schema.json` for logbook run state and artifact paths.
+- `yacht.run-index.v1.schema.json` for historical absolute-path indexes.
+- `yacht.run-index.v2.schema.json` for portable lifecycle state, relative
+  artifact references, and optional child Logbooks.
+
 - `yacht.wake.v1.schema.json` for deterministic mock-run wake artifacts.
 - `yacht.scorecard.v1.schema.json` for deterministic mock-run scorecards.
 - `yacht.runtime-instances.v1.schema.json` for redacted runtime snapshots.
+
+The v2 index is the authoritative inventory for current Logbooks. It uses
+Logbook-relative POSIX paths for artifacts and children; readers reject
+absolute, parent-traversing, or symlink-escaping references. Lifecycle status
+is one of `running`, `complete`, `blocked`, or `failed`. `started_at` and
+`updated_at` are required; terminal states also require `terminal_at`.
+Artifact entries carry their write-time `present` value, while readers also
+check current disk presence. Repetition parents use `run_kind:
+benchmark-repetitions` and `children` entries with each child's recorded
+status.
+
+Readers validate v2 first and never fall back around a malformed current
+index. A valid v1 index is normalized against its recorded Logbook root so the
+directory can move. A directory with a historical Scorecard and no index
+remains a scorecard-only Logbook.
 
 ## Preflight Artifacts
 

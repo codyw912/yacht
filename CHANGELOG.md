@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### Durable Logbook contracts
+
+- Public JSON Schemas now ship inside the `yacht.schemas` package, so installed
+  wheels validate against the same contract files as source checkouts. A cached
+  Draft 2020-12 validator replaces the Wake artifact's handwritten structural
+  checks, including the previously omitted `metrics.usage_source` contract,
+  while preserving Yacht's existing validation interface and error type.
+- Run-index v2 records portable relative artifact and child-Logbook references,
+  canonical lifecycle status and timestamps, Regatta identity, Course, and
+  Comparisons. The Logbook reader validates indexes, resolves references inside
+  the Logbook, normalizes safe v1 paths after moves, recognizes scorecard-only
+  history, and makes malformed or escaping indexes explicitly broken.
+- Smoke, benchmark, and repetition workflows now create the index before work
+  starts and atomically record stage transitions, artifact presence, terminal
+  outcomes, and failures. Repetition indexes connect parent and child
+  Logbooks, and include aggregate and generated-report artifacts.
+- Status, report, latest-Logbook selection, and the local dashboard now share
+  the validated Logbook reader instead of reconstructing state from fixed
+  filenames. Indexed artifacts resolve after a whole Logbook moves; missing
+  artifacts and children remain visible, and collection views do not
+  double-count indexed child outcomes. Smoke readers display indexed lifecycle
+  separately from the readiness outcome.
+- Versioned compatibility fixtures cover scorecard-only, v1 indexed, partial
+  and complete v2, moved, malformed, and repetition Logbooks.
+
 ## 0.11.0 - First-Class OMP and Codex Harnesses
 
 ### Delivery evidence and budget parity
