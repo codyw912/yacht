@@ -8,12 +8,15 @@ against controlled baselines across public benchmarks and custom evals. Work
 that expands harnesses, rigging, runtime trust, course selection, and evaluator
 adapters should take priority over polishing a single Pi+fff smoke path.
 
-For the current implementation backlog, see
-[Audit follow-ups](audit-followups.md). The OMP and Codex expansion is
-sequenced in
-[OMP and Codex harness expansion](omp-codex-harness-expansion.md).
-The earlier architecture-cleanup backlog is kept in
-[Next phase opportunities](next-phase-opportunities.md).
+The active short-term plan is
+[Yacht 0.12: Durable Logbooks](0.12-durable-logbooks.md). It makes the
+Logbook the authoritative, portable run-state interface before Yacht broadens
+its harness or Course surface again.
+
+The OMP and Codex expansion shipped in 0.11.0. The remaining sections below
+are the longer-term product map; completed implementation notes are retained in
+[Next phase opportunities](next-phase-opportunities.md) and
+[Audit follow-ups](audit-followups.md).
 
 ## 1. Generalized Benchmark Surface
 
