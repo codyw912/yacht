@@ -529,10 +529,10 @@ def _notable_delta_row(
     if usage_delta is not None:
         parts.extend(
             [
-                f"tokens {_signed_int(usage_delta['tokens'])}",
-                f"cost {_signed_cost(usage_delta['cost'])}",
-                f"duration {_signed_duration(usage_delta['duration'])}",
-                f"tool_calls {_signed_int(usage_delta['tool_calls'])}",
+                f"tokens {_usage_delta_value('tokens', usage_delta['tokens'])}",
+                f"cost {_usage_delta_value('cost', usage_delta['cost'])}",
+                f"duration {_usage_delta_value('duration', usage_delta['duration'])}",
+                f"tool_calls {_usage_delta_value('tool_calls', usage_delta['tool_calls'])}",
             ]
         )
     return " | ".join(parts)
@@ -590,9 +590,9 @@ def _decision_summary_row(
         [
             str(comparison["name"]),
             _resolution_decision(delta, comparison.get("statistics")),
-            _usage_decision(usage_delta, "tokens", "tokens") + confound,
-            _usage_decision(usage_delta, "cost", "cost") + confound,
-            _usage_decision(usage_delta, "duration", "duration") + confound,
+            _usage_decision(usage_delta, "tokens", "tokens", confound),
+            _usage_decision(usage_delta, "cost", "cost", confound),
+            _usage_decision(usage_delta, "duration", "duration", confound),
             _delivery_decision(comparison.get("delivery")),
         ]
     )
@@ -680,23 +680,28 @@ def _graded_evidence(grade: Any, paired: dict[str, Any]) -> str | None:
 
 
 def _usage_decision(
-    usage_delta: dict[str, int | float] | None,
+    usage_delta: dict[str, int | float | None] | None,
     key: str,
     label: str,
+    suffix: str = "",
 ) -> str:
     if usage_delta is None:
         return f"{label} unavailable"
     value = usage_delta[key]
+    if value is None:
+        return f"{label} unavailable"
     if float(value) < 0:
         verdict = "better"
     elif float(value) > 0:
         verdict = "worse"
     else:
         verdict = "tied"
-    return f"{label} {verdict} ({_usage_delta_value(key, value)})"
+    return f"{label} {verdict} ({_usage_delta_value(key, value)}){suffix}"
 
 
-def _usage_delta_value(key: str, value: int | float) -> str:
+def _usage_delta_value(key: str, value: int | float | None) -> str:
+    if value is None:
+        return "unavailable"
     if key == "cost":
         return _signed_cost(float(value))
     if key == "duration":
@@ -711,7 +716,7 @@ def _usage_delta(
     baseline_name: str,
     challenger_name: str,
     recorded_usage: dict[str, Any] | None = None,
-) -> dict[str, int | float] | None:
+) -> dict[str, int | float | None] | None:
     if task_attempt_scorecard is None:
         return None
     usage = {
@@ -725,9 +730,19 @@ def _usage_delta(
         baseline = recorded_usage
     if baseline is None or challenger is None:
         return None
+    baseline_cost = baseline.get("total_cost")
+    challenger_cost = challenger.get("total_cost")
+    cost_delta = (
+        float(challenger_cost) - float(baseline_cost)
+        if isinstance(baseline_cost, int | float)
+        and not isinstance(baseline_cost, bool)
+        and isinstance(challenger_cost, int | float)
+        and not isinstance(challenger_cost, bool)
+        else None
+    )
     return {
         "tokens": int(challenger["total_tokens"]) - int(baseline["total_tokens"]),
-        "cost": float(challenger["total_cost"]) - float(baseline["total_cost"]),
+        "cost": cost_delta,
         "duration": float(challenger["total_duration_seconds"])
         - float(baseline["total_duration_seconds"]),
         "tool_calls": int(challenger["distinct_tool_uses"])
@@ -818,11 +833,13 @@ def _recorded_baseline_usage(comparison: dict[str, Any]) -> dict[str, Any] | Non
         return None
     required = (
         "total_tokens",
-        "total_cost",
         "total_duration_seconds",
         "distinct_tool_uses",
     )
     if not all(isinstance(usage.get(key), int | float) for key in required):
+        return None
+    cost = usage.get("total_cost")
+    if cost is not None and not isinstance(cost, int | float):
         return None
     return usage
 
@@ -1126,7 +1143,12 @@ def _efficiency_row(
     )
     if resolved:
         tokens = f"{int(vessel['total_tokens']) / resolved:.1f}"
-        cost = _cost(float(vessel["total_cost"]) / resolved)
+        total_cost = vessel.get("total_cost")
+        cost = (
+            _cost(float(total_cost) / resolved)
+            if isinstance(total_cost, int | float) and not isinstance(total_cost, bool)
+            else "-"
+        )
     else:
         tokens = "n/a (0 resolved)"
         cost = "n/a (0 resolved)"
@@ -1630,7 +1652,9 @@ def _harnesses(vessel: dict[str, Any]) -> str:
     return ", ".join(str(harness) for harness in harnesses)
 
 
-def _cost(value: float) -> str:
+def _cost(value: Any) -> str:
+    if value is None:
+        return "-"
     return f"{float(value):.6f}"
 
 

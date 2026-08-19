@@ -616,6 +616,38 @@ class BenchmarkScorecardTests(unittest.TestCase):
                 stdout.getvalue(),
             )
 
+    def test_benchmark_report_does_not_treat_unreported_cost_as_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = _prepared_multi_vessel_logbook(Path(temp_dir))
+            write_benchmark_scorecard(logbook_dir)
+            _write_task_attempt_scorecard(logbook_dir)
+            scorecard_path = logbook_dir / "task-attempt-scorecard.json"
+            scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
+            comparison = scorecard["comparisons"][0]
+            challenger = comparison["vessels"][1]
+            challenger["cost_sources"] = ["unreported"]
+            scorecard_path.write_text(json.dumps(scorecard) + "\n", encoding="utf-8")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["report", "--logbook", str(logbook_dir)])
+
+            self.assertEqual(exit_code, 0)
+            report = stdout.getvalue()
+            self.assertIn("Cost: -", report)
+            self.assertIn("cost unavailable", report)
+            self.assertNotIn("cost better", report)
+            self.assertNotIn("cost worse", report)
+            self.assertIn(
+                "pi-vs-pi-fff | pi-plus-fff | pi | 1 | 0 | "
+                "bash:1, edit:1, fffind:1, read:1 | 6251 | - | 5.250s",
+                report,
+            )
+            self.assertIn(
+                "pi-vs-pi-fff | pi-plus-fff | 1 | 6251.0 | -",
+                report,
+            )
+
     def test_benchmark_report_includes_agent_usage_by_task_when_attempts_exist(
         self,
     ) -> None:

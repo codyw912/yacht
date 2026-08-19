@@ -123,7 +123,7 @@
           "minimum": 0
         },
         "total_cost": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": 0
         },
         "total_duration_seconds": {
@@ -307,7 +307,7 @@
           "minimum": 0
         },
         "total_cost": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": 0
         },
         "total_duration_seconds": {
@@ -357,7 +357,7 @@
           "minimum": 0
         },
         "total_cost": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": 0
         },
         "total_duration_seconds": {

@@ -108,6 +108,12 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
     provenance = collapse_provenance(
         [attempt.get("provenance") for attempt in attempts]
     )
+    costs = [_attempt_cost(attempt) for attempt in attempts]
+    total_cost = (
+        round(sum(cost for cost in costs if cost is not None), 6)
+        if all(cost is not None for cost in costs)
+        else None
+    )
     payload = {
         "name": vessel_name,
         "status": "failed" if failed_attempts else "measured",
@@ -121,7 +127,7 @@ def _vessel_score(vessel_name: str, attempts: list[dict[str, Any]]) -> dict[str,
         ),
         "attempts_by_tool": _tool_call_counts(attempts),
         "total_tokens": sum(int(attempt["metrics"]["tokens"]) for attempt in attempts),
-        "total_cost": round(sum(_attempt_cost(attempt) for attempt in attempts), 6),
+        "total_cost": total_cost,
         "total_duration_seconds": round(total_duration, 3),
         "artifact_paths": [str(attempt["artifact_path"]) for attempt in attempts],
     }
@@ -307,6 +313,12 @@ def _top_level_summary(comparisons: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _summary(vessels: list[dict[str, Any]]) -> dict[str, Any]:
+    costs = [vessel["total_cost"] for vessel in vessels]
+    total_cost = (
+        round(sum(float(cost) for cost in costs if cost is not None), 6)
+        if all(cost is not None for cost in costs)
+        else None
+    )
     return {
         "total_vessels": len(vessels),
         "total_attempts": sum(int(vessel["task_attempts"]) for vessel in vessels),
@@ -319,7 +331,7 @@ def _summary(vessels: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "attempts_by_tool": _summary_tool_call_counts(vessels),
         "total_tokens": sum(int(vessel["total_tokens"]) for vessel in vessels),
-        "total_cost": round(sum(float(vessel["total_cost"]) for vessel in vessels), 6),
+        "total_cost": total_cost,
         "total_duration_seconds": round(
             sum(float(vessel["total_duration_seconds"]) for vessel in vessels),
             3,
@@ -375,16 +387,16 @@ def _summary_tool_call_counts(vessels: list[dict[str, Any]]) -> dict[str, int]:
 COST_TOTAL_KEYS = ("total", "total_usd")
 
 
-def _attempt_cost(attempt: dict[str, Any]) -> float:
+def _attempt_cost(attempt: dict[str, Any]) -> float | None:
     agent = attempt.get("agent")
     if not isinstance(agent, dict):
-        return 0.0
+        return None
     machine_evidence = agent.get("machine_evidence")
     if not isinstance(machine_evidence, dict):
-        return 0.0
+        return None
     cost = machine_evidence.get("cost")
     if not isinstance(cost, dict):
-        return 0.0
+        return None
     for key in COST_TOTAL_KEYS:
         total = cost.get(key)
         if (
@@ -393,33 +405,12 @@ def _attempt_cost(attempt: dict[str, Any]) -> float:
             and total >= 0
         ):
             return float(total)
-    return 0.0
+    return None
 
 
 def _attempt_cost_source(attempt: dict[str, Any]) -> str:
-    """Whether the harness reported a cost at all.
-
-    Tokens already carry usage_source; without the same for cost, a
-    total of 0.0 is indistinguishable from a harness that said nothing.
-    """
-    agent = attempt.get("agent")
-    if not isinstance(agent, dict):
-        return "unreported"
-    machine_evidence = agent.get("machine_evidence")
-    if not isinstance(machine_evidence, dict):
-        return "unreported"
-    cost = machine_evidence.get("cost")
-    if not isinstance(cost, dict):
-        return "unreported"
-    for key in COST_TOTAL_KEYS:
-        total = cost.get(key)
-        if (
-            isinstance(total, int | float)
-            and not isinstance(total, bool)
-            and total >= 0
-        ):
-            return "reported"
-    return "unreported"
+    """Whether the harness reported a cost at all."""
+    return "reported" if _attempt_cost(attempt) is not None else "unreported"
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

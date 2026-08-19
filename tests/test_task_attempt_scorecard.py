@@ -89,7 +89,7 @@ class CostProvenanceTests(unittest.TestCase):
             ],
         )
 
-        self.assertEqual(vessel["total_cost"], 0.0)
+        self.assertIsNone(vessel["total_cost"])
         self.assertEqual(vessel["cost_sources"], ["unreported"])
 
     def test_vessel_marks_reported_cost(self) -> None:
@@ -100,6 +100,18 @@ class CostProvenanceTests(unittest.TestCase):
 
         self.assertEqual(vessel["total_cost"], 1.5)
         self.assertEqual(vessel["cost_sources"], ["reported"])
+
+    def test_vessel_total_is_unknown_when_any_attempt_omits_cost(self) -> None:
+        vessel = _vessel_score(
+            "candidate",
+            [
+                _full_attempt({"cost": {"total_usd": 1.5}}),
+                _full_attempt({"format": "yacht-harness-evidence"}),
+            ],
+        )
+
+        self.assertIsNone(vessel["total_cost"])
+        self.assertEqual(vessel["cost_sources"], ["reported", "unreported"])
 
 
 def _scorecard_document(cost_sources: list[str]) -> dict:

@@ -1,4 +1,5 @@
 import http.client
+import json
 import tempfile
 import threading
 import unittest
@@ -197,6 +198,28 @@ class VesselsViewTests(unittest.TestCase):
 
             self.assertEqual(status, 200)
             self.assertIn("resolved 2/2 (rate 1.000)", body)
+
+    def test_unreported_cost_is_not_rendered_as_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook = _write_logbook(
+                root / "run-1",
+                baseline_resolved=1,
+                fff_resolved=1,
+            )
+            scorecard_path = logbook / "task-attempt-scorecard.json"
+            scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
+            scorecard["comparisons"][0]["vessels"][1]["cost_sources"] = ["unreported"]
+            scorecard_path.write_text(
+                json.dumps(scorecard) + "\n",
+                encoding="utf-8",
+            )
+
+            status, body = respond(root, "/vessels")
+
+            self.assertEqual(status, 200)
+            self.assertIn("cost -", body)
+            self.assertNotIn(">0.000000<", body)
 
 
 class HttpServerTests(unittest.TestCase):

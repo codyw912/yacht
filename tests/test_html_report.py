@@ -187,6 +187,27 @@ class BenchmarkHtmlTests(unittest.TestCase):
         self.assertIn("newtool", html)
         self.assertIn("actually", html)
 
+    def test_usage_chart_renders_unreported_cost_as_unknown(self) -> None:
+        attempts = _attempts()
+        attempts["summary"]["total_cost"] = None
+        comparison = attempts["comparisons"][0]
+        comparison["summary"]["total_cost"] = None
+        challenger = comparison["vessels"][1]
+        challenger["total_cost"] = None
+        challenger["cost_sources"] = ["unreported"]
+
+        html = render_benchmark_html(
+            scorecard=_scorecard(),
+            task_attempt_scorecard=attempts,
+            logbook_dir=Path("logbook"),
+        )
+
+        chart_start = html.index("<svg viewBox=", html.index("Usage"))
+        chart_end = html.index("</svg>", chart_start)
+        chart = html[chart_start:chart_end]
+        self.assertIn(">-</text>", chart)
+        self.assertNotIn(">0.0000</text>", chart)
+
     def test_escapes_untrusted_names(self) -> None:
         html = render_benchmark_html(
             scorecard=_scorecard(challenger="pi-<script>alert(1)</script>"),

@@ -147,6 +147,10 @@ artifact paths when task attempt data is available. Use `--vessel` and
 `--task` to narrow the detailed sections while keeping the full summary for
 context. On a repetition parent logbook, the report renders the aggregate.
 
+When a harness does not report cost, the report prints `-` and marks cost
+deltas unavailable. It never substitutes `$0.00`; aggregate totals and
+efficiency metrics remain unknown if any contributing cost is unreported.
+
 ## serve
 
 ```sh

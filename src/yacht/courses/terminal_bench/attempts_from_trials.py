@@ -23,7 +23,11 @@ from yacht.harnesses.claude_code import (
 from yacht.harnesses.codex import CODEX_JSONL_EVIDENCE, parse_codex_jsonl
 from yacht.harnesses.mcp_config import provider_mcp_namespace
 from yacht.harnesses.omp import OMP_JSONL_EVIDENCE, parse_omp_jsonl
-from yacht.harnesses.pi import PI_JSONL_EVIDENCE, tool_calls_from_pi_jsonl
+from yacht.harnesses.pi import (
+    PI_JSONL_EVIDENCE,
+    skill_stages_from_pi_jsonl,
+    tool_calls_from_pi_jsonl,
+)
 from yacht.courses.terminal_bench.harness import HARBOR_JOB_NAME
 from yacht.domain.model import (
     Comparison,
@@ -202,7 +206,11 @@ def _agent_to_json(
         skill_stages = _session_skill_stages(Path(trial_dir) / "agent" / "sessions")
         if skill_stages:
             payload["skill_stages"] = skill_stages
-    elif evidence_source in {OMP_JSONL_EVIDENCE, CODEX_JSONL_EVIDENCE}:
+    elif evidence_source in {
+        OMP_JSONL_EVIDENCE,
+        CODEX_JSONL_EVIDENCE,
+        PI_JSONL_EVIDENCE,
+    }:
         skill_stages = _native_stream_skill_stages(Path(trial_dir), evidence_source)
         if skill_stages:
             payload["skill_stages"] = skill_stages
@@ -473,6 +481,8 @@ def _native_stream_skill_stages(
     elif evidence_source == CODEX_JSONL_EVIDENCE:
         paths = _native_stream_paths(trial_dir, "codex.jsonl")
         parser = parse_codex_jsonl
+    elif evidence_source == PI_JSONL_EVIDENCE:
+        return _pi_output_skill_stages(trial_dir / "agent" / "pi.txt")
     else:
         return []
     stages: list[dict[str, str]] = []
@@ -493,6 +503,16 @@ def _native_stream_skill_stages(
             seen.add(name)
             stages.append(dict(stage))
     return stages
+
+
+def _pi_output_skill_stages(output_path: Path) -> list[dict[str, str]]:
+    if not output_path.is_file():
+        return []
+    try:
+        stages = skill_stages_from_pi_jsonl(output_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return []
+    return list(stages or ())
 
 
 def _machine_evidence(trial: dict[str, Any] | None) -> dict[str, Any]:

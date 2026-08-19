@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 - First-Class OMP and Codex Harnesses
 
 ### Delivery evidence and budget parity
 
@@ -15,11 +15,20 @@
   path. The stage vocabulary now lives in
   `yacht.harnesses.skill_stages`, kept in sync with the contract
   validator and the JSON Schema by a test.
+- Pi now records the same attempted, loaded, or not-delivered skill
+  stages from preserved native JSONL `read` events.
 - Reports print a stage with no measured attempts as `unmeasured`
   instead of `0/0`, which read like a measured zero, and both the text
   and HTML surfaces now say that stages come from preserved transcripts
   and that an install-only preflight pass is separate evidence which
   never fills them in.
+- An omitted harness cost remains unreported instead of being summed as
+  `$0.00`. Task-attempt scorecards now store an unknown total as `null`;
+  report tables print `-`, and decision summaries call the
+  corresponding cost delta unavailable. Aggregate reports exclude
+  unknown costs from totals, efficiency metrics, and delta statistics.
+  Existing scorecards are normalized from their `cost_sources`, so old
+  Codex runs also render honestly without regeneration.
 - Episodic `max_turns` is refused at render time on harnesses that
   cannot enforce it. OMP and Codex have no turn-cap flag, so the key was
   accepted and dropped, making two vessels look like they ran under one

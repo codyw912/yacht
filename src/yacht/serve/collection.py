@@ -175,7 +175,11 @@ def _entry_records(entry: LogbookEntry) -> list[VesselRecord]:
                         "task_attempts": int(vessel["task_attempts"]),
                         "distinct_tool_uses": int(vessel["distinct_tool_uses"]),
                         "total_tokens": int(vessel["total_tokens"]),
-                        "total_cost": float(vessel.get("total_cost", 0.0)),
+                        "total_cost": (
+                            float(vessel["total_cost"])
+                            if vessel.get("total_cost") is not None
+                            else None
+                        ),
                         "total_duration_seconds": float(
                             vessel["total_duration_seconds"]
                         ),

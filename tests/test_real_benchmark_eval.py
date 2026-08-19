@@ -250,6 +250,7 @@ class RealBenchmarkEvalTests(unittest.TestCase):
                 "grading=complete | scorecard=complete",
                 report,
             )
+            self.assertIn("cost=-", report)
             self.assertIn("Benchmark outcomes:", report)
             self.assertIn("Artifacts: logbook=", report)
             progress = stderr.getvalue()

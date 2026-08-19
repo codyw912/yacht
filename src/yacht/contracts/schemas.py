@@ -1214,9 +1214,14 @@ def validate_benchmark_aggregate_document(document: dict[str, Any]) -> None:
             ):
                 _require_keys(vessel, (key,), vessel_path)
                 _require_non_negative_int(vessel[key], f"{vessel_path}.{key}")
-            for key in ("resolution_rate", "total_cost", "total_duration_seconds"):
+            for key in ("resolution_rate", "total_duration_seconds"):
                 _require_keys(vessel, (key,), vessel_path)
                 _require_non_negative_number(vessel[key], f"{vessel_path}.{key}")
+            _require_keys(vessel, ("total_cost",), vessel_path)
+            if vessel["total_cost"] is not None:
+                _require_non_negative_number(
+                    vessel["total_cost"], f"{vessel_path}.total_cost"
+                )
         _require_object(comparison["delta"], f"{comparison_path}.delta")
         # Per-run details and statistics blocks postdate the aggregate
         # artifact; older logbooks lack them and the renderer enriches,
@@ -1793,16 +1798,27 @@ def normalize_task_attempt_scorecard(document: dict[str, Any]) -> dict[str, Any]
     if isinstance(normalized.get("summary"), dict):
         normalized["summary"] = upgrade(normalized["summary"])
     comparisons = []
+    unknown_cost = False
     for comparison in normalized.get("comparisons", []):
         comparison = upgrade(comparison)
         if isinstance(comparison.get("summary"), dict):
             comparison["summary"] = upgrade(comparison["summary"])
-        comparison["vessels"] = [
-            upgrade(vessel) for vessel in comparison.get("vessels", [])
-        ]
+        vessels = [upgrade(vessel) for vessel in comparison.get("vessels", [])]
+        comparison_unknown_cost = False
+        for vessel in vessels:
+            cost_sources = vessel.get("cost_sources")
+            if isinstance(cost_sources, list) and "unreported" in cost_sources:
+                vessel["total_cost"] = None
+                comparison_unknown_cost = True
+        if comparison_unknown_cost and isinstance(comparison.get("summary"), dict):
+            comparison["summary"]["total_cost"] = None
+        comparison["vessels"] = vessels
         comparisons.append(comparison)
+        unknown_cost = unknown_cost or comparison_unknown_cost
     if comparisons:
         normalized["comparisons"] = comparisons
+    if unknown_cost and isinstance(normalized.get("summary"), dict):
+        normalized["summary"]["total_cost"] = None
     return normalized
 
 
@@ -2201,7 +2217,7 @@ def _validate_task_attempt_scorecard_vessel(value: Any, path: str) -> None:
     )
     if "harnesses" in vessel:
         _require_string_list(vessel.get("harnesses"), f"{path}.harnesses")
-    if "total_cost" in vessel:
+    if "total_cost" in vessel and vessel.get("total_cost") is not None:
         _require_non_negative_number(vessel.get("total_cost"), f"{path}.total_cost")
     if "attempts_by_tool" in vessel:
         _validate_tool_call_counts(
@@ -2338,7 +2354,7 @@ def _validate_task_attempt_scorecard_summary(value: Any, path: str) -> None:
         summary.get("total_duration_seconds"),
         f"{path}.total_duration_seconds",
     )
-    if "total_cost" in summary:
+    if "total_cost" in summary and summary.get("total_cost") is not None:
         _require_non_negative_number(summary.get("total_cost"), f"{path}.total_cost")
     if "attempts_by_tool" in summary:
         _validate_tool_call_counts(

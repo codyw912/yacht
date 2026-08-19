@@ -13,5 +13,4 @@ timeout_sec = 900.0
 [episodes]
 max = 2
 verify_between = true
-max_turns = 15
 timeout_seconds = 300

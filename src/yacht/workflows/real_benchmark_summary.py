@@ -71,7 +71,7 @@ def _usage_lines(scorecard: Any) -> list[str]:
         f"attempts={usage.get('total_attempts', 0)} | "
         f"failed={usage.get('failed_attempts', 0)} | "
         f"tokens={usage.get('total_tokens', 0)} | "
-        f"cost={_cost(usage.get('total_cost', 0.0))} | "
+        f"cost={_cost(usage.get('total_cost'))} | "
         f"duration={_duration(usage.get('total_duration_seconds', 0.0))} | "
         f"tool_calls={usage.get('total_distinct_tool_uses', 0)}"
     ]
@@ -144,7 +144,7 @@ def _aggregate_delta_lines(aggregate_summary: Any) -> list[str]:
             f"{_signed_int(delta.get('resolved_instances_delta', 0))} | "
             f"{_signed_rate(delta.get('resolution_rate_delta', 0.0))} | "
             f"{_signed_int(delta.get('tokens_delta', 0))} | "
-            f"{_signed_cost(delta.get('cost_delta', 0.0))} | "
+            f"{_signed_cost(delta.get('cost_delta'))} | "
             f"{_signed_duration(delta.get('duration_seconds_delta', 0.0))} | "
             f"{_signed_int(delta.get('distinct_tool_uses_delta', 0))}"
         )
@@ -225,6 +225,8 @@ def _signed_rate(value: Any) -> str:
 
 
 def _signed_cost(value: Any) -> str:
+    if value is None:
+        return "-"
     return f"{float(value):+.6f}"
 
 
@@ -233,6 +235,8 @@ def _signed_duration(value: Any) -> str:
 
 
 def _cost(value: Any) -> str:
+    if value is None:
+        return "-"
     return f"{float(value):.6f}"
 
 

@@ -5,8 +5,8 @@ This plan sequences the work in
 against what Yacht already ships. The handoff is the outcome and
 acceptance contract. This document is the implementation order.
 
-Status: implemented on this branch; not yet released. Motif is the
-first demanding consumer, not a Yacht-core special case.
+Status: implemented in Yacht 0.11.0. Motif is the first demanding
+consumer, not a Yacht-core special case.
 
 ## Product priority
 
@@ -18,7 +18,7 @@ slice 6 lands — a two-episode cold relay in one workspace.
 Declared harnesses stay for one-object native JSON. OMP and Codex emit
 JSONL event streams, so they need thin first-class adapters.
 
-## Current state (0.10.0)
+## 0.10.0 baseline
 
 First-class harnesses: `pi`, `claude-code`, `local-smoke`. Declared
 harnesses (ADR 0016/0017) map one JSON object through dotted paths.
