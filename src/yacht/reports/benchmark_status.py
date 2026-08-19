@@ -114,12 +114,24 @@ def _build_repetition_benchmark_status(
 ) -> dict[str, Any]:
     logbook_dir = snapshot.logbook
     artifacts = _indexed_artifacts(snapshot)
+    children = [
+        {
+            "path": str(child.path),
+            "status": child.recorded_status,
+            "present": child.present,
+        }
+        for child in snapshot.children
+    ]
+    status = snapshot.status or _repetition_overall_status(artifacts)
+    if any(not child["present"] or child["status"] != "complete" for child in children):
+        status = "blocked"
     return {
         "schema": "yacht.benchmark-status.v1",
         "logbook": str(logbook_dir),
-        "status": _repetition_overall_status(artifacts),
+        "status": status,
         "surfaces": load_snapshot_surfaces(snapshot),
         "artifacts": artifacts,
+        "children": children,
         "next_steps": _repetition_next_steps(logbook_dir, artifacts),
     }
 
@@ -144,6 +156,10 @@ def _artifact_status_from_path(
         "detail": "missing",
     }
     if not path.exists():
+        return artifact
+    if path.suffix != ".json":
+        artifact["state"] = "present"
+        artifact["detail"] = "present"
         return artifact
     if path.is_dir():
         artifact["state"] = "present"
@@ -336,6 +352,7 @@ def _render_text(status: dict[str, Any]) -> str:
         "state | artifact | path | detail",
     ]
     lines.extend(_artifact_row(artifact) for artifact in status["artifacts"])
+    lines.extend(_text_child_lines(status.get("children")))
     lines.extend(["", "Next steps:"])
     lines.extend(_text_next_step_lines(status["next_steps"]))
     return "\n".join(lines) + "\n"
@@ -357,9 +374,39 @@ def _render_markdown(status: dict[str, Any]) -> str:
         f"{artifact['detail']} |"
         for artifact in status["artifacts"]
     )
+    lines.extend(_markdown_child_lines(status.get("children")))
     lines.extend(["", "## Next steps", ""])
     lines.extend(_markdown_next_step_lines(status["next_steps"]))
     return "\n".join(lines) + "\n"
+
+
+def _text_child_lines(children: Any) -> list[str]:
+    if not isinstance(children, list) or not children:
+        return []
+    lines = ["", "recorded | present | child Logbook"]
+    lines.extend(
+        f"{child['status']} | {'yes' if child['present'] else 'no'} | {child['path']}"
+        for child in children
+    )
+    return lines
+
+
+def _markdown_child_lines(children: Any) -> list[str]:
+    if not isinstance(children, list) or not children:
+        return []
+    lines = [
+        "",
+        "### Child Logbooks",
+        "",
+        "| Recorded status | Present | Path |",
+        "| --- | --- | --- |",
+    ]
+    lines.extend(
+        f"| {child['status']} | {'yes' if child['present'] else 'no'} | "
+        f"{child['path']} |"
+        for child in children
+    )
+    return lines
 
 
 def _artifact_row(artifact: dict[str, Any]) -> str:

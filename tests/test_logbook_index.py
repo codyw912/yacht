@@ -92,6 +92,42 @@ class LogbookIndexTests(unittest.TestCase):
             self.assertEqual(finished["terminal_at"], timestamps[2])
             self.assertEqual(finished["updated_at"], timestamps[2])
 
+    def test_repetition_lifecycle_records_relative_child_statuses(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            logbook_dir = root / "series"
+            child = logbook_dir / "runs/run-001"
+            timestamps = [
+                "2026-08-19T00:00:00Z",
+                "2026-08-19T00:01:00Z",
+                "2026-08-19T00:02:00Z",
+                "2026-08-19T00:03:00Z",
+            ]
+
+            with patch("yacht.logbook.index._timestamp", side_effect=timestamps):
+                lifecycle = start_run_index(
+                    logbook_dir=logbook_dir,
+                    config_path=root / "regatta.toml",
+                    run_kind="benchmark-repetitions",
+                    regatta="demo",
+                    course="demo-course",
+                    comparisons=(),
+                    artifacts={"benchmark_aggregate": "benchmark-aggregate.json"},
+                )
+                lifecycle.record_child(child, "running")
+                child.mkdir(parents=True)
+                lifecycle.record_child(child, "complete")
+                lifecycle.finish("complete", stage="complete")
+
+            document = _read_index(logbook_dir)
+            snapshot = require_logbook(logbook_dir)
+            self.assertEqual(
+                document["children"],
+                [{"path": "runs/run-001", "status": "complete"}],
+            )
+            self.assertEqual(snapshot.children[0].path, child.resolve())
+            self.assertTrue(snapshot.children[0].present)
+
     def test_refuses_to_start_an_invalid_run_index(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

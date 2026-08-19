@@ -119,9 +119,12 @@ class RunIndexLifecycle:
     ) -> None:
         self._logbook_dir = logbook_dir
         self._artifact_paths = {
-            name: _relative_artifact_path(logbook_dir, path)
+            name: _relative_logbook_path(logbook_dir, path, "artifact")
             for name, path in artifacts.items()
         }
+        self._child_statuses: dict[Path, str] | None = (
+            {} if run_kind == "benchmark-repetitions" else None
+        )
         timestamp = _timestamp()
         self._document: dict[str, Any] = {
             "schema": RUN_INDEX_V2_SCHEMA,
@@ -138,6 +141,8 @@ class RunIndexLifecycle:
             ],
             "artifacts": {},
         }
+        if self._child_statuses is not None:
+            self._document["children"] = []
         self._persist()
 
     @property
@@ -148,6 +153,19 @@ class RunIndexLifecycle:
         if self._document["status"] != "running":
             raise ConfigError("cannot advance a terminal run index")
         self._persist(stage=stage, updated_at=_timestamp())
+
+    def record_child(self, path: str | Path, status: str) -> None:
+        if self._child_statuses is None:
+            raise ConfigError("only a repetition index can record child Logbooks")
+        if status not in {"running", "complete", "blocked", "failed"}:
+            raise ConfigError(f"invalid child Logbook status: {status}")
+        relative_path = _relative_logbook_path(
+            self._logbook_dir,
+            path,
+            "child Logbook",
+        )
+        self._child_statuses[relative_path] = status
+        self._persist(updated_at=_timestamp())
 
     def finish(self, status: str, *, stage: str | None = None) -> None:
         if self._document["status"] != "running":
@@ -181,6 +199,11 @@ class RunIndexLifecycle:
             }
             for name, path in self._artifact_paths.items()
         }
+        if self._child_statuses is not None:
+            document["children"] = [
+                {"path": path.as_posix(), "status": status}
+                for path, status in self._child_statuses.items()
+            ]
         validate_run_index_document(document)
         write_json_atomic(self._logbook_dir / RUN_INDEX_PATH, document)
         self._document = document
@@ -435,16 +458,20 @@ def _comparison_to_json(comparison: Any) -> dict[str, Any]:
     }
 
 
-def _relative_artifact_path(logbook_dir: Path, value: str | Path) -> Path:
+def _relative_logbook_path(
+    logbook_dir: Path,
+    value: str | Path,
+    label: str,
+) -> Path:
     raw_path = Path(value)
     if "\\" in str(value) or ".." in raw_path.parts:
-        raise ConfigError(f"artifact path escapes the Logbook: {value}")
+        raise ConfigError(f"{label} path escapes the Logbook: {value}")
     root = logbook_dir.resolve()
     resolved = (
         raw_path.resolve() if raw_path.is_absolute() else (root / raw_path).resolve()
     )
     if not resolved.is_relative_to(root) or resolved == root:
-        raise ConfigError(f"artifact path escapes the Logbook: {value}")
+        raise ConfigError(f"{label} path escapes the Logbook: {value}")
     return resolved.relative_to(root)
 
 

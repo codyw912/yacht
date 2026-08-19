@@ -10,6 +10,7 @@ render it as visibly broken.
 from __future__ import annotations
 
 import json
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ from yacht.contracts.schemas import (
 )
 from yacht.domain.model import ConfigError
 from yacht.logbook.index import (
+    ChildLogbookReference,
     RUN_INDEX_PATH,
     LogbookSnapshot,
     LogbookState,
@@ -38,11 +40,13 @@ class LogbookEntry:
     updated_at: str
     regatta: str | None = None
     course: str | None = None
+    run_kind: str | None = None
     status: str | None = None
     outcome: str | None = None
     benchmark_scorecard: dict[str, Any] | None = None
     benchmark_scorecard_path: Path | None = None
     attempt_scorecard: dict[str, Any] | None = None
+    children: tuple[ChildLogbookReference, ...] = ()
     missing_artifacts: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
 
@@ -68,9 +72,22 @@ def discover_logbooks(root: Path) -> list[LogbookEntry]:
         sorted(child for child in root.iterdir() if _is_readable_dir(child))
     )
     entries = []
-    for candidate in candidates:
-        if is_logbook_candidate(candidate):
-            entries.append(_load_entry(read_logbook(candidate)))
+    queued = deque(candidates)
+    visited: set[Path] = set()
+    while queued:
+        candidate = queued.popleft()
+        try:
+            identity = candidate.resolve()
+        except OSError:
+            continue
+        if identity in visited:
+            continue
+        visited.add(identity)
+        if not is_logbook_candidate(candidate):
+            continue
+        snapshot = read_logbook(candidate)
+        entries.append(_load_entry(snapshot))
+        queued.extend(child.path for child in snapshot.children if child.present)
     entries.sort(key=lambda entry: (entry.updated_at, str(entry.logbook)), reverse=True)
     return entries
 
@@ -86,6 +103,7 @@ def collect_vessel_records(entries: list[LogbookEntry]) -> list[VesselRecord]:
     return [
         record
         for entry in entries
+        if entry.run_kind != "benchmark-repetitions"
         if entry.attempt_scorecard is not None
         for record in _entry_records(entry)
     ]
@@ -122,6 +140,7 @@ def _load_entry(snapshot: LogbookSnapshot) -> LogbookEntry:
         updated_at=snapshot.updated_at or _index_timestamp(snapshot.logbook),
         regatta=snapshot.regatta or _optional_source(source, "regatta"),
         course=snapshot.course or _optional_source(source, "course"),
+        run_kind=snapshot.run_kind,
         status=(
             snapshot.status
             if snapshot.state is not LogbookState.LEGACY_SCORECARD_ONLY
@@ -139,6 +158,7 @@ def _load_entry(snapshot: LogbookSnapshot) -> LogbookEntry:
         benchmark_scorecard=benchmark_scorecard,
         benchmark_scorecard_path=benchmark_scorecard_path,
         attempt_scorecard=attempt_scorecard,
+        children=snapshot.children,
         missing_artifacts=missing_artifacts,
         errors=tuple(errors),
     )

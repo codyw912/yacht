@@ -1,4 +1,5 @@
 import json
+import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stderr
@@ -9,6 +10,9 @@ from unittest.mock import patch
 
 from tests.test_benchmark_aggregate import _write_logbook
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
+from yacht.logbook.index import require_logbook
+from yacht.serve.collection import collect_vessel_records, discover_logbooks
+from yacht.serve.server import respond
 from yacht.reports.benchmark_status import render_benchmark_status
 from yacht.cli import main
 from yacht.workflows.real_benchmark_repetitions import run_real_benchmark_repetitions
@@ -99,6 +103,112 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
                 aggregate["comparisons"][0]["delta"]["resolved_instances_delta"],
                 1,
             )
+            index = json.loads(
+                (logbook_dir / "run-index.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(index["run_kind"], "benchmark-repetitions")
+            self.assertEqual(index["status"], "complete")
+            self.assertEqual(
+                index["children"],
+                [
+                    {"path": "runs/run-001", "status": "complete"},
+                    {"path": "runs/run-002", "status": "complete"},
+                ],
+            )
+            self.assertEqual(
+                index["artifacts"],
+                {
+                    "real_benchmark_repetitions": {
+                        "path": "real-benchmark-repetitions.json",
+                        "present": True,
+                    },
+                    "benchmark_aggregate": {
+                        "path": "benchmark-aggregate.json",
+                        "present": True,
+                    },
+                    "benchmark_report_markdown": {
+                        "path": "benchmark-report.md",
+                        "present": True,
+                    },
+                },
+            )
+
+    def test_aggregates_moved_indexed_child_scorecards(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            logbook_dir = root / "series"
+
+            def eval_runner(child_logbook: Path) -> dict[str, object]:
+                _write_logbook(
+                    child_logbook,
+                    baseline_resolved=1,
+                    fff_resolved=1,
+                )
+                artifacts = child_logbook / "artifacts"
+                artifacts.mkdir()
+                for filename in (
+                    "benchmark-scorecard.json",
+                    "task-attempt-scorecard.json",
+                ):
+                    (child_logbook / filename).rename(artifacts / filename)
+                (child_logbook / "run-index.json").write_text(
+                    json.dumps(
+                        {
+                            "schema": "yacht.run-index.v2",
+                            "run_kind": "real-benchmark",
+                            "status": "complete",
+                            "stage": "complete",
+                            "started_at": "2026-08-19T00:00:00Z",
+                            "updated_at": "2026-08-19T00:01:00Z",
+                            "terminal_at": "2026-08-19T00:01:00Z",
+                            "config_path": "/tmp/regatta.toml",
+                            "regatta": "pi-fff-comparison",
+                            "course": "swe-bench-lite",
+                            "comparisons": [],
+                            "artifacts": {
+                                "benchmark_scorecard": {
+                                    "path": "artifacts/benchmark-scorecard.json",
+                                    "present": True,
+                                },
+                                "task_attempt_scorecard": {
+                                    "path": "artifacts/task-attempt-scorecard.json",
+                                    "present": True,
+                                },
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return {"status": "complete"}
+
+            summary = run_real_benchmark_repetitions(
+                config_path=config_path,
+                logbook_dir=logbook_dir,
+                workspace_path=root,
+                secret_values={},
+                repetitions=1,
+                eval_runner=eval_runner,
+            )
+
+            self.assertEqual(summary["status"], "complete")
+            self.assertEqual(summary["aggregate_summary"]["run_count"], 1)
+            self.assertEqual(
+                summary["runs"][0]["artifacts"]["benchmark_scorecard"],
+                str(
+                    (
+                        logbook_dir / "runs/run-001/artifacts/benchmark-scorecard.json"
+                    ).resolve()
+                ),
+            )
+            index = json.loads(
+                (logbook_dir / "run-index.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                index["children"],
+                [{"path": "runs/run-001", "status": "complete"}],
+            )
 
     def test_aggregates_completed_repetitions_when_one_child_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -132,6 +242,47 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertEqual(summary["summary"]["failed_runs"], 1)
             self.assertEqual(summary["aggregate_summary"]["run_count"], 1)
             self.assertNotIn("aggregate", summary)
+            index = json.loads(
+                (logbook_dir / "run-index.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(index["status"], "blocked")
+            self.assertEqual(
+                index["children"],
+                [
+                    {"path": "runs/run-001", "status": "complete"},
+                    {"path": "runs/run-002", "status": "blocked"},
+                ],
+            )
+
+    def test_child_exception_records_parent_and_child_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            config_path.write_text(PI_WITH_FFF_CONFIG, encoding="utf-8")
+            logbook_dir = root / "series"
+
+            def fail(child_logbook: Path) -> dict[str, object]:
+                child_logbook.mkdir(parents=True)
+                raise RuntimeError("child failed")
+
+            with self.assertRaisesRegex(RuntimeError, "child failed"):
+                run_real_benchmark_repetitions(
+                    config_path=config_path,
+                    logbook_dir=logbook_dir,
+                    workspace_path=root,
+                    secret_values={},
+                    repetitions=1,
+                    eval_runner=fail,
+                )
+
+            index = json.loads(
+                (logbook_dir / "run-index.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(index["status"], "failed")
+            self.assertEqual(
+                index["children"],
+                [{"path": "runs/run-001", "status": "failed"}],
+            )
 
     def test_benchmark_status_recognizes_repetition_parent_logbooks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -149,6 +300,46 @@ class RealBenchmarkRepetitionsTests(unittest.TestCase):
             self.assertIn("present | benchmark aggregate", report)
             self.assertIn("1. Render benchmark report", report)
             self.assertIn(f"uv run yacht report --logbook {logbook_dir}", report)
+
+    def test_moved_parent_discovers_children_once_and_reports_missing_child(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original = _write_repetition_series(root)
+            moved = root / "moved"
+            original.rename(moved)
+
+            snapshot = require_logbook(moved)
+            self.assertEqual(
+                [child.path for child in snapshot.children],
+                [
+                    (moved / "runs/run-001").resolve(),
+                    (moved / "runs/run-002").resolve(),
+                ],
+            )
+            entries = discover_logbooks(root)
+            self.assertEqual(len(entries), 3)
+            self.assertEqual(len(collect_vessel_records(entries)), 4)
+            child_status, child_page = respond(
+                root,
+                "/logbook/moved/runs/run-001",
+            )
+            self.assertEqual(child_status, 200)
+            self.assertIn("pi-fff-comparison", child_page)
+
+            shutil.rmtree(moved / "runs/run-002")
+
+            status_report = render_benchmark_status(moved)
+            entries = discover_logbooks(root)
+            self.assertIn("Status: blocked", status_report)
+            self.assertIn("complete | no |", status_report)
+            self.assertEqual(len(entries), 2)
+            self.assertEqual(len(collect_vessel_records(entries)), 2)
+            parent_status, parent_page = respond(root, "/logbook/moved")
+            self.assertEqual(parent_status, 200)
+            self.assertIn("Child Logbooks", parent_page)
+            self.assertIn("recorded complete; missing", parent_page)
 
     def test_benchmark_report_renders_repetition_parent_aggregate(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

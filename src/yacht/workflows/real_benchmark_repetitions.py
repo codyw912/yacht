@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
+from yacht.logbook.index import RunIndexLifecycle, read_logbook, start_run_index
 from yacht.reports.benchmark_aggregate import BENCHMARK_AGGREGATE_PATH
 from yacht.reports.benchmark_aggregate import build_benchmark_aggregate
 from yacht.reports.benchmark_aggregate import render_benchmark_aggregate_document
@@ -70,6 +71,49 @@ def run_real_benchmark_repetitions(
             progress=progress,
         )
 
+    index_lifecycle = start_run_index(
+        logbook_dir=logbook_dir,
+        config_path=config_path,
+        run_kind="benchmark-repetitions",
+        regatta=regatta.name,
+        course=regatta.course.name,
+        comparisons=regatta.comparisons,
+        artifacts={
+            "real_benchmark_repetitions": REAL_BENCHMARK_REPETITIONS_PATH,
+            "benchmark_aggregate": BENCHMARK_AGGREGATE_PATH,
+            "benchmark_report_markdown": BENCHMARK_REPORT_MARKDOWN_PATH,
+        },
+    )
+    try:
+        return _run_repetitions(
+            regatta_name=regatta.name,
+            course_name=regatta.course.name,
+            agent_name=agent_name,
+            surfaces=surfaces,
+            logbook_dir=logbook_dir,
+            repetitions=repetitions,
+            eval_runner=eval_runner,
+            index_lifecycle=index_lifecycle,
+            progress=progress,
+        )
+    except BaseException as error:
+        index_lifecycle.record_failure(error)
+        raise
+
+
+def _run_repetitions(
+    *,
+    regatta_name: str,
+    course_name: str,
+    agent_name: str | None,
+    surfaces: dict[str, Any],
+    logbook_dir: Path,
+    repetitions: int,
+    eval_runner: EvalRunner,
+    index_lifecycle: RunIndexLifecycle,
+    progress: ProgressReporter | None,
+) -> dict[str, Any]:
+    index_lifecycle.advance("repetitions")
     runs = []
     aggregate_logbooks = []
     for index in range(1, repetitions + 1):
@@ -78,13 +122,31 @@ def run_real_benchmark_repetitions(
             raise ConfigError(
                 f"repetition child logbook already exists: {child_logbook}"
             )
+        index_lifecycle.record_child(child_logbook, "running")
         _progress(
             progress,
             f"repetition {index}/{repetitions} started: logbook={child_logbook}",
         )
-        run_summary = eval_runner(child_logbook)
-        scorecard_path = child_logbook / BENCHMARK_SCORECARD_PATH
-        scorecard_present = scorecard_path.is_file()
+        try:
+            run_summary = eval_runner(child_logbook)
+        except BaseException as error:
+            try:
+                index_lifecycle.record_child(
+                    child_logbook,
+                    _child_status(child_logbook, "failed"),
+                )
+            except BaseException as index_error:
+                error.add_note(f"could not record child Logbook failure: {index_error}")
+            raise
+        scorecard_path = _child_scorecard_path(child_logbook)
+        scorecard_present = scorecard_path is not None
+        status = _child_status(
+            child_logbook,
+            str(run_summary.get("status", "unknown")),
+        )
+        if status == "complete" and not scorecard_present:
+            status = "blocked"
+        index_lifecycle.record_child(child_logbook, status)
         _progress(
             progress,
             f"repetition {index}/{repetitions} finished: "
@@ -103,11 +165,14 @@ def run_real_benchmark_repetitions(
                     "real_benchmark_eval": str(
                         child_logbook / REAL_BENCHMARK_EVAL_PATH
                     ),
-                    "benchmark_scorecard": str(scorecard_path),
+                    "benchmark_scorecard": str(
+                        scorecard_path or child_logbook / BENCHMARK_SCORECARD_PATH
+                    ),
                 },
             }
         )
 
+    index_lifecycle.advance("aggregation")
     aggregate = None
     if aggregate_logbooks:
         _progress(
@@ -124,8 +189,8 @@ def run_real_benchmark_repetitions(
         _progress(progress, "benchmark aggregate: skipped; no completed runs")
 
     summary = _summary(
-        regatta=regatta.name,
-        course=regatta.course.name,
+        regatta=regatta_name,
+        course=course_name,
         agent_name=agent_name,
         surfaces=surfaces,
         logbook_dir=logbook_dir,
@@ -134,8 +199,33 @@ def run_real_benchmark_repetitions(
         aggregate=aggregate,
     )
     validate_real_benchmark_repetitions_document(summary)
+    written = _write_json(logbook_dir / REAL_BENCHMARK_REPETITIONS_PATH, summary)
+    status = "complete" if summary["status"] == "complete" else "blocked"
+    index_lifecycle.finish(
+        status,
+        stage="complete" if status == "complete" else None,
+    )
     _progress(progress, f"real benchmark repetitions complete: {summary['status']}")
-    return _write_json(logbook_dir / REAL_BENCHMARK_REPETITIONS_PATH, summary)
+    return written
+
+
+def _child_scorecard_path(child_logbook: Path) -> Path | None:
+    artifact = read_logbook(child_logbook).artifact("benchmark_scorecard")
+    if artifact is None or not artifact.file_present:
+        return None
+    return artifact.path
+
+
+def _child_status(child_logbook: Path, fallback: str) -> str:
+    recorded = read_logbook(child_logbook).status
+    status = (
+        recorded
+        if recorded in {"running", "complete", "blocked", "failed"}
+        else fallback
+    )
+    if status in {"running", "complete", "blocked", "failed"}:
+        return status
+    return "blocked" if status == "partial" else "failed"
 
 
 def _real_benchmark_eval_runner(
