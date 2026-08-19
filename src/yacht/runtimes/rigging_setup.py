@@ -109,14 +109,24 @@ def plan_rigging_setup(
             )
         except SkillConfigError as error:
             raise RiggingSetupError(str(error)) from error
-        files.extend(
-            RiggingSetupFile(
-                origin_name=render.origin_name,
-                target=render.target,
-                content=render.content,
+        for render in renders:
+            files.extend(
+                (
+                    RiggingSetupFile(
+                        origin_name=render.origin_name,
+                        target=render.target,
+                        content=render.content,
+                    ),
+                    *(
+                        RiggingSetupFile(
+                            origin_name=render.origin_name,
+                            target=resource.target,
+                            content=resource.content,
+                        )
+                        for resource in render.resources
+                    ),
+                )
             )
-            for render in renders
-        )
     return RiggingSetupPlan(
         commands=tuple(commands),
         files=tuple(files),

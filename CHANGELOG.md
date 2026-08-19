@@ -29,6 +29,18 @@
   an unenforceable cap is rejected, and `MAX_TURNS_ENFORCING_HARNESSES`
   in `yacht.courses.episodes` records which first-class harnesses
   qualify.
+- A `skill` install can carry auxiliary `resources` — a checklist, a
+  template, a script — each with a path inside the skill directory and
+  inline `content` or a `source` file. Previously only `SKILL.md`
+  shipped, so a skill that referenced anything else could not be
+  delivered. Paths are canonicalized before rendering and hashing, and
+  an absolute path, `..`, a path naming no file, two resources
+  normalizing to one file, or a resource claiming `SKILL.md` are refused
+  at validate time. Each install records a `content_digest` over the
+  sorted bundle of relative paths and contents, identical across harness
+  layouts; it pins what Yacht rendered and shipped rather than
+  claiming in-container verification, since rigging commands run in the
+  author's task image where no hashing tool is guaranteed.
 
 ### Scoped secrets and a contributor devenv environment
 

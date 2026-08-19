@@ -429,11 +429,25 @@ def _rigging_steps(
         except SkillConfigError as error:
             raise ConfigError(str(error)) from error
         for render in renders:
+            steps.extend(
+                {
+                    "method": "config-file",
+                    "target": resource.target,
+                    "content": resource.content,
+                }
+                for resource in render.resources
+            )
+            # content_digest pins what Yacht rendered and shipped. It is not
+            # an in-container integrity check: these steps run through
+            # environment.exec in the author's task image, where no hashing
+            # tool is guaranteed. Emitted for every skill, with or without
+            # resources, so its absence never has to be interpreted.
             steps.append(
                 {
                     "method": "config-file",
                     "target": render.target,
                     "content": render.content,
+                    "content_digest": render.content_digest,
                 }
             )
     return steps

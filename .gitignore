@@ -10,7 +10,6 @@ __pycache__/
 /notes/
 /logs/
 /pi-container-*.json
-/feedback.md
 
 # Contributor devenv environment (devenv.nix / .envrc). devenv.lock is
 # committed; local state and overrides are not.

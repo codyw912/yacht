@@ -386,6 +386,45 @@ Without a declared provider the gate still refuses the step, and
 without the namespace guarantee the server reports unmeasured rather
 than guessed at.
 
+### Skills with more than one file
+
+A `skill` install carries a `SKILL.md` body. A skill that references
+other files — a checklist, a template, a script — ships them as
+`resources`, each with a path relative to the skill directory and either
+inline `content` or a `source` file read next to the config:
+
+```toml
+[[riggings.team-conventions.install]]
+method = "skill"
+target = "team-conventions"
+source = "skills/team-conventions/SKILL.md"
+resources = [
+  { path = "reference/checklist.md", source = "skills/team-conventions/reference/checklist.md" },
+  { path = "templates/pr.md", content = "## Summary\n" },
+]
+```
+
+Each harness gets its native layout —
+`.claude/skills/<name>/...` for Claude Code, `.agents/skills/<name>/...`
+for OMP and Codex — and every file lands under it, host-side and inside
+Harbor task containers alike.
+
+Paths are canonicalized before anything is written or hashed, and these
+are refused at `yacht validate` time: an absolute path, a path
+containing `..`, a path that names no file (`.`), two resources that
+normalize to the same file, and a resource claiming `SKILL.md` itself.
+That last one matters because the host writer emits the body first while
+the Harbor lowering emits it last, so a collision would build two
+different trees from one payload.
+
+Every skill install records a `content_digest` in the rendered job: a
+SHA-256 over the sorted bundle of relative paths and contents, so the
+same skill has one digest whichever harness layout it lands in, and a
+change to any file in the bundle shows up in the artifact. It pins what
+Yacht rendered and shipped — it is not an in-container integrity check,
+because rigging commands run in the task image you supply, where no
+hashing tool is guaranteed to exist.
+
 ### What a delivery stage claims
 
 A skill reports three stages — `available`, `selected`, `loaded` — each
