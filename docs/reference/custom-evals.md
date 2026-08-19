@@ -94,9 +94,12 @@ timeout_sec = 900.0
 [episodes]
 max = 2
 verify_between = true
-max_turns = 15
 timeout_seconds = 300
 ```
+
+The bundled `relay-task` intentionally omits `max_turns`, so the same
+fixture runs on Claude Code, OMP, Codex, and declared harnesses. Add a
+native turn cap only when every harness in the comparison can enforce it.
 
 - `max` (required, integer >= 1) — the number of episodes. `max = 1` is
   the same as omitting the table entirely; a value greater than 1

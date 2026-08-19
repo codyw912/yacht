@@ -1,0 +1,85 @@
+# Two cold episodes in one persistent workspace, once per harness.
+# OMP and Codex do not expose a native turn cap, so the task uses the
+# wall-clock backstop only. Each episode starts a fresh CLI process.
+#
+#   uv run yacht run examples/custom-eval-omp-codex-relay-smoke.toml \
+#     --logbook /private/tmp/yacht-omp-codex-relay \
+#     --workspace . \
+#     --secret openai=@env:OPENAI_API_KEY
+#
+# Token-free bar: `uv run yacht internals preflight` (install-only).
+# Requirements: Docker running, uv, OPENAI_API_KEY, and:
+#
+#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+
+[regatta]
+name = "custom-eval-omp-codex-relay-smoke"
+
+[preflight]
+failure_policy = "abort-group"
+
+[course]
+name = "cold-relay-smoke"
+
+[[course.tasks]]
+id = "relay-task"
+title = "Continue work across two cold sessions"
+
+[course.adapter]
+kind = "custom-eval"
+dataset = "custom-evals"
+split = "v1"
+harness = "harbor"
+
+[secrets.openai]
+source = "env"
+name = "OPENAI_API_KEY"
+
+[runtimes.harbor-omp]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "omp"
+harness_version = "17.2.15"
+required_secrets = ["openai"]
+
+[runtimes.harbor-omp.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "openai-secret", kind = "env", env = ["OPENAI_API_KEY"] },
+  { name = "workspace-writable", kind = "command", command = ["sh", "-c", "test -w ."] },
+  { name = "agent-install", kind = "install-only" },
+]
+
+[runtimes.harbor-codex]
+backend = "harbor"
+image = "yacht/harbor-launcher:harbor-0.20.0"
+harness = "codex"
+harness_version = "0.147.0"
+required_secrets = ["openai"]
+
+[runtimes.harbor-codex.preflight]
+required = true
+checks = [
+  { name = "docker-daemon", kind = "command", command = ["docker", "info"] },
+  { name = "harbor-launcher-image", kind = "command", command = ["docker", "image", "inspect", "yacht/harbor-launcher:harbor-0.20.0"] },
+  { name = "openai-secret", kind = "env", env = ["OPENAI_API_KEY"] },
+  { name = "workspace-writable", kind = "command", command = ["sh", "-c", "test -w ."] },
+  { name = "agent-install", kind = "install-only" },
+]
+
+[[vessels]]
+name = "omp-relay"
+model = "openai/gpt-5.6-luna"
+runtime = "harbor-omp"
+
+[[vessels]]
+name = "codex-relay"
+model = "openai/gpt-5.6-luna"
+runtime = "harbor-codex"
+
+[[comparisons]]
+name = "omp-codex-relay-smoke"
+course = "cold-relay-smoke"
+vessels = ["omp-relay", "codex-relay"]

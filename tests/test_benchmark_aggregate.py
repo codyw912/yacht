@@ -341,6 +341,49 @@ class BenchmarkAggregateTests(unittest.TestCase):
             )
             self.assertEqual(vessel["provenance"]["mixed"], [])
 
+    def test_aggregate_excludes_unreported_cost_from_totals_and_deltas(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook = _write_logbook(
+                Path(temp_dir) / "run-1",
+                baseline_resolved=0,
+                fff_resolved=1,
+            )
+            scorecard_path = logbook / "task-attempt-scorecard.json"
+            scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
+            scorecard["comparisons"][0]["vessels"][1]["cost_sources"] = ["unreported"]
+            scorecard_path.write_text(
+                json.dumps(scorecard) + "\n",
+                encoding="utf-8",
+            )
+
+            aggregate = build_benchmark_aggregate([logbook])
+
+            comparison = aggregate["comparisons"][0]
+            challenger = comparison["vessels"][1]
+            self.assertIsNone(challenger["total_cost"])
+            self.assertIsNone(challenger["cost_per_resolution"])
+            self.assertIsNone(comparison["delta"]["cost_delta"])
+            self.assertEqual(
+                comparison["delta_statistics"]["cost_delta"],
+                {
+                    "runs": 0,
+                    "mean": None,
+                    "stdev": None,
+                    "min": None,
+                    "max": None,
+                    "grade": "insufficient-evidence",
+                },
+            )
+            text = render_benchmark_aggregate_document(aggregate, "text")
+            self.assertIn("cost unavailable", text)
+            self.assertNotIn("cost better", text)
+            self.assertNotIn("cost worse", text)
+
+            html = render_benchmark_aggregate_document(aggregate, "html")
+            row_start = html.index("<tr><td><code>pi-plus-fff</code>")
+            row_end = html.index("</tr>", row_start)
+            self.assertIn('<td class="num">-</td>', html[row_start:row_end])
+
     def test_aggregate_labels_mixed_provenance_across_runs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

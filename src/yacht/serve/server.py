@@ -338,13 +338,18 @@ def _group_summary(records: list[VesselRecord]) -> str:
         int(record.outcome.get("resolved_instances", 0)) for record in records
     )
     tokens = sum(int(record.usage.get("total_tokens", 0)) for record in records)
-    cost = sum(float(record.usage.get("total_cost", 0.0)) for record in records)
+    costs = [record.usage.get("total_cost") for record in records]
+    cost = (
+        sum(float(value) for value in costs if value is not None)
+        if all(value is not None for value in costs)
+        else None
+    )
     rate = f"{resolved / submitted:.3f}" if submitted else "-"
     return (
         f'<p class="sub">{len(records)} vessel run'
         f"{'s' if len(records) != 1 else ''} &middot; "
         f"resolved {resolved}/{submitted} (rate {rate}) &middot; "
-        f"{tokens} tokens &middot; cost {cost:.6f}</p>"
+        f"{tokens} tokens &middot; cost {_cost(cost)}</p>"
     )
 
 
@@ -376,11 +381,17 @@ def _records_table(root: Path, records: list[VesselRecord]) -> str:
             f"<td><code>{_e(record.vessel)}</code></td>"
             f'<td class="num">{_e(resolved)}</td>'
             f'<td class="num">{record.usage.get("total_tokens", 0)}</td>'
-            f'<td class="num">{record.usage.get("total_cost", 0.0):.6f}</td>'
+            f'<td class="num">{_cost(record.usage.get("total_cost"))}</td>'
             f"{mixed_cell}</tr>"
         )
     rows.append("</table>")
     return "".join(rows)
+
+
+def _cost(value: object) -> str:
+    if value is None:
+        return "-"
+    return f"{float(value):.6f}"
 
 
 def _bad_request_page(message: str) -> str:

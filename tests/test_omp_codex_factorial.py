@@ -68,10 +68,11 @@ class OmpCodexFactorialCourseTests(unittest.TestCase):
         )
         self.assertEqual(jobs["omp-baseline"]["agent"]["rigging_steps"], [])
         self.assertEqual(jobs["codex-baseline"]["agent"]["rigging_steps"], [])
-        skill_step = {
-            "method": "config-file",
-            "target": ".agents/skills/team-conventions/SKILL.md",
-        }
+        skill_targets = [
+            ".agents/skills/team-conventions/reference/checklist.md",
+            ".agents/skills/team-conventions/templates/tool.py",
+            ".agents/skills/team-conventions/SKILL.md",
+        ]
         omp_targets = [
             step["target"] for step in jobs["omp-with-skill"]["agent"]["rigging_steps"]
         ]
@@ -79,8 +80,8 @@ class OmpCodexFactorialCourseTests(unittest.TestCase):
             step["target"]
             for step in jobs["codex-with-skill"]["agent"]["rigging_steps"]
         ]
-        self.assertEqual(omp_targets, [skill_step["target"]])
-        self.assertEqual(codex_targets, [skill_step["target"]])
+        self.assertEqual(omp_targets, skill_targets)
+        self.assertEqual(codex_targets, skill_targets)
         for job in jobs.values():
             self.assertEqual(job["secret_env"], ["OPENAI_API_KEY"])
             self.assertEqual(

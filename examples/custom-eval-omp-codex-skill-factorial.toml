@@ -95,6 +95,8 @@ description: Team conventions for tool modules in /app/tools. Use when adding or
 ---
 
 # Tool module conventions
+Supporting files under `reference/` and `templates/` carry a concise
+checklist and starter shape. Consult them when useful.
 
 Every tool module in `/app/tools` must:
 
@@ -107,6 +109,10 @@ Every tool module in `/app/tools` must:
 A module that does not register itself in `registry.txt` will not be
 loaded, even if the code is otherwise correct.
 """
+resources = [
+  { path = "reference/checklist.md", content = "Define TOOL_NAME. Implement run(args) -> int. Append TOOL_NAME to /app/tools/registry.txt.\n" },
+  { path = "templates/tool.py", content = "TOOL_NAME = \"replace-me\"\n\ndef run(args) -> int:\n    return 0\n" },
+]
 
 [[vessels]]
 name = "omp-baseline"

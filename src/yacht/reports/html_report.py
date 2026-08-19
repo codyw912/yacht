@@ -336,10 +336,14 @@ def _aggregate_runs_table(comparison: dict[str, Any]) -> str:
 
 
 def _mean_stdev(stats: Any, pattern: str) -> str:
-    if not isinstance(stats, dict):
+    if (
+        not isinstance(stats, dict)
+        or stats.get("mean") is None
+        or stats.get("stdev") is None
+    ):
         return "-"
-    mean = pattern.format(float(stats.get("mean") or 0.0))
-    stdev = pattern.format(float(stats.get("stdev") or 0.0))
+    mean = pattern.format(float(stats["mean"]))
+    stdev = pattern.format(float(stats["stdev"]))
     return f"{mean} &plusmn; {stdev}"
 
 
@@ -705,16 +709,38 @@ def _usage_chart(
     groups: list[str] = []
     y = 0
     for key, label, fmt in metrics:
-        values = [(str(v["name"]), float(v.get(key) or 0)) for v in vessels]
-        top = max((value for _, value in values), default=0.0)
+        values: list[tuple[str, float | None]] = []
+        for vessel in vessels:
+            value = vessel.get(key)
+            numeric_value = (
+                float(value)
+                if isinstance(value, int | float) and not isinstance(value, bool)
+                else None
+            )
+            values.append((str(vessel["name"]), numeric_value))
+        top = max(
+            (value for _, value in values if value is not None),
+            default=0.0,
+        )
         groups.append(f'<text x="0" y="{y + 15}" class="axis">{_e(label)}</text>')
         y += row_height
         for index, (name, value) in enumerate(values):
-            width = 0 if top == 0 else max(2, round(bar_width * value / top))
+            width = (
+                0
+                if value is None or top == 0
+                else max(2, round(bar_width * value / top))
+            )
             color = "var(--bar-a)" if index == 0 else "var(--bar-b)"
+            bar = (
+                ""
+                if value is None
+                else (
+                    f'<rect x="{label_width}" y="{y + 4}" width="{width}" '
+                    f'height="{row_height - 9}" rx="3" fill="{color}"></rect>'
+                )
+            )
             groups.append(
-                f'<rect x="{label_width}" y="{y + 4}" width="{width}" '
-                f'height="{row_height - 9}" rx="3" fill="{color}"></rect>'
+                f"{bar}"
                 f'<text x="0" y="{y + 15}">{_e(_short(name))}</text>'
                 f'<text x="{label_width + width + 8}" y="{y + 15}">'
                 f"{_e(fmt(value))}</text>"

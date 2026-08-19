@@ -242,7 +242,7 @@ def _aggregate_vessel(
     eligible_runs = 0
     usage_runs = 0
     tokens = 0
-    cost = 0.0
+    costs: list[float | None] = []
     duration = 0.0
     tool_calls = 0
     run_provenances = []
@@ -265,7 +265,13 @@ def _aggregate_vessel(
         if usage_vessel is not None:
             usage_runs += 1
             tokens += int(usage_vessel["total_tokens"])
-            cost += float(usage_vessel["total_cost"])
+            usage_cost = usage_vessel.get("total_cost")
+            costs.append(
+                float(usage_cost)
+                if isinstance(usage_cost, int | float)
+                and not isinstance(usage_cost, bool)
+                else None
+            )
             duration += float(usage_vessel["total_duration_seconds"])
             tool_calls += int(usage_vessel["distinct_tool_uses"])
             run_provenances.append(usage_vessel.get("provenance"))
@@ -274,6 +280,7 @@ def _aggregate_vessel(
                 usage_vessel.get("tool_invocations", ()),
             )
     run_vessels = [_run_vessel(comparison_name, vessel_name, run) for run in runs]
+    total_cost = _complete_cost_total(costs)
     payload = {
         "name": vessel_name,
         "runs": len(runs),
@@ -284,11 +291,15 @@ def _aggregate_vessel(
         "resolution_rate": resolved / submitted if submitted else 0.0,
         "usage_runs": usage_runs,
         "total_tokens": tokens,
-        "total_cost": round(cost, 6),
+        "total_cost": total_cost,
         "total_duration_seconds": round(duration, 3),
         "total_distinct_tool_uses": tool_calls,
         "tokens_per_resolution": (round(tokens / resolved, 1) if resolved else None),
-        "cost_per_resolution": round(cost / resolved, 6) if resolved else None,
+        "cost_per_resolution": (
+            round(total_cost / resolved, 6)
+            if resolved and total_cost is not None
+            else None
+        ),
         "usage_by_run_outcome": _usage_by_run_outcome(run_vessels),
         "statistics": _vessel_statistics(run_vessels),
     }
@@ -385,8 +396,9 @@ def _aggregate_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:
         "resolution_rate_delta": float(challenger["resolution_rate"])
         - float(baseline["resolution_rate"]),
         "tokens_delta": int(challenger["total_tokens"]) - int(baseline["total_tokens"]),
-        "cost_delta": round(
-            float(challenger["total_cost"]) - float(baseline["total_cost"]),
+        "cost_delta": _cost_difference(
+            baseline.get("total_cost"),
+            challenger.get("total_cost"),
             6,
         ),
         "duration_seconds_delta": round(
@@ -415,6 +427,27 @@ def _efficiency_delta(
     digits: int,
 ) -> float | None:
     if baseline is None or challenger is None:
+        return None
+    return round(float(challenger) - float(baseline), digits)
+
+
+def _complete_cost_total(costs: list[float | None]) -> float | None:
+    if not costs or any(cost is None for cost in costs):
+        return None
+    return round(sum(cost for cost in costs if cost is not None), 6)
+
+
+def _cost_difference(
+    baseline: Any,
+    challenger: Any,
+    digits: int,
+) -> float | None:
+    if (
+        not isinstance(baseline, int | float)
+        or isinstance(baseline, bool)
+        or not isinstance(challenger, int | float)
+        or isinstance(challenger, bool)
+    ):
         return None
     return round(float(challenger) - float(baseline), digits)
 
@@ -455,10 +488,21 @@ def _usage_by_run_outcome(
         if not selected:
             continue
         count = len(selected)
+        costs = [
+            float(vessel["cost"])
+            if isinstance(vessel.get("cost"), int | float)
+            and not isinstance(vessel.get("cost"), bool)
+            else None
+            for vessel in selected
+        ]
         outcomes[label] = {
             "runs": count,
             "tokens_mean": round(sum(int(v["tokens"]) for v in selected) / count, 1),
-            "cost_mean": round(sum(float(v["cost"]) for v in selected) / count, 6),
+            "cost_mean": (
+                round(sum(cost for cost in costs if cost is not None) / count, 6)
+                if all(cost is not None for cost in costs)
+                else None
+            ),
             "duration_seconds_mean": round(
                 sum(float(v["duration_seconds"]) for v in selected) / count,
                 3,
@@ -510,8 +554,12 @@ def _vessel_statistics(run_vessels: list[dict[str, Any]]) -> dict[str, Any]:
             digits=3,
         ),
         "tokens": _stats([int(vessel["tokens"]) for vessel in measured]),
-        "cost": _stats(
-            [float(vessel["cost"]) for vessel in measured],
+        "cost": _nullable_stats(
+            [
+                float(vessel["cost"])
+                for vessel in measured
+                if vessel.get("cost") is not None
+            ],
             digits=6,
         ),
         "duration_seconds": _stats(
@@ -546,8 +594,12 @@ def _delta_statistics(run_summaries: list[dict[str, Any]]) -> dict[str, Any]:
             [int(delta["tokens_delta"]) for delta in deltas],
             graded=True,
         ),
-        "cost_delta": _stats(
-            [float(delta["cost_delta"]) for delta in deltas],
+        "cost_delta": _nullable_stats(
+            [
+                float(delta["cost_delta"])
+                for delta in deltas
+                if delta.get("cost_delta") is not None
+            ],
             digits=6,
             graded=True,
         ),
@@ -601,6 +653,26 @@ def _stats(
     return payload
 
 
+def _nullable_stats(
+    values: list[float | int],
+    *,
+    digits: int = 3,
+    graded: bool = False,
+) -> dict[str, Any]:
+    if values:
+        return _stats(values, digits=digits, graded=graded)
+    payload: dict[str, Any] = {
+        "runs": 0,
+        "mean": None,
+        "stdev": None,
+        "min": None,
+        "max": None,
+    }
+    if graded:
+        payload["grade"] = GRADE_INSUFFICIENT
+    return payload
+
+
 def _run_vessel(
     comparison_name: str,
     vessel_name: str,
@@ -620,15 +692,21 @@ def _run_vessel(
         "resolved_instances": resolved,
         "resolution_rate": resolved / submitted if submitted else 0.0,
         "tokens": 0,
-        "cost": 0.0,
+        "cost": None,
         "duration_seconds": 0.0,
         "tool_calls": 0,
     }
     if usage_vessel is not None:
+        usage_cost = usage_vessel.get("total_cost")
         payload.update(
             {
                 "tokens": int(usage_vessel["total_tokens"]),
-                "cost": round(float(usage_vessel["total_cost"]), 6),
+                "cost": (
+                    round(float(usage_cost), 6)
+                    if isinstance(usage_cost, int | float)
+                    and not isinstance(usage_cost, bool)
+                    else None
+                ),
                 "duration_seconds": round(
                     float(usage_vessel["total_duration_seconds"]),
                     3,
@@ -650,7 +728,7 @@ def _run_delta(vessels: list[dict[str, Any]]) -> dict[str, Any]:
         "resolution_rate_delta": float(challenger["resolution_rate"])
         - float(baseline["resolution_rate"]),
         "tokens_delta": int(challenger["tokens"]) - int(baseline["tokens"]),
-        "cost_delta": round(float(challenger["cost"]) - float(baseline["cost"]), 6),
+        "cost_delta": _cost_difference(baseline.get("cost"), challenger.get("cost"), 6),
         "duration_seconds_delta": round(
             float(challenger["duration_seconds"]) - float(baseline["duration_seconds"]),
             3,
@@ -1043,10 +1121,13 @@ def _decision_summary_row(comparison: dict[str, Any]) -> str:
         [
             str(comparison["name"]),
             _resolution_decision(delta, comparison.get("paired_statistics")),
-            _resource_decision("tokens", int(delta["tokens_delta"])) + confound,
-            _resource_decision("cost", float(delta["cost_delta"])) + confound,
-            _resource_decision("duration", float(delta["duration_seconds_delta"]))
-            + confound,
+            _resource_decision("tokens", int(delta["tokens_delta"]), confound),
+            _resource_decision("cost", delta.get("cost_delta"), confound),
+            _resource_decision(
+                "duration",
+                float(delta["duration_seconds_delta"]),
+                confound,
+            ),
         ]
     )
 
@@ -1078,7 +1159,13 @@ def _resolution_decision(
     return decision
 
 
-def _resource_decision(label: str, value: int | float) -> str:
+def _resource_decision(
+    label: str,
+    value: int | float | None,
+    suffix: str = "",
+) -> str:
+    if value is None:
+        return f"{label} unavailable"
     numeric_value = float(value)
     if numeric_value < 0:
         verdict = "better"
@@ -1087,12 +1174,12 @@ def _resource_decision(label: str, value: int | float) -> str:
     else:
         verdict = "tied"
     if label == "cost":
-        rendered = _signed_cost(float(value))
+        rendered = _signed_cost(value)
     elif label == "duration":
         rendered = _signed_duration(float(value))
     else:
         rendered = _signed_int(int(value))
-    return f"{label} {verdict} ({rendered})"
+    return f"{label} {verdict} ({rendered}){suffix}"
 
 
 def _delta_row(comparison: dict[str, Any]) -> str:
@@ -1259,7 +1346,12 @@ def _efficiency_row(comparison: dict[str, Any], vessel: dict[str, Any]) -> str:
     resolved = int(vessel["resolved_instances"])
     if resolved:
         tokens = f"{int(vessel['total_tokens']) / resolved:.1f}"
-        cost = _cost(float(vessel["total_cost"]) / resolved)
+        total_cost = vessel.get("total_cost")
+        cost = (
+            _cost(float(total_cost) / resolved)
+            if isinstance(total_cost, int | float) and not isinstance(total_cost, bool)
+            else "-"
+        )
     else:
         tokens = "n/a (0 resolved)"
         cost = "n/a (0 resolved)"
@@ -1323,7 +1415,9 @@ def _signed_rate(value: float) -> str:
     return f"{float(value):+.3f}"
 
 
-def _signed_cost(value: float) -> str:
+def _signed_cost(value: Any) -> str:
+    if value is None:
+        return "-"
     return f"{float(value):+.6f}"
 
 
@@ -1335,7 +1429,9 @@ def _rate(value: float) -> str:
     return f"{float(value):.3f}"
 
 
-def _cost(value: float) -> str:
+def _cost(value: Any) -> str:
+    if value is None:
+        return "-"
     return f"{float(value):.6f}"
 
 
@@ -1376,6 +1472,8 @@ def _stats_cost_stdev(stats: dict[str, Any]) -> str:
 
 
 def _stats_cost_range(stats: dict[str, Any]) -> str:
+    if stats["runs"] == 0:
+        return "-"
     return f"{_cost(stats['min'])}..{_cost(stats['max'])}"
 
 
@@ -1412,6 +1510,8 @@ def _stats_signed_cost_mean(stats: dict[str, Any]) -> str:
 
 
 def _stats_signed_cost_range(stats: dict[str, Any]) -> str:
+    if stats["runs"] == 0:
+        return "-"
     return f"{_signed_cost(stats['min'])}..{_signed_cost(stats['max'])}"
 
 

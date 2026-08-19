@@ -207,7 +207,9 @@ def _tool_list(value: list[str]) -> str:
     return ", ".join(value) if value else "-"
 
 
-def _cost(value: float) -> str:
+def _cost(value: float | None) -> str:
+    if value is None:
+        return "-"
     return f"{float(value):.6f}"
 
 
