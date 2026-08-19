@@ -14,7 +14,7 @@ from yacht.domain.model import ConfigError, run_regatta
 from yacht.harnesses.registry import agent_prompt_runner_factory
 from yacht.harnesses.registry import task_agent
 from yacht.reports.surface_metadata import regatta_surfaces_to_json
-from yacht.preflight.runner import parse_secret_values
+from yacht.secret_resolution import resolve_secret_arguments
 from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
 from yacht.workflows.real_benchmark_repetitions import run_real_benchmark_repetitions
 from yacht.workflows.real_benchmark_runbook import write_real_benchmark_runbook
@@ -138,7 +138,7 @@ def _run_smoke(args: argparse.Namespace) -> int:
             config_path=args.config,
             logbook_dir=args.logbook,
             workspace_path=args.workspace,
-            secret_values=parse_secret_values(args.secret),
+            secret_values=resolve_secret_arguments(args.secret),
             agent_prompt_runner_factory=agent_prompt_runner_factory(
                 agent_name, harness_declarations
             ),
@@ -165,7 +165,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             config_path=args.config,
             logbook_dir=args.logbook,
             workspace_path=args.workspace,
-            secret_values=parse_secret_values(args.secret),
+            secret_values=resolve_secret_arguments(args.secret),
             agent_prompt_runner_factory=prompt_factory,
             task_agent=bound_task_agent,
             agent_name=agent_name,
@@ -189,7 +189,7 @@ def _run_benchmark_repetitions(args: argparse.Namespace) -> int:
             config_path=args.config,
             logbook_dir=args.logbook,
             workspace_path=args.workspace,
-            secret_values=parse_secret_values(args.secret),
+            secret_values=resolve_secret_arguments(args.secret),
             repetitions=args.repetitions,
             agent_name=agent_name,
             agent_prompt_runner_factory=prompt_factory,

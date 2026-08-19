@@ -1,4 +1,5 @@
 import json
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -233,6 +234,23 @@ class SkillSetupPlanTests(unittest.TestCase):
         self.assertEqual(plan.files[0].origin_name, "team-conventions-skill")
 
 
+def _skill_payload_digest(*payload: str) -> str:
+    """The digest a skill payload of SKILL.md plus resources should carry.
+
+    Computed here independently of the renderer so the test pins the
+    definition (logical relative path, NUL, content, NUL; sorted) rather
+    than echoing whatever the renderer produced.
+    """
+    entries = [("SKILL.md", payload[0])]
+    digest = hashlib.sha256()
+    for relative_path, content in sorted(entries):
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\x00")
+        digest.update(content.encode("utf-8"))
+        digest.update(b"\x00")
+    return f"sha256:{digest.hexdigest()}"
+
+
 class SkillHarborJobTests(unittest.TestCase):
     def test_job_renders_skill_as_native_config_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -253,6 +271,9 @@ class SkillHarborJobTests(unittest.TestCase):
                 vessel_name="with-skill",
             )
 
+        # The payload digest pins what Yacht rendered and shipped. It is
+        # recorded for every skill, resources or not, so a missing digest
+        # never has to be interpreted.
         self.assertEqual(
             job["agent"]["rigging_steps"],
             [
@@ -260,6 +281,7 @@ class SkillHarborJobTests(unittest.TestCase):
                     "method": "config-file",
                     "target": ".claude/skills/team-conventions/SKILL.md",
                     "content": SKILL_BODY,
+                    "content_digest": _skill_payload_digest(SKILL_BODY),
                 }
             ],
         )
@@ -303,6 +325,7 @@ class SkillHarborJobTests(unittest.TestCase):
                             "method": "config-file",
                             "target": skill_target,
                             "content": SKILL_BODY,
+                            "content_digest": _skill_payload_digest(SKILL_BODY),
                         }
                     ],
                 )
@@ -610,8 +633,10 @@ class SkillStageEvidenceTests(unittest.TestCase):
             ],
         }
 
+        # A stage nothing could measure reads as unmeasured, not 0/0:
+        # silence and a measured zero are different findings.
         self.assertIn(
-            "selected 1/1; loaded 0/0",
+            "selected 1/1; loaded unmeasured",
             _delivery_decision(delivery),
         )
         table = _delivery_table(
@@ -625,8 +650,9 @@ class SkillStageEvidenceTests(unittest.TestCase):
             }
         )
         self.assertIn("selected 1/1", table)
-        self.assertIn("loaded 0/0", table)
-        self.assertIn("available 0/0", table)
+        self.assertIn("loaded unmeasured", table)
+        self.assertNotIn("loaded 0/0", table)
+        self.assertIn("available unmeasured", table)
 
 
 def _write_staged_attempt(

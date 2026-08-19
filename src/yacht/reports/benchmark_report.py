@@ -13,6 +13,7 @@ from yacht.workflows.benchmark_grading_collection import (
 from yacht.workflows.benchmark_launch import BENCHMARK_LAUNCH_RESULT_PATH
 from yacht.reports.benchmark_scorecard import BENCHMARK_SCORECARD_PATH
 from yacht.reports.html_report import render_benchmark_html
+from yacht.reports.provenance_format import skill_stage_rate_label
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import (
     SchemaValidationError,
@@ -544,6 +545,8 @@ def _decision_summary_lines(
     lines = [
         "",
         "Decision summary:",
+        "delivery stages come from preserved transcripts; an install-only "
+        "preflight pass is separate evidence and leaves them unmeasured",
         "comparison | resolution | tokens | cost | duration | delivery",
     ]
     lines.extend(
@@ -616,25 +619,10 @@ def _delivery_tool_rate(tool: dict[str, Any]) -> str:
         f"{tool.get('tool')} {tool.get('invoked_attempts', '?')}/"
         f"{tool.get('measured_attempts')}"
     )
-    stages = _skill_stage_rate_label(tool.get("skill_stages"))
+    stages = skill_stage_rate_label(tool.get("skill_stages"))
     if stages:
         return f"{label}; {stages}"
     return label
-
-
-def _skill_stage_rate_label(stages: Any) -> str:
-    if not isinstance(stages, dict):
-        return ""
-    parts = []
-    for key in ("available", "selected", "loaded"):
-        counts = stages.get(key)
-        if not isinstance(counts, dict):
-            continue
-        parts.append(
-            f"{key} {counts.get('observed_attempts', 0)}/"
-            f"{counts.get('measured_attempts', 0)}"
-        )
-    return "; ".join(parts)
 
 
 def _resolution_decision(

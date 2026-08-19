@@ -10,6 +10,7 @@ from yacht.reports.provenance_format import (
     provenance_mixed,
     provenance_model_label,
     provenance_tools_label,
+    skill_stage_rate_label,
 )
 
 _STYLE = """
@@ -393,7 +394,11 @@ def _comparison_sections(
                 "observed to fire, from preserved trial transcripts. Rates over "
                 "all measured attempts and over completed attempts separately — "
                 "a gap between the two means failing to fire and failing to "
-                "finish travel together.</p>"
+                "finish travel together. A stage reads <code>unmeasured</code> "
+                "when no attempt could measure it: that is silence, not a "
+                "negative result. Installation is separate evidence — an "
+                "install-only preflight check proves the treatment reached the "
+                "environment, and never fills these stages in.</p>"
             )
             sections.append(delivery_table)
         usage_chart = _usage_chart(comparison, attempt_comparison)
@@ -661,20 +666,9 @@ def _delivery_table(attempt_comparison: dict[str, Any] | None) -> str:
                     f"{_e(', '.join(observed_tools))}</span>"
                 )
             stages = entry.get("skill_stages")
-            if isinstance(stages, dict):
-                stage_bits = []
-                for key in ("available", "selected", "loaded"):
-                    counts = stages.get(key)
-                    if not isinstance(counts, dict):
-                        continue
-                    stage_bits.append(
-                        f"{key} {counts.get('observed_attempts', 0)}/"
-                        f"{counts.get('measured_attempts', 0)}"
-                    )
-                if stage_bits:
-                    expected_cell += (
-                        f'<br><span class="muted">{_e("; ".join(stage_bits))}</span>'
-                    )
+            stage_label = skill_stage_rate_label(stages)
+            if stage_label:
+                expected_cell += f'<br><span class="muted">{_e(stage_label)}</span>'
 
             rows.append(
                 f"<tr><td><code>{_e(name)}</code></td>"

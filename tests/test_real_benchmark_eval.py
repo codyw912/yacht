@@ -19,6 +19,7 @@ from yacht.harnesses.pi import (
 )
 from yacht.preflight import CommandResult
 from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
+from yacht.courses.registry import native_harness_command
 
 
 MODEL_PATCH = (
@@ -263,8 +264,8 @@ class RealBenchmarkEvalTests(unittest.TestCase):
             )
             command = launcher_handoff["comparisons"][0]["vessels"][0]["command"]
             self.assertEqual(
-                command[:5],
-                ["uv", "run", "python", "-m", "yacht.courses.swe_bench.harness"],
+                command[:3],
+                native_harness_command("yacht.courses.swe_bench.harness"),
             )
 
     def test_real_benchmark_eval_command_prints_json_when_requested(self) -> None:
@@ -601,7 +602,11 @@ def _native_report_fixture(vessel_name: str) -> str:
     raise AssertionError(f"unexpected vessel {vessel_name}")
 
 
-def _benchmark_command_result(argv: list[str], cwd: Path) -> CommandResult:
+def _benchmark_command_result(
+    argv: list[str],
+    cwd: Path,
+    secret_env: dict[str, str],
+) -> CommandResult:
     _write_native_report(argv)
     return CommandResult(exit_code=0, stdout=f"graded in {cwd}\n", stderr="")
 

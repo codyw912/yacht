@@ -35,6 +35,25 @@ By contributing to YACHT, you agree that your contribution is licensed under the
 Apache License 2.0, the same license as the project, unless you explicitly mark
 the contribution as "Not a Contribution."
 
+## Local Environment
+
+A [devenv](https://devenv.sh) environment provides Python 3.12, `uv`,
+Git, and the pinned SecretSpec release:
+
+```sh
+devenv shell        # or: direnv allow, once
+```
+
+It is separate from `flake.nix`, which is Yacht's `host-nix` *runtime*
+contract (`yacht.runtimes.host_nix` runs `nix develop` against runtime
+flakes) — leave that flake's `default` and `pi` shells alone.
+
+Entering the shell loads no secrets: `devenv.yaml` sets
+`secretspec: enable: false`, so it never contacts a provider and never
+populates an API key. Live runs resolve one scope per command through
+`yacht-run-anthropic` / `yacht-run-openai`; see
+[Secrets](docs/reference/secrets.md).
+
 ## Local Checks
 
 Run the same checks that CI runs:
@@ -47,6 +66,11 @@ uv run --locked -m compileall src tests
 uv run --locked yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
 uv run --locked yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-smoke-local
 ```
+
+Inside `devenv shell`, `yacht-check` runs the sync, lint, test, and
+compile gates in one go; `yacht-test`, `yacht-lint`, and `yacht-compile`
+run them individually. There is no separate type-checker gate: `ruff
+check` and `compileall` are the repository's static gates.
 
 `scripts/lint.sh` is the same `ruff check` and `ruff format --check`
 CI runs before tests. Run it before `jj git push`; jj does not invoke

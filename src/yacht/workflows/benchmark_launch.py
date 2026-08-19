@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Callable
 
 from yacht.courses.registry import course_adapter_block
@@ -12,6 +13,7 @@ from yacht.preflight import CommandResult
 from yacht.domain.model import ConfigError
 from yacht.contracts.schemas import BENCHMARK_LAUNCH_RESULT_SCHEMA
 from yacht.contracts.schemas import validate_benchmark_launch_result_document
+from yacht.runtimes.process import subprocess_env
 
 
 BENCHMARK_LAUNCH_RESULT_PATH = Path("benchmark-launch-result.json")
@@ -22,10 +24,24 @@ def write_benchmark_launch_result(
     *,
     logbook_dir: Path,
     command_runner: CommandRunner | None = None,
+    secret_env_by_vessel: Mapping[str, Mapping[str, str]] | None = None,
 ) -> dict[str, Any]:
+    """Run each ready vessel's native launcher command.
+
+    ``secret_env_by_vessel`` reintroduces the source environment
+    variables for the secrets a vessel declares (see
+    :func:`yacht.runtimes.secrets.secret_env_by_vessel`). Yacht scrubs
+    resolved ``@env:`` variables from its own environment, so a launcher
+    that forwards a variable by name (``docker run -e NAME``) only sees
+    the value when it is reintroduced here.
+    """
     launcher_handoff = _load_launcher_handoff(logbook_dir)
-    runner = command_runner if command_runner is not None else _run_command
-    result = _build_launch_result(logbook_dir, launcher_handoff, runner)
+    result = _build_launch_result(
+        logbook_dir,
+        launcher_handoff,
+        command_runner,
+        secret_env_by_vessel or {},
+    )
     validate_benchmark_launch_result_document(result)
     _write_json(logbook_dir / BENCHMARK_LAUNCH_RESULT_PATH, result)
     return result
@@ -51,10 +67,13 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
 def _build_launch_result(
     logbook_dir: Path,
     launcher_handoff: dict[str, Any],
-    command_runner: CommandRunner,
+    command_runner: CommandRunner | None,
+    secret_env_by_vessel: Mapping[str, Mapping[str, str]],
 ) -> dict[str, Any]:
     comparisons = [
-        _comparison_result(logbook_dir, comparison, command_runner)
+        _comparison_result(
+            logbook_dir, comparison, command_runner, secret_env_by_vessel
+        )
         for comparison in launcher_handoff["comparisons"]
     ]
     summary = _summary(comparisons)
@@ -73,7 +92,8 @@ def _build_launch_result(
 def _comparison_result(
     logbook_dir: Path,
     comparison: dict[str, Any],
-    command_runner: CommandRunner,
+    command_runner: CommandRunner | None,
+    secret_env_by_vessel: Mapping[str, Mapping[str, str]],
 ) -> dict[str, Any]:
     vessels = [
         _vessel_result(
@@ -81,6 +101,7 @@ def _comparison_result(
             comparison_name=str(comparison["name"]),
             vessel=vessel,
             command_runner=command_runner,
+            secret_env=secret_env_by_vessel.get(str(vessel["name"]), {}),
         )
         for vessel in comparison["vessels"]
     ]
@@ -97,7 +118,8 @@ def _vessel_result(
     logbook_dir: Path,
     comparison_name: str,
     vessel: dict[str, Any],
-    command_runner: CommandRunner,
+    command_runner: CommandRunner | None,
+    secret_env: Mapping[str, str],
 ) -> dict[str, Any]:
     if vessel["status"] != "ready-to-launch":
         return {
@@ -113,7 +135,10 @@ def _vessel_result(
     output_dir.mkdir(parents=True, exist_ok=True)
     native_report_dir = Path(str(vessel["native_report_dir"]))
     native_report_dir.mkdir(parents=True, exist_ok=True)
-    result = command_runner(command, native_report_dir)
+    if command_runner is None:
+        result = _run_command(command, native_report_dir, secret_env)
+    else:
+        result = command_runner(command, native_report_dir)
     stdout_path = output_dir / "stdout.txt"
     stderr_path = output_dir / "stderr.txt"
     stdout_path.write_text(result.stdout, encoding="utf-8")
@@ -249,10 +274,15 @@ def _comparison_status(vessels: list[dict[str, Any]]) -> str:
     )
 
 
-def _run_command(argv: list[str], cwd: Path) -> CommandResult:
+def _run_command(
+    argv: list[str],
+    cwd: Path,
+    secret_env: Mapping[str, str],
+) -> CommandResult:
     result = subprocess.run(
         argv,
         cwd=cwd,
+        env=subprocess_env(tuple(argv), dict(secret_env)),
         capture_output=True,
         text=True,
         check=False,

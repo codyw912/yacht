@@ -5,6 +5,30 @@ from __future__ import annotations
 from typing import Any
 
 
+def skill_stage_rate_label(stages: Any) -> str:
+    """Per-stage delivery rates as they came from preserved transcripts.
+
+    A stage with no measured attempts reads as `unmeasured`, not `0/0`.
+    `0/0` is indistinguishable at a glance from a measured zero, and the
+    difference is the whole point: "we never saw" versus "we looked and it
+    did not happen". An install-only preflight pass proves the treatment
+    was installed, never fills these in, and must not be read as delivery.
+    """
+    if not isinstance(stages, dict):
+        return ""
+    parts = []
+    for key in ("available", "selected", "loaded"):
+        counts = stages.get(key)
+        if not isinstance(counts, dict):
+            continue
+        measured = counts.get("measured_attempts", 0)
+        if not measured:
+            parts.append(f"{key} unmeasured")
+            continue
+        parts.append(f"{key} {counts.get('observed_attempts', 0)}/{measured}")
+    return "; ".join(parts)
+
+
 def provenance_harness_label(provenance: dict[str, Any]) -> str:
     harness = _section(provenance, "harness")
     name = harness.get("name")

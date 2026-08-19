@@ -12,9 +12,9 @@ from yacht.config.agent_selection import configured_harness_declarations
 from yacht.harnesses.registry import supported_agent_preflight_names
 from yacht.preflight.runner import (
     build_preflight_execution_plan,
-    parse_secret_values,
     run_preflight,
 )
+from yacht.secret_resolution import resolve_secret_arguments
 from yacht.reports.preflight_evidence import render_preflight_evidence_report
 from yacht.reports.preflight_evidence import write_preflight_evidence_report
 
@@ -119,7 +119,7 @@ def _preflight(args: argparse.Namespace) -> int:
             args.config,
             args.logbook,
             args.workspace,
-            parse_secret_values(args.secret),
+            resolve_secret_arguments(args.secret),
             agent_prompt_runner_factory=agent_prompt_runner_factory(
                 args.agent_preflight,
                 _declarations(args),

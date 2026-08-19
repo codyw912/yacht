@@ -370,6 +370,9 @@ class BenchmarkScorecardTests(unittest.TestCase):
                         "Usage: unavailable (missing task-attempt-scorecard.json)",
                         "",
                         "Decision summary:",
+                        "delivery stages come from preserved transcripts; an "
+                        "install-only preflight pass is separate evidence and "
+                        "leaves them unmeasured",
                         "comparison | resolution | tokens | cost | duration | delivery",
                         "pi-vs-pi-fff | resolution better (+1 resolved, +1.000 rate) [insufficient evidence: observation only (1 discordant task(s), need >=6)] | "
                         "tokens unavailable | cost unavailable | duration unavailable | delivery -",

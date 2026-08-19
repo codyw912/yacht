@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -128,7 +128,7 @@ def run_preflight(
     config_path: Path,
     logbook_dir: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     agent_prompt_runner_factory: AgentPromptRunnerFactory | None = None,
 ) -> dict[str, Any]:
     regatta = load_regatta(config_path)
@@ -194,36 +194,6 @@ def build_preflight_execution_plan(
             for comparison in regatta.comparisons
         ],
     }
-
-
-def parse_secret_values(values: list[str]) -> dict[str, str]:
-    secrets = {}
-    for value in values:
-        if "=" not in value:
-            raise ConfigError("secrets must use NAME=VALUE format")
-        name, secret_value = value.split("=", maxsplit=1)
-        if not name:
-            raise ConfigError("secret names must be non-empty")
-        secrets[name] = _secret_value(name, secret_value)
-    return secrets
-
-
-def _secret_value(name: str, value: str) -> str:
-    if not value:
-        raise ConfigError(f"secret {name} must be non-empty")
-    if not value.startswith("@env:"):
-        return value
-    env_name = value.removeprefix("@env:")
-    if not env_name:
-        raise ConfigError(f"secret {name} @env reference must name an env var")
-    if env_name not in os.environ:
-        raise ConfigError(
-            f"environment variable {env_name} is not set for secret {name}"
-        )
-    env_value = os.environ[env_name]
-    if not env_value:
-        raise ConfigError(f"environment variable {env_name} is empty for secret {name}")
-    return env_value
 
 
 def _comparison_execution_plan(
@@ -447,7 +417,7 @@ def _run_comparison_preflight(
     comparison: Comparison,
     logbook_dir: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     agent_prompt_runner_factory: AgentPromptRunnerFactory | None,
 ) -> dict[str, Any]:
     vessel_results = [
@@ -477,7 +447,7 @@ def _run_vessel_preflight(
     vessel: Vessel,
     logbook_dir: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     agent_prompt_runner_factory: AgentPromptRunnerFactory | None,
 ) -> dict[str, Any]:
     try:

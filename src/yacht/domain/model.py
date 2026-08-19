@@ -139,6 +139,12 @@ class RuntimeRecipe:
 
 
 @dataclass(frozen=True)
+class RiggingInstallResource:
+    path: str
+    content: str
+
+
+@dataclass(frozen=True)
 class RiggingInstallStep:
     method: str
     target: str
@@ -148,6 +154,7 @@ class RiggingInstallStep:
     source: str | None = None
     command: tuple[str, ...] = ()
     content: str | None = None
+    resources: tuple[RiggingInstallResource, ...] = ()
     legacy: bool = False
 
     def to_json(self) -> dict[str, Any]:
@@ -167,6 +174,11 @@ class RiggingInstallStep:
             payload["command"] = list(self.command)
         if self.content is not None:
             payload["content"] = self.content
+        if self.resources:
+            payload["resources"] = [
+                {"path": resource.path, "content": resource.content}
+                for resource in self.resources
+            ]
         if self.legacy:
             payload["legacy"] = True
         return payload

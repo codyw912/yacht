@@ -129,8 +129,45 @@
         },
         "content": {
           "type": "string"
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "content": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "oneOf": [
+              {"required": ["content"]},
+              {"required": ["source"]}
+            ]
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["resources"]
+          },
+          "then": {
+            "properties": {
+              "method": {"const": "skill"}
+            }
+          }
+        }
+      ]
     },
     "expectResponse": {
       "type": "object",

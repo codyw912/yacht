@@ -7,6 +7,7 @@ from yacht.courses.registry import evaluator_adapter
 from yacht.courses.registry import supported_benchmark_adapter_kinds
 from yacht.courses.registry import supported_course_adapter_harnesses
 from yacht.harnesses.mcp_config import supported_mcp_install_provider
+from yacht.harnesses.skill_config import SkillConfigError, normalized_resource_paths
 from yacht.runtimes.tool_capabilities import BUILT_IN_TOOL_CAPABILITIES
 
 
@@ -4381,6 +4382,47 @@ def _validate_rigging_install_steps(value: Any, path: str) -> None:
                 raise SchemaValidationError(
                     f"{step_path}.command must contain non-empty strings"
                 )
+        if "resources" in step:
+            if step.get("method") != "skill":
+                raise SchemaValidationError(
+                    f"{step_path}.resources is only valid for skill installs"
+                )
+            resources = _require_list(step["resources"], f"{step_path}.resources")
+            for resource_index, resource_value in enumerate(resources):
+                resource_path = f"{step_path}.resources[{resource_index}]"
+                resource = _require_object(resource_value, resource_path)
+                _require_keys(resource, ("path",), resource_path)
+                resource_name = resource.get("path")
+                _require_non_empty_string(resource_name, f"{resource_path}.path")
+                if str(resource_name).startswith("/") or ".." in str(
+                    resource_name
+                ).split("/"):
+                    raise SchemaValidationError(
+                        f"{resource_path}.path must be relative and must not contain '..'"
+                    )
+                has_content = "content" in resource
+                has_source = "source" in resource
+                if has_content == has_source:
+                    raise SchemaValidationError(
+                        f"{resource_path} must define exactly one of content or source"
+                    )
+                if has_content:
+                    _require_string(resource.get("content"), f"{resource_path}.content")
+                if has_source:
+                    _require_non_empty_string(
+                        resource.get("source"), f"{resource_path}.source"
+                    )
+            # One rule, one implementation: the renderer normalizes these
+            # paths before writing and hashing them, so validation asks it
+            # rather than re-deriving the rules and drifting.
+            try:
+                normalized_resource_paths(
+                    tuple(str(resource["path"]) for resource in resources)
+                )
+            except SkillConfigError as error:
+                raise SchemaValidationError(
+                    f"{step_path}.resources: {error}"
+                ) from error
 
 
 def _validate_preflight_recipe(value: Any, path: str) -> None:

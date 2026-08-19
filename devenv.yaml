@@ -1,0 +1,15 @@
+# Contributor environment inputs. This is separate from flake.nix, which
+# is Yacht's host-nix *runtime* contract (`yacht.runtimes.host_nix` runs
+# `nix develop` against runtime flakes) and must keep its `default` and
+# `pi` shells untouched.
+inputs:
+  nixpkgs:
+    url: github:NixOS/nixpkgs/nixpkgs-unstable
+
+# Deliberately off. Yacht commits a provider-neutral secretspec.toml, but
+# entering the shell must never contact a secret provider: no 1Password
+# prompt, no API keys in the interactive environment. Secrets are resolved
+# around individual Yacht commands instead — see the yacht-run-anthropic /
+# yacht-run-openai scripts in devenv.nix and docs/reference/secrets.md.
+secretspec:
+  enable: false

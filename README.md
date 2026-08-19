@@ -155,6 +155,21 @@ uv run yacht status --logbook "$LOGBOOK"
 uv run yacht report --logbook "$LOGBOOK"
 ```
 
+`--secret anthropic=@env:ANTHROPIC_API_KEY` reads the key from that one
+environment variable, then removes it from Yacht's own environment so no
+unrelated helper subprocess inherits it. If you would rather not keep a
+key exported in your shell at all, the contributor environment resolves
+it per command through SecretSpec:
+
+```sh
+yacht-run-anthropic examples/custom-eval-skill-ab-smoke.toml \
+  --logbook "$LOGBOOK" \
+  --workspace .
+```
+
+See [Secrets](docs/reference/secrets.md) for the provider setup, scopes,
+and the rules for humans and coding agents.
+
 One repetition is an observation, not a verdict, and the report says so —
 along with the repetition budget that would settle it. Add
 `--repetitions 10` (about $0.38) for a graded conclusion; the
@@ -248,6 +263,7 @@ provider credentials.
 - [Validating a tool claim](docs/tutorials/validating-a-tool-claim.md)
 - [Measuring a skill claim](docs/tutorials/measuring-a-skill-claim.md)
 - [Command reference](docs/reference/commands.md)
+- [Secrets: SecretSpec scopes and Yacht's secret model](docs/reference/secrets.md)
 - [Harbor courses: Terminal-Bench and Aider Polyglot](docs/reference/terminal-bench.md)
 - [LiveCodeBench course](docs/reference/livecodebench.md)
 - [Custom evals](docs/reference/custom-evals.md)

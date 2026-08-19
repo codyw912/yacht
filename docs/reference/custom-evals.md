@@ -106,7 +106,9 @@ timeout_seconds = 300
 - `continue_instruction` (default `"Continue work on the project."`) —
   the instruction an episode receives when no delta file supplies one.
 - `max_turns` (optional) — a per-episode turn cap, enforced
-  harness-natively (see Budgets below).
+  harness-natively. Only harnesses that can actually apply it accept it
+  (see Budgets below); on any other harness it is a render-time error,
+  never a silent no-op.
 - `timeout_seconds` (optional) — a per-episode wall-clock backstop.
 
 Unknown keys, a non-boolean `verify_between`, or a blank
@@ -154,14 +156,33 @@ the way a real session ends, transcripts intact — not the wall clock.
 For `claude-code`, `max_turns` is passed as `--max-turns`; hitting it is
 a normal episode ending (`ended: "cap"`, from the stream result's
 `error_max_turns` subtype), not a failure. Declared harnesses opt into
-the cap by naming a `{max_turns}` placeholder somewhere in their
-declared `command`; without that placeholder, `max_turns` in
-`[episodes]` has no effect and only the `timeout_seconds` wall-clock
-backstop applies to that harness. The reverse mismatch is a hard error,
-not a silent no-op: a declared `command` that names `{max_turns}` while
-the task's `[episodes]` sets no per-episode `max_turns` raises at run
-time. Declared episodes have no cap signal of their own — `ended` for
-them is `natural`, `timeout`, or `error` only, never `cap`.
+the cap by naming a `{max_turns}` placeholder somewhere in their declared
+`command`, which the harbor-side runner substitutes. Both mismatches are
+hard errors rather than silent no-ops: a declaration that names
+`{max_turns}` while the task sets no cap raises at run time, and a task
+that sets a cap while the declaration has no placeholder is refused at
+render time — being declared is not an exemption, since dropping the cap
+is exactly as silent there as on a harness with no flag at all.
+Declared episodes have no cap signal of their own — `ended` for them is
+`natural`, `timeout`, or `error` only, never `cap`.
+
+OMP and Codex have no turn-cap flag, so they cannot honor `max_turns` at
+all. Rather than accept the key and drop it — which would make two
+vessels look like they ran under the same budget when only one did — the
+job render refuses:
+
+```
+episodic max_turns is not enforceable on the omp harness and would be
+silently ignored: relay-task; remove max_turns from the task, cap the
+episode with timeout_seconds instead, or run the comparison on a harness
+that enforces a turn cap (claude-code)
+```
+
+Episodes themselves still work on OMP and Codex; only the cap is
+refused. If those CLIs gain a real turn cap, add the harness to
+`MAX_TURNS_ENFORCING_HARNESSES` in `yacht/courses/episodes.py` and pass
+the flag — the rejection is a statement about today's harnesses, not a
+permanent limit.
 
 `timeout_seconds` is the driver's own backstop for hangs; hitting it
 ends the episode with `ended: "timeout"`, itself a normal ending, and
@@ -364,6 +385,71 @@ inner tool name a call through the adapter's `mcp` gateway carries.
 Without a declared provider the gate still refuses the step, and
 without the namespace guarantee the server reports unmeasured rather
 than guessed at.
+
+### Skills with more than one file
+
+A `skill` install carries a `SKILL.md` body. A skill that references
+other files — a checklist, a template, a script — ships them as
+`resources`, each with a path relative to the skill directory and either
+inline `content` or a `source` file read next to the config:
+
+```toml
+[[riggings.team-conventions.install]]
+method = "skill"
+target = "team-conventions"
+source = "skills/team-conventions/SKILL.md"
+resources = [
+  { path = "reference/checklist.md", source = "skills/team-conventions/reference/checklist.md" },
+  { path = "templates/pr.md", content = "## Summary\n" },
+]
+```
+
+Each harness gets its native layout —
+`.claude/skills/<name>/...` for Claude Code, `.agents/skills/<name>/...`
+for OMP and Codex — and every file lands under it, host-side and inside
+Harbor task containers alike.
+
+Paths are canonicalized before anything is written or hashed, and these
+are refused at `yacht validate` time: an absolute path, a path
+containing `..`, a path that names no file (`.`), two resources that
+normalize to the same file, and a resource claiming `SKILL.md` itself.
+That last one matters because the host writer emits the body first while
+the Harbor lowering emits it last, so a collision would build two
+different trees from one payload.
+
+Every skill install records a `content_digest` in the rendered job: a
+SHA-256 over the sorted bundle of relative paths and contents, so the
+same skill has one digest whichever harness layout it lands in, and a
+change to any file in the bundle shows up in the artifact. It pins what
+Yacht rendered and shipped — it is not an in-container integrity check,
+because rigging commands run in the task image you supply, where no
+hashing tool is guaranteed to exist.
+
+### What a delivery stage claims
+
+A skill reports three stages — `available`, `selected`, `loaded` — each
+`observed`, `absent`, or `unmeasured`. The states are not
+interchangeable: `absent` means the evidence was there and showed the
+stage did not happen, `unmeasured` means the stream could not tell us.
+Reports print a stage with no measured attempts as `unmeasured` rather
+than `0/0`, because `0/0` reads like a measured zero.
+
+Two rules keep those states honest:
+
+- **A failed tool call is not delivery.** An agent that reads
+  `skill://motif-work` and gets `Unknown skill: motif-work` back has
+  loaded nothing. OMP flags that read with `isError`, and the error text
+  arrives as ordinary text content, so a parser that only checks for
+  non-empty text would score the failure as `loaded: observed`. Yacht
+  records `loaded: absent` instead. It still leaves `available`
+  `unmeasured`: an errored read proves the body did not arrive, not why,
+  and a nonzero shell exit on a command that merely mentions a skill path
+  says even less.
+- **Installation is not observation.** An install-only preflight check
+  proves the treatment reached the environment. It says nothing about
+  whether the agent then found and read it, and it never fills in these
+  stages. The two live in separate artifacts on purpose; a report that
+  merged them would let setup masquerade as behavior.
 
 Two properties make the result trustworthy where a raw pass-rate delta
 is not:

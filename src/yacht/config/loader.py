@@ -19,6 +19,7 @@ from yacht.domain.model import (
     PreflightConfig,
     PreflightRecipe,
     Regatta,
+    RiggingInstallResource,
     RiggingInstallStep,
     RiggingRecipe,
     RuntimeRecipe,
@@ -551,6 +552,8 @@ def _parse_rigging_install_step(raw: Any, config_dir: Path) -> RiggingInstallSte
         )
     step = raw
     method = str(step["method"])
+    if "resources" in step and method != "skill":
+        raise ConfigError("resources are only valid for skill installs")
     return RiggingInstallStep(
         method=method,
         target=str(step["target"]),
@@ -560,7 +563,46 @@ def _parse_rigging_install_step(raw: Any, config_dir: Path) -> RiggingInstallSte
         source=str(step["source"]) if "source" in step else None,
         command=tuple(str(item) for item in step.get("command", ())),
         content=_parse_install_content(step, method, config_dir),
+        resources=_parse_skill_resources(step.get("resources", []), config_dir),
     )
+
+
+def _parse_skill_resources(
+    raw: Any,
+    config_dir: Path,
+) -> tuple[RiggingInstallResource, ...]:
+    """Auxiliary files that ship inside the skill directory.
+
+    Shape and path safety are enforced by
+    `_validate_rigging_install_steps`, which runs before this parser and
+    reports errors naming the rigging and install index. The checks here
+    repeat the path rules for a caller that builds steps without document
+    validation; the trial-home writer refuses traversal as well.
+    """
+    if not isinstance(raw, list):
+        raise ConfigError("skill install resources must be a list")
+    resources: list[RiggingInstallResource] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ConfigError(f"skill install resources[{index}] must be an object")
+        path = item.get("path")
+        if not isinstance(path, str) or not path:
+            raise ConfigError(
+                f"skill install resources[{index}].path must be a non-empty "
+                "relative path"
+            )
+        path_obj = Path(path)
+        if path.startswith("/") or path_obj.is_absolute() or ".." in path_obj.parts:
+            raise ConfigError(
+                f"skill install resources[{index}].path must be a relative path "
+                "without '..'"
+            )
+        content = _parse_install_content(item, "skill", config_dir)
+        # _parse_install_content raises for a skill with neither content nor
+        # source: an empty resource file is not something omission can ask for.
+        assert content is not None
+        resources.append(RiggingInstallResource(path=path, content=content))
+    return tuple(resources)
 
 
 def _parse_install_content(

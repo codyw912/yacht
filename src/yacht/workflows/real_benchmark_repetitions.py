@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,7 @@ def run_real_benchmark_repetitions(
     config_path: Path,
     logbook_dir: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     repetitions: int,
     agent_name: str | None = None,
     agent_prompt_runner_factory: AgentPromptRunnerFactory | None = None,
@@ -142,7 +142,7 @@ def _real_benchmark_eval_runner(
     *,
     config_path: Path,
     workspace_path: Path,
-    secret_values: dict[str, str],
+    secret_values: Mapping[str, str],
     agent_name: str,
     agent_prompt_runner_factory: AgentPromptRunnerFactory,
     task_agent: TaskAgent,

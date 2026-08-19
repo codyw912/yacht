@@ -19,6 +19,7 @@ from yacht.courses.terminal_bench.rollout_plan import (
 from yacht.domain.model import ConfigError, load_regatta
 from yacht.preflight import CommandResult
 from yacht.workflows.real_benchmark_eval import run_real_benchmark_eval
+from yacht.courses.registry import native_harness_command
 
 
 TERMINAL_BENCH_CONFIG = """
@@ -1528,14 +1529,8 @@ class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
             self.assertEqual(evidence["cost"], {"total": 0.0123})
             self.assertEqual(len(native_launches), 2)
             self.assertEqual(
-                native_launches[0][:5],
-                [
-                    "uv",
-                    "run",
-                    "python",
-                    "-m",
-                    "yacht.courses.terminal_bench.harness",
-                ],
+                native_launches[0][:3],
+                native_harness_command("yacht.courses.terminal_bench.harness"),
             )
             for vessel_name in ("claude-baseline", "claude-with-fff"):
                 grading_path = (

@@ -11,6 +11,7 @@ from yacht.courses.livecodebench.task_context import (
     window_question_ids,
 )
 from yacht.domain.model import ConfigError, CourseAdapter, Task, load_regatta
+from yacht.courses.registry import native_harness_command
 
 
 LIVECODEBENCH_CONFIG = """
@@ -284,11 +285,7 @@ class LiveCodeBenchAdapterTests(unittest.TestCase):
         self.assertEqual(
             command,
             [
-                "uv",
-                "run",
-                "python",
-                "-m",
-                "yacht.courses.livecodebench.harness",
+                *native_harness_command("yacht.courses.livecodebench.harness"),
                 "--candidates",
                 "/tmp/vessels/v1/candidate-patches.jsonl",
                 "--window-file",

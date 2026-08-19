@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from yacht.domain.model import Metrics, RuntimeInstance, Task
+from yacht.harnesses import skill_stages
 from yacht.harnesses.usage import headline_tokens
 from yacht.preflight import AgentPromptResult, AgentPromptRunner, CommandResult
 from yacht.runtimes.process import subprocess_env
@@ -482,7 +483,7 @@ def _tool_calls(events: list[dict[str, Any]]) -> tuple[str, ...]:
 
 
 def _skill_stages(events: list[dict[str, Any]]) -> tuple[dict[str, str], ...]:
-    selected: dict[str, bool] = {}
+    outcomes: dict[str, str] = {}
     calls: dict[str, str] = {}
     for event in events:
         event_type = event.get("type")
@@ -494,23 +495,26 @@ def _skill_stages(events: list[dict[str, Any]]) -> tuple[dict[str, str], ...]:
             call_id = event.get("toolCallId")
             if skill is None or not isinstance(call_id, str):
                 continue
-            selected[skill] = False
+            outcomes[skill] = skill_stages.ATTEMPTED
             calls[call_id] = skill
         elif event_type == "tool_execution_end" and event.get("toolName") == "read":
             call_id = event.get("toolCallId")
             if not isinstance(call_id, str) or call_id not in calls:
                 continue
-            if _result_has_skill_body(event.get("result")):
-                selected[calls[call_id]] = True
+            # An errored read delivered no body, whatever the cause: OMP
+            # returns its error message as ordinary text content, which
+            # would otherwise pass the skill-body check below.
+            if event.get("isError") is True:
+                outcomes[calls[call_id]] = skill_stages.NOT_DELIVERED
+            elif _result_has_skill_body(event.get("result")):
+                outcomes[calls[call_id]] = skill_stages.LOADED
     return tuple(
-        {
-            "skill": skill,
-            "available": "unmeasured",
-            "selected": "observed",
-            "loaded": "observed" if loaded else "unmeasured",
-            "evidence_source": OMP_JSONL_EVIDENCE,
-        }
-        for skill, loaded in selected.items()
+        skill_stages.skill_stage(
+            skill=skill,
+            outcome=outcome,
+            evidence_source=OMP_JSONL_EVIDENCE,
+        )
+        for skill, outcome in outcomes.items()
     )
 
 

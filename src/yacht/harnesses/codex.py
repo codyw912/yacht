@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from yacht.domain.model import Metrics, RuntimeInstance, Task
+from yacht.harnesses import skill_stages
 from yacht.harnesses.usage import headline_tokens
 from yacht.preflight import AgentPromptResult, AgentPromptRunner, CommandResult
 from yacht.runtimes.process import subprocess_env
@@ -464,7 +465,7 @@ def _tool_calls(events: list[dict[str, Any]]) -> tuple[str, ...]:
 
 
 def _skill_stages(events: list[dict[str, Any]]) -> tuple[dict[str, str], ...]:
-    stages: dict[str, bool] = {}
+    outcomes: dict[str, str] = {}
     for event in events:
         if event.get("type") != "item.completed":
             continue
@@ -477,20 +478,23 @@ def _skill_stages(events: list[dict[str, Any]]) -> tuple[dict[str, str], ...]:
         match = _AGENT_SKILL_PATH.search(command)
         if match is None:
             continue
+        exit_code = item.get("exit_code")
         output = item.get("aggregated_output")
-        loaded = (
-            item.get("exit_code") == 0
-            and isinstance(output, str)
-            and bool(output.strip())
-        )
-        stages[match.group(1)] = loaded
+        if exit_code == 0 and isinstance(output, str) and output.strip():
+            outcome = skill_stages.LOADED
+        else:
+            # A nonzero exit stays unmeasured on purpose. The regex only
+            # proves the command text mentions the skill path: the failure
+            # may come from permissions or from a later clause of a
+            # compound command, neither of which says whether the body
+            # reached the model.
+            outcome = skill_stages.ATTEMPTED
+        outcomes[match.group(1)] = outcome
     return tuple(
-        {
-            "skill": skill,
-            "available": "unmeasured",
-            "selected": "observed",
-            "loaded": "observed" if loaded else "unmeasured",
-            "evidence_source": "codex-jsonl",
-        }
-        for skill, loaded in stages.items()
+        skill_stages.skill_stage(
+            skill=skill,
+            outcome=outcome,
+            evidence_source="codex-jsonl",
+        )
+        for skill, outcome in outcomes.items()
     )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Protocol
 
@@ -42,7 +43,7 @@ class RuntimeBackend(Protocol):
         vessel: Vessel,
         trial_root: Path,
         workspace_path: Path,
-        secret_values: dict[str, str],
+        secret_values: Mapping[str, str],
     ) -> RuntimeInstance: ...
 
 
@@ -67,7 +68,7 @@ class HostNixRuntimeBackend:
         vessel: Vessel,
         trial_root: Path,
         workspace_path: Path,
-        secret_values: dict[str, str],
+        secret_values: Mapping[str, str],
     ) -> RuntimeInstance:
         try:
             resolution = resolve_host_nix_runtime(
@@ -113,7 +114,7 @@ class ContainerRuntimeBackend:
         vessel: Vessel,
         trial_root: Path,
         workspace_path: Path,
-        secret_values: dict[str, str],
+        secret_values: Mapping[str, str],
     ) -> RuntimeInstance:
         try:
             resolution = resolve_container_runtime(
@@ -156,7 +157,7 @@ class HarborRuntimeBackend:
         vessel: Vessel,
         trial_root: Path,
         workspace_path: Path,
-        secret_values: dict[str, str],
+        secret_values: Mapping[str, str],
     ) -> RuntimeInstance:
         try:
             resolution = resolve_harbor_runtime(
