@@ -1,0 +1,19 @@
+{
+  "schema": "yacht.run-index.v2",
+  "run_kind": "real-benchmark",
+  "status": "complete",
+  "stage": "complete",
+  "started_at": "2026-08-19T00:00:00Z",
+  "updated_at": "2026-08-19T00:02:00Z",
+  "terminal_at": "2026-08-19T00:02:00Z",
+  "config_path": "/tmp/regatta.toml",
+  "regatta": "fixture-regatta",
+  "course": "fixture-course",
+  "comparisons": [],
+  "artifacts": {
+    "real_benchmark_eval": {
+      "path": "nested/wake.json",
+      "present": true
+    }
+  }
+}

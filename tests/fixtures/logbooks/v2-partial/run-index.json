@@ -1,0 +1,18 @@
+{
+  "schema": "yacht.run-index.v2",
+  "run_kind": "real-benchmark",
+  "status": "running",
+  "stage": "grading",
+  "started_at": "2026-08-19T00:00:00Z",
+  "updated_at": "2026-08-19T00:01:00Z",
+  "config_path": "/tmp/regatta.toml",
+  "regatta": "fixture-regatta",
+  "course": "fixture-course",
+  "comparisons": [],
+  "artifacts": {
+    "benchmark_scorecard": {
+      "path": "reports/benchmark-scorecard.json",
+      "present": false
+    }
+  }
+}

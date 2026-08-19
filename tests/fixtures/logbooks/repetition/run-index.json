@@ -1,0 +1,33 @@
+{
+  "schema": "yacht.run-index.v2",
+  "run_kind": "benchmark-repetitions",
+  "status": "blocked",
+  "stage": "aggregation",
+  "started_at": "2026-08-19T00:00:00Z",
+  "updated_at": "2026-08-19T00:03:00Z",
+  "terminal_at": "2026-08-19T00:03:00Z",
+  "config_path": "/tmp/regatta.toml",
+  "regatta": "fixture-regatta",
+  "course": "fixture-course",
+  "comparisons": [],
+  "artifacts": {
+    "real_benchmark_repetitions": {
+      "path": "real-benchmark-repetitions.json",
+      "present": true
+    },
+    "benchmark_aggregate": {
+      "path": "benchmark-aggregate.json",
+      "present": false
+    }
+  },
+  "children": [
+    {
+      "path": "runs/run-001",
+      "status": "complete"
+    },
+    {
+      "path": "runs/run-002",
+      "status": "blocked"
+    }
+  ]
+}

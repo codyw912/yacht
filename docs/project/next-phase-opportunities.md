@@ -119,30 +119,25 @@ without forcing everything into a SWE-bench-shaped module.
 
 Current state:
 
-- Real benchmark and real smoke workflows write a `run-index.json` artifact
-  owned by `yacht.logbook`.
-- `benchmark-status` prefers `run-index.json` when it is present and preserves
-  artifact probing for older logbooks.
-- The roadmap calls for a run index that lists status, config, comparisons,
-  vessels, artifact paths, timestamps, and final report paths.
+- Completed for 0.12. Smoke, benchmark, and repetition workflows create a
+  portable `run-index.json` before execution and atomically record lifecycle,
+  artifact, report, and child-Logbook state through `yacht.logbook`.
+- Status, report, latest-run selection, aggregate loading, and dashboard
+  discovery all consume the validated Logbook reader and artifact inventory.
+- Current malformed indexes stay visibly broken. Historical v1 and
+  scorecard-only Logbooks remain readable, including after safe directory
+  moves.
 
-Opportunity:
+Remaining opportunity:
 
-Make `yacht.logbook` own a run index artifact and the interface for reading
-run state.
-
-Likely first slice:
-
-- Done: add a run index artifact written by real benchmark and smoke workflows.
-- Done: teach `benchmark-status` to prefer the index when present while
-  preserving existing artifact detection.
-- Next: expand the index into the default interface for status/report
-  workflows, including final report paths and smoke-vs-benchmark detection.
+- Extend report navigation to the full indexed evidence graph.
+- Add publication or signing only when a concrete consumer defines the
+  provenance and trust contract.
 
 Why it matters:
 
-This improves locality for status/report behavior and makes logbooks easier for
-external tools to index, compare, publish, or sign later.
+The Logbook is now a portable interface that external tools can index and
+compare without reconstructing Yacht's filenames or workflow state.
 
 ## 5. Schema Validation Consolidation
 
