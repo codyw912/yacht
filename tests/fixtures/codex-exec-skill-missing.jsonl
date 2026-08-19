@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"fixture-thread"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"sed -n '1,240p' .agents/skills/motif-work/SKILL.md","aggregated_output":"sed: .agents/skills/motif-work/SKILL.md: No such file or directory","exit_code":1,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"I could not load that skill."}}
+{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":1}}

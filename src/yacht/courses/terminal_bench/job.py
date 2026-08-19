@@ -6,6 +6,7 @@ from typing import Any
 
 from yacht.domain.model import (
     ConfigError,
+    HarnessDeclaration,
     Regatta,
     RiggingInstallStep,
     RiggingRecipe,
@@ -16,7 +17,11 @@ from yacht.contracts.schemas import (
     TERMINAL_BENCH_JOB_SCHEMA,
     validate_terminal_bench_job_document,
 )
-from yacht.courses.episodes import render_episode_plan
+from yacht.courses.episodes import (
+    MAX_TURNS_ENFORCING_HARNESSES,
+    MAX_TURNS_PLACEHOLDER,
+    render_episode_plan,
+)
 from yacht.harnesses.mcp_config import (
     McpInstallProvider,
     render_provider_mcp_config,
@@ -74,7 +79,12 @@ def render_terminal_bench_job(
     if declaration is not None:
         agent["declaration"] = declaration
     tasks = [str(task.id) for task in regatta.course.tasks]
-    episodes = _episode_plans(regatta.course.adapter, tasks, harness)
+    episodes = _episode_plans(
+        regatta.course.adapter,
+        tasks,
+        harness,
+        regatta.harness_declarations,
+    )
     if episodes:
         agent["episodes"] = episodes
     job = {
@@ -106,7 +116,10 @@ def _dataset(adapter: Any) -> dict[str, str]:
 
 
 def _episode_plans(
-    adapter: Any, tasks: list[str], harness: str
+    adapter: Any,
+    tasks: list[str],
+    harness: str,
+    declarations: dict[str, HarnessDeclaration],
 ) -> dict[str, dict[str, Any]]:
     if adapter.kind != "custom-eval":
         return {}
@@ -121,7 +134,60 @@ def _episode_plans(
             "episodic tasks are not supported on the pi harness yet: "
             + ", ".join(sorted(plans))
         )
+    _reject_unenforceable_max_turns(plans, harness, declarations)
     return plans
+
+
+def _enforces_max_turns(
+    harness: str,
+    declarations: dict[str, HarnessDeclaration],
+) -> bool:
+    """Whether this harness will actually apply a per-episode turn cap.
+
+    A declared harness opts in by naming `{max_turns}` somewhere in its
+    command, which the harbor-side runner substitutes. Being declared is
+    not enough: a declaration without the placeholder drops the cap just
+    as silently as a first-class harness with no flag for it.
+    """
+    if harness in MAX_TURNS_ENFORCING_HARNESSES:
+        return True
+    declaration = declarations.get(harness)
+    if declaration is None:
+        return False
+    return any(MAX_TURNS_PLACEHOLDER in item for item in declaration.command)
+
+
+def _reject_unenforceable_max_turns(
+    plans: dict[str, dict[str, Any]],
+    harness: str,
+    declarations: dict[str, HarnessDeclaration],
+) -> None:
+    """Refuse a per-episode turn cap no harness will apply.
+
+    Accepting `max_turns` and dropping it makes two vessels look like they
+    ran under the same budget when only one of them did.
+    """
+    if _enforces_max_turns(harness, declarations):
+        return
+    capped = sorted(
+        task_id for task_id, plan in plans.items() if plan.get("max_turns") is not None
+    )
+    if not capped:
+        return
+    remedies = (
+        "remove max_turns from the task, cap the episode with "
+        "timeout_seconds instead, or run the comparison on a harness that "
+        f"enforces a turn cap ({', '.join(sorted(MAX_TURNS_ENFORCING_HARNESSES))})"
+    )
+    if harness in declarations:
+        remedies = (
+            f"add {MAX_TURNS_PLACEHOLDER} to the declared command for "
+            f"{harness} so the cap is passed through, or " + remedies
+        )
+    raise ConfigError(
+        f"episodic max_turns is not enforceable on the {harness} harness "
+        "and would be silently ignored: " + ", ".join(capped) + "; " + remedies
+    )
 
 
 def _launcher_image(runtime: RuntimeRecipe) -> str:
@@ -362,14 +428,14 @@ def _rigging_steps(
             renders = render_skill_installs(harness, tuple(skill_steps))
         except SkillConfigError as error:
             raise ConfigError(str(error)) from error
-        steps.extend(
-            {
-                "method": "config-file",
-                "target": render.target,
-                "content": render.content,
-            }
-            for render in renders
-        )
+        for render in renders:
+            steps.append(
+                {
+                    "method": "config-file",
+                    "target": render.target,
+                    "content": render.content,
+                }
+            )
     return steps
 
 

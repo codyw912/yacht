@@ -19,6 +19,19 @@ from yacht.domain.model import ConfigError
 
 DEFAULT_CONTINUE_INSTRUCTION = "Continue work on the project."
 
+#: Placeholder a declared harness puts in its command to receive the
+#: episode cap. The harbor-side runner substitutes it and raises when
+#: the placeholder is present with no cap set.
+MAX_TURNS_PLACEHOLDER = "{max_turns}"
+
+#: Harnesses that enforce an episode's `max_turns` natively. Claude Code
+#: takes a real turn cap; a declared harness opts in by naming
+#: `{max_turns}` in its command (see the harbor-side declared_support
+#: run_command). Every other harness would accept the key and ignore it,
+#: which is why the job render rejects that combination instead of
+#: letting a run report a budget parity it never had.
+MAX_TURNS_ENFORCING_HARNESSES = frozenset({"claude-code"})
+
 _ALLOWED_KEYS = {
     "max",
     "verify_between",

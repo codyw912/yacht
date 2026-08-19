@@ -610,8 +610,10 @@ class SkillStageEvidenceTests(unittest.TestCase):
             ],
         }
 
+        # A stage nothing could measure reads as unmeasured, not 0/0:
+        # silence and a measured zero are different findings.
         self.assertIn(
-            "selected 1/1; loaded 0/0",
+            "selected 1/1; loaded unmeasured",
             _delivery_decision(delivery),
         )
         table = _delivery_table(
@@ -625,8 +627,9 @@ class SkillStageEvidenceTests(unittest.TestCase):
             }
         )
         self.assertIn("selected 1/1", table)
-        self.assertIn("loaded 0/0", table)
-        self.assertIn("available 0/0", table)
+        self.assertIn("loaded unmeasured", table)
+        self.assertNotIn("loaded 0/0", table)
+        self.assertIn("available unmeasured", table)
 
 
 def _write_staged_attempt(

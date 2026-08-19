@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Delivery evidence and budget parity
+
+- A failed skill read no longer counts as delivery. OMP returns an
+  unresolvable `skill://` read with `isError` and the error message as
+  ordinary text content, which the parser scored as `loaded: observed`
+  because the text was non-empty — a missing treatment looked like a
+  delivered one. Such a read now records `loaded: absent`, while
+  `available` stays `unmeasured`: the error proves the body did not
+  arrive, not why. Codex's nonzero-exit case stays `unmeasured` for the
+  same reason — its match only proves the command mentioned the skill
+  path. The stage vocabulary now lives in
+  `yacht.harnesses.skill_stages`, kept in sync with the contract
+  validator and the JSON Schema by a test.
+- Reports print a stage with no measured attempts as `unmeasured`
+  instead of `0/0`, which read like a measured zero, and both the text
+  and HTML surfaces now say that stages come from preserved transcripts
+  and that an install-only preflight pass is separate evidence which
+  never fills them in.
+- Episodic `max_turns` is refused at render time on harnesses that
+  cannot enforce it. OMP and Codex have no turn-cap flag, so the key was
+  accepted and dropped, making two vessels look like they ran under one
+  budget when only one did. A declared harness is not exempt by virtue of
+  being declared: it must name `{max_turns}` in its command, which the
+  harbor runner substitutes. Episodes still run on every harness; only
+  an unenforceable cap is rejected, and `MAX_TURNS_ENFORCING_HARNESSES`
+  in `yacht.courses.episodes` records which first-class harnesses
+  qualify.
+
 ### Scoped secrets and a contributor devenv environment
 
 - A resolved `--secret NAME=@env:VAR` reference no longer leaks: Yacht

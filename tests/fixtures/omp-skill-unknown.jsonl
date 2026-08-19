@@ -1,0 +1,6 @@
+{"type":"session","version":3}
+{"type":"agent_start"}
+{"type":"tool_execution_start","toolCallId":"skill-call","toolName":"read","args":{"path":"skill://motif-work"}}
+{"type":"tool_execution_end","toolCallId":"skill-call","toolName":"read","isError":true,"result":{"content":[{"type":"text","text":"Unknown skill: motif-work"}]}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"I could not load that skill."}]}}
+{"type":"agent_end"}
