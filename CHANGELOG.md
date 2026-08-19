@@ -15,6 +15,8 @@
   path. The stage vocabulary now lives in
   `yacht.harnesses.skill_stages`, kept in sync with the contract
   validator and the JSON Schema by a test.
+- Pi now records the same attempted, loaded, or not-delivered skill
+  stages from preserved native JSONL `read` events.
 - Reports print a stage with no measured attempts as `unmeasured`
   instead of `0/0`, which read like a measured zero, and both the text
   and HTML surfaces now say that stages come from preserved transcripts

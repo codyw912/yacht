@@ -16,6 +16,7 @@ from yacht.harnesses.pi import (
     SubprocessPiPromptLauncher,
     SubprocessPiTaskLauncher,
     _run_pi_task_subprocess,
+    skill_stages_from_pi_jsonl,
 )
 from yacht.preflight import AgentPromptResult, CommandResult, execute_preflight
 from yacht.domain.model import Metrics, load_regatta
@@ -25,6 +26,100 @@ from yacht.workflows.task_attempts import AgentTaskResult
 
 
 class PiAdapterTests(unittest.TestCase):
+    def test_pi_jsonl_reports_loaded_failed_and_incomplete_skill_reads(self) -> None:
+        output = "\n".join(
+            [
+                json.dumps({"type": "session", "version": 3}),
+                json.dumps(
+                    {
+                        "type": "message",
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "toolCall",
+                                    "id": "loaded",
+                                    "name": "read",
+                                    "arguments": {
+                                        "path": "/root/.pi/agent/skills/loaded-skill/SKILL.md"
+                                    },
+                                },
+                                {
+                                    "type": "toolCall",
+                                    "id": "failed",
+                                    "name": "read",
+                                    "arguments": {
+                                        "path": "/root/.pi/agent/skills/failed-skill/SKILL.md"
+                                    },
+                                },
+                                {
+                                    "type": "toolCall",
+                                    "id": "incomplete",
+                                    "name": "read",
+                                    "arguments": {
+                                        "path": "/root/.pi/agent/skills/incomplete-skill/SKILL.md"
+                                    },
+                                },
+                            ],
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "message",
+                        "message": {
+                            "role": "toolResult",
+                            "toolCallId": "loaded",
+                            "toolName": "read",
+                            "content": [
+                                {"type": "text", "text": "---\nname: loaded-skill\n---"}
+                            ],
+                            "isError": False,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "message",
+                        "message": {
+                            "role": "toolResult",
+                            "toolCallId": "failed",
+                            "toolName": "read",
+                            "content": [{"type": "text", "text": "permission denied"}],
+                            "isError": True,
+                        },
+                    }
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            skill_stages_from_pi_jsonl(output),
+            (
+                {
+                    "skill": "loaded-skill",
+                    "available": "unmeasured",
+                    "selected": "observed",
+                    "loaded": "observed",
+                    "evidence_source": "pi-jsonl",
+                },
+                {
+                    "skill": "failed-skill",
+                    "available": "unmeasured",
+                    "selected": "observed",
+                    "loaded": "absent",
+                    "evidence_source": "pi-jsonl",
+                },
+                {
+                    "skill": "incomplete-skill",
+                    "available": "unmeasured",
+                    "selected": "observed",
+                    "loaded": "unmeasured",
+                    "evidence_source": "pi-jsonl",
+                },
+            ),
+        )
+
     def test_default_adapter_refuses_to_run_headless_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

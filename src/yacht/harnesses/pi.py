@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from yacht.harnesses import skill_stages
 from yacht.preflight import (
     AgentPromptResult,
     AgentPromptRunner,
@@ -59,6 +61,7 @@ PI_JSONL_EVENT_TYPES = frozenset(
     )
 )
 PI_JSONL_EVIDENCE = "pi-jsonl"
+_PI_SKILL_PATH = re.compile(r"(?:^|/)\.pi/agent/skills/([^/]+)/SKILL\.md$")
 
 
 def tool_calls_from_pi_jsonl(output: str) -> tuple[str, ...] | None:
@@ -69,6 +72,16 @@ def tool_calls_from_pi_jsonl(output: str) -> tuple[str, ...] | None:
     if not events or not _looks_like_pi_jsonl(events):
         return None
     return _tool_calls_from_pi_events(events)
+
+
+def skill_stages_from_pi_jsonl(
+    output: str,
+) -> tuple[dict[str, str], ...] | None:
+    """Skill read stages from a preserved Pi JSONL stream."""
+    events = _jsonl_events(output)
+    if not events or not _looks_like_pi_jsonl(events):
+        return None
+    return _skill_stages_from_pi_events(events)
 
 
 class PiAdapter:
@@ -228,6 +241,7 @@ class SubprocessPiTaskLauncher:
                 duration_seconds=duration_seconds,
             ),
             machine_evidence=machine_evidence,
+            skill_stages=_skill_stages_from_machine_evidence(machine_evidence),
         )
 
 
@@ -292,6 +306,7 @@ def _pi_jsonl_machine_evidence(output: str) -> dict[str, Any]:
     usage = _usage_without_cost(assistant_message)
     cost = _usage_cost(assistant_message)
     tool_calls = _tool_calls_from_pi_events(events)
+    stages = _skill_stages_from_pi_events(events)
 
     evidence: dict[str, Any] = {
         "format": "pi-jsonl",
@@ -312,6 +327,8 @@ def _pi_jsonl_machine_evidence(output: str) -> dict[str, Any]:
         evidence["cost"] = cost
     if tool_calls:
         evidence["tool_calls"] = list(tool_calls)
+    if stages:
+        evidence["skill_stages"] = list(stages)
     return evidence
 
 
@@ -411,6 +428,111 @@ def _tool_calls_from_pi_events(events: list[dict[str, Any]]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(tool_calls))
 
 
+def _skill_stages_from_pi_events(
+    events: list[dict[str, Any]],
+) -> tuple[dict[str, str], ...]:
+    outcomes: dict[str, str] = {}
+    calls: dict[str, str] = {}
+    for event in events:
+        event_type = event.get("type")
+        if event_type == "tool_execution_start" and event.get("toolName") == "read":
+            arguments = event.get("args")
+            call_id = event.get("toolCallId")
+            if not isinstance(arguments, dict) or not isinstance(call_id, str):
+                continue
+            skill = _skill_name(arguments.get("path"))
+            if skill is None:
+                continue
+            _record_skill_outcome(outcomes, skill, skill_stages.ATTEMPTED)
+            calls[call_id] = skill
+            continue
+        if event_type == "tool_execution_end" and event.get("toolName") == "read":
+            call_id = event.get("toolCallId")
+            if not isinstance(call_id, str) or call_id not in calls:
+                continue
+            if event.get("isError") is True:
+                _record_skill_outcome(
+                    outcomes, calls[call_id], skill_stages.NOT_DELIVERED
+                )
+            elif _result_has_skill_body(event.get("result")):
+                _record_skill_outcome(outcomes, calls[call_id], skill_stages.LOADED)
+            continue
+
+        message = event.get("message")
+        if not isinstance(message, dict):
+            continue
+        if message.get("role") == "assistant":
+            content = message.get("content")
+            if not isinstance(content, list):
+                continue
+            for item in content:
+                if (
+                    not isinstance(item, dict)
+                    or item.get("type") != "toolCall"
+                    or item.get("name") != "read"
+                ):
+                    continue
+                arguments = item.get("arguments")
+                call_id = item.get("id")
+                if not isinstance(arguments, dict) or not isinstance(call_id, str):
+                    continue
+                skill = _skill_name(arguments.get("path"))
+                if skill is None:
+                    continue
+                _record_skill_outcome(outcomes, skill, skill_stages.ATTEMPTED)
+                calls[call_id] = skill
+        elif message.get("role") == "toolResult":
+            call_id = message.get("toolCallId")
+            if not isinstance(call_id, str) or call_id not in calls:
+                continue
+            if message.get("isError") is True:
+                _record_skill_outcome(
+                    outcomes, calls[call_id], skill_stages.NOT_DELIVERED
+                )
+            elif _result_has_skill_body(message.get("content")):
+                _record_skill_outcome(outcomes, calls[call_id], skill_stages.LOADED)
+    return tuple(
+        skill_stages.skill_stage(
+            skill=skill,
+            outcome=outcome,
+            evidence_source=PI_JSONL_EVIDENCE,
+        )
+        for skill, outcome in outcomes.items()
+    )
+
+
+def _record_skill_outcome(outcomes: dict[str, str], skill: str, outcome: str) -> None:
+    priority = {
+        skill_stages.ATTEMPTED: 0,
+        skill_stages.NOT_DELIVERED: 1,
+        skill_stages.LOADED: 2,
+    }
+    current = outcomes.get(skill)
+    if current is None or priority[outcome] > priority[current]:
+        outcomes[skill] = outcome
+
+
+def _skill_name(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    match = _PI_SKILL_PATH.search(value)
+    return match.group(1) if match is not None else None
+
+
+def _result_has_skill_body(value: Any) -> bool:
+    if isinstance(value, dict):
+        value = value.get("content")
+    if not isinstance(value, list):
+        return False
+    return any(
+        isinstance(item, dict)
+        and item.get("type") == "text"
+        and isinstance(item.get("text"), str)
+        and bool(item["text"])
+        for item in value
+    )
+
+
 def _gateway_tool_calls(event: dict[str, Any]) -> list[str]:
     """MCP tools invoked through pi-mcp-adapter's mcp gateway.
 
@@ -466,6 +588,15 @@ def _tool_calls_from_machine_evidence(
     if not isinstance(tool_calls, list):
         return ()
     return tuple(tool_call for tool_call in tool_calls if isinstance(tool_call, str))
+
+
+def _skill_stages_from_machine_evidence(
+    machine_evidence: dict[str, Any],
+) -> tuple[dict[str, str], ...]:
+    stages = machine_evidence.get("skill_stages")
+    if not isinstance(stages, list):
+        return ()
+    return tuple(stage for stage in stages if isinstance(stage, dict))
 
 
 def _tokens_from_machine_evidence(machine_evidence: dict[str, Any]) -> int | None:

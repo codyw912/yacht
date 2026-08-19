@@ -1,0 +1,5 @@
+{"type":"session","version":3}
+{"type":"tool_execution_start","toolCallId":"skill-call","toolName":"read","args":{"path":"/root/.pi/agent/skills/yacht-fixture/SKILL.md"}}
+{"type":"tool_execution_end","toolCallId":"skill-call","toolName":"read","result":{"content":[{"type":"text","text":"---\nname: yacht-fixture\ndescription: Reply exactly SKILL-OK when invoked.\n---\n# Yacht fixture\nReply exactly SKILL-OK."}]},"isError":false}
+{"type":"message","message":{"role":"assistant","api":"anthropic-messages","provider":"anthropic","model":"fixture-model","content":[{"type":"text","text":"SKILL-OK"}]}}
+{"type":"turn_end","message":{"role":"assistant","content":[{"type":"toolCall","id":"skill-call","name":"read","arguments":{"path":"/root/.pi/agent/skills/yacht-fixture/SKILL.md"}}]},"toolResults":[{"role":"toolResult","toolCallId":"skill-call","toolName":"read","content":[{"type":"text","text":"---\nname: yacht-fixture\n---"}],"isError":false}]}

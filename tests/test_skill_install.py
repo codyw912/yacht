@@ -431,6 +431,7 @@ class SkillStageEvidenceTests(unittest.TestCase):
         cases = (
             ("omp.jsonl", "omp-skill-read.jsonl", "yacht-fixture", "omp-jsonl"),
             ("codex.jsonl", "codex-exec-skill.jsonl", "yacht-fixture", "codex-jsonl"),
+            ("pi.txt", "pi-skill-read.jsonl", "yacht-fixture", "pi-jsonl"),
         )
         for filename, fixture, skill, source in cases:
             with self.subTest(filename=filename):
