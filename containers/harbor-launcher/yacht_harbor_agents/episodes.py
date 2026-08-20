@@ -28,6 +28,34 @@ ENDED_ERROR = "error"
 
 EVIDENCE_SCHEMA = "yacht.harness-evidence.v1"
 
+PROCESS_PATTERN_ENV = "YACHT_PROCESS_PATTERN"
+
+
+def process_cleanup_request(pattern: str) -> tuple[str, dict[str, str]]:
+    """Build verified TERM-then-KILL cleanup without embedding the pattern."""
+    command = (
+        f'pattern="${{{PROCESS_PATTERN_ENV}:?}}"; '
+        'if pgrep -f "$pattern" >/dev/null; then '
+        'pkill -TERM -f "$pattern" || true; '
+        "attempt=0; "
+        'while pgrep -f "$pattern" >/dev/null && [ "$attempt" -lt 3 ]; do '
+        "sleep 1; attempt=$((attempt + 1)); "
+        "done; "
+        'if pgrep -f "$pattern" >/dev/null; then '
+        'pkill -KILL -f "$pattern" || true; '
+        "attempt=0; "
+        'while pgrep -f "$pattern" >/dev/null && [ "$attempt" -lt 3 ]; do '
+        "sleep 1; attempt=$((attempt + 1)); "
+        "done; "
+        "fi; "
+        "fi; "
+        'if pgrep -f "$pattern" >/dev/null; then '
+        'echo "process cleanup failed: $pattern" >&2; exit 1; '
+        "fi"
+    )
+    return command, {PROCESS_PATTERN_ENV: pattern}
+
+
 _USAGE_KEYS = (
     "input_tokens",
     "output_tokens",

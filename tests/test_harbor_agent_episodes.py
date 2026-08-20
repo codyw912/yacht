@@ -1,5 +1,8 @@
 import importlib.util
 import json
+import os
+import subprocess
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -304,6 +307,49 @@ class ClaudeEpisodeEndedTests(unittest.TestCase):
             episodes.claude_episode_ended(None, False, False),
             episodes.ENDED_ERROR,
         )
+
+
+class ProcessCleanupTests(unittest.TestCase):
+    def test_passes_multiword_pattern_out_of_band(self) -> None:
+        pattern = "omp -p --mode json"
+
+        command, env = episodes.process_cleanup_request(pattern)
+
+        self.assertEqual(env, {episodes.PROCESS_PATTERN_ENV: pattern})
+        self.assertNotIn(pattern, command)
+        self.assertIn('pkill -TERM -f "$pattern"', command)
+        self.assertIn('pkill -KILL -f "$pattern"', command)
+        self.assertLess(command.index("pkill -TERM"), command.index("pkill -KILL"))
+
+    def test_forces_a_term_ignoring_process_to_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            marker = f"yacht cleanup marker {os.getpid()}"
+            script = Path(temp_dir) / f"{marker}.sh"
+            script.write_text(
+                "#!/bin/sh\ntrap '' TERM\nwhile :; do sleep 1; done\n",
+                encoding="utf-8",
+            )
+            process = subprocess.Popen(["sh", str(script)])
+            try:
+                time.sleep(0.1)
+                command, cleanup_env = episodes.process_cleanup_request(marker)
+                env = os.environ.copy()
+                env.update(cleanup_env)
+
+                completed = subprocess.run(
+                    ["sh", "-c", command],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertIsNotNone(process.poll())
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
 
 
 class OmpCodexStreamResultTests(unittest.TestCase):
