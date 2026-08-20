@@ -1,8 +1,8 @@
 # Next Phase Opportunities
 
-Status: background architecture backlog. The active short-term plan is
-[Yacht 0.12: Durable Logbooks](0.12-durable-logbooks.md); entries below retain
-the state in which they were originally evaluated and may already be shipped.
+Status: background architecture backlog. Yacht 0.12 completed the
+[Durable Logbooks](0.12-durable-logbooks.md) plan; entries below retain the
+state in which they were originally evaluated and may already be shipped.
 
 This note tracks the audit findings after the codebase architecture cleanup.
 The shared direction is to broaden what YACHT can credibly evaluate, rather
