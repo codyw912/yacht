@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### OMP episodic reliability
+
+- Headless OMP runs now read stdin from `/dev/null`, preventing argument-mode
+  prompts from blocking in piped-input detection.
+- Timeout cleanup passes multiword process patterns without shell splitting,
+  verifies graceful termination, and escalates to a forced termination when
+  necessary.
+- OMP JSONL accounting now sums usage and cost across every measurable
+  assistant response, including responses separated by rate-limit retries.
+  Timed-out streams retain partial measured totals without claiming a natural
+  ending.
+
 ### Durable Logbook contracts
 
 - Public JSON Schemas now ship inside the `yacht.schemas` package, so installed

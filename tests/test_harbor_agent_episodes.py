@@ -1,5 +1,8 @@
 import importlib.util
 import json
+import os
+import subprocess
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -306,6 +309,72 @@ class ClaudeEpisodeEndedTests(unittest.TestCase):
         )
 
 
+class ProcessCleanupTests(unittest.TestCase):
+    def test_passes_multiword_pattern_out_of_band(self) -> None:
+        pattern = "omp -p --mode json"
+
+        command, env = episodes.process_cleanup_request(pattern)
+
+        self.assertEqual(env, {episodes.PROCESS_PATTERN_ENV: pattern})
+        self.assertNotIn(pattern, command)
+        self.assertIn('pkill -TERM -f "$pattern"', command)
+        self.assertIn('pkill -KILL -f "$pattern"', command)
+        self.assertLess(command.index("pkill -TERM"), command.index("pkill -KILL"))
+
+    def test_forces_a_term_ignoring_process_to_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            marker = f"yacht cleanup marker {os.getpid()}"
+            script = Path(temp_dir) / f"{marker}.sh"
+            script.write_text(
+                "#!/bin/sh\ntrap '' TERM\nwhile :; do sleep 1; done\n",
+                encoding="utf-8",
+            )
+            process = subprocess.Popen(["sh", str(script)])
+            try:
+                time.sleep(0.1)
+                command, cleanup_env = episodes.process_cleanup_request(marker)
+                env = os.environ.copy()
+                env.update(cleanup_env)
+
+                completed = subprocess.run(
+                    ["sh", "-c", command],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertIsNotNone(process.poll())
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
+
+
+def _omp_assistant_message(
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    cache_read_tokens: int,
+    cache_write_tokens: int,
+    cost_usd: float,
+) -> dict:
+    return {
+        "type": "message_end",
+        "message": {
+            "role": "assistant",
+            "usage": {
+                "input": input_tokens,
+                "output": output_tokens,
+                "cacheRead": cache_read_tokens,
+                "cacheWrite": cache_write_tokens,
+                "cost": {"total": cost_usd},
+            },
+        },
+    }
+
+
 class OmpCodexStreamResultTests(unittest.TestCase):
     def test_parses_captured_omp_usage_and_natural_end(self) -> None:
         text = Path("tests/fixtures/omp-print-ok.jsonl").read_text(encoding="utf-8")
@@ -321,6 +390,133 @@ class OmpCodexStreamResultTests(unittest.TestCase):
             },
         )
         self.assertEqual(result["cost_usd"], 0.0)
+
+    def test_aggregates_multiple_successful_assistant_responses(self) -> None:
+        text = "\n".join(
+            json.dumps(event)
+            for event in [
+                {"type": "agent_start"},
+                _omp_assistant_message(
+                    input_tokens=10,
+                    output_tokens=2,
+                    cache_read_tokens=3,
+                    cache_write_tokens=4,
+                    cost_usd=0.1,
+                ),
+                _omp_assistant_message(
+                    input_tokens=20,
+                    output_tokens=5,
+                    cache_read_tokens=7,
+                    cache_write_tokens=8,
+                    cost_usd=0.2,
+                ),
+                {"type": "agent_end"},
+            ]
+        )
+
+        result = episodes.parse_omp_stream_result(text)
+
+        self.assertEqual(result["ended"], episodes.ENDED_NATURAL)
+        self.assertEqual(
+            result["usage"],
+            {
+                "input_tokens": 30,
+                "output_tokens": 7,
+                "cache_read_tokens": 10,
+                "cache_write_tokens": 12,
+            },
+        )
+        self.assertAlmostEqual(result["cost_usd"], 0.3)
+
+    def test_aggregates_across_intervening_rate_limit_errors(self) -> None:
+        rate_limit = _omp_assistant_message(
+            input_tokens=0,
+            output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            cost_usd=0.0,
+        )
+        rate_limit["message"]["stopReason"] = "error"
+        rate_limit["message"]["errorMessage"] = "rate_limit_exceeded"
+        text = "\n".join(
+            json.dumps(event)
+            for event in [
+                {"type": "agent_start"},
+                _omp_assistant_message(
+                    input_tokens=11,
+                    output_tokens=2,
+                    cache_read_tokens=13,
+                    cache_write_tokens=0,
+                    cost_usd=0.4,
+                ),
+                rate_limit,
+                {"type": "auto_retry_start", "attempt": 1},
+                {"type": "agent_start"},
+                _omp_assistant_message(
+                    input_tokens=17,
+                    output_tokens=3,
+                    cache_read_tokens=19,
+                    cache_write_tokens=0,
+                    cost_usd=0.5,
+                ),
+                {"type": "agent_end"},
+            ]
+        )
+
+        result = episodes.parse_omp_stream_result(text)
+
+        self.assertEqual(result["ended"], episodes.ENDED_NATURAL)
+        self.assertEqual(result["usage"]["input_tokens"], 28)
+        self.assertEqual(result["usage"]["output_tokens"], 5)
+        self.assertEqual(result["usage"]["cache_read_tokens"], 32)
+        self.assertAlmostEqual(result["cost_usd"], 0.9)
+
+    def test_partial_stream_preserves_usage_without_claiming_an_end(self) -> None:
+        text = "\n".join(
+            json.dumps(event)
+            for event in [
+                {"type": "agent_start"},
+                _omp_assistant_message(
+                    input_tokens=23,
+                    output_tokens=4,
+                    cache_read_tokens=29,
+                    cache_write_tokens=0,
+                    cost_usd=0.6,
+                ),
+            ]
+        )
+
+        result = episodes.parse_omp_stream_result(text)
+
+        self.assertIsNone(result["ended"])
+        self.assertEqual(result["usage"]["input_tokens"], 23)
+        self.assertEqual(result["usage"]["cache_read_tokens"], 29)
+        self.assertEqual(result["cost_usd"], 0.6)
+
+    def test_completed_but_unmeasured_stream_remains_unmeasured(self) -> None:
+        text = "\n".join(
+            json.dumps(event)
+            for event in [
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "usage": {
+                            "input": "unknown",
+                            "cost": {"total": "unknown"},
+                        },
+                    },
+                },
+                {"type": "agent_end"},
+            ]
+        )
+
+        result = episodes.parse_omp_stream_result(text)
+
+        self.assertEqual(result["ended"], episodes.ENDED_NATURAL)
+        self.assertIsNone(result["usage"])
+        self.assertIsNone(result["cost_usd"])
 
     def test_parses_captured_codex_usage_and_natural_end(self) -> None:
         text = Path("tests/fixtures/codex-exec-ok.jsonl").read_text(encoding="utf-8")

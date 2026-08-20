@@ -380,7 +380,19 @@ async def run_jsonl_episodes(
                     )
             except TimeoutError:
                 timed_out = True
-                await environment.exec(command=f"pkill -f {pkill_pattern} || true")
+                cleanup_command, cleanup_env = episodes.process_cleanup_request(
+                    pkill_pattern
+                )
+                cleanup = await environment.exec(
+                    command=cleanup_command,
+                    env=cleanup_env,
+                )
+                if cleanup.return_code != 0:
+                    detail = (cleanup.stderr or cleanup.stdout or "").strip()
+                    raise RuntimeError(
+                        f"failed to terminate timed-out {stream_name} process: "
+                        f"{detail or pkill_pattern}"
+                    )
             finished_at = _utc_now()
             stream = episodes.snapshot_stream(logs_dir, episode_dir, stream_name)
             parsed = parse_result(stream)

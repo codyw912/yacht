@@ -28,6 +28,34 @@ ENDED_ERROR = "error"
 
 EVIDENCE_SCHEMA = "yacht.harness-evidence.v1"
 
+PROCESS_PATTERN_ENV = "YACHT_PROCESS_PATTERN"
+
+
+def process_cleanup_request(pattern: str) -> tuple[str, dict[str, str]]:
+    """Build verified TERM-then-KILL cleanup without embedding the pattern."""
+    command = (
+        f'pattern="${{{PROCESS_PATTERN_ENV}:?}}"; '
+        'if pgrep -f "$pattern" >/dev/null; then '
+        'pkill -TERM -f "$pattern" || true; '
+        "attempt=0; "
+        'while pgrep -f "$pattern" >/dev/null && [ "$attempt" -lt 3 ]; do '
+        "sleep 1; attempt=$((attempt + 1)); "
+        "done; "
+        'if pgrep -f "$pattern" >/dev/null; then '
+        'pkill -KILL -f "$pattern" || true; '
+        "attempt=0; "
+        'while pgrep -f "$pattern" >/dev/null && [ "$attempt" -lt 3 ]; do '
+        "sleep 1; attempt=$((attempt + 1)); "
+        "done; "
+        "fi; "
+        "fi; "
+        'if pgrep -f "$pattern" >/dev/null; then '
+        'echo "process cleanup failed: $pattern" >&2; exit 1; '
+        "fi"
+    )
+    return command, {PROCESS_PATTERN_ENV: pattern}
+
+
 _USAGE_KEYS = (
     "input_tokens",
     "output_tokens",
@@ -198,17 +226,16 @@ def claude_episode_ended(subtype: str | None, timed_out: bool, errored: bool) ->
 
 
 def parse_omp_stream_result(text: str) -> dict[str, Any]:
-    """Usage, cost, and completion from a captured OMP `--mode json` stream."""
+    """Aggregate usage, cost, and completion from an OMP JSON stream."""
     unmeasured = {"ended": None, "usage": None, "cost_usd": None}
     events = _jsonl_objects(text)
     if events is None:
         return unmeasured
     if not any(event.get("type") == "agent_start" for event in events):
         return unmeasured
-    if not any(event.get("type") == "agent_end" for event in events):
-        return unmeasured
-    usage = None
-    cost_usd = None
+
+    usages: list[dict[str, int] | None] = []
+    costs: list[float | None] = []
     for event in events:
         if event.get("type") != "message_end":
             continue
@@ -216,11 +243,19 @@ def parse_omp_stream_result(text: str) -> dict[str, Any]:
         if not isinstance(message, dict) or message.get("role") != "assistant":
             continue
         parsed_usage, parsed_cost = _omp_usage(message.get("usage"))
-        if parsed_usage is not None:
-            usage = parsed_usage
-        if parsed_cost is not None:
-            cost_usd = parsed_cost
-    return {"ended": ENDED_NATURAL, "usage": usage, "cost_usd": cost_usd}
+        usages.append(parsed_usage)
+        costs.append(parsed_cost)
+
+    ended = (
+        ENDED_NATURAL
+        if any(event.get("type") == "agent_end" for event in events)
+        else None
+    )
+    return {
+        "ended": ended,
+        "usage": merge_stream_usages(usages),
+        "cost_usd": merge_stream_costs(costs),
+    }
 
 
 def parse_codex_stream_result(text: str) -> dict[str, Any]:

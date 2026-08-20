@@ -162,6 +162,11 @@ class HarborAgentRiggingTests(unittest.TestCase):
         self.assertIn(shlex.quote("solve 'it'"), codex)
         self.assertIn("> /logs/agent/codex.jsonl", codex)
 
+    def test_omp_run_command_closes_stdin_for_headless_execution(self) -> None:
+        command = rigging.omp_run_command(instruction="solve it")
+
+        self.assertIn("< /dev/null", command)
+
     def test_codex_run_command_writes_auth_json_from_env(self) -> None:
         setup = rigging.codex_auth_setup_command()
         self.assertIn("CODEX_HOME=/tmp/codex-home", setup)
