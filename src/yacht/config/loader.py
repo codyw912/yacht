@@ -14,6 +14,7 @@ from yacht.domain.model import (
     CourseAdapter,
     ExpectationValue,
     HarnessDeclaration,
+    InstanceSelection,
     HarnessInstall,
     PreflightCheck,
     PreflightConfig,
@@ -28,6 +29,7 @@ from yacht.domain.model import (
     Vessel,
 )
 from yacht.contracts.schemas import SchemaValidationError, validate_regatta_document
+from yacht.courses.selection import select_random_instances
 from yacht.runtimes.tool_capabilities import (
     BUILT_IN_TOOL_CAPABILITIES,
     ProvidedInstall,
@@ -48,13 +50,17 @@ def load_regatta(config_path: Path) -> Regatta:
         validate_regatta_document(raw)
     except SchemaValidationError as error:
         raise ConfigError(str(error)) from error
-    raw = _limit_course_adapter_instances(raw)
+    raw, instance_selection = _select_course_adapter_instances(raw)
     try:
         validate_regatta_document(raw)
     except SchemaValidationError as error:
         raise ConfigError(str(error)) from error
 
-    adapter = _parse_course_adapter(raw["course"], config_path.parent)
+    adapter = _parse_course_adapter(
+        raw["course"],
+        config_path.parent,
+        instance_selection,
+    )
     course = Course(
         name=str(raw["course"]["name"]),
         tasks=_parse_course_tasks(raw["course"], adapter),
@@ -287,38 +293,63 @@ def _load_course_adapter_instance_file(
     return instance_ids
 
 
-def _limit_course_adapter_instances(raw: dict[str, Any]) -> dict[str, Any]:
+def _select_course_adapter_instances(
+    raw: dict[str, Any],
+) -> tuple[dict[str, Any], InstanceSelection | None]:
     course = raw.get("course")
     if not isinstance(course, dict):
-        return raw
+        return raw, None
     adapter = course.get("adapter")
     if not isinstance(adapter, dict) or "max_instances" not in adapter:
-        return raw
+        return raw, None
 
     max_instances = adapter.get("max_instances")
     if not isinstance(max_instances, int) or max_instances < 1:
-        return raw
+        return raw, None
 
     expanded = dict(raw)
     expanded_course = dict(course)
     expanded_adapter = dict(adapter)
     raw_instance_ids = adapter.get("instance_ids")
+    tasks = course.get("tasks")
+    tasks_by_id: dict[str, dict[str, Any]] = {}
+    if isinstance(tasks, list):
+        tasks_by_id = {
+            task["id"]: task
+            for task in tasks
+            if isinstance(task, dict) and isinstance(task.get("id"), str)
+        }
+
     if isinstance(raw_instance_ids, list):
-        instance_ids = raw_instance_ids[:max_instances]
-        expanded_adapter["instance_ids"] = instance_ids
-        if isinstance(course.get("tasks"), list):
-            selected_ids = set(instance_ids)
-            expanded_course["tasks"] = [
-                task
-                for task in course["tasks"]
-                if isinstance(task, dict) and task.get("id") in selected_ids
-            ]
-    elif isinstance(course.get("tasks"), list):
-        expanded_course["tasks"] = course["tasks"][:max_instances]
+        population = raw_instance_ids
+    elif tasks_by_id:
+        population = list(tasks_by_id)
+    else:
+        return raw, None
+
+    random_selection = adapter.get("selection")
+    selection: InstanceSelection | None = None
+    if isinstance(random_selection, dict):
+        selected_ids, selection = select_random_instances(
+            population,
+            max_instances=max_instances,
+            seed=random_selection.get("seed"),
+        )
+    else:
+        selected_ids = tuple(population[:max_instances])
+
+    if isinstance(raw_instance_ids, list):
+        expanded_adapter["instance_ids"] = list(selected_ids)
+    if isinstance(tasks, list):
+        expanded_course["tasks"] = [
+            tasks_by_id[instance_id]
+            for instance_id in selected_ids
+            if instance_id in tasks_by_id
+        ]
 
     expanded_course["adapter"] = expanded_adapter
     expanded["course"] = expanded_course
-    return expanded
+    return expanded, selection
 
 
 def _parse_preflight_config(raw: dict[str, Any]) -> PreflightConfig:
@@ -331,6 +362,7 @@ def _parse_preflight_config(raw: dict[str, Any]) -> PreflightConfig:
 def _parse_course_adapter(
     raw_course: dict[str, Any],
     config_dir: Path,
+    selection: InstanceSelection | None,
 ) -> CourseAdapter | None:
     if "adapter" not in raw_course:
         return None
@@ -344,6 +376,7 @@ def _parse_course_adapter(
         instance_ids=tuple(str(item) for item in adapter.get("instance_ids", ())),
         start_date=(str(adapter["start_date"]) if "start_date" in adapter else None),
         end_date=str(adapter["end_date"]) if "end_date" in adapter else None,
+        selection=selection,
     )
 
 

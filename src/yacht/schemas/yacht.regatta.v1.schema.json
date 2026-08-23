@@ -325,6 +325,16 @@
               }
             ]
           },
+          "allOf": [
+            {
+              "if": {
+                "required": ["selection"]
+              },
+              "then": {
+                "required": ["max_instances"]
+              }
+            }
+          ],
           "properties": {
             "kind": {
               "type": "string",
@@ -366,6 +376,21 @@
             "max_instances": {
               "type": "integer",
               "minimum": 1
+            },
+            "selection": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["method", "seed"],
+              "properties": {
+                "method": {
+                  "const": "random"
+                },
+                "seed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9223372036854775807
+                }
+              }
             }
           }
         }

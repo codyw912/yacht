@@ -775,6 +775,8 @@ def course_adapter_to_json(adapter: Any) -> dict[str, Any]:
     }
     if adapter.instance_ids:
         payload["instance_ids"] = list(adapter.instance_ids)
+    if adapter.selection is not None:
+        payload["instance_selection"] = adapter.selection.to_json()
     if adapter.start_date is not None:
         payload["start_date"] = adapter.start_date
     if adapter.end_date is not None:

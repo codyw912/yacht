@@ -83,9 +83,15 @@ Regatta configs may include:
 - `course.adapter.instance_ids` for explicit benchmark task selection when the
   native adapter can resolve task metadata. Use `course.adapter.instance_file`
   or `course.adapter.instance_files` for reusable benchmark task-set fixtures.
-  `course.adapter.max_instances` caps an explicit selection in order for quick
-  smoke runs. Optional `course.tasks` entries can override titles, difficulty,
-  or inline task context for selected IDs.
+  `course.adapter.max_instances` caps an explicit selection in source order by
+  default. Add
+  `selection = { method = "random", seed = 20260823 }` to choose a
+  deterministic, source-order-independent sample. Random selection requires
+  `max_instances`; the Course handoff records its `sha256-rank-v1` seed,
+  population digest, population count, and requested size. Yacht samples only
+  declared task IDs and does not enumerate a remote dataset. Optional
+  `course.tasks` entries can override titles, difficulty, or inline task
+  context for selected IDs.
 - `preflight` for regatta-level failure policy.
 - `comparisons` for groups of vessels interpreted together.
 
