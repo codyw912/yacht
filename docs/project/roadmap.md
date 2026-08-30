@@ -15,10 +15,12 @@ The most recently completed plan,
 [Yacht 0.12: Durable Logbooks](0.12-durable-logbooks.md), made the Logbook the
 authoritative, portable run-state interface.
 
-The OMP and Codex expansion shipped in 0.11.0. The remaining sections below
-are the longer-term product map; completed implementation notes are retained in
-[Next phase opportunities](next-phase-opportunities.md) and
-[Audit follow-ups](audit-followups.md).
+The remaining sections below are the single active product backlog. Completed
+release outcomes live in the versioned plans and changelog; audit history is
+retained in [Audit follow-ups](audit-followups.md).
+
+No post-0.13 slice has been selected. Choose from the remaining items only when
+the next concrete evaluation or consumer establishes the priority.
 
 ## 1. Generalized Benchmark Surface
 
@@ -49,6 +51,8 @@ Completed foundation:
   provenance, and native evidence through adapter contracts.
 - Ship Pi, Claude Code, OMP, Codex, declared, and local-smoke harnesses without
   changing the common task-attempt and reporting contracts.
+- Route real benchmark and smoke workflows through configured harnesses; the
+  Pi-specific smoke command has been retired.
 
 Remaining:
 
@@ -66,6 +70,8 @@ Completed foundation:
 - Record Rigging and resolved tool provenance in task artifacts and reports.
 - Keep local organization-specific recipes and secret coordinates outside the
   public examples.
+- Execute supported typed install steps through runtime-specific plans and keep
+  unsupported capabilities visible in dry-run and preflight evidence.
 
 Remaining:
 
@@ -79,16 +85,21 @@ Goal: YACHT can compare coding setups across more than one benchmark shape.
 Completed foundation:
 
 - Ship Course and evaluator seams exercised by SWE-bench, Terminal-Bench,
-  LiveCodeBench, custom evals, and repository-local smoke workflows.
+  LiveCodeBench, Aider Polyglot, custom evals, and repository-local smoke
+  workflows.
 - Keep native harnesses responsible for execution and grading while Yacht owns
   normalized handoffs, evidence, and Scorecards.
 - Separate evaluator adapters from Course loading and agent task context.
+- Route production workflows through the split Course and evaluator registries;
+  the combined `benchmark_adapter()` facade remains only for compatibility.
 
 Remaining:
 
 - Harden maintained adapters as their upstream contracts change.
-- Add Aider Polyglot or advisory evaluators only as harness-agnostic Courses
-  with a concrete consumer and evidence contract.
+- Add advisory evaluators only as harness-agnostic Courses with a concrete
+  consumer and evidence contract.
+- Retire the combined `benchmark_adapter()` facade only as an intentional
+  compatibility cutover.
 
 ## 5. Runtime Trust and Preflight Evidence
 
@@ -168,6 +179,12 @@ and scripts to consume.
 Near-term slices:
 
 - Keep schema versions explicit and language-neutral.
+- Consolidate artifact validation around the public schema files:
+  - inventory artifact families whose packaged schemas are still mirrored by
+    handwritten structural validators
+  - move one low-risk family at a time onto the cached packaged-schema loader
+  - preserve `ConfigError` and `SchemaValidationError` call-site ergonomics,
+    keeping semantic and cross-artifact checks in Python
 - Ensure all public reports have machine-readable equivalents.
 - Avoid hardcoding local password-manager or user-environment assumptions.
 - Make secrets explicit references, not copied state.

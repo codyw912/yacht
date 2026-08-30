@@ -2,11 +2,12 @@
 
 A codebase audit after 0.8.0 checked four dimensions: documented claims
 against the implementation, statistical correctness, artifact contract
-integrity, and the no-estimates posture. This note records what it
-found, what has shipped, and what is left.
+integrity, and the no-estimates posture. This note records the findings and
+how they were closed.
 
-The statistical and honesty findings are closed. The contract findings
-are not, and they are the recommended next slice.
+All statistical, honesty, and artifact-contract findings are closed. This is a
+historical record, not an active-priority list; current work lives in the
+[roadmap](roadmap.md).
 
 ## Closed
 
@@ -29,9 +30,9 @@ defect is in the suite.
 | Summaries were not cross-checked against their own detail rows in the task-attempt scorecard and launch result, and `recorded_vessels` escaped the benchmark scorecard's summary cross-checks | `contracts/schemas.py` | #282 |
 | No foreign keys between artifacts: the Every Eval Ever export never checked `total_rows`/`evaluation_id`/checksum against the sibling JSONL or the scorecard's comparisons against the handoff, and the recorded-baseline and EEE handoff reads were bare loads | `reports/every_eval_ever.py`, `workflows/baseline.py` | #282 |
 
-Decisions recorded along the way: ADR 0022 (MCP delivery by tool
-namespace, approved but **not implemented**) and ADR 0023 (pooling
-paired outcomes, implemented in #278).
+Decisions recorded along the way: ADR 0022 (MCP delivery by tool namespace,
+implemented in #283) and ADR 0023 (pooling paired outcomes, implemented in
+#278).
 
 ## Closed: artifact contract integrity
 
