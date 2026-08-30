@@ -8,10 +8,12 @@ against controlled baselines across public benchmarks and custom evals. Work
 that expands harnesses, rigging, runtime trust, course selection, and evaluator
 adapters should take priority over polishing a single Pi+fff smoke path.
 
-The most recently completed plan is
-[Yacht 0.12: Durable Logbooks](0.12-durable-logbooks.md). It makes the
-Logbook the authoritative, portable run-state interface before Yacht broadens
-its harness or Course surface again.
+The active plan is
+[Yacht 0.13: Reproducible Task Sampling](0.13-reproducible-sampling.md). It
+adds deterministic seeded selection over explicit Course task populations.
+The most recently completed plan,
+[Yacht 0.12: Durable Logbooks](0.12-durable-logbooks.md), made the Logbook the
+authoritative, portable run-state interface.
 
 The OMP and Codex expansion shipped in 0.11.0. The remaining sections below
 are the longer-term product map; completed implementation notes are retained in
@@ -27,13 +29,15 @@ Completed foundation:
 
 - Select SWE-bench instances explicitly, from reusable task-set files, or with
   an ordered `max_instances` cap.
+- Select deterministic random subsets with an explicit seed and a
+  language-neutral `sha256-rank-v1` contract, preserving population provenance
+  in the Course handoff.
 - Preserve selected tasks in plans, handoffs, runbooks, Scorecards, and reports.
 - Keep native SWE-bench Docker grading as the source of benchmark truth.
 
 Remaining:
 
-- Add named sampling presets or randomized selection only with explicit,
-  reproducible seed semantics.
+- Add named sampling presets only when a concrete preset is required.
 
 ## 2. Harness Generalization
 
@@ -112,11 +116,12 @@ Completed foundation:
 - Model benchmark repetitions explicitly as a parent Logbook with indexed
   child Logbooks.
 - Preserve per-run Scorecards and produce aggregate JSON and Markdown reports.
+- Select seeded, source-order-independent task samples from explicit Course
+  populations.
 
 Remaining:
 
 - Extend aggregate reporting with cross-run cost and tool-use distributions.
-- Add controls for task sampling and randomization.
 - Keep LLM outcomes labeled as observations, not deterministic cached facts.
 
 ## 7. Logbook as Durable Artifact

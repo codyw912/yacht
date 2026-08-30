@@ -34,6 +34,26 @@ class Task:
 
 
 @dataclass(frozen=True)
+class InstanceSelection:
+    method: str
+    algorithm: str
+    seed: int
+    requested_instances: int
+    population_count: int
+    population_digest: str
+
+    def to_json(self) -> dict[str, str | int]:
+        return {
+            "method": self.method,
+            "algorithm": self.algorithm,
+            "seed": self.seed,
+            "requested_instances": self.requested_instances,
+            "population_count": self.population_count,
+            "population_digest": self.population_digest,
+        }
+
+
+@dataclass(frozen=True)
 class CourseAdapter:
     kind: str
     dataset: str
@@ -42,6 +62,7 @@ class CourseAdapter:
     instance_ids: tuple[str, ...] = ()
     start_date: str | None = None
     end_date: str | None = None
+    selection: InstanceSelection | None = None
 
 
 @dataclass(frozen=True)

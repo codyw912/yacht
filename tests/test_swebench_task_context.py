@@ -92,6 +92,110 @@ model = "mock"
             ("django__django-11099",),
         )
 
+    def test_swe_bench_adapter_selects_seeded_random_instances(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_ids = [
+  "django__django-11099",
+  "django__django-11179",
+  "astropy__astropy-12907",
+]
+max_instances = 2
+selection = { method = "random", seed = 20260823 }
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+
+        self.assertEqual(
+            [task.id for task in regatta.course.tasks],
+            ["astropy__astropy-12907", "django__django-11099"],
+        )
+        assert regatta.course.adapter is not None
+        self.assertEqual(
+            regatta.course.adapter.instance_ids,
+            ("astropy__astropy-12907", "django__django-11099"),
+        )
+        assert regatta.course.adapter.selection is not None
+        self.assertEqual(regatta.course.adapter.selection.seed, 20260823)
+        self.assertEqual(regatta.course.adapter.selection.population_count, 3)
+
+    def test_random_selection_requires_max_instances(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_ids = ["django__django-11099"]
+selection = { method = "random", seed = 7 }
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "course.adapter.max_instances is required for random selection",
+            ):
+                load_regatta(config_path)
+
+    def test_random_selection_requires_an_explicit_population(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+max_instances = 1
+selection = { method = "random", seed = 7 }
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ConfigError,
+                "must define at least one task unless course.adapter selects",
+            ):
+                load_regatta(config_path)
+
     def test_swe_bench_adapter_instance_files_define_course_tasks(self) -> None:
         config = """
 [regatta]

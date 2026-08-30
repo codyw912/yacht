@@ -72,6 +72,7 @@ EVERY_EVAL_EVER_SOURCE_TYPES = {"documentation", "evaluation_run"}
 EVERY_EVAL_EVER_SCORE_TYPES = {"binary", "continuous", "levels"}
 EVERY_EVAL_EVER_INTERACTION_TYPES = {"single_turn", "multi_turn", "agentic"}
 EVERY_EVAL_EVER_DATASET_SOURCE_TYPES = {"url", "hf_dataset", "other"}
+MAX_INSTANCE_SELECTION_SEED = (1 << 63) - 1
 
 PREFLIGHT_FAILURE_POLICIES = {"abort-group", "skip-vessel", "abort-regatta", "warn"}
 COURSE_ADAPTER_KINDS = set(supported_benchmark_adapter_kinds())
@@ -931,11 +932,11 @@ def validate_course_handoff_document(document: dict[str, Any]) -> None:
     for key in ("regatta", "course"):
         _require_non_empty_string(document[key], key)
     _require_allowed_value(document["status"], {"planned"}, "status")
-    _validate_course_adapter_fields(
-        _require_object(document["adapter"], "adapter"),
-        "adapter",
-    )
-    _validate_course_handoff_tasks(document["tasks"])
+    adapter = _require_object(document["adapter"], "adapter")
+    _validate_course_adapter_fields(adapter, "adapter")
+    tasks = _require_list(document["tasks"], "tasks")
+    _validate_course_handoff_tasks(tasks)
+    _validate_instance_selection_provenance(adapter, len(tasks))
     _validate_course_handoff_comparisons(document["comparisons"])
     _validate_expected_course_handoff_outputs(document["expected_outputs"])
     _validate_course_handoff_grading(document["grading"])
@@ -2582,6 +2583,70 @@ def _validate_task_attempt_metrics(value: Any) -> None:
         )
 
 
+def _validate_instance_selection_provenance(
+    adapter: dict[str, Any],
+    selected_instances: int,
+) -> None:
+    value = adapter.get("instance_selection")
+    if value is None:
+        return
+    path = "adapter.instance_selection"
+    selection = _require_object(value, path)
+    _require_keys(
+        selection,
+        (
+            "method",
+            "algorithm",
+            "seed",
+            "requested_instances",
+            "population_count",
+            "population_digest",
+        ),
+        path,
+    )
+    _require_allowed_value(selection.get("method"), {"random"}, f"{path}.method")
+    _require_allowed_value(
+        selection.get("algorithm"),
+        {"sha256-rank-v1"},
+        f"{path}.algorithm",
+    )
+    seed = selection.get("seed")
+    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+        raise SchemaValidationError(f"{path}.seed must be an integer >= 0")
+    if seed > MAX_INSTANCE_SELECTION_SEED:
+        raise SchemaValidationError(
+            f"{path}.seed must be <= {MAX_INSTANCE_SELECTION_SEED}"
+        )
+    requested = selection.get("requested_instances")
+    population_count = selection.get("population_count")
+    for key, count in (
+        ("requested_instances", requested),
+        ("population_count", population_count),
+    ):
+        if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+            raise SchemaValidationError(f"{path}.{key} must be an integer >= 1")
+    if isinstance(requested, int) and requested != selected_instances:
+        raise SchemaValidationError(
+            f"{path}.requested_instances must match the selected task count"
+        )
+    if (
+        isinstance(requested, int)
+        and isinstance(population_count, int)
+        and requested > population_count
+    ):
+        raise SchemaValidationError(
+            f"{path}.requested_instances must not exceed population_count"
+        )
+    population_digest = selection.get("population_digest")
+    if (
+        not isinstance(population_digest, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", population_digest) is None
+    ):
+        raise SchemaValidationError(
+            f"{path}.population_digest must be a sha256: lowercase hex digest"
+        )
+
+
 def _validate_course_handoff_tasks(value: Any) -> None:
     tasks = _require_list(value, "tasks")
     if not tasks:
@@ -3822,6 +3887,34 @@ def _validate_course_adapter_window(adapter: dict[str, Any], path: str) -> None:
         )
 
 
+def _validate_course_adapter_selection(
+    adapter: dict[str, Any],
+    path: str,
+) -> None:
+    value = adapter.get("selection")
+    if value is None:
+        return
+    selection_path = f"{path}.selection"
+    selection = _require_object(value, selection_path)
+    _require_keys(selection, ("method", "seed"), selection_path)
+    _require_allowed_value(
+        selection.get("method"),
+        {"random"},
+        f"{selection_path}.method",
+    )
+    seed = selection.get("seed")
+    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+        raise SchemaValidationError(f"{selection_path}.seed must be an integer >= 0")
+    if seed > MAX_INSTANCE_SELECTION_SEED:
+        raise SchemaValidationError(
+            f"{selection_path}.seed must be <= {MAX_INSTANCE_SELECTION_SEED}"
+        )
+    if adapter.get("max_instances") is None:
+        raise SchemaValidationError(
+            f"{path}.max_instances is required for random selection"
+        )
+
+
 def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
     _require_keys(
         adapter,
@@ -3841,6 +3934,7 @@ def _validate_course_adapter_fields(adapter: dict[str, Any], path: str) -> None:
         f"{path}.harness",
     )
     _validate_course_adapter_window(adapter, path)
+    _validate_course_adapter_selection(adapter, path)
     content_digest = adapter.get("content_digest")
     if content_digest is not None:
         _require_non_empty_string(content_digest, f"{path}.content_digest")

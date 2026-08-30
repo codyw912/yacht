@@ -105,6 +105,9 @@ class ContainerImageTests(unittest.TestCase):
         self.assertEqual(regatta.course.adapter.kind, "swe-bench")
         self.assertEqual(len(regatta.course.tasks), 1)
         self.assertEqual(regatta.course.tasks[0].id, "django__django-11099")
+        assert regatta.course.adapter.selection is not None
+        self.assertEqual(regatta.course.adapter.selection.seed, 0)
+        self.assertEqual(regatta.course.adapter.selection.requested_instances, 1)
         self.assertEqual(runtime.image, PI_AGENT_IMAGE)
         self.assertEqual(runtime.required_secrets, ("anthropic",))
         self.assertEqual(

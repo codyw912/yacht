@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Reproducible task sampling
+
+- Course adapters can select a deterministic random subset from explicit task
+  IDs or task-set files with `max_instances` and an explicit seed. The
+  versioned `sha256-rank-v1` algorithm is independent of source ordering and
+  language-runtime RNG behavior, and Course handoffs preserve the seed,
+  population digest and count, requested size, and exact selected IDs.
+
 ## 0.12.0 - Durable Logbooks
 
 ### OMP episodic reliability

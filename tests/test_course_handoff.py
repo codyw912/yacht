@@ -12,7 +12,11 @@ from yacht.cli import main
 from yacht.courses.handoff import load_course_handoff
 from yacht.courses.handoff import write_course_handoff
 from yacht.domain.model import ConfigError
-from yacht.contracts.schemas import COURSE_HANDOFF_SCHEMA
+from yacht.contracts.schemas import (
+    COURSE_HANDOFF_SCHEMA,
+    SchemaValidationError,
+    validate_course_handoff_document,
+)
 
 
 class CourseHandoffTests(unittest.TestCase):
@@ -24,6 +28,22 @@ class CourseHandoffTests(unittest.TestCase):
             handoff = load_course_handoff(logbook_dir)
 
             self.assertEqual(handoff["schema"], COURSE_HANDOFF_SCHEMA)
+
+    def test_load_course_handoff_rejects_non_planned_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logbook_dir = Path(temp_dir) / "logbook"
+            handoff = write_course_handoff(
+                Path("examples/pi-fff-provisioning.toml"),
+                logbook_dir,
+            )
+            handoff["status"] = "complete"
+            (logbook_dir / "course-handoff.json").write_text(
+                json.dumps(handoff),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ConfigError, "status must be one of"):
+                load_course_handoff(logbook_dir)
 
     def test_load_course_handoff_rejects_malformed_document(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -129,6 +149,74 @@ class CourseHandoffTests(unittest.TestCase):
                 handoff["comparisons"][0]["name"],
                 "container-pi-vs-pi-fff-benchmark-small",
             )
+
+    def test_seeded_selection_handoff_records_population_provenance(self) -> None:
+        config = """
+[regatta]
+name = "sampled-benchmark"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_ids = [
+  "django__django-11099",
+  "django__django-11179",
+  "astropy__astropy-12907",
+]
+max_instances = 2
+selection = { method = "random", seed = 20260823 }
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+
+[[vessels]]
+name = "challenger"
+model = "mock"
+
+[[comparisons]]
+name = "sampled-comparison"
+vessels = ["baseline", "challenger"]
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            handoff = write_course_handoff(config_path, root / "logbook")
+
+        self.assertEqual(
+            [task["id"] for task in handoff["tasks"]],
+            ["astropy__astropy-12907", "django__django-11099"],
+        )
+        self.assertEqual(
+            handoff["adapter"]["instance_ids"],
+            ["astropy__astropy-12907", "django__django-11099"],
+        )
+        self.assertEqual(
+            handoff["adapter"]["instance_selection"],
+            {
+                "method": "random",
+                "algorithm": "sha256-rank-v1",
+                "seed": 20260823,
+                "requested_instances": 2,
+                "population_count": 3,
+                "population_digest": (
+                    "sha256:bb915f707dc31ccdb6fb6119d8e8c4eb041d1bedd8571b555616a0e3924b8cdb"
+                ),
+            },
+        )
+        handoff["adapter"]["instance_selection"]["requested_instances"] = 1
+        with self.assertRaisesRegex(
+            SchemaValidationError,
+            "requested_instances must match the selected task count",
+        ):
+            validate_course_handoff_document(handoff)
 
     def test_course_handoff_requires_course_adapter(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
