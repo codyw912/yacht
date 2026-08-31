@@ -258,6 +258,100 @@ vessels = ["baseline", "challenger"]
             self.assertEqual(payload["status"], "planned")
             self.assertTrue((logbook_dir / "course-handoff.json").is_file())
 
+    def test_handoff_command_round_trips_sampled_selection_provenance(self) -> None:
+        config = """
+[regatta]
+name = "sampled-benchmark"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_ids = [
+  "django__django-11099",
+  "django__django-11179",
+  "astropy__astropy-12907",
+]
+max_instances = 2
+selection = { method = "random", seed = 20260823 }
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+
+[[vessels]]
+name = "challenger"
+model = "mock"
+
+[[comparisons]]
+name = "sampled-comparison"
+vessels = ["baseline", "challenger"]
+"""
+        expected_tasks = ["astropy__astropy-12907", "django__django-11099"]
+        expected_selection = {
+            "method": "random",
+            "algorithm": "sha256-rank-v1",
+            "seed": 20260823,
+            "requested_instances": 2,
+            "population_count": 3,
+            "population_digest": (
+                "sha256:bb915f707dc31ccdb6fb6119d8e8c4eb041d1bedd8571b555616a0e3924b8cdb"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+            first_logbook = root / "logbook-1"
+            second_logbook = root / "logbook-2"
+
+            for logbook_dir in (first_logbook, second_logbook):
+                stdout = StringIO()
+                with redirect_stdout(stdout):
+                    exit_code = main(
+                        [
+                            "internals",
+                            "handoff",
+                            str(config_path),
+                            "--logbook",
+                            str(logbook_dir),
+                        ]
+                    )
+                self.assertEqual(exit_code, 0)
+                payload = json.loads(stdout.getvalue())
+                self.assertEqual(
+                    [task["id"] for task in payload["tasks"]],
+                    expected_tasks,
+                )
+                self.assertEqual(
+                    payload["adapter"]["instance_selection"],
+                    expected_selection,
+                )
+
+            first = load_course_handoff(first_logbook)
+            second = load_course_handoff(second_logbook)
+
+        for handoff in (first, second):
+            self.assertEqual(
+                [task["id"] for task in handoff["tasks"]],
+                expected_tasks,
+            )
+            self.assertEqual(handoff["adapter"]["instance_ids"], expected_tasks)
+            self.assertEqual(
+                handoff["adapter"]["instance_selection"],
+                expected_selection,
+            )
+            validate_course_handoff_document(handoff)
+        self.assertEqual(first["tasks"], second["tasks"])
+        self.assertEqual(
+            first["adapter"]["instance_selection"],
+            second["adapter"]["instance_selection"],
+        )
+
     def test_handoff_command_reports_config_errors_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

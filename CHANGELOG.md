@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.13.0 - 2026-08-31
+
 ### Reproducible task sampling
 
 - Course adapters can select a deterministic random subset from explicit task

@@ -1,4 +1,6 @@
 import json
+import os
+import shutil
 import stat
 import tempfile
 import unittest
@@ -84,7 +86,7 @@ vessels = ["yach-baseline", "yach-candidate"]
 
 def _write_harness_script(root: Path, body: str) -> Path:
     script = root / "fake-harness.sh"
-    script.write_text("#!/bin/bash\n" + body, encoding="utf-8")
+    script.write_text(f"#!{shutil.which('bash')}\n" + body, encoding="utf-8")
     script.chmod(script.stat().st_mode | stat.S_IEXEC)
     return script
 
@@ -102,7 +104,7 @@ def _instance(root: Path, script: Path) -> RuntimeInstance:
         runtime=runtime,
         temp_home=root / "home",
         workspace_path=workspace,
-        env={"HOME": str(root / "home"), "PATH": "/usr/bin:/bin"},
+        env={"HOME": str(root / "home"), "PATH": os.environ["PATH"]},
         command_prefix=(),
         cleanup_paths=(),
     )
@@ -216,7 +218,7 @@ class DeclaredHarnessAdapterTests(unittest.TestCase):
                 instance=_instance(root, script),
                 task=_task(),
                 prompt="do the thing",
-                env={"PATH": "/usr/bin:/bin"},
+                env={"PATH": os.environ["PATH"]},
                 cwd=root / "workspace",
                 transcript_path=root / "transcripts" / "task-1.json",
             )
@@ -252,7 +254,7 @@ class DeclaredHarnessAdapterTests(unittest.TestCase):
                 instance=_instance(root, script),
                 task=_task(),
                 prompt="hello from stdin",
-                env={"PATH": "/usr/bin:/bin"},
+                env={"PATH": os.environ["PATH"]},
                 cwd=root / "workspace",
                 transcript_path=root / "transcripts" / "task-1.json",
             )
@@ -278,7 +280,7 @@ class DeclaredHarnessAdapterTests(unittest.TestCase):
                 instance=_instance(root, script),
                 task=_task(),
                 prompt="do the thing",
-                env={"PATH": "/usr/bin:/bin"},
+                env={"PATH": os.environ["PATH"]},
                 cwd=root / "workspace",
                 transcript_path=root / "transcripts" / "task-1.json",
             )
@@ -297,7 +299,7 @@ class DeclaredHarnessAdapterTests(unittest.TestCase):
                     instance=_instance(root, script),
                     task=_task(),
                     prompt="do the thing",
-                    env={"PATH": "/usr/bin:/bin"},
+                    env={"PATH": os.environ["PATH"]},
                     cwd=root / "workspace",
                     transcript_path=root / "transcripts" / "task-1.json",
                 )
@@ -312,7 +314,7 @@ class DeclaredHarnessAdapterTests(unittest.TestCase):
                 instance=_instance(root, script),
                 task=_task(),
                 prompt="do the thing",
-                env={"PATH": "/usr/bin:/bin"},
+                env={"PATH": os.environ["PATH"]},
                 cwd=root / "workspace",
                 transcript_path=root / "transcripts" / "task-1.json",
             )
@@ -717,7 +719,7 @@ class EvidenceMapTests(unittest.TestCase):
                 instance=_instance(root, script),
                 task=_task(),
                 prompt="p",
-                env={"PATH": "/usr/bin:/bin"},
+                env={"PATH": os.environ["PATH"]},
                 cwd=root / "workspace",
                 transcript_path=root / "t" / "task-1.json",
             )
