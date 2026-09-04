@@ -1,7 +1,9 @@
 # OMP and Codex Harness Expansion Plan
 
+**Source:** plane:YACHT-3
+
 This plan sequences the work in
-[OMP and Codex harness integration](omp-codex-harness-integration.md)
+[OMP and Codex harness integration](../specs/omp-codex-harness-integration.md)
 against what Yacht already ships. The handoff is the outcome and
 acceptance contract. This document is the implementation order.
 

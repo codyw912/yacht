@@ -1,5 +1,9 @@
 # Episodic Trials (ADR 0025) Implementation Plan
 
+**Source:** plane:YACHT-1
+
+> **Status:** completed historically. This plan was executed before the Plane roadmap existed; the shipped behavior is ADR 0025, `src/yacht/courses/episodes.py`, the launcher-side episode helpers, and their tests. Checkboxes below were not reconciled against individual commits and are retained verbatim as the execution record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A custom-eval task can declare an episodic trial: the yacht-owned agent invokes the harness up to N times cold inside one Harbor trial against one persistent workspace, with scripted per-episode instruction deltas, harness-native caps, opt-in inter-episode verification, and per-episode evidence.
@@ -10,7 +14,7 @@
 
 ## Global Constraints
 
-- Spec: `docs/superpowers/specs/2026-08-02-episodic-trials-design.md`; ADR: `docs/adr/0025-run-episodic-trials-in-a-persistent-task-workspace.md`.
+- Spec: `docs/project/specs/2026-08-02-episodic-trials-design.md`; ADR: `docs/adr/0025-run-episodic-trials-in-a-persistent-task-workspace.md`.
 - **Design amendment vs the spec** (verified against pinned Harbor source, approved direction): the episode plan is rendered host-side and embedded in the job document (`job["agent"]["episodes"]`, forwarded to agent kwargs), instead of the launcher re-parsing `task.toml`. One parser, render-time validation equals runtime behavior, no twin module. Deltas still never enter the task image; the content digest still pins everything (plans derive from the digested task dir).
 - VCS: this repo is jj-colocated; `git commit` fails on signing. Use `jj commit -m "<message>"` after each task's steps pass. Commit messages are imperative sentences, no conventional-commit prefixes (match `jj log` style, e.g. "Render episode plans into terminal-bench jobs").
 - Run tests with `uv run pytest tests/<file> -q` (or `-k` for one test). Full suite: `uv run --extra dev pytest -q` if plain `uv run pytest` lacks dev deps.

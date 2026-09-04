@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 - Unreleased
 
 ### Reproducible task sampling
 
@@ -9,6 +9,20 @@
   versioned `sha256-rank-v1` algorithm is independent of source ordering and
   language-runtime RNG behavior, and Course handoffs preserve the seed,
   population digest and count, requested size, and exact selected IDs.
+
+### Project tracking and documentation
+
+- Roadmap outcomes and the product backlog now live in the Plane project
+  `YACHT`; in-flight execution is tracked in the Kata project `yacht`
+  (`.sjujperpowers/config.json`). `docs/project/roadmap.md` lists release
+  outcomes and theme summaries and no longer duplicates the backlog.
+- Versioned specs and implementation plans moved under `docs/project/specs/`
+  and `docs/project/plans/` with Plane `Outcome`/`Source` headers, including
+  the former `docs/superpowers/` checklists. The completed
+  `audit-backed-plan.md` was retired.
+- ADR 0023 status corrected to Accepted (implemented in #278).
+- Test fixtures no longer hardcode `/usr/bin:/bin` or `#!/bin/bash`, so the
+  suite passes on NixOS.
 
 ## 0.12.0 - Durable Logbooks
 

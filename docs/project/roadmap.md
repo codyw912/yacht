@@ -8,186 +8,107 @@ against controlled baselines across public benchmarks and custom evals. Work
 that expands harnesses, rigging, runtime trust, course selection, and evaluator
 adapters should take priority over polishing a single Pi+fff smoke path.
 
-The active plan is
-[Yacht 0.13: Reproducible Task Sampling](0.13-reproducible-sampling.md). It
-adds deterministic seeded selection over explicit Course task populations.
-The most recently completed plan,
-[Yacht 0.12: Durable Logbooks](0.12-durable-logbooks.md), made the Logbook the
-authoritative, portable run-state interface.
+## Where work is tracked
 
-The remaining sections below are the single active product backlog. Completed
-release outcomes live in the versioned plans and changelog; audit history is
-retained in [Audit follow-ups](audit-followups.md).
+Roadmap outcomes and the product backlog live in the Plane project **YACHT**.
+Granular execution of an in-flight change is tracked in the Kata project
+`yacht`. Provider configuration is committed in `.sjujperpowers/config.json`.
 
-No post-0.13 slice has been selected. Choose from the remaining items only when
-the next concrete evaluation or consumer establishes the priority.
+Versioned design artifacts stay in this repository:
 
-## 1. Generalized Benchmark Surface
+- `docs/adr/` — architecture decisions (authoritative for approved behavior)
+- `docs/project/specs/` — approved designs; each carries `**Outcome:** plane:YACHT-N`
+- `docs/project/plans/` — implementation plans; each carries `**Source:** plane:YACHT-N`
 
-Goal: YACHT can run more than one hardcoded SWE-bench Lite smoke task and can
-express benchmark subsets clearly.
+## Release outcomes
 
-Completed foundation:
+| Outcome | Plane | Release | State |
+| --- | --- | --- | --- |
+| [Episodic trials in a persistent task workspace](specs/2026-08-02-episodic-trials-design.md) · [plan](plans/2026-08-02-episodic-trials.md) · ADR 0025 | YACHT-1 | 0.10.0 | Done |
+| MCP installs through capability-providing riggings · [plan](plans/2026-08-01-adr-0024-mcp-provider-riggings.md) · ADR 0024 | YACHT-2 | 0.10.0 | Done |
+| [OMP and Codex first-class harnesses](specs/omp-codex-harness-integration.md) · [plan](plans/omp-codex-harness-expansion.md) | YACHT-3 | 0.11.0 | Done |
+| [Durable Logbooks](plans/0.12-durable-logbooks.md) | YACHT-4 | 0.12.0 | Done |
+| [Reproducible Task Sampling](plans/0.13-reproducible-sampling.md) | YACHT-5 | 0.13.0 | In Progress |
 
-- Select SWE-bench instances explicitly, from reusable task-set files, or with
-  an ordered `max_instances` cap.
-- Select deterministic random subsets with an explicit seed and a
-  language-neutral `sha256-rank-v1` contract, preserving population provenance
-  in the Course handoff.
-- Preserve selected tasks in plans, handoffs, runbooks, Scorecards, and reports.
-- Keep native SWE-bench Docker grading as the source of benchmark truth.
+Yacht 0.13 is implemented; its release candidate passes every token-free gate
+and is blocked on the live provider release gate (`scripts/release_gate.py`).
+Gated backlog items (YACHT-6, 7, 8, 10) record a trigger condition in their
+title and are not planned work until that condition is met.
 
-Remaining:
+## Themes
 
-- Add named sampling presets only when a concrete preset is required.
+The nine themes below describe what YACHT already does and where each area can
+still grow. The "remaining" work for every theme is an open Plane work item;
+this file no longer duplicates that backlog. No post-0.13 outcome has been
+selected. Choose one only when the next concrete evaluation or consumer
+establishes the priority.
 
-## 2. Harness Generalization
+### 1. Generalized Benchmark Surface
 
-Goal: Pi is one harness implementation, not the implicit model for the project.
+YACHT selects SWE-bench instances explicitly, from reusable task-set files,
+with an ordered `max_instances` cap, or as a seeded random sample under the
+language-neutral `sha256-rank-v1` contract. Selected tasks and population
+provenance survive into plans, handoffs, runbooks, Scorecards, and reports.
+Native SWE-bench Docker grading remains the source of benchmark truth.
 
-Completed foundation:
+### 2. Harness Generalization
 
-- Make harness kind explicit and route prompt preflight, task attempts,
-  provenance, and native evidence through adapter contracts.
-- Ship Pi, Claude Code, OMP, Codex, declared, and local-smoke harnesses without
-  changing the common task-attempt and reporting contracts.
-- Route real benchmark and smoke workflows through configured harnesses; the
-  Pi-specific smoke command has been retired.
+Harness kind is explicit. Pi, Claude Code, OMP, Codex, declared, and
+local-smoke harnesses share one task-attempt and reporting contract; the
+Pi-specific smoke command is retired.
 
-Remaining:
+### 3. Recipes and Rigging
 
-- Add another first-class harness only when a concrete evaluation needs it.
+Named setup, environment, prompt, tool, cache, config-file, skill, and MCP
+changes are modeled with capability checks before execution. Rigging and
+resolved tool provenance are recorded in task artifacts and reports.
+Organization-specific recipes and secret coordinates stay outside the public
+examples.
 
-## 3. Recipes and Rigging
+### 4. More Benchmark and Evaluator Adapters
 
-Goal: arbitrary tools and setup changes can be tested as named, reusable
-configuration.
+Course and evaluator seams are exercised by SWE-bench, Terminal-Bench,
+LiveCodeBench, Aider Polyglot, custom evals, and repository-local smoke
+workflows. Native harnesses own execution and grading; Yacht owns normalized
+handoffs, evidence, and Scorecards. Production workflows use the split Course
+and evaluator registries; the combined `benchmark_adapter()` facade remains only
+for compatibility.
 
-Completed foundation:
+### 5. Runtime Trust and Preflight Evidence
 
-- Model named setup, environment, prompt, tool, cache, config-file, skill, and
-  MCP changes with capability checks before execution.
-- Record Rigging and resolved tool provenance in task artifacts and reports.
-- Keep local organization-specific recipes and secret coordinates outside the
-  public examples.
-- Execute supported typed install steps through runtime-specific plans and keep
-  unsupported capabilities visible in dry-run and preflight evidence.
+Container runtimes are the trusted path; host Nix is a development backend.
+Execution is gated on runtime, harness, Rigging, tool, path-isolation, secret,
+and agent-prompt evidence before task tokens are spent.
 
-Remaining:
+### 6. Repeated Runs and Result Quality
 
-- Add a new Rigging method only when an evaluation requires semantics the
-  existing methods cannot express.
+Repetitions are a parent Logbook with indexed child Logbooks. Per-run
+Scorecards are preserved and aggregate JSON and Markdown reports are produced.
+LLM outcomes are labeled as observations, not deterministic cached facts.
 
-## 4. More Benchmark and Evaluator Adapters
+### 7. Logbook as Durable Artifact
 
-Goal: YACHT can compare coding setups across more than one benchmark shape.
+A portable, versioned run index records lifecycle state, identity, comparisons,
+artifacts, timestamps, generated reports, and child Logbooks. The shared reader
+is authoritative for status, report, latest-run selection, and dashboard
+discovery.
 
-Completed foundation:
+### 8. First-Run UX
 
-- Ship Course and evaluator seams exercised by SWE-bench, Terminal-Bench,
-  LiveCodeBench, Aider Polyglot, custom evals, and repository-local smoke
-  workflows.
-- Keep native harnesses responsible for execution and grading while Yacht owns
-  normalized handoffs, evidence, and Scorecards.
-- Separate evaluator adapters from Course loading and agent task context.
-- Route production workflows through the split Course and evaluator registries;
-  the combined `benchmark_adapter()` facade remains only for compatibility.
+`yacht doctor`, supported smoke examples, full-run commands, generated
+runbooks, actionable next commands, and Logbook-contained native artifacts are
+shipped. Token-free local smoke paths remain available for contributor and
+release checks.
 
-Remaining:
+### 9. Ecosystem Readiness
 
-- Harden maintained adapters as their upstream contracts change.
-- Add advisory evaluators only as harness-agnostic Courses with a concrete
-  consumer and evidence contract.
-- Retire the combined `benchmark_adapter()` facade only as an intentional
-  compatibility cutover.
+Schema versions are explicit and language-neutral, and public JSON Schemas ship
+in the wheel. The remaining consolidation — moving handwritten structural
+validators onto the packaged schema loader one artifact family at a time — is
+tracked in Plane.
 
-## 5. Runtime Trust and Preflight Evidence
+## History
 
-Goal: valid observations depend on isolated, reproducible, machine-verified
-agent runtimes.
-
-Completed foundation:
-
-- Keep container runtimes as the trusted path and host Nix as a development
-  backend.
-- Gate execution on runtime, harness, Rigging, tool, path-isolation, secret, and
-  agent-prompt evidence before spending task tokens.
-- Keep benchmark task containers and grading owned by native harnesses.
-
-Remaining:
-
-- Define trust and provenance requirements before adding remote workers.
-
-## 6. Repeated Runs and Result Quality
-
-Goal: YACHT can support publication-quality or database-quality comparisons.
-
-Completed foundation:
-
-- Model benchmark repetitions explicitly as a parent Logbook with indexed
-  child Logbooks.
-- Preserve per-run Scorecards and produce aggregate JSON and Markdown reports.
-- Select seeded, source-order-independent task samples from explicit Course
-  populations.
-
-Remaining:
-
-- Extend aggregate reporting with cross-run cost and tool-use distributions.
-- Keep LLM outcomes labeled as observations, not deterministic cached facts.
-
-## 7. Logbook as Durable Artifact
-
-Goal: a logbook should be useful to a human, a CLI, and external analysis
-tools.
-
-Completed in 0.12:
-
-- Add a portable, versioned run index with lifecycle state, identity,
-  comparisons, artifacts, timestamps, generated reports, and child Logbooks.
-- Make the shared Logbook reader authoritative for status, report, latest-run
-  selection, and dashboard discovery while preserving historical Logbooks.
-- Keep JSON status output and durable Markdown and HTML report output available
-  through the public commands.
-
-Remaining:
-
-- Expand report navigation to every transcript, candidate patch, native report,
-  grading report, and failed gate recorded by the Logbook.
-
-## 8. First-Run UX
-
-Goal: a new user can run a credible benchmark smoke without knowing YACHT's
-internal command graph.
-
-Completed foundation:
-
-- Ship `yacht doctor`, supported smoke examples, full-run commands, generated
-  runbooks, actionable next commands, and Logbook-contained native artifacts.
-- Keep token-free local smoke paths available for contributor and release
-  checks.
-
-Remaining:
-
-- Shorten first-run documentation as packaging and supported adapter setup
-  stabilize.
-
-## 9. Ecosystem Readiness
-
-Goal: public artifacts and local workflows are stable enough for other tools
-and scripts to consume.
-
-Near-term slices:
-
-- Keep schema versions explicit and language-neutral.
-- Consolidate artifact validation around the public schema files:
-  - inventory artifact families whose packaged schemas are still mirrored by
-    handwritten structural validators
-  - move one low-risk family at a time onto the cached packaged-schema loader
-  - preserve `ConfigError` and `SchemaValidationError` call-site ergonomics,
-    keeping semantic and cross-artifact checks in Python
-- Ensure all public reports have machine-readable equivalents.
-- Avoid hardcoding local password-manager or user-environment assumptions.
-- Make secrets explicit references, not copied state.
-- Keep runtime backends abstract enough for remote workers and reproducible
-  container execution.
-- Treat shared evals as signed or provenance-rich logbooks.
+Completed release outcomes live in the versioned release plans and the
+changelog. The July 2026 audit and its closure are recorded in
+[Audit follow-ups](audit-followups.md).

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "docsRoot": "docs/project",
+  "roadmap": {
+    "provider": "plane",
+    "project": "Yacht"
+  },
+  "execution": {
+    "provider": "kata",
+    "project": "yacht",
+    "completion": "pull_request"
+  }
+}

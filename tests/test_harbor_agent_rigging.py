@@ -58,7 +58,7 @@ class HarborAgentRiggingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             completed = subprocess.run(
                 ["sh", "-c", commands[0]],
-                env={"HOME": temp_dir, "PATH": "/usr/bin:/bin"},
+                env={"HOME": temp_dir, "PATH": os.environ["PATH"]},
                 capture_output=True,
                 text=True,
             )
