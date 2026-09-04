@@ -19,21 +19,21 @@ Versioned design artifacts stay in this repository:
 - `docs/adr/` — architecture decisions (authoritative for approved behavior)
 - `docs/project/specs/` — approved designs; each carries `**Outcome:** plane:YACHT-N`
 - `docs/project/plans/` — implementation plans; each carries `**Source:** plane:YACHT-N`
-- `docs/project/0.NN-*.md` — release plans (pre-Plane format, retained as written)
 
 ## Release outcomes
 
-| Outcome | Release | State |
-| --- | --- | --- |
-| Episodic trials in a persistent task workspace (ADR 0025) | pre-0.11 | Done |
-| MCP installs through capability-providing riggings (ADR 0024) | pre-0.11 | Done |
-| [OMP and Codex first-class harnesses](plans/omp-codex-harness-expansion.md) | 0.11.0 | Done |
-| [Durable Logbooks](0.12-durable-logbooks.md) | 0.12.0 | Done |
-| [Reproducible Task Sampling](0.13-reproducible-sampling.md) | 0.13.0 | In Progress |
+| Outcome | Plane | Release | State |
+| --- | --- | --- | --- |
+| [Episodic trials in a persistent task workspace](specs/2026-08-02-episodic-trials-design.md) · [plan](plans/2026-08-02-episodic-trials.md) · ADR 0025 | YACHT-1 | pre-0.11 | Done |
+| MCP installs through capability-providing riggings · [plan](plans/2026-08-01-adr-0024-mcp-provider-riggings.md) · ADR 0024 | YACHT-2 | pre-0.11 | Done |
+| [OMP and Codex first-class harnesses](specs/omp-codex-harness-integration.md) · [plan](plans/omp-codex-harness-expansion.md) | YACHT-3 | 0.11.0 | Done |
+| [Durable Logbooks](plans/0.12-durable-logbooks.md) | YACHT-4 | 0.12.0 | Done |
+| [Reproducible Task Sampling](plans/0.13-reproducible-sampling.md) | YACHT-5 | 0.13.0 | In Progress |
 
-Yacht 0.13 is implemented and its release candidate has passed every
-token-free gate. It ships once the live provider release gate
-(`scripts/release_gate.py`) passes.
+Yacht 0.13 is implemented; its release candidate passes every token-free gate
+and is blocked on the live provider release gate (`scripts/release_gate.py`).
+Gated backlog items (YACHT-6, 7, 8, 10) record a trigger condition in their
+title and are not planned work until that condition is met.
 
 ## Themes
 
