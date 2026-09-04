@@ -24,8 +24,8 @@ Versioned design artifacts stay in this repository:
 
 | Outcome | Plane | Release | State |
 | --- | --- | --- | --- |
-| [Episodic trials in a persistent task workspace](specs/2026-08-02-episodic-trials-design.md) · [plan](plans/2026-08-02-episodic-trials.md) · ADR 0025 | YACHT-1 | pre-0.11 | Done |
-| MCP installs through capability-providing riggings · [plan](plans/2026-08-01-adr-0024-mcp-provider-riggings.md) · ADR 0024 | YACHT-2 | pre-0.11 | Done |
+| [Episodic trials in a persistent task workspace](specs/2026-08-02-episodic-trials-design.md) · [plan](plans/2026-08-02-episodic-trials.md) · ADR 0025 | YACHT-1 | 0.10.0 | Done |
+| MCP installs through capability-providing riggings · [plan](plans/2026-08-01-adr-0024-mcp-provider-riggings.md) · ADR 0024 | YACHT-2 | 0.10.0 | Done |
 | [OMP and Codex first-class harnesses](specs/omp-codex-harness-integration.md) · [plan](plans/omp-codex-harness-expansion.md) | YACHT-3 | 0.11.0 | Done |
 | [Durable Logbooks](plans/0.12-durable-logbooks.md) | YACHT-4 | 0.12.0 | Done |
 | [Reproducible Task Sampling](plans/0.13-reproducible-sampling.md) | YACHT-5 | 0.13.0 | In Progress |

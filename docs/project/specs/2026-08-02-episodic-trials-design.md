@@ -3,7 +3,7 @@
 **Outcome:** plane:YACHT-1
 
 Date: 2026-08-02
-Status: approved (brainstorm walkthrough, all sections); implemented before Yacht 0.11.0
+Status: approved (brainstorm walkthrough, all sections); implemented in Yacht 0.10.0
 ADR: docs/adr/0025-run-episodic-trials-in-a-persistent-task-workspace.md
 Plan: plans/2026-08-02-episodic-trials.md
 

@@ -17,9 +17,9 @@
   (`.sjujperpowers/config.json`). `docs/project/roadmap.md` lists release
   outcomes and theme summaries and no longer duplicates the backlog.
 - Versioned specs and implementation plans moved under `docs/project/specs/`
-  and `docs/project/plans/` with Plane `Outcome`/`Source` headers. The stale
-  `docs/superpowers/` checklists and the completed `audit-backed-plan.md` were
-  retired.
+  and `docs/project/plans/` with Plane `Outcome`/`Source` headers, including
+  the former `docs/superpowers/` checklists. The completed
+  `audit-backed-plan.md` was retired.
 - ADR 0023 status corrected to Accepted (implemented in #278).
 - Test fixtures no longer hardcode `/usr/bin:/bin` or `#!/bin/bash`, so the
   suite passes on NixOS.
