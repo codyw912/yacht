@@ -72,10 +72,12 @@ uv run python scripts/release_gate.py
 
 Requires Docker, the pinned launcher image
 (`docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher`),
-and `ANTHROPIC_API_KEY`. It spends roughly $0.05: the skill A/B runs once
-in full, then once more as a candidate against the first run recorded as
-a baseline — the cheapest full exercise of the pipeline, and the
-regression-check workflow itself.
+and `ANTHROPIC_API_KEY`. Behind a TLS-intercepting proxy, add
+`--secret id=build_ca,src=<proxy-ca.pem>` to the build; the CA is used
+only at build time and is not baked into the image. It spends roughly
+$0.05: the skill A/B runs once in full, then once more as a candidate
+against the first run recorded as a baseline — the cheapest full exercise
+of the pipeline, and the regression-check workflow itself.
 
 The gate prints a pass/fail line per check and the actual provider spend,
 and exits non-zero if any check fails:
