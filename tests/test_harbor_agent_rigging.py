@@ -144,21 +144,21 @@ class HarborAgentRiggingTests(unittest.TestCase):
 
         omp = rigging.omp_run_command(
             instruction="solve 'it'",
-            model="openai/gpt-5.2",
+            model="openai/opencode-zen-responses/gpt-6-astra",
         )
         self.assertIn("omp -p --mode json --no-session --auto-approve", omp)
-        self.assertIn("--model openai/gpt-5.2", omp)
+        self.assertIn("--model openai/opencode-zen-responses/gpt-6-astra", omp)
         self.assertIn(shlex.quote("solve 'it'"), omp)
         self.assertIn("> /logs/agent/omp.jsonl", omp)
 
         codex = rigging.codex_run_command(
             instruction="solve 'it'",
-            model="openai/gpt-5.2",
+            model="openai/opencode-zen-responses/gpt-6-astra",
         )
         self.assertIn("codex exec --json --ephemeral", codex)
         self.assertIn("--dangerously-bypass-approvals-and-sandbox", codex)
-        self.assertIn("--model gpt-5.2", codex)
-        self.assertNotIn("--model openai/gpt-5.2", codex)
+        self.assertIn("--model opencode-zen-responses/gpt-6-astra", codex)
+        self.assertNotIn("--model openai/opencode-zen-responses/gpt-6-astra", codex)
         self.assertIn(shlex.quote("solve 'it'"), codex)
         self.assertIn("> /logs/agent/codex.jsonl", codex)
 
