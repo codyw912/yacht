@@ -21,6 +21,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
@@ -237,6 +238,15 @@ def _checks(
             f"{len(measured)}/2 measured, status {baseline['status']}",
         )
     )
+    task_ids = _expected_task_ids()
+    checks.append(
+        _live_agent_success_check(
+            baseline_logbook,
+            (BASELINE_VESSEL, CANDIDATE_VESSEL),
+            task_ids,
+            "full A/B live agents succeeded",
+        )
+    )
 
     attempts = _load(baseline_logbook / "task-attempt-scorecard.json")
     delivery = _delivery_entries(attempts)
@@ -276,6 +286,14 @@ def _checks(
             "only the live vessel ran",
             ran == [CANDIDATE_VESSEL],
             f"attempt dirs: {ran or 'none'}",
+        )
+    )
+    checks.append(
+        _live_agent_success_check(
+            candidate_logbook,
+            (CANDIDATE_VESSEL,),
+            task_ids,
+            "candidate replay live agent succeeded",
         )
     )
 
@@ -326,6 +344,69 @@ def _checks(
         )
     )
     return checks
+
+
+def _live_agent_success_check(
+    logbook: Path,
+    vessels: tuple[str, ...],
+    task_ids: tuple[str, ...],
+    name: str,
+) -> tuple[str, bool, str]:
+    failures: list[str] = []
+    attempts_root = logbook / "task-attempts" / COMPARISON
+    for vessel in vessels:
+        vessel_dir = attempts_root / vessel
+        for task_id in task_ids:
+            path = vessel_dir / f"{task_id}.json"
+            if not path.is_file():
+                failures.append(f"{vessel}/{task_id}: missing")
+                continue
+            attempt = _load(path)
+            if attempt.get("status") != "completed":
+                failures.append(
+                    f"{vessel}/{task_id} failed ({_agent_failure_reason(attempt)})"
+                )
+    return (
+        name,
+        not failures,
+        "; ".join(failures) if failures else f"{len(vessels)} vessel(s) succeeded",
+    )
+
+
+def _expected_task_ids() -> tuple[str, ...]:
+    try:
+        with AB_CONFIG.open("rb") as config_file:
+            payload = tomllib.load(config_file)
+    except FileNotFoundError as error:
+        raise GateFailure(f"expected config is missing: {AB_CONFIG}") from error
+    except tomllib.TOMLDecodeError as error:
+        raise GateFailure(f"{AB_CONFIG.name} is not valid TOML: {error}") from error
+    course = payload.get("course")
+    tasks = course.get("tasks") if isinstance(course, dict) else None
+    ids: list[str] = []
+    if isinstance(tasks, list):
+        for task in tasks:
+            if isinstance(task, dict):
+                task_id = task.get("id")
+                if isinstance(task_id, str) and task_id:
+                    ids.append(task_id)
+    if not ids:
+        raise GateFailure(
+            f"{AB_CONFIG.name} declares no course.tasks; "
+            "update scripts/release_gate.py"
+        )
+    return tuple(ids)
+
+
+def _agent_failure_reason(attempt: dict) -> str:
+    agent = attempt.get("agent")
+    evidence = agent.get("machine_evidence") if isinstance(agent, dict) else None
+    exception = evidence.get("exception") if isinstance(evidence, dict) else None
+    if isinstance(exception, dict):
+        exception_type = str(exception.get("type") or "")
+        if exception_type:
+            return exception_type
+    return str(attempt.get("status") or "failed")
 
 
 def _comparison(scorecard: dict) -> dict:

@@ -17,6 +17,13 @@
   `DOCKER_CONTEXT`, `DOCKER_HOST`, and the current Docker context; unsupported
   remote endpoints fail explicitly. Task containers receive no Docker socket.
 
+### Release gate reliability
+
+- The live release gate now rejects failed or missing required agent attempts
+  in both the full A/B and recorded-baseline replay, independently of whether
+  scorecards and reports were produced. Successful agent execution remains
+  distinct from solving the evaluated task.
+
 ### Project tracking and documentation
 
 - Roadmap outcomes and the product backlog now live in the Plane project

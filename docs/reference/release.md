@@ -83,6 +83,9 @@ The gate prints a pass/fail line per check and the actual provider spend,
 and exits non-zero if any check fails:
 
 - the full A/B measured both vessels;
+- every expected live agent attempt completed successfully, in both the full
+  A/B and candidate replay; failed or missing attempts fail the gate even if
+  reports were generated. Agent completion does not require task resolution;
 - skill delivery was measured from preserved transcripts;
 - the recorded baseline was reused, with only the live vessel running;
 - paired statistics, evidence grade, and a repetition budget are present;
