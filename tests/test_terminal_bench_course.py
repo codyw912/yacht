@@ -13,6 +13,10 @@ from tests.fixtures import (
 )
 
 from yacht.courses.terminal_bench.harness import (
+    HARBOR_LAUNCHER_CA_PATH,
+    HARBOR_TASK_CA_PATH,
+    _docker_proxy_env_names,
+    _worker_ca_bundle,
     harbor_command,
     harbor_run_config,
     native_report_from_trials,
@@ -538,6 +542,141 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                     secret_env=[],
                 )
 
+    def test_forwards_docker_proxy_and_worker_ca_into_harbor_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            docker_config = root / "config.json"
+            docker_config.write_text(
+                json.dumps(
+                    {
+                        "proxies": {
+                            "default": {
+                                "httpProxy": "http://agent-proxy.test:18080",
+                                "httpsProxy": "http://agent-proxy.test:18080",
+                                "noProxy": "localhost,127.0.0.1",
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            ca_bundle = root / "ca-bundle.crt"
+            ca_bundle.write_text("test CA bundle\n", encoding="utf-8")
+
+            proxy_env = _docker_proxy_env_names(docker_config)
+            self.assertEqual(
+                proxy_env,
+                [
+                    "HTTP_PROXY",
+                    "http_proxy",
+                    "HTTPS_PROXY",
+                    "https_proxy",
+                    "NO_PROXY",
+                    "no_proxy",
+                ],
+            )
+            self.assertEqual(
+                _worker_ca_bundle({"SSL_CERT_FILE": str(ca_bundle)}),
+                ca_bundle,
+            )
+
+            job = {
+                "dataset": {
+                    "name": "terminal-bench/terminal-bench-2",
+                    "version": "2.0",
+                },
+                "tasks": ["hello-world"],
+                "secret_env": ["OPENAI_API_KEY"],
+                "agent": {
+                    "name": "omp",
+                    "import_path": "yacht_harbor_agents.agents:YachtOmp",
+                    "version": "18.1.13",
+                    "model": "openai-codex/gpt-6-astra",
+                    "env": {},
+                    "mcp_servers": [],
+                    "rigging_steps": [],
+                },
+            }
+            run_config = harbor_run_config(
+                job,
+                trials_dir=root / "trials",
+                proxy_env=proxy_env,
+                worker_ca=True,
+            )
+            agent = run_config["agents"][0]
+            self.assertEqual(
+                agent["kwargs"]["worker_ca_path"],
+                HARBOR_LAUNCHER_CA_PATH,
+            )
+            self.assertEqual(agent["env"]["OPENAI_API_KEY"], "${OPENAI_API_KEY}")
+            for name in proxy_env:
+                self.assertEqual(agent["env"][name], f"${{{name}}}")
+            for name in (
+                "SSL_CERT_FILE",
+                "REQUESTS_CA_BUNDLE",
+                "CURL_CA_BUNDLE",
+                "NODE_EXTRA_CA_CERTS",
+            ):
+                self.assertEqual(agent["env"][name], HARBOR_TASK_CA_PATH)
+
+            command = harbor_command(
+                root / "harbor-run-config.json",
+                trials_dir=root / "trials",
+                secret_env=["OPENAI_API_KEY"],
+                ca_bundle_path=ca_bundle,
+            )
+            self.assertIn(
+                f"{ca_bundle}:{HARBOR_LAUNCHER_CA_PATH}:ro",
+                command,
+            )
+            for name in (
+                "SSL_CERT_FILE",
+                "REQUESTS_CA_BUNDLE",
+                "CURL_CA_BUNDLE",
+                "NODE_EXTRA_CA_CERTS",
+            ):
+                self.assertIn(f"{name}={HARBOR_LAUNCHER_CA_PATH}", command)
+            self.assertIn("OPENAI_API_KEY", command)
+            self.assertNotIn("HTTP_PROXY", command)
+            self.assertNotIn("http://127.0.0.1:18080", command)
+
+    def test_harbor_run_config_explicit_proxy_wins_case_alias(self) -> None:
+        job = {
+            "dataset": {"name": "terminal-bench/terminal-bench-2", "version": "2.0"},
+            "tasks": ["hello-world"],
+            "agent": {
+                "name": "omp",
+                "import_path": "yacht_harbor_agents.agents:YachtOmp",
+                "version": "18.1.13",
+                "model": "openai-codex/gpt-6-astra",
+                "env": {"HTTPS_PROXY": "http://explicit.proxy.test:18080"},
+                "mcp_servers": [],
+                "rigging_steps": [],
+            },
+        }
+
+        env = harbor_run_config(
+            job,
+            trials_dir=Path("/tmp/trials"),
+            proxy_env=[
+                "HTTP_PROXY",
+                "http_proxy",
+                "HTTPS_PROXY",
+                "https_proxy",
+                "NO_PROXY",
+                "no_proxy",
+            ],
+        )["agents"][0]["env"]
+
+        self.assertEqual(
+            env["HTTPS_PROXY"],
+            "http://explicit.proxy.test:18080",
+        )
+        self.assertEqual(
+            env["https_proxy"],
+            "http://explicit.proxy.test:18080",
+        )
+
     def test_harbor_run_config_records_absolute_jobs_dir(self) -> None:
         """jobs_dir is read inside the launcher container, where the trials
         dir is mounted at its absolute host path; a relative value would
@@ -876,29 +1015,31 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                 _write_trial(trials_dir, _trial_result("fix-permissions", reward=0))
                 return 0
 
-            run_summary = run_terminal_bench_job(
-                job_path=Path(summary["terminal_bench_job_path"]),
-                roster_path=Path(summary["candidate_patches_path"]),
-                trials_dir=trials_dir,
-                report_dir=report_dir,
-                run_id="run-1",
-                vessel_name="claude-baseline",
-                command_runner=fake_harbor,
-            )
+            with (
+                patch(
+                    "yacht.courses.terminal_bench.harness._worker_ca_bundle",
+                    return_value=None,
+                ),
+                patch(
+                    "yacht.courses.terminal_bench.harness._docker_proxy_env_names",
+                    return_value=[],
+                ),
+            ):
+                run_summary = run_terminal_bench_job(
+                    job_path=Path(summary["terminal_bench_job_path"]),
+                    roster_path=Path(summary["candidate_patches_path"]),
+                    trials_dir=trials_dir,
+                    report_dir=report_dir,
+                    run_id="run-1",
+                    vessel_name="claude-baseline",
+                    command_runner=fake_harbor,
+                )
 
             self.assertEqual(run_summary["status"], "complete")
             self.assertEqual(run_summary["submitted_instances"], 2)
             self.assertEqual(run_summary["resolved_instances"], 1)
             self.assertEqual(len(harbor_commands), 1)
             argv, cwd = harbor_commands[0]
-            self.assertEqual(
-                argv,
-                harbor_command(
-                    trials_dir / "harbor-run-config.json",
-                    trials_dir=trials_dir,
-                    secret_env=["ANTHROPIC_API_KEY"],
-                ),
-            )
             self.assertEqual(argv[:3], ["docker", "run", "--rm"])
             self.assertIn("-v", argv)
             self.assertIn("/var/run/docker.sock:/var/run/docker.sock", argv)

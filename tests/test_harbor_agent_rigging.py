@@ -150,6 +150,10 @@ class HarborAgentRiggingTests(unittest.TestCase):
         self.assertIn("--model openai/opencode-zen-responses/gpt-6-astra", omp)
         self.assertIn(shlex.quote("solve 'it'"), omp)
         self.assertIn("> /logs/agent/omp.jsonl", omp)
+        self.assertIn(
+            'PI_PROXY="${PI_PROXY:-${HTTPS_PROXY:-${HTTP_PROXY:-}}}"',
+            omp,
+        )
 
         codex = rigging.codex_run_command(
             instruction="solve 'it'",
@@ -161,6 +165,13 @@ class HarborAgentRiggingTests(unittest.TestCase):
         self.assertNotIn("--model openai/opencode-zen-responses/gpt-6-astra", codex)
         self.assertIn(shlex.quote("solve 'it'"), codex)
         self.assertIn("> /logs/agent/codex.jsonl", codex)
+
+        nested_codex = rigging.codex_run_command(
+            instruction="solve it",
+            model="openai/openai-codex/gpt-6-astra",
+        )
+        self.assertIn("--model openai-codex/gpt-6-astra", nested_codex)
+        self.assertNotIn("--model gpt-6-astra", nested_codex)
 
     def test_omp_run_command_closes_stdin_for_headless_execution(self) -> None:
         command = rigging.omp_run_command(instruction="solve it")

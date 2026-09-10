@@ -38,6 +38,18 @@
 - Test fixtures no longer hardcode `/usr/bin:/bin` or `#!/bin/bash`, so the
   suite passes on NixOS.
 
+### Harbor remote-worker transport
+
+- Terminal-Bench launchers now carry Docker's configured HTTP and HTTPS proxy
+  variables into nested Harbor task containers without forwarding a
+  host-only loopback proxy address. A worker `SSL_CERT_FILE` bundle is mounted
+  into the launcher and selected for its TLS clients, then uploaded with mode
+  `0444` so non-root task agents can read it. Explicit proxy overrides retain
+  precedence across uppercase and lowercase environment-variable aliases.
+- Codex Harbor runs now remove only Yacht's outer model-provider prefix, so
+  nested identifiers such as `openai/openai-codex/gpt-6-astra` reach Codex as
+  `openai-codex/gpt-6-astra`.
+
 ## 0.12.0 - Durable Logbooks
 
 ### OMP episodic reliability

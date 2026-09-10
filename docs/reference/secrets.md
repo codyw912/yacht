@@ -80,6 +80,26 @@ pinned SecretSpec release (`nix/secretspec.nix`, currently 0.19.1)
 because this is the workflow the project documents and pinning beats a
 `curl | sh` installer — not because anything in Yacht depends on it.
 
+A remote worker may supply a non-secret capability placeholder instead of a
+provider's raw API key. A policy proxy can replace that placeholder only for an
+allowed upstream host, path, and method. Model-subscription authentication is a
+separate worker service, not part of the standing SecretSpec API-key contract;
+it can still map a non-secret capability placeholder to the standard variable
+the selected harness consumes. Yacht's contract is unchanged: the runtime sees
+only its declared variable, while vault coordinates, subscription state, proxy
+policy, and real credentials remain worker configuration. Do not add
+worker-specific vaults, item names, proxy hosts, or wrapper commands to a
+project's release gate.
+
+For Harbor runs, Yacht reads the standard Docker `proxies.default` declaration
+and templates the proxy variables inherited by the launcher into the task
+container. It does not forward the host shell's proxy values, which may contain
+a loopback address that is invalid inside a container. When `SSL_CERT_FILE`
+names a worker CA bundle, Yacht mounts that bundle into the launcher and sets
+the common TLS trust variables there for Harbor's own downloads. It also
+uploads a task-local copy, changes its mode to `0444` for non-root agents, and
+points curl, Requests, Node, and OpenSSL-compatible clients at that copy.
+
 Yacht commits a provider-neutral [`secretspec.toml`](../../secretspec.toml):
 
 ```toml

@@ -55,7 +55,7 @@ def omp_run_command(*, instruction: str, model: str | None = None) -> str:
     argv.append(instruction)
     quoted = " ".join(shlex.quote(item) for item in argv)
     return (
-        "set -euo pipefail; . ~/.nvm/nvm.sh; "
+        'set -euo pipefail; export PI_PROXY="${PI_PROXY:-${HTTPS_PROXY:-${HTTP_PROXY:-}}}"; . ~/.nvm/nvm.sh; '
         f"{quoted} < /dev/null > /logs/agent/omp.jsonl "
         "2> /logs/agent/omp.stderr"
     )

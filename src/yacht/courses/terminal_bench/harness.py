@@ -5,7 +5,7 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +20,54 @@ def _absolute(path: Path) -> Path:
 HARBOR_LAUNCHER_IMAGE = "yacht/harbor-launcher:harbor-0.20.0"
 HARBOR_JOB_NAME = "harbor"
 NATIVE_REPORT_SCHEMA_VERSION = 1
+HARBOR_LAUNCHER_CA_PATH = "/run/yacht-worker-ca-bundle.crt"
+HARBOR_TASK_CA_PATH = "/tmp/yacht-worker-ca-bundle.crt"
+CA_BUNDLE_ENV_NAMES = (
+    "SSL_CERT_FILE",
+    "REQUESTS_CA_BUNDLE",
+    "CURL_CA_BUNDLE",
+    "NODE_EXTRA_CA_CERTS",
+)
+_DOCKER_PROXY_ENV_BY_KEY = {
+    "httpProxy": ("HTTP_PROXY", "http_proxy"),
+    "httpsProxy": ("HTTPS_PROXY", "https_proxy"),
+    "noProxy": ("NO_PROXY", "no_proxy"),
+}
+
+
+def _docker_proxy_env_names(config_path: Path | None = None) -> list[str]:
+    if config_path is None:
+        docker_config = os.environ.get("DOCKER_CONFIG")
+        config_path = (
+            Path(docker_config) / "config.json"
+            if docker_config
+            else Path.home() / ".docker/config.json"
+        )
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return []
+    except (json.JSONDecodeError, OSError) as error:
+        raise ConfigError(
+            f"cannot read Docker proxy config {config_path}: {error}"
+        ) from error
+    proxy_config = (config.get("proxies") or {}).get("default") or {}
+    names: list[str] = []
+    for key, env_names in _DOCKER_PROXY_ENV_BY_KEY.items():
+        if proxy_config.get(key):
+            names.extend(env_names)
+    return names
+
+
+def _worker_ca_bundle(environ: Mapping[str, str] = os.environ) -> Path | None:
+    value = environ.get("SSL_CERT_FILE")
+    if not value:
+        return None
+    path = Path(value)
+    if not path.is_file():
+        raise ConfigError(f"SSL_CERT_FILE does not name a readable CA bundle: {path}")
+    return path
+
 
 CommandRunner = Callable[[list[str], Path], int]
 
@@ -73,8 +121,18 @@ def run_terminal_bench_job(
     roster_ids = _load_roster_ids(roster_path)
     tasks_path = _verified_tasks_path(job)
     artifact_path = _declared_artifact_path(job)
+    proxy_env = _docker_proxy_env_names()
+    ca_bundle_path = _worker_ca_bundle()
     harbor_config_path = trials_dir / "harbor-run-config.json"
-    _write_json(harbor_config_path, harbor_run_config(job, trials_dir=trials_dir))
+    _write_json(
+        harbor_config_path,
+        harbor_run_config(
+            job,
+            trials_dir=trials_dir,
+            proxy_env=proxy_env,
+            worker_ca=ca_bundle_path is not None,
+        ),
+    )
 
     runner = command_runner if command_runner is not None else _run_command
     command = harbor_command(
@@ -84,6 +142,7 @@ def run_terminal_bench_job(
         launcher_image=str(job.get("launcher_image", HARBOR_LAUNCHER_IMAGE)),
         tasks_path=tasks_path,
         artifact_path=artifact_path,
+        ca_bundle_path=ca_bundle_path,
     )
     exit_code = runner(command, trials_dir)
     if exit_code != 0:
@@ -114,6 +173,7 @@ def harbor_command(
     launcher_image: str = HARBOR_LAUNCHER_IMAGE,
     tasks_path: Path | None = None,
     artifact_path: Path | None = None,
+    ca_bundle_path: Path | None = None,
 ) -> list[str]:
     # Docker rejects relative bind mounts, and the launcher resolves -c
     # against its own working directory; every path that crosses the
@@ -127,6 +187,8 @@ def harbor_command(
         tasks_path = _absolute(tasks_path)
     if artifact_path is not None:
         artifact_path = _absolute(artifact_path)
+    if ca_bundle_path is not None:
+        ca_bundle_path = _absolute(ca_bundle_path)
     command = [
         "docker",
         "run",
@@ -143,6 +205,10 @@ def harbor_command(
         command.extend(["-v", f"{tasks_path}:{tasks_path}"])
     if artifact_path is not None:
         command.extend(["-v", f"{artifact_path}:{artifact_path}"])
+    if ca_bundle_path is not None:
+        command.extend(["-v", f"{ca_bundle_path}:{HARBOR_LAUNCHER_CA_PATH}:ro"])
+        for name in CA_BUNDLE_ENV_NAMES:
+            command.extend(["-e", f"{name}={HARBOR_LAUNCHER_CA_PATH}"])
     for name in secret_env:
         command.extend(["-e", name])
     command.extend(
@@ -159,7 +225,13 @@ def harbor_command(
     return command
 
 
-def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any]:
+def harbor_run_config(
+    job: dict[str, Any],
+    *,
+    trials_dir: Path,
+    proxy_env: list[str] | None = None,
+    worker_ca: bool = False,
+) -> dict[str, Any]:
     # jobs_dir is read inside the launcher container, where the trials
     # dir is mounted at its absolute host path; a relative value would
     # strand trial results under the container's working directory.
@@ -172,6 +244,8 @@ def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any
         kwargs["declaration"] = dict(agent["declaration"])
     if agent.get("episodes"):
         kwargs["episodes"] = dict(agent["episodes"])
+    if worker_ca:
+        kwargs["worker_ca_path"] = HARBOR_LAUNCHER_CA_PATH
     agent_config: dict[str, Any] = {
         "import_path": str(agent["import_path"]),
         "model_name": str(agent["model"]),
@@ -180,6 +254,19 @@ def harbor_run_config(job: dict[str, Any], *, trials_dir: Path) -> dict[str, Any
     env = dict(agent.get("env") or {})
     for name in job.get("secret_env") or ():
         env.setdefault(str(name), f"${{{name}}}")
+    requested_proxy = set(proxy_env or ())
+    for upper, lower in _DOCKER_PROXY_ENV_BY_KEY.values():
+        upper_present = upper in env
+        lower_present = lower in env
+        if upper_present ^ lower_present:
+            source, alias = (upper, lower) if upper_present else (lower, upper)
+            if alias in requested_proxy:
+                env[alias] = env[source]
+    for name in proxy_env or ():
+        env.setdefault(name, f"${{{name}}}")
+    if worker_ca:
+        for name in CA_BUNDLE_ENV_NAMES:
+            env.setdefault(name, HARBOR_TASK_CA_PATH)
     if env:
         agent_config["env"] = env
     if agent.get("mcp_servers"):
