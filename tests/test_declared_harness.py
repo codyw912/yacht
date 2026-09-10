@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.fixtures import offline_docker_socket
 from yacht.contracts.schemas import (
     BUILT_IN_HARNESS_NAMES,
     SchemaValidationError,
@@ -562,12 +563,13 @@ vessels = ["yach-baseline", "yach-candidate"]
             artifact = root / "yach"
             artifact.write_bytes(b"x")
 
-            command = harbor_command(
-                root / "config.json",
-                trials_dir=root / "trials",
-                secret_env=[],
-                artifact_path=artifact,
-            )
+            with offline_docker_socket():
+                command = harbor_command(
+                    root / "config.json",
+                    trials_dir=root / "trials",
+                    secret_env=[],
+                    artifact_path=artifact,
+                )
 
             self.assertIn(f"{artifact}:{artifact}", command)
 

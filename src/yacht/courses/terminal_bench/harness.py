@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from yacht.domain.model import ConfigError
+from yacht.runtimes.docker_endpoint import docker_socket_bind_spec
 
 
 def _absolute(path: Path) -> Path:
@@ -17,7 +18,6 @@ def _absolute(path: Path) -> Path:
 
 
 HARBOR_LAUNCHER_IMAGE = "yacht/harbor-launcher:harbor-0.20.0"
-DOCKER_SOCKET = "/var/run/docker.sock"
 HARBOR_JOB_NAME = "harbor"
 NATIVE_REPORT_SCHEMA_VERSION = 1
 
@@ -132,7 +132,7 @@ def harbor_command(
         "run",
         "--rm",
         "-v",
-        f"{DOCKER_SOCKET}:{DOCKER_SOCKET}",
+        docker_socket_bind_spec(),
         "-v",
         f"{trials_dir}:{trials_dir}",
     ]

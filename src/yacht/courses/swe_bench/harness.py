@@ -8,10 +8,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 from yacht.domain.model import ConfigError
+from yacht.runtimes.docker_endpoint import docker_socket_bind_spec
 
 
 SWEBENCH_RUNNER_IMAGE = "yacht/swebench-runner:swebench-4.1.0"
-DOCKER_SOCKET = "/var/run/docker.sock"
 HF_CACHE_DIR = Path.home() / ".cache" / "yacht" / "swebench-hf"
 
 CommandRunner = Callable[[list[str], Path], int]
@@ -120,7 +120,7 @@ def evaluator_command(
         "run",
         "--rm",
         "-v",
-        f"{DOCKER_SOCKET}:{DOCKER_SOCKET}",
+        docker_socket_bind_spec(),
         "-v",
         f"{predictions_dir}:{predictions_dir}",
         "-v",

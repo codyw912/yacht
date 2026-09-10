@@ -10,6 +10,13 @@
   language-runtime RNG behavior, and Course handoffs preserve the seed,
   population digest and count, requested size, and exact selected IDs.
 
+### Docker launcher compatibility
+
+- Harbor and SWE-bench orchestrators now mount the active local Docker socket
+  instead of assuming a rootful daemon. Endpoint selection follows
+  `DOCKER_CONTEXT`, `DOCKER_HOST`, and the current Docker context; unsupported
+  remote endpoints fail explicitly. Task containers receive no Docker socket.
+
 ### Project tracking and documentation
 
 - Roadmap outcomes and the product backlog now live in the Plane project

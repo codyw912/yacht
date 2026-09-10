@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.fixtures import offline_docker_socket
 from yacht.courses.handoff import write_course_handoff
 from yacht.courses.task_directory import task_directory_digest
 from yacht.courses.terminal_bench.harness import (
@@ -267,12 +268,13 @@ class CustomEvalHarnessTests(unittest.TestCase):
             tasks_dir = _write_task_directory(root)
             trials_dir = root / "trials"
 
-            command = harbor_command(
-                trials_dir / "harbor-run-config.json",
-                trials_dir=trials_dir,
-                secret_env=["ANTHROPIC_API_KEY"],
-                tasks_path=tasks_dir,
-            )
+            with offline_docker_socket():
+                command = harbor_command(
+                    trials_dir / "harbor-run-config.json",
+                    trials_dir=trials_dir,
+                    secret_env=["ANTHROPIC_API_KEY"],
+                    tasks_path=tasks_dir,
+                )
 
             self.assertIn(f"{tasks_dir}:{tasks_dir}", command)
 

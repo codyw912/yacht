@@ -6,6 +6,12 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+from tests.fixtures import (
+    docker_endpoint_selection,
+    mock_docker_context_host,
+    offline_docker_socket,
+)
+
 from yacht.courses.terminal_bench.harness import (
     harbor_command,
     harbor_run_config,
@@ -447,6 +453,11 @@ class TerminalBenchRolloutPlanTests(unittest.TestCase):
 
 
 class TerminalBenchHarnessTests(unittest.TestCase):
+    def setUp(self) -> None:
+        cm = offline_docker_socket()
+        cm.__enter__()
+        self.addCleanup(cm.__exit__, None, None, None)
+
     def test_harbor_command_absolutizes_relative_paths(self) -> None:
         """Docker rejects relative bind mounts ("mount path must be
         absolute"), so a relative --logbook must not reach the -v flags."""
@@ -462,6 +473,70 @@ class TerminalBenchHarnessTests(unittest.TestCase):
         self.assertIn(f"{tasks_abs}:{tasks_abs}", command)
         config_arg = command[command.index("-c") + 1]
         self.assertEqual(config_arg, str(trials_abs / "harbor-run-config.json"))
+
+    def test_harbor_command_binds_rootless_docker_host_socket(self) -> None:
+        with docker_endpoint_selection(
+            host="unix:///run/user/1100/docker.sock",
+            context=None,
+        ):
+            command = harbor_command(
+                Path("relay-logbook/trials/harbor-run-config.json"),
+                trials_dir=Path("relay-logbook/trials"),
+                secret_env=[],
+            )
+        self.assertIn(
+            "/run/user/1100/docker.sock:/var/run/docker.sock",
+            command,
+        )
+        self.assertNotIn("/var/run/docker.sock:/var/run/docker.sock", command)
+
+    def test_harbor_command_binds_current_context_socket_when_host_unset(
+        self,
+    ) -> None:
+        with (
+            docker_endpoint_selection(host=None, context=None),
+            mock_docker_context_host("unix:///tmp/context-docker.sock"),
+        ):
+            command = harbor_command(
+                Path("relay-logbook/trials/harbor-run-config.json"),
+                trials_dir=Path("relay-logbook/trials"),
+                secret_env=[],
+            )
+        self.assertIn("/tmp/context-docker.sock:/var/run/docker.sock", command)
+        self.assertNotIn("/var/run/docker.sock:/var/run/docker.sock", command)
+
+    def test_harbor_command_binds_context_socket_instead_of_docker_host(
+        self,
+    ) -> None:
+        with (
+            docker_endpoint_selection(
+                host="unix:///run/user/1100/docker.sock",
+                context="rootless",
+            ),
+            mock_docker_context_host("unix:///tmp/context-docker.sock"),
+        ):
+            command = harbor_command(
+                Path("relay-logbook/trials/harbor-run-config.json"),
+                trials_dir=Path("relay-logbook/trials"),
+                secret_env=[],
+            )
+        self.assertIn("/tmp/context-docker.sock:/var/run/docker.sock", command)
+        self.assertNotIn(
+            "/run/user/1100/docker.sock:/var/run/docker.sock",
+            command,
+        )
+
+    def test_harbor_command_rejects_non_unix_docker_host(self) -> None:
+        with docker_endpoint_selection(
+            host="tcp://127.0.0.1:2375",
+            context=None,
+        ):
+            with self.assertRaisesRegex(ConfigError, r"tcp://127\.0\.0\.1:2375"):
+                harbor_command(
+                    Path("relay-logbook/trials/harbor-run-config.json"),
+                    trials_dir=Path("relay-logbook/trials"),
+                    secret_env=[],
+                )
 
     def test_harbor_run_config_records_absolute_jobs_dir(self) -> None:
         """jobs_dir is read inside the launcher container, where the trials
@@ -1256,12 +1331,13 @@ class TerminalBenchInstallOnlyTests(unittest.TestCase):
         )
 
         regatta = load_regatta(_write_config(root))
-        return run_terminal_bench_install_only(
-            regatta=regatta,
-            vessel_name=vessel_name,
-            work_dir=root / "install-only",
-            command_runner=fake_runner,
-        )
+        with offline_docker_socket():
+            return run_terminal_bench_install_only(
+                regatta=regatta,
+                vessel_name=vessel_name,
+                work_dir=root / "install-only",
+                command_runner=fake_runner,
+            )
 
     def test_passes_when_install_trial_records_agent_version(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1367,12 +1443,13 @@ runtime = "harbor-omp"
                 )
                 return CommandResult(exit_code=0, stdout="", stderr="")
 
-            summary = run_terminal_bench_install_only(
-                regatta=load_regatta(config_path),
-                vessel_name="omp-baseline",
-                work_dir=root / "install-only",
-                command_runner=fake_runner,
-            )
+            with offline_docker_socket():
+                summary = run_terminal_bench_install_only(
+                    regatta=load_regatta(config_path),
+                    vessel_name="omp-baseline",
+                    work_dir=root / "install-only",
+                    command_runner=fake_runner,
+                )
 
             self.assertEqual(summary["status"], "failed")
             self.assertIn("does not match configured pin", summary["evidence"]["error"])
@@ -1448,15 +1525,16 @@ class TerminalBenchRealBenchmarkEvalTests(unittest.TestCase):
                         _write_trial(trials_dir, _trial_result(task, reward=reward))
                     return 0
 
-                run_terminal_bench_job(
-                    job_path=Path(argv[argv.index("--job") + 1]),
-                    roster_path=Path(argv[argv.index("--roster") + 1]),
-                    trials_dir=trials_dir,
-                    report_dir=Path(argv[argv.index("--report-dir") + 1]),
-                    run_id=argv[argv.index("--run-id") + 1],
-                    vessel_name=vessel_name,
-                    command_runner=fake_harbor,
-                )
+                with offline_docker_socket():
+                    run_terminal_bench_job(
+                        job_path=Path(argv[argv.index("--job") + 1]),
+                        roster_path=Path(argv[argv.index("--roster") + 1]),
+                        trials_dir=trials_dir,
+                        report_dir=Path(argv[argv.index("--report-dir") + 1]),
+                        run_id=argv[argv.index("--run-id") + 1],
+                        vessel_name=vessel_name,
+                        command_runner=fake_harbor,
+                    )
                 return CommandResult(exit_code=0, stdout="rolled out\n", stderr="")
 
             def unused_prompt_runner(*args, **kwargs):
