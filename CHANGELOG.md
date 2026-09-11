@@ -24,12 +24,9 @@
   scorecards and reports were produced. Successful agent execution remains
   distinct from solving the evaluated task.
 
-### Project tracking and documentation
+### Project documentation
 
-- Roadmap outcomes and the product backlog now live in the Plane project
-  `YACHT`; in-flight execution is tracked in the Kata project `yacht`
-  (`.sjujperpowers/config.json`). `docs/project/roadmap.md` lists release
-  outcomes and theme summaries and no longer duplicates the backlog.
+- `docs/project/roadmap.md` summarizes release outcomes and project themes.
 - Versioned specs and implementation plans moved under `docs/project/specs/`
   and `docs/project/plans/` with Plane `Outcome`/`Source` headers, including
   the former `docs/superpowers/` checklists. The completed

@@ -21,3 +21,6 @@ devenv.local.yaml
 # Personal SecretSpec provider coordinates (vault/item/field). The
 # committed secretspec.toml stays provider-neutral; this extends it.
 /secretspec.local.toml
+
+# Personal agent workflow and tracking-provider configuration.
+/.sjujperpowers/config.json

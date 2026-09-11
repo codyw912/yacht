@@ -8,17 +8,21 @@ against controlled baselines across public benchmarks and custom evals. Work
 that expands harnesses, rigging, runtime trust, course selection, and evaluator
 adapters should take priority over polishing a single Pi+fff smoke path.
 
-## Where work is tracked
+## Project planning
 
-Roadmap outcomes and the product backlog live in the Plane project **YACHT**.
-Granular execution of an in-flight change is tracked in the Kata project
-`yacht`. Provider configuration is committed in `.sjujperpowers/config.json`.
+This repository contains the shared roadmap and versioned design artifacts.
+Contributors may use their own tracking tools; access to a maintainer's private
+trackers is not required. Agent workflow configuration in `.sjujperpowers/config.json`
+is local to each checkout and is not version-controlled.
 
 Versioned design artifacts stay in this repository:
 
 - `docs/adr/` — architecture decisions (authoritative for approved behavior)
-- `docs/project/specs/` — approved designs; each carries `**Outcome:** plane:YACHT-N`
-- `docs/project/plans/` — implementation plans; each carries `**Source:** plane:YACHT-N`
+- `docs/project/specs/` — approved designs
+- `docs/project/plans/` — implementation plans
+
+External tracking identifiers in document headers are provenance references,
+not prerequisites for reading or contributing to those documents.
 
 ## Release outcomes
 
@@ -30,18 +34,14 @@ Versioned design artifacts stay in this repository:
 | [Durable Logbooks](plans/0.12-durable-logbooks.md) | YACHT-4 | 0.12.0 | Done |
 | [Reproducible Task Sampling](plans/0.13-reproducible-sampling.md) | YACHT-5 | 0.13.0 | In Progress |
 
-Yacht 0.13 is implemented; its release candidate passes every token-free gate
-and is blocked on the live provider release gate (`scripts/release_gate.py`).
-Gated backlog items (YACHT-6, 7, 8, 10) record a trigger condition in their
-title and are not planned work until that condition is met.
+Yacht 0.13 is implemented and has passed source, package, and live provider
+release checks. Pull-request merge and release publication remain pending.
 
 ## Themes
 
 The nine themes below describe what YACHT already does and where each area can
-still grow. The "remaining" work for every theme is an open Plane work item;
-this file no longer duplicates that backlog. No post-0.13 outcome has been
-selected. Choose one only when the next concrete evaluation or consumer
-establishes the priority.
+still grow. No post-0.13 outcome has been selected. Choose one only when the
+next concrete evaluation or consumer establishes the priority.
 
 ### 1. Generalized Benchmark Surface
 
