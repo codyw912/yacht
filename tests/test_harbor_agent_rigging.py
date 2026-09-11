@@ -58,7 +58,7 @@ class HarborAgentRiggingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             completed = subprocess.run(
                 ["sh", "-c", commands[0]],
-                env={"HOME": temp_dir, "PATH": "/usr/bin:/bin"},
+                env={"HOME": temp_dir, "PATH": os.environ["PATH"]},
                 capture_output=True,
                 text=True,
             )
@@ -144,23 +144,34 @@ class HarborAgentRiggingTests(unittest.TestCase):
 
         omp = rigging.omp_run_command(
             instruction="solve 'it'",
-            model="openai/gpt-5.2",
+            model="openai/opencode-zen-responses/gpt-6-astra",
         )
         self.assertIn("omp -p --mode json --no-session --auto-approve", omp)
-        self.assertIn("--model openai/gpt-5.2", omp)
+        self.assertIn("--model openai/opencode-zen-responses/gpt-6-astra", omp)
         self.assertIn(shlex.quote("solve 'it'"), omp)
         self.assertIn("> /logs/agent/omp.jsonl", omp)
+        self.assertIn(
+            'PI_PROXY="${PI_PROXY:-${HTTPS_PROXY:-${HTTP_PROXY:-}}}"',
+            omp,
+        )
 
         codex = rigging.codex_run_command(
             instruction="solve 'it'",
-            model="openai/gpt-5.2",
+            model="openai/opencode-zen-responses/gpt-6-astra",
         )
         self.assertIn("codex exec --json --ephemeral", codex)
         self.assertIn("--dangerously-bypass-approvals-and-sandbox", codex)
-        self.assertIn("--model gpt-5.2", codex)
-        self.assertNotIn("--model openai/gpt-5.2", codex)
+        self.assertIn("--model opencode-zen-responses/gpt-6-astra", codex)
+        self.assertNotIn("--model openai/opencode-zen-responses/gpt-6-astra", codex)
         self.assertIn(shlex.quote("solve 'it'"), codex)
         self.assertIn("> /logs/agent/codex.jsonl", codex)
+
+        nested_codex = rigging.codex_run_command(
+            instruction="solve it",
+            model="openai/openai-codex/gpt-6-astra",
+        )
+        self.assertIn("--model openai-codex/gpt-6-astra", nested_codex)
+        self.assertNotIn("--model gpt-6-astra", nested_codex)
 
     def test_omp_run_command_closes_stdin_for_headless_execution(self) -> None:
         command = rigging.omp_run_command(instruction="solve it")

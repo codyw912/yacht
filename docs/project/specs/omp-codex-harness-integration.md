@@ -1,8 +1,10 @@
 # OMP and Codex harness integration handoff
 
-Status: proposed
+**Outcome:** plane:YACHT-3
 
-Implementation order: [OMP and Codex harness expansion](omp-codex-harness-expansion.md).
+Status: implemented in Yacht 0.11.0
+
+Implementation order: [OMP and Codex harness expansion](../plans/omp-codex-harness-expansion.md).
 
 ## Outcome
 
@@ -108,7 +110,7 @@ harness-native turn cap where one exists.
 
 The expansion plan reorders these so skill-install generalization lands
 first (as slice 0). Follow
-[that order](omp-codex-harness-expansion.md#agreed-order), not the
+[that order](../plans/omp-codex-harness-expansion.md#agreed-order), not the
 list below.
 
 1. Add native JSONL parser fixtures and pure parser tests for each harness.

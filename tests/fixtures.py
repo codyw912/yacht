@@ -1,5 +1,8 @@
+import os
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 
 def create_fixture_repo(path: Path) -> Path:
@@ -49,6 +52,66 @@ def git_output(path: Path, *args: str) -> str:
         text=True,
     )
     return result.stdout.strip()
+
+
+@contextmanager
+def docker_endpoint_selection(
+    *,
+    host: str | None = None,
+    context: str | None = None,
+):
+    saved_host = os.environ.get("DOCKER_HOST")
+    saved_context = os.environ.get("DOCKER_CONTEXT")
+    try:
+        if host is None:
+            os.environ.pop("DOCKER_HOST", None)
+        else:
+            os.environ["DOCKER_HOST"] = host
+        if context is None:
+            os.environ.pop("DOCKER_CONTEXT", None)
+        else:
+            os.environ["DOCKER_CONTEXT"] = context
+        yield
+    finally:
+        if saved_host is None:
+            os.environ.pop("DOCKER_HOST", None)
+        else:
+            os.environ["DOCKER_HOST"] = saved_host
+        if saved_context is None:
+            os.environ.pop("DOCKER_CONTEXT", None)
+        else:
+            os.environ["DOCKER_CONTEXT"] = saved_context
+
+
+@contextmanager
+def mock_docker_context_host(host: str):
+    def fake_run(argv, *args, **kwargs):
+        command = [str(part) for part in argv]
+        if (
+            len(command) >= 3
+            and command[0] == "docker"
+            and "context" in command
+            and "inspect" in command
+        ):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=host + "\n",
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    with patch("subprocess.run", side_effect=fake_run):
+        yield
+
+
+@contextmanager
+def offline_docker_socket():
+    with (
+        docker_endpoint_selection(host=None, context=None),
+        mock_docker_context_host("unix:///var/run/docker.sock"),
+    ):
+        yield
 
 
 REGATTA_CONFIG = """

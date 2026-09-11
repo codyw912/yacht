@@ -28,8 +28,8 @@ script stay `yacht` (see ADR 0007).
 
 ```sh
 uv build
-uv run --isolated --no-project --with ./dist/yacht_eval-0.12.0-py3-none-any.whl yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
-uv run --isolated --no-project --with ./dist/yacht_eval-0.12.0-py3-none-any.whl yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-wheel-smoke
+uv run --isolated --no-project --with ./dist/yacht_eval-0.13.0-py3-none-any.whl yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
+uv run --isolated --no-project --with ./dist/yacht_eval-0.13.0-py3-none-any.whl yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-wheel-smoke
 ```
 
 Update the wheel filename when the release version changes.
@@ -72,15 +72,20 @@ uv run python scripts/release_gate.py
 
 Requires Docker, the pinned launcher image
 (`docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher`),
-and `ANTHROPIC_API_KEY`. It spends roughly $0.05: the skill A/B runs once
-in full, then once more as a candidate against the first run recorded as
-a baseline — the cheapest full exercise of the pipeline, and the
-regression-check workflow itself.
+and `ANTHROPIC_API_KEY`. Behind a TLS-intercepting proxy, add
+`--secret id=build_ca,src=<proxy-ca.pem>` to the build; the CA is used
+only at build time and is not baked into the image. It spends roughly
+$0.05: the skill A/B runs once in full, then once more as a candidate
+against the first run recorded as a baseline — the cheapest full exercise
+of the pipeline, and the regression-check workflow itself.
 
 The gate prints a pass/fail line per check and the actual provider spend,
 and exits non-zero if any check fails:
 
 - the full A/B measured both vessels;
+- every expected live agent attempt completed successfully, in both the full
+  A/B and candidate replay; failed or missing attempts fail the gate even if
+  reports were generated. Agent completion does not require task resolution;
 - skill delivery was measured from preserved transcripts;
 - the recorded baseline was reused, with only the live vessel running;
 - paired statistics, evidence grade, and a repetition budget are present;

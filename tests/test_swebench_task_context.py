@@ -285,6 +285,278 @@ model = "mock"
             ("django__django-11099",),
         )
 
+    def test_swe_bench_adapter_selects_seeded_random_instances_from_instance_files(
+        self,
+    ) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_files = ["task-sets/django-smoke.toml", "task-sets/django-extra.toml"]
+max_instances = 2
+selection = { method = "random", seed = 20260823 }
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_sets = root / "task-sets"
+            task_sets.mkdir()
+            (task_sets / "django-smoke.toml").write_text(
+                'instance_ids = ["django__django-11099", "django__django-11179"]',
+                encoding="utf-8",
+            )
+            (task_sets / "django-extra.toml").write_text(
+                'instance_ids = ["astropy__astropy-12907"]',
+                encoding="utf-8",
+            )
+            config_path = root / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+
+        self.assertEqual(
+            [task.id for task in regatta.course.tasks],
+            ["astropy__astropy-12907", "django__django-11099"],
+        )
+        assert regatta.course.adapter is not None
+        self.assertEqual(
+            regatta.course.adapter.instance_ids,
+            ("astropy__astropy-12907", "django__django-11099"),
+        )
+        assert regatta.course.adapter.selection is not None
+        self.assertEqual(
+            regatta.course.adapter.selection.to_json(),
+            {
+                "method": "random",
+                "algorithm": "sha256-rank-v1",
+                "seed": 20260823,
+                "requested_instances": 2,
+                "population_count": 3,
+                "population_digest": (
+                    "sha256:bb915f707dc31ccdb6fb6119d8e8c4eb041d1bedd8571b555616a0e3924b8cdb"
+                ),
+            },
+        )
+
+    def test_random_selection_from_instance_files_ignores_source_order(self) -> None:
+        layouts = (
+            (
+                ["task-sets/django-smoke.toml", "task-sets/django-extra.toml"],
+                {
+                    "django-smoke.toml": (
+                        'instance_ids = ["django__django-11099", "django__django-11179"]'
+                    ),
+                    "django-extra.toml": 'instance_ids = ["astropy__astropy-12907"]',
+                },
+            ),
+            (
+                ["task-sets/django-extra.toml", "task-sets/django-smoke.toml"],
+                {
+                    "django-smoke.toml": (
+                        'instance_ids = ["django__django-11179", "django__django-11099"]'
+                    ),
+                    "django-extra.toml": 'instance_ids = ["astropy__astropy-12907"]',
+                },
+            ),
+        )
+        selected = []
+        provenances = []
+        for instance_files, files in layouts:
+            config = f"""
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_files = {instance_files!r}
+max_instances = 2
+selection = {{ method = "random", seed = 20260823 }}
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                task_sets = root / "task-sets"
+                task_sets.mkdir()
+                for name, contents in files.items():
+                    (task_sets / name).write_text(contents, encoding="utf-8")
+                config_path = root / "regatta.toml"
+                config_path.write_text(config, encoding="utf-8")
+
+                regatta = load_regatta(config_path)
+
+            selected.append([task.id for task in regatta.course.tasks])
+            assert regatta.course.adapter is not None
+            assert regatta.course.adapter.selection is not None
+            provenances.append(regatta.course.adapter.selection.to_json())
+
+        self.assertEqual(
+            selected[0],
+            ["astropy__astropy-12907", "django__django-11099"],
+        )
+        self.assertEqual(selected[0], selected[1])
+        self.assertEqual(
+            provenances[0],
+            {
+                "method": "random",
+                "algorithm": "sha256-rank-v1",
+                "seed": 20260823,
+                "requested_instances": 2,
+                "population_count": 3,
+                "population_digest": (
+                    "sha256:bb915f707dc31ccdb6fb6119d8e8c4eb041d1bedd8571b555616a0e3924b8cdb"
+                ),
+            },
+        )
+        self.assertEqual(provenances[0], provenances[1])
+
+    def test_seeded_random_selection_is_stable_across_independent_loads(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+instance_files = ["task-sets/django-smoke.toml", "task-sets/django-extra.toml"]
+max_instances = 2
+selection = { method = "random", seed = 20260823 }
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        loaded = []
+        for _ in range(2):
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                task_sets = root / "task-sets"
+                task_sets.mkdir()
+                (task_sets / "django-smoke.toml").write_text(
+                    'instance_ids = ["django__django-11099", "django__django-11179"]',
+                    encoding="utf-8",
+                )
+                (task_sets / "django-extra.toml").write_text(
+                    'instance_ids = ["astropy__astropy-12907"]',
+                    encoding="utf-8",
+                )
+                config_path = root / "regatta.toml"
+                config_path.write_text(config, encoding="utf-8")
+                loaded.append(load_regatta(config_path))
+
+        first, second = loaded
+        self.assertEqual(
+            [task.id for task in first.course.tasks],
+            ["astropy__astropy-12907", "django__django-11099"],
+        )
+        self.assertEqual(
+            [task.id for task in first.course.tasks],
+            [task.id for task in second.course.tasks],
+        )
+        assert first.course.adapter is not None
+        assert second.course.adapter is not None
+        self.assertEqual(
+            first.course.adapter.instance_ids,
+            second.course.adapter.instance_ids,
+        )
+        assert first.course.adapter.selection is not None
+        assert second.course.adapter.selection is not None
+        self.assertEqual(
+            first.course.adapter.selection,
+            second.course.adapter.selection,
+        )
+        self.assertEqual(
+            first.course.adapter.selection.to_json(),
+            {
+                "method": "random",
+                "algorithm": "sha256-rank-v1",
+                "seed": 20260823,
+                "requested_instances": 2,
+                "population_count": 3,
+                "population_digest": (
+                    "sha256:bb915f707dc31ccdb6fb6119d8e8c4eb041d1bedd8571b555616a0e3924b8cdb"
+                ),
+            },
+        )
+
+    def test_random_selection_uses_course_tasks_as_population(self) -> None:
+        config = """
+[regatta]
+name = "swe-bench-selection-smoke"
+
+[course]
+name = "swe-bench-lite"
+tasks = [
+  { id = "django__django-11099", title = "Django 11099", difficulty = 3 },
+  { id = "django__django-11179", title = "Django 11179", difficulty = 4 },
+  { id = "astropy__astropy-12907", title = "Astropy 12907", difficulty = 2 },
+]
+
+[course.adapter]
+kind = "swe-bench"
+dataset = "SWE-bench/SWE-bench_Lite"
+split = "test"
+harness = "docker"
+max_instances = 2
+selection = { method = "random", seed = 20260823 }
+
+[[vessels]]
+name = "baseline"
+model = "mock"
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "regatta.toml"
+            config_path.write_text(config, encoding="utf-8")
+
+            regatta = load_regatta(config_path)
+
+        self.assertEqual(
+            [(task.id, task.title, task.difficulty) for task in regatta.course.tasks],
+            [
+                ("astropy__astropy-12907", "Astropy 12907", 2),
+                ("django__django-11099", "Django 11099", 3),
+            ],
+        )
+        assert regatta.course.adapter is not None
+        assert regatta.course.adapter.selection is not None
+        self.assertEqual(
+            regatta.course.adapter.selection.to_json(),
+            {
+                "method": "random",
+                "algorithm": "sha256-rank-v1",
+                "seed": 20260823,
+                "requested_instances": 2,
+                "population_count": 3,
+                "population_digest": (
+                    "sha256:bb915f707dc31ccdb6fb6119d8e8c4eb041d1bedd8571b555616a0e3924b8cdb"
+                ),
+            },
+        )
+
     def test_swe_bench_adapter_rejects_mixing_instance_ids_and_file(self) -> None:
         config = """
 [regatta]

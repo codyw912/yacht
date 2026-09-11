@@ -8,6 +8,8 @@ from typing import Any
 from yacht.courses.terminal_bench.harness import (
     HARBOR_JOB_NAME,
     _declared_artifact_path,
+    _docker_proxy_env_names,
+    _worker_ca_bundle,
     harbor_command,
     harbor_run_config,
 )
@@ -31,10 +33,19 @@ def run_terminal_bench_install_only(
     job = {**job, "tasks": [job["tasks"][0]]}
 
     work_dir.mkdir(parents=True, exist_ok=True)
+    proxy_env = _docker_proxy_env_names()
+    ca_bundle_path = _worker_ca_bundle()
     config_path = work_dir / "harbor-run-config.json"
     config_path.write_text(
         json.dumps(
-            harbor_run_config(job, trials_dir=work_dir), indent=2, sort_keys=True
+            harbor_run_config(
+                job,
+                trials_dir=work_dir,
+                proxy_env=proxy_env,
+                worker_ca=ca_bundle_path is not None,
+            ),
+            indent=2,
+            sort_keys=True,
         )
         + "\n",
         encoding="utf-8",
@@ -47,6 +58,7 @@ def run_terminal_bench_install_only(
         launcher_image=str(job["launcher_image"]),
         tasks_path=tasks_path,
         artifact_path=_declared_artifact_path(job),
+        ca_bundle_path=ca_bundle_path,
     )
     command.append("--install-only")
 

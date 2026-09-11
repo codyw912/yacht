@@ -58,6 +58,13 @@ required_secrets = ["anthropic"]
 - Provider credentials flow through the environment of the launch
   process (for Anthropic models, export `ANTHROPIC_API_KEY`), consistent
   with Harbor's own convention. YACHT never copies auth state.
+- Orchestrators use Docker's active local Unix endpoint: `DOCKER_CONTEXT`
+  takes precedence over `DOCKER_HOST`; with neither set, Yacht inspects the
+  current Docker context. The selected host socket is mounted at
+  `/var/run/docker.sock` inside the orchestrator only, not inside task
+  containers. Rootless Docker and local Docker Desktop contexts are supported;
+  remote and non-Unix endpoints are rejected because these workflows require
+  local bind mounts.
 
 ## Pipeline shape
 

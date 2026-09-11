@@ -258,7 +258,6 @@ provider credentials.
 
 - [Project vision](docs/project/vision.md)
 - [Roadmap](docs/project/roadmap.md)
-- [Audit-backed plan](docs/project/audit-backed-plan.md)
 - [Codebase structure](docs/project/codebase-structure.md)
 - [Validating a tool claim](docs/tutorials/validating-a-tool-claim.md)
 - [Measuring a skill claim](docs/tutorials/measuring-a-skill-claim.md)

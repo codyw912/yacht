@@ -7,6 +7,11 @@ from io import StringIO
 from pathlib import Path
 
 from tests.benchmark_fixtures import write_vessel_ready_inputs
+from tests.fixtures import (
+    docker_endpoint_selection,
+    mock_docker_context_host,
+    offline_docker_socket,
+)
 from tests.test_provisioning import PI_WITH_FFF_CONFIG
 from yacht.workflows.benchmark_launcher_handoff import write_benchmark_launcher_handoff
 from yacht.cli import main
@@ -423,6 +428,11 @@ def _expected_launcher_native_report_path(
 
 
 class SweBenchRunnerHarnessTests(unittest.TestCase):
+    def setUp(self) -> None:
+        cm = offline_docker_socket()
+        cm.__enter__()
+        self.addCleanup(cm.__exit__, None, None, None)
+
     def test_evaluator_command_runs_the_pinned_container(self) -> None:
         from yacht.courses.swe_bench.harness import (
             HF_CACHE_DIR,
@@ -451,6 +461,94 @@ class SweBenchRunnerHarnessTests(unittest.TestCase):
         self.assertEqual(command[module_index - 2 : module_index], ["python", "-m"])
         self.assertIn("--instance_ids", command)
         self.assertIn("django__django-11099", command)
+
+    def test_evaluator_command_binds_rootless_docker_host_socket(self) -> None:
+        from yacht.courses.swe_bench.harness import evaluator_command
+
+        with docker_endpoint_selection(
+            host="unix:///run/user/1100/docker.sock",
+            context=None,
+        ):
+            command = evaluator_command(
+                predictions_path=Path("/tmp/vessels/pi/candidate-patches.jsonl"),
+                report_dir=Path("/tmp/native-report"),
+                dataset="princeton-nlp/SWE-bench_Lite",
+                split="test",
+                run_id="run-1",
+                max_workers=2,
+                instance_ids=["django__django-11099"],
+            )
+        self.assertIn(
+            "/run/user/1100/docker.sock:/var/run/docker.sock",
+            command,
+        )
+        self.assertNotIn("/var/run/docker.sock:/var/run/docker.sock", command)
+
+    def test_evaluator_command_binds_current_context_socket_when_host_unset(
+        self,
+    ) -> None:
+        from yacht.courses.swe_bench.harness import evaluator_command
+
+        with (
+            docker_endpoint_selection(host=None, context=None),
+            mock_docker_context_host("unix:///tmp/context-docker.sock"),
+        ):
+            command = evaluator_command(
+                predictions_path=Path("/tmp/vessels/pi/candidate-patches.jsonl"),
+                report_dir=Path("/tmp/native-report"),
+                dataset="princeton-nlp/SWE-bench_Lite",
+                split="test",
+                run_id="run-1",
+                max_workers=2,
+                instance_ids=["django__django-11099"],
+            )
+        self.assertIn("/tmp/context-docker.sock:/var/run/docker.sock", command)
+        self.assertNotIn("/var/run/docker.sock:/var/run/docker.sock", command)
+
+    def test_evaluator_command_binds_context_socket_instead_of_docker_host(
+        self,
+    ) -> None:
+        from yacht.courses.swe_bench.harness import evaluator_command
+
+        with (
+            docker_endpoint_selection(
+                host="unix:///run/user/1100/docker.sock",
+                context="rootless",
+            ),
+            mock_docker_context_host("unix:///tmp/context-docker.sock"),
+        ):
+            command = evaluator_command(
+                predictions_path=Path("/tmp/vessels/pi/candidate-patches.jsonl"),
+                report_dir=Path("/tmp/native-report"),
+                dataset="princeton-nlp/SWE-bench_Lite",
+                split="test",
+                run_id="run-1",
+                max_workers=2,
+                instance_ids=["django__django-11099"],
+            )
+        self.assertIn("/tmp/context-docker.sock:/var/run/docker.sock", command)
+        self.assertNotIn(
+            "/run/user/1100/docker.sock:/var/run/docker.sock",
+            command,
+        )
+
+    def test_evaluator_command_rejects_non_unix_docker_host(self) -> None:
+        from yacht.courses.swe_bench.harness import evaluator_command
+
+        with docker_endpoint_selection(
+            host="tcp://127.0.0.1:2375",
+            context=None,
+        ):
+            with self.assertRaisesRegex(ConfigError, r"tcp://127\.0\.0\.1:2375"):
+                evaluator_command(
+                    predictions_path=Path("/tmp/vessels/pi/candidate-patches.jsonl"),
+                    report_dir=Path("/tmp/native-report"),
+                    dataset="princeton-nlp/SWE-bench_Lite",
+                    split="test",
+                    run_id="run-1",
+                    max_workers=2,
+                    instance_ids=["django__django-11099"],
+                )
 
     def test_run_requires_the_predictions_file(self) -> None:
         from yacht.courses.swe_bench.harness import run_swe_bench_evaluation

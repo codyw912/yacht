@@ -33,6 +33,7 @@ from yacht_harbor_agents.rigging import (
     rigging_commands,
     version_contains_pin,
 )
+from yacht_harbor_agents.transport import install_worker_ca
 
 
 class RiggingStepError(RuntimeError):
@@ -147,16 +148,19 @@ class YachtClaudeCode(ClaudeCode):
         self,
         logs_dir: Path,
         rigging_steps: list[dict[str, Any]] | None = None,
+        worker_ca_path: str | None = None,
         episodes: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ):
         self._rigging_steps = list(rigging_steps or [])
+        self._worker_ca_path = worker_ca_path
         self._episodes_kwarg = dict(episodes or {})
         self._episode_costs: list[float | None] = []
         super().__init__(logs_dir, *args, **kwargs)
 
     async def install(self, environment: BaseEnvironment) -> None:
+        await install_worker_ca(environment, self._worker_ca_path)
         await super().install(environment)
         await apply_rigging_steps(environment, self._rigging_steps)
 
@@ -289,13 +293,16 @@ class YachtPi(Pi):
         self,
         logs_dir: Path,
         rigging_steps: list[dict[str, Any]] | None = None,
+        worker_ca_path: str | None = None,
         *args,
         **kwargs,
     ):
         self._rigging_steps = list(rigging_steps or [])
+        self._worker_ca_path = worker_ca_path
         super().__init__(logs_dir, *args, **kwargs)
 
     async def install(self, environment: BaseEnvironment) -> None:
+        await install_worker_ca(environment, self._worker_ca_path)
         # Replaces (not extends) harbor's Pi install: same shape, but
         # the current pi npm package (PI_PACKAGE) instead of the retired
         # @mariozechner scope harbor 0.20.0 still names. Drop this
@@ -448,11 +455,13 @@ class YachtOmp(BaseInstalledAgent):
         self,
         logs_dir: Path,
         rigging_steps: list[dict[str, Any]] | None = None,
+        worker_ca_path: str | None = None,
         episodes: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ):
         self._rigging_steps = list(rigging_steps or [])
+        self._worker_ca_path = worker_ca_path
         self._episodes_kwarg = dict(episodes or {})
         self._recorded_usage: dict[str, int] | None = None
         self._recorded_cost: float | None = None
@@ -462,6 +471,7 @@ class YachtOmp(BaseInstalledAgent):
         return "omp --version"
 
     async def install(self, environment: BaseEnvironment) -> None:
+        await install_worker_ca(environment, self._worker_ca_path)
         version_spec = f"@{self._version}" if self._version else "@latest"
         await self.exec_as_root(
             environment,
@@ -549,11 +559,13 @@ class YachtCodex(BaseInstalledAgent):
         self,
         logs_dir: Path,
         rigging_steps: list[dict[str, Any]] | None = None,
+        worker_ca_path: str | None = None,
         episodes: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ):
         self._rigging_steps = list(rigging_steps or [])
+        self._worker_ca_path = worker_ca_path
         self._episodes_kwarg = dict(episodes or {})
         self._recorded_usage: dict[str, int] | None = None
         self._recorded_cost: float | None = None
@@ -563,6 +575,7 @@ class YachtCodex(BaseInstalledAgent):
         return "codex --version"
 
     async def install(self, environment: BaseEnvironment) -> None:
+        await install_worker_ca(environment, self._worker_ca_path)
         version_spec = f"@{self._version}" if self._version else "@latest"
         await self.exec_as_root(
             environment,
@@ -660,11 +673,13 @@ class YachtDeclared(BaseInstalledAgent):
         logs_dir: Path,
         declaration: dict[str, Any],
         rigging_steps: list[dict[str, Any]] | None = None,
+        worker_ca_path: str | None = None,
         episodes: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ):
         self._declaration = dict(declaration)
+        self._worker_ca_path = worker_ca_path
         self._rigging_steps = list(rigging_steps or [])
         self._episodes_kwarg = dict(episodes or {})
         self._evidence: dict[str, Any] | None = None
@@ -674,6 +689,7 @@ class YachtDeclared(BaseInstalledAgent):
         return f"{declared_support.binary_path(self._declaration)} --version"
 
     async def install(self, environment: BaseEnvironment) -> None:
+        await install_worker_ca(environment, self._worker_ca_path)
         artifact = self._resolve_artifact()
         declared_support.verify_artifact(
             artifact, str(self._declaration["install"]["sha256"])

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted; implemented in #278.
 
 ## Context
 

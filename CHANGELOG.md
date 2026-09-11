@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 - 2026-09-10
 
 ### Reproducible task sampling
 
@@ -9,6 +9,43 @@
   versioned `sha256-rank-v1` algorithm is independent of source ordering and
   language-runtime RNG behavior, and Course handoffs preserve the seed,
   population digest and count, requested size, and exact selected IDs.
+
+### Docker launcher compatibility
+
+- Harbor and SWE-bench orchestrators now mount the active local Docker socket
+  instead of assuming a rootful daemon. Endpoint selection follows
+  `DOCKER_CONTEXT`, `DOCKER_HOST`, and the current Docker context; unsupported
+  remote endpoints fail explicitly. Task containers receive no Docker socket.
+
+### Release gate reliability
+
+- The live release gate now rejects failed or missing required agent attempts
+  in both the full A/B and recorded-baseline replay, independently of whether
+  scorecards and reports were produced. Successful agent execution remains
+  distinct from solving the evaluated task.
+
+### Project documentation
+
+- `docs/project/roadmap.md` summarizes release outcomes and project themes.
+- Versioned specs and implementation plans moved under `docs/project/specs/`
+  and `docs/project/plans/` with Plane `Outcome`/`Source` headers, including
+  the former `docs/superpowers/` checklists. The completed
+  `audit-backed-plan.md` was retired.
+- ADR 0023 status corrected to Accepted (implemented in #278).
+- Test fixtures no longer hardcode `/usr/bin:/bin` or `#!/bin/bash`, so the
+  suite passes on NixOS.
+
+### Harbor remote-worker transport
+
+- Terminal-Bench launchers now carry Docker's configured HTTP and HTTPS proxy
+  variables into nested Harbor task containers without forwarding a
+  host-only loopback proxy address. A worker `SSL_CERT_FILE` bundle is mounted
+  into the launcher and selected for its TLS clients, then uploaded with mode
+  `0444` so non-root task agents can read it. Explicit proxy overrides retain
+  precedence across uppercase and lowercase environment-variable aliases.
+- Codex Harbor runs now remove only Yacht's outer model-provider prefix, so
+  nested identifiers such as `openai/openai-codex/gpt-6-astra` reach Codex as
+  `openai-codex/gpt-6-astra`.
 
 ## 0.12.0 - Durable Logbooks
 

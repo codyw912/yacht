@@ -1,5 +1,9 @@
 # ADR 0024: MCP Installs Through Capability-Providing Riggings — Implementation Plan
 
+**Source:** plane:YACHT-2
+
+> **Status:** completed historically. This plan was executed before the Plane roadmap existed; the shipped behavior is ADR 0024 (as amended 2026-08-01) and its tests. Checkboxes below were not reconciled against individual commits and are retained verbatim as the execution record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let a rigged tool (pi-mcp-adapter) provide the `mcp-server` install method for a harness that lacks it (pi), with yacht rendering the adapter's config so delivery stays measurable — per `docs/adr/0024-unlock-mcp-installs-through-capability-providing-riggings.md`.

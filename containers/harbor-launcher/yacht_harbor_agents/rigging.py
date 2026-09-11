@@ -55,7 +55,7 @@ def omp_run_command(*, instruction: str, model: str | None = None) -> str:
     argv.append(instruction)
     quoted = " ".join(shlex.quote(item) for item in argv)
     return (
-        "set -euo pipefail; . ~/.nvm/nvm.sh; "
+        'set -euo pipefail; export PI_PROXY="${PI_PROXY:-${HTTPS_PROXY:-${HTTP_PROXY:-}}}"; . ~/.nvm/nvm.sh; '
         f"{quoted} < /dev/null > /logs/agent/omp.jsonl "
         "2> /logs/agent/omp.stderr"
     )
@@ -96,7 +96,8 @@ def codex_run_command(*, instruction: str, model: str | None = None) -> str:
         "--dangerously-bypass-approvals-and-sandbox",
     ]
     if model:
-        argv.extend(["--model", model.rsplit("/", 1)[-1]])
+        codex_model = model.split("/", 1)[1] if "/" in model else model
+        argv.extend(["--model", codex_model])
     argv.append(instruction)
     quoted = " ".join(shlex.quote(item) for item in argv)
     return (
