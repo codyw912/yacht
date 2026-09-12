@@ -8,9 +8,13 @@
 
 **Tech Stack:** Python 3.12, Bun >=1.3.14, OMP 18.1.17, Harbor 0.20.0, rootless Docker.
 
-**Spec:** `yacht-evals/docs/yacht-runtime-eval-handoff.md` (sibling consumer repository; A-D required). This plan records the chosen generic implementation contract; task content and scoring remain in yacht-evals.
+**Spec:** `../yacht-evals/docs/yacht-runtime-eval-handoff.md`
 
-**Source:** plane:YACHT-26 (consumers YACHT-21 through YACHT-24).
+The sibling consumer handoff supplies A-D requirements. This plan records the generic implementation contract; task content and scoring remain in yacht-evals.
+
+**Source:** plane:YACHT-26
+
+Consumers: YACHT-21 through YACHT-24.
 
 ## Global Constraints
 
