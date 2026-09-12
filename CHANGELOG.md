@@ -11,15 +11,16 @@
 - An awaited model-admission gate enforces loop and wall budgets. Captures,
   effective context, raw events, and per-message endings remain in private
   controller evidence; failed cleanup or missing required evidence marks an
-  infrastructure error instead of manufacturing a successful result.
-- Launcher context staging includes the canonical declaration validator.
-  Deployment requires a newly built immutable launcher and installation/
-  Harbor smoke validation; source tests do not update existing images.
-- CI, publication, and `yacht-check` now run the locked OMP SDK suite and
-  a real Python-controller/SDK local-HTTP regression. Launcher builds reject
-  unstaged contexts; mount privacy covers verifier/reference-solution inputs,
-  encoded image-question requests cannot bypass admission policy, and
-  evidence redaction operates on decoded credential values.
+  infrastructure error instead of manufacturing a successful result. Private
+  verifier/solution mounts are rejected and credentials are redacted without
+  removing unrelated event fields. Controlled runs disable detached launch
+  supervision and image-question side inference.
+- Launcher context staging includes the canonical declaration validator;
+  unstaged builds fail immediately. Deployment requires a newly built
+  immutable launcher and installation/Harbor smoke validation; source tests
+  do not update existing images.
+- CI, publication, and `yacht-check` run the locked OMP SDK suite and a real
+  Python-controller/SDK local-HTTP regression.
 
 ## 0.13.0 - 2026-09-10
 

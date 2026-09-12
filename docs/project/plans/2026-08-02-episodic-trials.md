@@ -1063,7 +1063,11 @@ print(plan)
 
 **Files:** none new (build + verification)
 
-- [ ] **Step 1: Rebuild the launcher image** (same tag — the harbor pin is unchanged; stage the context per `docs/reference/custom-evals.md` under "Launcher packaging", then build it with tag `yacht/harbor-launcher:harbor-0.20.0` using the configured image builder).
+- [ ] **Step 1: Rebuild the launcher image** (same tag — the harbor pin is unchanged; per `docs/reference/release.md:74`):
+
+```bash
+docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+```
 
 - [ ] **Step 2: In-image import smoke** (catches harbor-API drift in agents.py without spending tokens):
 

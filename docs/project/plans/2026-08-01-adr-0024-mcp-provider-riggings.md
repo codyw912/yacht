@@ -862,9 +862,7 @@ Mirror `examples/custom-eval-mcp-ab-smoke.toml` (same course/adapter/secrets/pre
 # Requirements: Docker running, uv, ANTHROPIC_API_KEY exported, and the
 # pinned launcher image built (rebuild it after launcher changes):
 #
-#   # Stage the launcher as documented in docs/reference/custom-evals.md
-#   # under "Launcher packaging", then build that staged context with tag
-#   # yacht/harbor-launcher:harbor-0.20.0 using the configured image builder.
+#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
 
 [regatta]
 name = "custom-eval-pi-mcp-ab-smoke"
@@ -1539,5 +1537,5 @@ jj commit -m "Accept ADR 0024 and document provider-backed MCP installs"
 
 ## Post-plan notes (not tasks)
 
-- **Live validation before release:** per the standing practice, this feature needs a token-spending integration run before the next release: rebuild the launcher image from the staged context documented under "Launcher packaging" in `docs/reference/custom-evals.md`, using tag `yacht/harbor-launcher:harbor-0.20.0` and the configured image builder — the launcher's rigging module changed in Task 8. Then run `examples/custom-eval-pi-mcp-ab-smoke.toml` with `--repetitions 3` and confirm the scorecard shows a measured `files` invocation rate with `observed_tools` on the treatment vessel. Two pins may need adjusting from live results: pi `harness_version = "0.74.0"` and `pi-mcp-adapter@2.15.0` (compatibility between the two is unverified offline; the adapter README's naming under `toolPrefix: "mcp"` matches the ADR but only the live run proves `mcp__files__<tool>` is the real emitted name). Any pin change requires a new ADR decision and fixture updates; do not float either version.
+- **Live validation before release:** per the standing practice, this feature needs a token-spending integration run before the next release: rebuild the launcher image (`docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher` — the launcher's rigging module changed in Task 8), then run `examples/custom-eval-pi-mcp-ab-smoke.toml` with `--repetitions 3` and confirm the scorecard shows a measured `files` invocation rate with `observed_tools` on the treatment vessel. Two pins may need adjusting from live results: pi `harness_version = "0.74.0"` and `pi-mcp-adapter@2.15.0` (compatibility between the two is unverified offline; the adapter README's naming under `toolPrefix: "mcp"` matches the ADR but only the live run proves `mcp__files__<tool>` end to end).
 - **Branch finish:** bookmark `adr-0024` already holds the ADR commits. After the last task: `jj bookmark set adr-0024 -r @-`, push, and open the PR (plain URL in output, lean description, no attribution footers).

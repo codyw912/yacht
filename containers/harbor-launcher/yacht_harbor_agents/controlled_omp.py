@@ -102,12 +102,15 @@ def _secret_values(env: dict[str, str] | None) -> set[str]:
     return values
 
 
-def _scrub(payload: Any, secrets: set[str]) -> Any:
+def _scrub(payload: Any, secrets: set[str], *, parent: str = "") -> Any:
     if isinstance(payload, dict):
         return {
             key: "[redacted]"
-            if isinstance(value, str) and value and _SENSITIVE_KEY.search(key)
-            else _scrub(value, secrets)
+            if parent in {"env", "headers"}
+            and isinstance(value, str)
+            and value
+            and _SENSITIVE_KEY.search(key)
+            else _scrub(value, secrets, parent=key)
             for key, value in payload.items()
         }
     if isinstance(payload, list):

@@ -828,6 +828,9 @@ class FailureFinalizationTests(unittest.IsolatedAsyncioTestCase):
                             "env": {"OPENAI_API_KEY": escaped_secret},
                             "message": f"request failed using {escaped_secret}",
                             "headers": {"Authorization": "Bearer unlisted-token"},
+                            "author": "Ada",
+                            "keyword": "retention",
+                            "tokenizer": "fixture-tokenizer",
                         },
                     }
                 return await original()
@@ -850,6 +853,14 @@ class FailureFinalizationTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(json.dumps(escaped_secret)[1:-1], blob)
             self.assertNotIn("unlisted-token", blob)
             self.assertIn("OPENAI_API_KEY", blob)
+            events = [
+                json.loads(line)
+                for line in (evidence / "events.jsonl").read_text().splitlines()
+            ]
+            event = next(frame["event"] for frame in events if "event" in frame)
+            self.assertEqual(event["author"], "Ada")
+            self.assertEqual(event["keyword"], "retention")
+            self.assertEqual(event["tokenizer"], "fixture-tokenizer")
 
 
 class VerifierHandoffTests(unittest.IsolatedAsyncioTestCase):
