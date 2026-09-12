@@ -295,6 +295,18 @@ controlled runs go through Yacht-generated Harbor jobs. A newly staged
 launcher image is required; an older cached launcher does not acquire
 these capabilities from a source checkout update.
 
+**Activation blocked by native-shell quiescence:** the bounded Harbor smoke
+verified single-shot admission caps, fresh cold sessions, and retained message
+delivery, but did not pass the retained capture/cleanup acceptance gate.
+OMP 18.1.17 can run shell `&` continuations inside its native runtime: they
+are absent from process snapshots, can report zero live background jobs, and
+can write after `Shell.abort()` returns. OS-process reaping therefore does
+not prove tool quiescence, and `valid: true` alone is insufficient evidence.
+Do not use this build for evaluations requiring stable between-message
+captures or stopped background mutations. Activation requires reliable native
+shell cancellation/disposal and another approved end-to-end smoke; changing
+native tool semantics or relying on garbage collection is not an accepted fix.
+
 `[execution]` and `[episodes]` on the same task is a conflict. Cold
 OMP episode caps on 18.1.17 use the same controller with a fresh
 session per episode; Claude Code and declared `{max_turns}` placeholders
