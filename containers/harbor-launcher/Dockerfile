@@ -48,6 +48,9 @@ RUN --mount=type=secret,id=build_ca,target=/tmp/build-ca.pem,required=false,mode
         "harbor==${HARBOR_VERSION}" \
         "litellm==${LITELLM_VERSION}"
 
+# Build context must be staged by prepare_context.py so
+# yacht_harbor_agents/execution_contract.py is copied from
+# src/yacht/_execution_contract.py. Do not bake a stale duplicate.
 COPY yacht_harbor_agents /opt/yacht/yacht_harbor_agents
 
 ENV PYTHONPATH=/opt/yacht

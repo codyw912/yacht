@@ -169,10 +169,13 @@ is exactly as silent there as on a harness with no flag at all.
 Declared episodes have no cap signal of their own — `ended` for them is
 `natural`, `timeout`, or `error` only, never `cap`.
 
-OMP and Codex have no turn-cap flag, so they cannot honor `max_turns` at
-all. Rather than accept the key and drop it — which would make two
-vessels look like they ran under the same budget when only one did — the
-job render refuses:
+OMP and Codex have no native turn-cap *flag*, so an `[episodes]`
+`max_turns` on those harnesses is still a render-time error unless the
+harness version is one Yacht actually gates (today: OMP `18.1.17`, via
+the `[execution]` controller below — not a CLI flag). Rather than
+accept the key and drop it — which would make two vessels look like
+they ran under the same budget when only one did — the job render
+refuses:
 
 ```
 episodic max_turns is not enforceable on the omp harness and would be
@@ -181,11 +184,13 @@ episode with timeout_seconds instead, or run the comparison on a harness
 that enforces a turn cap (claude-code)
 ```
 
-Episodes themselves still work on OMP and Codex; only the cap is
-refused. If those CLIs gain a real turn cap, add the harness to
+Episodes themselves still work on older OMP and on Codex; only the
+unenforceable cap is refused. Do not invent or pass `--max-turns` to
+OMP. If a CLI later grows a real turn cap, add the harness to
 `MAX_TURNS_ENFORCING_HARNESSES` in `yacht/courses/episodes.py` and pass
 the flag — the rejection is a statement about today's harnesses, not a
 permanent limit.
+
 
 `timeout_seconds` is the driver's own backstop for hangs; hitting it
 ends the episode with `ended: "timeout"`, itself a normal ending, and
@@ -269,7 +274,142 @@ budgets (ADR 0021, ADR 0023). A repetition of an episodic task is a
 complete fresh relay: new container, new workspace, every episode run
 again from episode 1 (ADR 0025).
 
+## Bounded OMP execution
+
+A task can opt into a **Yacht-enforced** model/tool-loop budget without
+becoming an episodic relay. That declaration is `[execution]`, additive
+and explicit: existing tasks without the table keep today's uncapped
+single-shot behavior, and `[episodes] max = 1` is still not a cap.
+
+One counted turn is one **admitted agent-core model invocation and its
+resulting tool batch**. Several tools in one response consume one loop.
+Agent-core resamples each consume another admission. Provider-internal
+HTTP retries are not loops and must not be summed as turns.
+
+The controlled path requires **OMP 18.1.17**, **Bun 1.3.14**, and
+**Harbor 0.20.0 Docker/Linux**. Other harnesses and OMP versions fail
+at full job render; the launcher checks the Harbor/environment capability
+before inference. Yacht does not pass a `--max-turns` flag to OMP. The
+host-side OMP adapter (`--no-session`) does not read `[execution]`;
+controlled runs go through Yacht-generated Harbor jobs. A newly staged
+launcher image is required; an older cached launcher does not acquire
+these capabilities from a source checkout update.
+
+`[execution]` and `[episodes]` on the same task is a conflict. Cold
+OMP episode caps on 18.1.17 use the same controller with a fresh
+session per episode; Claude Code and declared `{max_turns}` placeholders
+are unchanged.
+
+### Single-shot cap
+
+```toml
+[execution]
+mode = "single"
+max_turns = 30
+message_timeout_seconds = 900
+timeout_seconds = 900
+```
+
+All integers are positive; booleans are rejected. Unknown keys are
+rejected. `max_turns` is the per-message loop cap; `message_timeout_seconds`
+is the per-message wall; `timeout_seconds` is the whole-trial wall.
+
+Natural completion, a recoverable cap, or a recoverable message timeout
+does not skip the next retained message. Lost sessions and failed tool
+quiescence invalidate the trial rather than restarting it cold. The overall
+deadline stops further model calls; bounded shutdown and evidence collection
+can continue without model work. Allow that shutdown margin in Harbor's
+outer `[agent].timeout_sec`.
+
+### Retained scripted conversation
+
+The initial user message is always `instruction.md`. Follow-ups stay
+in the trusted controller; they are not written into the task image.
+
+```toml
+[execution]
+mode = "retained"
+max_turns = 30
+message_timeout_seconds = 600
+timeout_seconds = 7200
+initial_turn_id = "initial"
+
+[[execution.turns]]
+id = "Q"
+instruction = "The next scripted user message."
+
+[[execution.captures]]
+after = "Q"
+path = "plans/retention-answers.json"
+max_bytes = 1048576
+```
+
+Turn IDs match `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` and are unique,
+including `initial_turn_id` (default `initial`). Capture paths are
+relative POSIX paths with no `.` / `..` / empty components, no
+absolute paths, and no backslashes. Each capture is at most 16 MiB;
+all captures on a trial at most 64 MiB. Duplicate `(after, path)`
+pairs are rejected. Capture IDs are `{after}-{declaration-index}`.
+
+### Evidence
+
+After the agent process is gone, the attempt's
+`agent.machine_evidence.execution` carries a `yacht.execution.v1`
+summary: declared limits, session IDs, per-message endings and loop
+counts, capture status (`missing` / `captured` / `error`), and
+whether the trial remained valid. The bytes live under the trial's
+private `yacht-execution/` directory, outside agent-mounted logs.
+A missing capture file is `missing` (the verifier decides). A capture
+read failure invalidates the trial. Missing required execution evidence,
+or a summary with `valid = false`, is an infrastructure error even if the
+task verifier writes a numeric reward. Legacy tasks without controlled
+execution may omit the summary.
+
+The controller records native events and effective provider-visible context
+at each admission. User-facing text, including fences, is retained; hidden
+chain-of-thought is not required for retention checks. Usage is per-message
+and cumulative only where known. It is not unique context occupancy.
+`cost_usd` is a provider/SDK cost estimate, not an attestation of billing;
+unavailable pricing remains unknown. Subscription quota use cannot be
+derived from that dollar estimate.
+
+Captures become available to the verifier under
+`/logs/verifier/yacht-execution/` only after driver shutdown and writer
+cleanup. The canonical copy remains in the private trial directory. A
+manifest distinguishes missing files from successful empty/malformed bytes
+and collection errors; later workspace writes cannot replace captured bytes.
+
+The controller preserves configured treatment settings while overriding
+automatic compaction, retries/fallback, advisors, memory learning, and
+automatic background execution. Model-spawning tools and image-question
+reads are unavailable in controlled runs; native tools and configured MCP
+tools otherwise remain enabled. Ordinary detached shell writers are reaped
+at each message boundary before capture or continuation.
+
+This is a cooperative harness boundary, not hostile same-root attestation.
+The evaluated process cannot read future scripts or canonical captures from
+the launcher, but deliberately malicious code sharing the driver's task
+container can interfere with its process or evidence channel. Task images
+must not embed private truth; resolved Compose mounts/build contexts that
+expose the controller, task source, or private trial artifacts are rejected.
+
+### Launcher packaging
+
+Stage a build context containing the canonical shared validator:
+
+```sh
+uv run --frozen --no-sync containers/harbor-launcher/prepare_context.py \
+  --output /tmp/yacht-launcher-context
+```
+
+Pass that context to the deployment's approved image builder, then pin its
+immutable image digest in the runtime configuration. The staging command
+does not build an image. Do not overwrite an older reproducibility tag.
+Deterministic source tests and staging do not replace an installation check
+and bounded Yacht-generated Harbor smoke against the resulting image.
+
 ## Configuration
+
 
 ```toml
 [course.adapter]

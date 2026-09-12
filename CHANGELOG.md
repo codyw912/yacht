@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Bounded OMP evaluation runtime
+
+- Task-owned `[execution]` declarations add single-shot loop caps and
+  retained scripted conversations for the pinned OMP 18.1.17 / Harbor
+  0.20.0 Docker path. OMP cold episode caps use fresh controlled sessions;
+  uncapped legacy execution and other harnesses retain their semantics.
+- An awaited model-admission gate enforces loop and wall budgets. Captures,
+  effective context, raw events, and per-message endings remain in private
+  controller evidence; failed cleanup or missing required evidence marks an
+  infrastructure error instead of manufacturing a successful result.
+- Launcher context staging includes the canonical declaration validator.
+  Deployment requires a newly built immutable launcher and installation/
+  Harbor smoke validation; source tests do not update existing images.
+
 ## 0.13.0 - 2026-09-10
 
 ### Reproducible task sampling

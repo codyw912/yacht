@@ -22,6 +22,11 @@ from yacht.courses.episodes import (
     MAX_TURNS_PLACEHOLDER,
     render_episode_plan,
 )
+from yacht.courses.execution import render_execution_plan
+from yacht._execution_contract import (
+    CONTROLLED_OMP_VERSION,
+    supports_controlled_execution,
+)
 from yacht.harnesses.mcp_config import (
     McpInstallProvider,
     render_provider_mcp_config,
@@ -62,6 +67,7 @@ def render_terminal_bench_job(
     runtime = _runtime(regatta, vessel)
     riggings = [_rigging(regatta, vessel, name) for name in vessel.rigging]
     harness = _harness_name(runtime)
+    harness_version = _harness_version(runtime)
     provider = provided_mcp_install_provider(
         harness, tuple(riggings), regatta.tool_capabilities
     )
@@ -69,7 +75,7 @@ def render_terminal_bench_job(
     agent: dict[str, Any] = {
         "name": harness,
         "import_path": _harbor_agent(regatta, runtime),
-        "version": _harness_version(runtime),
+        "version": harness_version,
         "model": str(vessel.model),
         "env": _agent_env(riggings),
         "mcp_servers": _mcp_servers(riggings, harness),
@@ -84,9 +90,14 @@ def render_terminal_bench_job(
         tasks,
         harness,
         regatta.harness_declarations,
+        harness_version,
     )
     if episodes:
         agent["episodes"] = episodes
+    execution = _execution_plans(regatta.course.adapter, tasks)
+    if execution:
+        _reject_unsupported_execution(harness, harness_version)
+        agent["execution"] = execution
     job = {
         "schema": TERMINAL_BENCH_JOB_SCHEMA,
         "dataset": _dataset(regatta.course.adapter),
@@ -120,6 +131,7 @@ def _episode_plans(
     tasks: list[str],
     harness: str,
     declarations: dict[str, HarnessDeclaration],
+    harness_version: str,
 ) -> dict[str, dict[str, Any]]:
     if adapter.kind != "custom-eval":
         return {}
@@ -134,22 +146,48 @@ def _episode_plans(
             "episodic tasks are not supported on the pi harness yet: "
             + ", ".join(sorted(plans))
         )
-    _reject_unenforceable_max_turns(plans, harness, declarations)
+    _reject_unenforceable_max_turns(plans, harness, declarations, harness_version)
     return plans
+
+
+def _execution_plans(adapter: Any, tasks: list[str]) -> dict[str, dict[str, Any]]:
+    if adapter.kind != "custom-eval":
+        return {}
+    root = Path(str(adapter.dataset))
+    plans: dict[str, dict[str, Any]] = {}
+    for task_id in tasks:
+        plan = render_execution_plan(root / task_id)
+        if plan is not None:
+            plans[task_id] = plan
+    return plans
+
+
+def _reject_unsupported_execution(harness: str, harness_version: str) -> None:
+    if supports_controlled_execution(harness, harness_version):
+        return
+    raise ConfigError(
+        f"task [execution] is not supported on the {harness} harness "
+        f"(version {harness_version}) and would be silently ignored; "
+        f"controlled execution requires omp {CONTROLLED_OMP_VERSION}"
+    )
 
 
 def _enforces_max_turns(
     harness: str,
     declarations: dict[str, HarnessDeclaration],
+    harness_version: str,
 ) -> bool:
     """Whether this harness will actually apply a per-episode turn cap.
 
     A declared harness opts in by naming `{max_turns}` somewhere in its
     command, which the harbor-side runner substitutes. Being declared is
     not enough: a declaration without the placeholder drops the cap just
-    as silently as a first-class harness with no flag for it.
+    as silently as a first-class harness with no flag for it. Pinned OMP
+    18.1.17 enforces caps through the controlled execution controller.
     """
     if harness in MAX_TURNS_ENFORCING_HARNESSES:
+        return True
+    if supports_controlled_execution(harness, harness_version):
         return True
     declaration = declarations.get(harness)
     if declaration is None:
@@ -161,13 +199,14 @@ def _reject_unenforceable_max_turns(
     plans: dict[str, dict[str, Any]],
     harness: str,
     declarations: dict[str, HarnessDeclaration],
+    harness_version: str,
 ) -> None:
     """Refuse a per-episode turn cap no harness will apply.
 
     Accepting `max_turns` and dropping it makes two vessels look like they
     ran under the same budget when only one of them did.
     """
-    if _enforces_max_turns(harness, declarations):
+    if _enforces_max_turns(harness, declarations, harness_version):
         return
     capped = sorted(
         task_id for task_id, plan in plans.items() if plan.get("max_turns") is not None

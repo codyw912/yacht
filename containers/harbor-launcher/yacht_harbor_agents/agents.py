@@ -34,10 +34,32 @@ from yacht_harbor_agents.rigging import (
     version_contains_pin,
 )
 from yacht_harbor_agents.transport import install_worker_ca
+from yacht_harbor_agents.controlled_omp import (
+    resolve_execution_plan,
+    run_cold_capped_episodes,
+    run_controlled_omp,
+)
+from yacht_harbor_agents.duplex import driver_helpers, start_duplex_driver
 
 
 class RiggingStepError(RuntimeError):
     pass
+
+
+class ControlledExecutionInvalid(RuntimeError):
+    """A controlled run could not be measured or could not be trusted.
+
+    Raised so an infrastructure failure fails the trial instead of being
+    reported as a completed attempt. Evidence written before the failure
+    (per-message records, captures, relay summary) is already persisted.
+    """
+
+
+def _require_valid_execution(summary: dict[str, Any], label: str) -> None:
+    if summary.get("valid"):
+        return
+    detail = summary.get("error") or summary.get("ended") or "unknown"
+    raise ControlledExecutionInvalid(f"{label} was invalid: {detail}")
 
 
 def _utc_now() -> str:
@@ -457,12 +479,15 @@ class YachtOmp(BaseInstalledAgent):
         rigging_steps: list[dict[str, Any]] | None = None,
         worker_ca_path: str | None = None,
         episodes: dict[str, Any] | None = None,
+        execution: dict[str, Any] | None = None,
         *args,
         **kwargs,
     ):
+        execution = kwargs.pop("execution", execution)
         self._rigging_steps = list(rigging_steps or [])
         self._worker_ca_path = worker_ca_path
         self._episodes_kwarg = dict(episodes or {})
+        self._execution_kwarg = dict(execution or {})
         self._recorded_usage: dict[str, int] | None = None
         self._recorded_cost: float | None = None
         super().__init__(logs_dir, *args, **kwargs)
@@ -501,9 +526,76 @@ class YachtOmp(BaseInstalledAgent):
             self._version,
         )
         self._version = resolved
+        await self._install_driver_helpers(environment)
+
+    async def _install_driver_helpers(self, environment: BaseEnvironment) -> None:
+        result = await environment.exec(command=". ~/.nvm/nvm.sh; npm root -g")
+        npm_root = (result.stdout or "").strip()
+        if result.return_code != 0 or not npm_root:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RiggingStepError(f"failed to resolve npm root: {detail}")
+        for helper in driver_helpers():
+            await environment.upload_file(
+                source_path=helper,
+                target_path=f"{npm_root}/{helper.name}",
+            )
+
+    def _record_execution_usage(self, summary: dict[str, Any]) -> None:
+        """Keep measured usage even when the run is later invalidated."""
+        usage = summary.get("usage")
+        self._recorded_usage = usage if isinstance(usage, dict) else None
+        cost = summary.get("cost_usd")
+        self._recorded_cost = float(cost) if isinstance(cost, (int, float)) else None
 
     async def run(self, instruction, environment: BaseEnvironment, context) -> None:
+        execution_plan = resolve_execution_plan(self._execution_kwarg, self.logs_dir)
+        if execution_plan is not None:
+            driver = await start_duplex_driver(environment)
+            summary = await run_controlled_omp(
+                environment=environment,
+                logs_dir=self.logs_dir,
+                instruction=str(instruction),
+                model=str(self.model_name or ""),
+                plan=execution_plan,
+                driver=driver,
+            )
+            self._record_execution_usage(summary)
+            _require_valid_execution(summary, "controlled OMP execution")
+            return
         plan, task_dir = resolve_episode_plan(self._episodes_kwarg, self.logs_dir)
+        if plan is not None and plan.get("max_turns"):
+
+            async def factory():
+                return await start_duplex_driver(environment)
+
+            async def verify_between(index: int, episode_dir: Path):
+                del index
+                return await run_episode_verifier(
+                    environment,
+                    task_dir,
+                    episode_dir,
+                    self.logs_dir.parent / "verifier",
+                )
+
+            summary = await run_cold_capped_episodes(
+                environment=environment,
+                logs_dir=self.logs_dir,
+                instruction=str(instruction),
+                model=str(self.model_name or ""),
+                episode_plan=plan,
+                max_turns=int(plan["max_turns"]),
+                driver_factory=factory,
+                task_dir=task_dir,
+                verify_between=verify_between,
+            )
+            self._record_execution_usage(summary)
+            # A nested episode that failed init/prompt or could not prove
+            # writer cleanup must not surface as a completed trial just
+            # because the inter-episode verifier returned a reward. The
+            # per-episode evidence and relay summary are already
+            # persisted, so this only changes the trial's outcome.
+            _require_valid_execution(summary, "controlled cold OMP episodes")
+            return
         if plan is not None:
             usages, costs = await run_jsonl_episodes(
                 logs_dir=self.logs_dir,

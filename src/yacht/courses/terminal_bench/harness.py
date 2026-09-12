@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from yacht.domain.model import ConfigError
+from yacht._execution_contract import (
+    ExecutionContractError,
+    validate_execution_summary,
+)
 from yacht.runtimes.docker_endpoint import docker_socket_bind_spec
 
 
@@ -151,6 +155,7 @@ def run_terminal_bench_job(
     report = native_report_from_trials(
         trials_dir=trials_dir,
         roster_ids=roster_ids,
+        execution_tasks=list((job.get("agent") or {}).get("execution") or {}),
     )
     report_path = report_dir / f"{vessel_name}.{run_id}.json"
     _write_json(report_path, report)
@@ -244,6 +249,8 @@ def harbor_run_config(
         kwargs["declaration"] = dict(agent["declaration"])
     if agent.get("episodes"):
         kwargs["episodes"] = dict(agent["episodes"])
+    if agent.get("execution"):
+        kwargs["execution"] = dict(agent["execution"])
     if worker_ca:
         kwargs["worker_ca_path"] = HARBOR_LAUNCHER_CA_PATH
     agent_config: dict[str, Any] = {
@@ -337,6 +344,7 @@ def native_report_from_trials(
     *,
     trials_dir: Path,
     roster_ids: list[str],
+    execution_tasks: list[str] | None = None,
 ) -> dict[str, Any]:
     trials = collect_trial_results(trials_dir)
     trials_by_task: dict[str, dict[str, Any]] = {}
@@ -355,6 +363,7 @@ def native_report_from_trials(
             + ", ".join(unexpected)
         )
 
+    required_execution = set(execution_tasks or ())
     completed_ids = []
     resolved_ids = []
     unresolved_ids = []
@@ -366,6 +375,9 @@ def native_report_from_trials(
             incomplete_ids.append(task_id)
             continue
         if trial.get("exception") is not None:
+            error_ids.append(task_id)
+            continue
+        if _execution_infrastructure_failure(trial, task_id, required_execution):
             error_ids.append(task_id)
             continue
         reward = trial.get("reward")
@@ -396,6 +408,19 @@ def native_report_from_trials(
         "error_ids": error_ids,
         "trials": trials,
     }
+
+
+def _execution_infrastructure_failure(
+    trial: dict[str, Any],
+    task_id: str,
+    required_execution: set[str],
+) -> bool:
+    execution = trial.get("execution")
+    if isinstance(execution, dict) and execution.get("valid") is False:
+        return True
+    if task_id in required_execution and not isinstance(execution, dict):
+        return True
+    return False
 
 
 def collect_trial_results(trials_dir: Path) -> list[dict[str, Any]]:
@@ -434,6 +459,9 @@ def _trial_summary(result_path: Path) -> dict[str, Any]:
     episodes = _trial_episodes(result_path.parent)
     if episodes is not None:
         summary["episodes"] = episodes
+    execution = _trial_execution(result_path.parent)
+    if execution is not None:
+        summary["execution"] = execution
     return summary
 
 
@@ -573,6 +601,28 @@ def _trial_episodes(trial_dir: Path) -> dict[str, Any] | None:
     ):
         episodes["to_resolution"] = to_resolution
     return episodes
+
+
+def _trial_execution(trial_dir: Path) -> dict[str, Any] | None:
+    """Controller evidence from trial_dir/yacht-execution/summary.json.
+
+    Missing is absent. Present but unreadable or contract-invalid is
+    infrastructure failure, never silently dropped.
+    """
+    summary_path = trial_dir / "yacht-execution" / "summary.json"
+    if not summary_path.is_file():
+        return None
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ConfigError(
+            f"execution summary {summary_path} is not valid JSON: {error}"
+        ) from error
+    try:
+        validate_execution_summary(payload)
+    except ExecutionContractError as error:
+        raise ConfigError(f"execution summary {summary_path}: {error}") from error
+    return payload
 
 
 def _load_job(path: Path) -> dict[str, Any]:

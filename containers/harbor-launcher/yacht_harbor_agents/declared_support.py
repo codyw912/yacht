@@ -99,9 +99,7 @@ def validate_evidence(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise DeclaredAgentError("harness evidence must be a JSON object")
     if payload.get("schema") != EVIDENCE_SCHEMA:
-        raise DeclaredAgentError(
-            f"harness evidence schema must be {EVIDENCE_SCHEMA}"
-        )
+        raise DeclaredAgentError(f"harness evidence schema must be {EVIDENCE_SCHEMA}")
     if not isinstance(payload.get("response"), str):
         raise DeclaredAgentError("harness evidence response must be a string")
     usage = payload.get("usage")

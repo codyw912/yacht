@@ -415,6 +415,9 @@
             },
             "tool_calls": {
               "$ref": "#/$defs/stringArray"
+            },
+            "execution": {
+              "$ref": "#/$defs/executionSummary"
             }
           }
         },
@@ -498,6 +501,236 @@
         },
         "redacted": {
           "const": true
+        }
+      }
+    },
+    "executionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "mode",
+        "max_turns",
+        "message_timeout_seconds",
+        "timeout_seconds",
+        "session_ids",
+        "messages",
+        "captures",
+        "valid",
+        "model",
+        "harness",
+        "harness_version",
+        "settings",
+        "usage",
+        "cost_usd"
+      ],
+      "properties": {
+        "schema": {
+          "const": "yacht.execution.v1"
+        },
+        "mode": {
+          "enum": ["single", "retained"]
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "message_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "session_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "ended",
+              "loops_started",
+              "loops_completed",
+              "continuation_possible",
+              "started_at",
+              "finished_at"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?![\\s\\S])"
+              },
+              "started_at": {
+                "type": "string",
+                "minLength": 1
+              },
+              "finished_at": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ended": {
+                "enum": ["natural", "cap", "timeout", "error"]
+              },
+              "loops_started": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "loops_completed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "continuation_possible": {
+                "type": "boolean"
+              },
+              "usage": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "cost_usd": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "captures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["after", "path", "status"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}-(?:0|[1-9][0-9]*)(?![\\s\\S])"
+              },
+              "after": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}(?![\\s\\S])"
+              },
+              "path": {
+                "type": "string",
+                "pattern": "^(?!\\.\\.?(?:/|(?![\\s\\S])))[^/\\\\\\u0000]+(?:/(?!\\.\\.?(?:/|(?![\\s\\S])))[^/\\\\\\u0000]+)*(?![\\s\\S])"
+              },
+              "status": {
+                "enum": ["missing", "captured", "error"]
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+              },
+              "artifact": {
+                "type": "string",
+                "minLength": 1
+              },
+              "error": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "const": "captured"
+                    }
+                  },
+                  "required": ["status"]
+                },
+                "then": {
+                  "required": ["bytes", "sha256", "artifact"]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "const": "error"
+                    }
+                  },
+                  "required": ["status"]
+                },
+                "then": {
+                  "required": ["error"]
+                }
+              }
+            ]
+          }
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "harness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "harness_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "settings": {
+          "type": "object"
+        },
+        "usage": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ended": {
+          "enum": ["natural", "cap", "timeout", "error"]
+        },
+        "handoff": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "error": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
