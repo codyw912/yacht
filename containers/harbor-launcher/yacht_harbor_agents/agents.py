@@ -39,7 +39,11 @@ from yacht_harbor_agents.controlled_omp import (
     run_cold_capped_episodes,
     run_controlled_omp,
 )
-from yacht_harbor_agents.duplex import driver_helpers, start_duplex_driver
+from yacht_harbor_agents.duplex import (
+    driver_helpers,
+    driver_install_path,
+    start_duplex_driver,
+)
 
 
 class RiggingStepError(RuntimeError):
@@ -534,10 +538,11 @@ class YachtOmp(BaseInstalledAgent):
         if result.return_code != 0 or not npm_root:
             detail = (result.stderr or result.stdout or "").strip()
             raise RiggingStepError(f"failed to resolve npm root: {detail}")
+        helpers_dir = driver_install_path(Path(npm_root)).parent
         for helper in driver_helpers():
             await environment.upload_file(
                 source_path=helper,
-                target_path=f"{npm_root}/{helper.name}",
+                target_path=(helpers_dir / helper.name).as_posix(),
             )
 
     def _record_execution_usage(self, summary: dict[str, Any]) -> None:

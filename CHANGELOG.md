@@ -21,6 +21,8 @@
   do not update existing images.
 - CI, publication, and `yacht-check` run the locked OMP SDK suite and a real
   Python-controller/SDK local-HTTP regression.
+- Controlled driver helpers install inside the global OMP package so Bun
+  resolves npm's nested transitive dependencies in task containers.
 
 ## 0.13.0 - 2026-09-10
 

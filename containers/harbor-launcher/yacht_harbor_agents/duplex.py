@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from yacht_harbor_agents.rigging import OMP_PACKAGE
+
 
 PINNED_HARBOR_VERSION = "0.20.0"
 MAIN_SERVICE = "main"
@@ -88,7 +90,7 @@ def require_harbor_docker_linux(
 
 
 def driver_install_path(npm_root: Path) -> Path:
-    return Path(npm_root) / DRIVER_FILENAME
+    return Path(npm_root) / OMP_PACKAGE / DRIVER_FILENAME
 
 
 def driver_helpers(package_dir: Path | None = None) -> list[Path]:
@@ -545,9 +547,10 @@ async def start_duplex_driver(
         # Driver stderr is private infrastructure detail: it goes to the
         # trial-private sibling, never the agent-mounted logs.
         diagnostics = trial_path / "yacht-execution" / "driver-stderr.log"
+    script = driver_install_path(Path("$root"))
     command = (
         "set -euo pipefail; . ~/.nvm/nvm.sh; "
-        'root="$(npm root -g)"; exec bun "$root/omp_control.ts"'
+        f'root="$(npm root -g)"; exec bun "{script.as_posix()}"'
     )
     argv = compose_exec_argv_from_environment(environment, command, env=env)
     process_env = environment._compose_env_vars(include_os_env=True)

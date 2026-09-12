@@ -1,5 +1,7 @@
 import importlib
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -116,17 +118,72 @@ class HarborVersionGateTests(unittest.TestCase):
             )
 
 
-class DriverPlacementTests(unittest.TestCase):
-    def test_driver_sits_beside_npm_root_not_inside_omp_package(self) -> None:
-        npm_root = Path("/home/yacht/.nvm/versions/node/v22.11.0/lib/node_modules")
-        target = duplex.driver_install_path(npm_root)
+def _bun_executable() -> str | None:
+    found = shutil.which("bun")
+    if found:
+        return found
+    runtime = (
+        Path(__file__).resolve().parent.parent
+        / ".runtime/omp-control/node_modules/.bin/bun"
+    )
+    if runtime.is_file():
+        return str(runtime)
+    return None
 
-        self.assertEqual(target, npm_root / "omp_control.ts")
-        self.assertNotIn("@oh-my-pi/pi-coding-agent", target.as_posix())
+
+class DriverPlacementTests(unittest.TestCase):
+    def test_nested_package_deps_resolve_from_installed_driver(self) -> None:
+        bun = _bun_executable()
+        if bun is None:
+            self.skipTest("bun is required for nested npm layout regression")
+        marker = "YACHT_NESTED_LAYOUT_OK"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            npm_root = Path(temp_dir) / "node_modules"
+            pi_ai = (
+                npm_root
+                / "@oh-my-pi"
+                / "pi-coding-agent"
+                / "node_modules"
+                / "@oh-my-pi"
+                / "pi-ai"
+            )
+            schema = pi_ai / "utils" / "schema.js"
+            schema.parent.mkdir(parents=True)
+            (pi_ai / "package.json").write_text(
+                json.dumps(
+                    {
+                        "name": "@oh-my-pi/pi-ai",
+                        "type": "module",
+                        "exports": {"./utils/schema": "./utils/schema.js"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            schema.write_text(
+                f'export const YACHT_NESTED_LAYOUT = "{marker}";\n',
+                encoding="utf-8",
+            )
+            driver = duplex.driver_install_path(npm_root)
+            driver.parent.mkdir(parents=True, exist_ok=True)
+            driver.write_text(
+                'import { YACHT_NESTED_LAYOUT } from "@oh-my-pi/pi-ai/utils/schema";\n'
+                "console.log(YACHT_NESTED_LAYOUT);\n",
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [bun, "--no-install", str(driver)],
+                cwd=driver.parent,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stdout.strip(), marker)
 
     def test_launch_command_is_bun_absolute_script_without_future_env(self) -> None:
-        script = Path(
-            "/home/yacht/.nvm/versions/node/v22.11.0/lib/node_modules/omp_control.ts"
+        script = duplex.driver_install_path(
+            Path("/home/yacht/.nvm/versions/node/v22.11.0/lib/node_modules")
         )
         command, env = duplex.driver_launch(script)
 
