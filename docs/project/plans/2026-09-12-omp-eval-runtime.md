@@ -28,7 +28,7 @@ Consumers: YACHT-21 through YACHT-24.
 - Mandatory capture and transcript/context evidence ship; optional workspace before/after diffs and advisory judge are deferred explicitly.
 - No provider/gateway changes, credential copying, benchmark runs, new TOML imports, or Pi episode implementation.
 - Approved smoke budget (do not reuse a prior budget): Grok 4.6 medium, sequential, <=4 infrastructure trials, <=20 admitted loops aggregate, <=900 seconds aggregate inference wall, stop on infrastructure failure, no judge or paid-provider fallback.
-- Operator-authorized local rootless build; pin a locally available digest (none recorded yet). No registry required. Public branch `omp-eval-runtime` requires operator publication approval immediately before push/PR.
+- Operator-authorized local rootless build; pin locally available `yacht/harbor-launcher@sha256:c12cb097da29a390d689fb2c8d6695399b09c4477fd9896c69df39309dea96e1`. No registry required. Public branch `omp-eval-runtime` requires operator publication approval immediately before push/PR.
 
 ## Chosen public contract
 
@@ -110,9 +110,9 @@ The rendered job uses `agent.execution: {task_id: plan}` (same shape as task dec
 - [ ] Integrate controlled OMP paths; each cold episode uses a new session while retained messages reuse one. Keep cold verifier early-stop; never use it for retained script.
 - [ ] Capture allowlisted paths safely with bounded no-follow reads and independent immutable host writes after native prompt settle; captured bytes are point-in-time copies, not an atomic workspace snapshot under concurrent writes. Private artifacts become available only to trusted verification after agent execution, never by putting hidden truth in agent-readable logs.
 - [ ] Preserve usage/context/budget summary on partial failure; infrastructure invalidity cannot silently appear as zero or successful retention.
-- [ ] Package new helpers for an operator-authorized local rootless launcher build and a locally available digest (none recorded yet; no registry required); implement bounded unscored native Harbor smoke for actual cap, retention, capture, and leakage evidence. Run only under the approved smoke budget above.
+- [ ] Package new helpers for an operator-authorized local rootless launcher build and the pinned local digest above (no registry required); implement bounded unscored native Harbor smoke for actual cap, retention, capture, and leakage evidence. Run only under the approved smoke budget above.
 - [ ] Main runs final suite/lint, reviews whole branch, documents precise smoke evidence and image digest, prepares governed PR, closes satisfied execution tracking, commits coherent result and runs standalone agent-checkpoint push.
 
 ## Verification and handoff
 
-Baseline `direnv exec . uv run --frozen --no-sync -m unittest discover -s tests`: 1130 tests passed. New tests must assert observable behavior, not source strings. Main runs all validation centrally after parallel edits settle. Before publishing, require deterministic admission proof, full rendered supported/unsupported jobs, actual built launcher installation, bounded Grok tool/retention/capture evidence and private-mount audit. Operator-authorized local rootless build with a locally available digest (none recorded yet; no registry required) is required for image/live acceptance, not for reachable implementation. No success claim for unexercised surfaces.
+Baseline `direnv exec . uv run --frozen --no-sync -m unittest discover -s tests`: 1130 tests passed. New tests must assert observable behavior, not source strings. Main runs all validation centrally after parallel edits settle. Before publishing, require deterministic admission proof, full rendered supported/unsupported jobs, actual built launcher installation, bounded Grok tool/retention/capture evidence and private-mount audit. Operator-authorized local rootless build with the pinned local digest above (no registry required) is required for image/live acceptance, not for reachable implementation. No success claim for unexercised surfaces.
