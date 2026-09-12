@@ -167,7 +167,12 @@ describe("production driver seams", () => {
 	});
 
 	it("answers state and rejects a prompt before init over real stdin", async () => {
-		const child = Bun.spawn(["bun", DRIVER], { stdin: "pipe", stdout: "pipe", stderr: "pipe" });
+		const child = Bun.spawn([process.execPath, DRIVER], {
+			stdin: "pipe",
+			stdout: "pipe",
+			stderr: "pipe",
+			env: { ...process.env, PATH: "" },
+		});
 		const responses: Array<Record<string, unknown>> = [];
 		const reader = (async () => {
 			const decoder = new TextDecoder();
@@ -211,7 +216,12 @@ describe("production driver seams", () => {
 	});
 
 	it("acks shutdown and exits on its own without being killed", async () => {
-		const child = Bun.spawn(["bun", DRIVER], { stdin: "pipe", stdout: "pipe", stderr: "pipe" });
+		const child = Bun.spawn([process.execPath, DRIVER], {
+			stdin: "pipe",
+			stdout: "pipe",
+			stderr: "pipe",
+			env: { ...process.env, PATH: "" },
+		});
 		child.stdin.write(`${JSON.stringify({ id: "x1", type: "shutdown" })}\n`);
 		// Real timer by necessity: this asserts a real subprocess terminates, and
 		// fake timers cannot drive another process's exit. The bound is a failure
