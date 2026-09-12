@@ -111,23 +111,6 @@ describe("cooperative abort and quiescence", () => {
 		expect(admission.closed).toBe(true);
 	});
 
-	it("does not claim abort kills arbitrary non-cooperative descendants", async () => {
-		const { host } = createInjectedAgent({
-			responses: [{ content: ["idle"] }],
-		});
-		const admission = new AdmissionController();
-		attachAdmissionGate(host, admission);
-		await runControlledPrompt(host, admission, {
-			turnId: "idle",
-			message: "hi",
-			maxTurns: 1,
-			sessionId: "sess-1",
-		});
-		const quiesce = await abortAndQuiesce(host, { timeoutMs: 200, protectedPids: [7, 9] });
-		expect(quiesce.ready).toBe(true);
-		expect(quiesce.protected_pids).toEqual([7, 9]);
-		expect(quiesce.reaped_descendants).toBeUndefined();
-	});
 
 	it("reports failed quiescence when waitForIdle rejects", async () => {
 		const { host } = createInjectedAgent({ responses: [{ content: ["ok"] }] });

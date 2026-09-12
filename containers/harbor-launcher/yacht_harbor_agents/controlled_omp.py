@@ -87,7 +87,7 @@ class DriverSession(Protocol):
     async def close(self) -> None: ...
 
 
-QuiesceFn = Callable[..., Awaitable[None]]
+FinalCleanupFn = Callable[..., Awaitable[None]]
 
 
 def _utc_now() -> str:
@@ -270,6 +270,7 @@ async def _write_summary_after_close(
     settings: dict[str, Any],
     publish_handoff: bool,
     error: str | None,
+    final_cleanup: Callable[[], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
     closed = True
     try:
@@ -309,6 +310,19 @@ async def _write_summary_after_close(
         valid = False
         ended = "error"
         error = error or "transport close unconfirmed"
+    elif final_cleanup is not None:
+        try:
+            await asyncio.wait_for(
+                final_cleanup(),
+                timeout=_QUIESCE_LIMIT_SECONDS,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            valid = False
+            ended = "error"
+            error = error or "quiescence failed"
+            publish_handoff = False
     summary: dict[str, Any] = {
         "schema": SCHEMA,
         "mode": plan.get("mode"),
@@ -404,7 +418,7 @@ async def run_controlled_omp(
     plan: dict[str, Any],
     env: dict[str, str] | None = None,
     driver: DriverSession | None = None,
-    quiesce: QuiesceFn | None = None,
+    final_cleanup: FinalCleanupFn | None = None,
 ) -> dict[str, Any]:
     _validate_plan(plan)
     if driver is None:
@@ -413,7 +427,7 @@ async def run_controlled_omp(
     baseline_holder: dict[str, Any] = {"baseline": None}
     scanner_identities: set[tuple[int, int]] = set()
 
-    async def production_quiesce(**kwargs: Any) -> None:
+    async def production_final_cleanup(**kwargs: Any) -> None:
         from yacht_harbor_agents.quiesce import reap_from_entries
 
         baseline = baseline_holder["baseline"]
@@ -447,7 +461,7 @@ async def run_controlled_omp(
                 )
         raise ControlledOmpError("quiescence failed")
 
-    quiesce_fn = quiesce or production_quiesce
+    cleanup_fn = final_cleanup or production_final_cleanup
 
     evidence = evidence_dir(logs_dir)
     evidence.mkdir(parents=True, exist_ok=True)
@@ -469,7 +483,6 @@ async def run_controlled_omp(
     session_ids: list[str] = []
     settings: dict[str, Any] = {}
     next_id = 1
-    writers_stopped = False
     protect_pids: set[int] = set()
 
     def allocate_id() -> str:
@@ -477,20 +490,6 @@ async def run_controlled_omp(
         value = str(next_id)
         next_id += 1
         return value
-
-    async def bounded_quiesce() -> None:
-        # Cleared first: a previous boundary's success must never let a
-        # later failed reap publish the trusted handoff.
-        nonlocal writers_stopped
-        writers_stopped = False
-        await asyncio.wait_for(
-            quiesce_fn(
-                environment=environment,
-                protect_pids=protect_pids,
-            ),
-            timeout=_QUIESCE_LIMIT_SECONDS,
-        )
-        writers_stopped = True
 
     async def shutdown() -> None:
         command_id = allocate_id()
@@ -516,16 +515,6 @@ async def run_controlled_omp(
 
     async def finalize() -> dict[str, Any]:
         nonlocal valid, ended, error
-        try:
-            await bounded_quiesce()
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            # Writers could not be proven stopped: the trial is
-            # infrastructure-invalid, not merely unpublished.
-            valid = False
-            ended = "error"
-            error = error or "quiescence failed"
         disposed = True
         try:
             await asyncio.wait_for(shutdown(), timeout=_SHUTDOWN_LIMIT_SECONDS)
@@ -536,6 +525,13 @@ async def run_controlled_omp(
             ended = "error"
             error = error or "shutdown failed"
             disposed = False
+
+        async def run_final_cleanup() -> None:
+            await cleanup_fn(
+                environment=environment,
+                protect_pids=protect_pids,
+            )
+
         return await _write_summary_after_close(
             plan=plan,
             valid=valid,
@@ -548,8 +544,9 @@ async def run_controlled_omp(
             model=model,
             session_ids=session_ids,
             settings=settings,
-            publish_handoff=writers_stopped and disposed,
+            publish_handoff=disposed,
             error=error,
+            final_cleanup=run_final_cleanup,
         )
 
     try:
@@ -588,7 +585,7 @@ async def run_controlled_omp(
         # exactly the evidence that proves what was enforced. The host
         # validator accepts JSON types, and this is already JSON.
         settings.update(policy)
-        if quiesce is None:
+        if final_cleanup is None:
             from yacht_harbor_agents.quiesce import baseline_from_entries
 
             baseline_entries, baseline_own = await _snapshot(environment)
@@ -644,19 +641,6 @@ async def run_controlled_omp(
             sid = data.get("session_id")
             if sid and str(sid) not in session_ids:
                 session_ids.append(str(sid))
-            try:
-                await bounded_quiesce()
-            except asyncio.CancelledError:
-                raise
-            except Exception as quiesce_error:
-                valid = False
-                ended = "error"
-                error = "quiescence failed"
-                record["ended"] = "error"
-                result = await finalize()
-                if not isinstance(quiesce_error, ControlledOmpError):
-                    raise ControlledOmpError(str(quiesce_error)) from quiesce_error
-                return result
             if _settle_is_fatal(frame):
                 valid = False
                 ended = "error"
@@ -739,7 +723,7 @@ async def run_cold_capped_episodes(
     max_turns: int,
     driver_factory: Callable[[], Any],
     env: dict[str, str] | None = None,
-    quiesce: QuiesceFn | None = None,
+    final_cleanup: FinalCleanupFn | None = None,
     task_dir: Path | None = None,
     verify_between: Callable[..., Awaitable[float | None]] | None = None,
 ) -> dict[str, Any]:
@@ -781,7 +765,7 @@ async def run_cold_capped_episodes(
                 plan=plan,
                 env=env,
                 driver=await _await_driver(driver_factory),
-                quiesce=quiesce,
+                final_cleanup=final_cleanup,
             )
             finished_at = _utc_now()
             summaries.append(summary)

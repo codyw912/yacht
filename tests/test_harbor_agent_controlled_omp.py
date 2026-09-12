@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import hashlib
 import importlib
 import json
@@ -189,7 +190,7 @@ async def _run(
     plan: dict | None = None,
     instruction: str = INITIAL,
     env: dict | None = None,
-    quiesce_fn=_noop_quiesce,
+    final_cleanup=_noop_quiesce,
     environment: DockerShapedEnvironment | None = None,
 ):
     driver.logs_dir = logs_dir
@@ -201,7 +202,7 @@ async def _run(
         plan=plan or _retained_plan(),
         env=env,
         driver=driver,
-        quiesce=quiesce_fn,
+        final_cleanup=final_cleanup,
     )
 
 
@@ -436,18 +437,22 @@ class DeadlineSeamTests(unittest.IsolatedAsyncioTestCase):
             logs_dir.mkdir(parents=True)
             driver = ScriptedDriver()
             _wire_success(driver)
+            original = driver.recv
             plan = _retained_plan()
             plan["timeout_seconds"] = 1
 
-            async def slow_quiesce(**_kwargs) -> None:
-                await asyncio.sleep(1.2)
+            async def recv() -> dict:
+                frame = await original()
+                if driver.sent[-1].get("type") == "prompt":
+                    await asyncio.sleep(1.2)
+                return frame
 
+            driver.recv = recv  # type: ignore[method-assign]
             summary = await _run(
                 workspace=workspace,
                 logs_dir=logs_dir,
                 driver=driver,
                 plan=plan,
-                quiesce_fn=slow_quiesce,
             )
 
             init = next(item for item in driver.sent if item["type"] == "init")
@@ -675,12 +680,10 @@ class FailureFinalizationTests(unittest.IsolatedAsyncioTestCase):
                 workspace=workspace,
                 logs_dir=logs_dir,
                 driver=driver,
-                quiesce_fn=fail_quiesce,
+                final_cleanup=fail_quiesce,
             )
 
             self.assertFalse(summary["valid"])
-            prompts = [item for item in driver.sent if item["type"] == "prompt"]
-            self.assertEqual([item["turn_id"] for item in prompts], ["initial"])
             handoff = logs_dir.parent / "verifier" / "yacht-execution"
             self.assertFalse(handoff.exists())
             evidence = captures.evidence_dir(logs_dir)
@@ -712,7 +715,7 @@ class FailureFinalizationTests(unittest.IsolatedAsyncioTestCase):
                 workspace=workspace,
                 logs_dir=logs_dir,
                 driver=driver,
-                quiesce_fn=counting_quiesce,
+                final_cleanup=counting_quiesce,
             )
 
             self.assertFalse(summary["valid"])
@@ -785,18 +788,22 @@ class FailureFinalizationTests(unittest.IsolatedAsyncioTestCase):
             logs_dir.mkdir(parents=True)
             driver = ScriptedDriver()
             _wire_success(driver)
+            original = driver.recv
             plan = _retained_plan()
             plan["timeout_seconds"] = 1
 
-            async def slow_quiesce(**_kwargs) -> None:
-                await asyncio.sleep(1.2)
+            async def recv() -> dict:
+                frame = await original()
+                if driver.sent[-1].get("type") == "prompt":
+                    await asyncio.sleep(1.2)
+                return frame
 
+            driver.recv = recv  # type: ignore[method-assign]
             summary = await _run(
                 workspace=workspace,
                 logs_dir=logs_dir,
                 driver=driver,
                 plan=plan,
-                quiesce_fn=slow_quiesce,
             )
 
             prompts = [item for item in driver.sent if item["type"] == "prompt"]
@@ -937,7 +944,7 @@ class ColdCappedEpisodeTests(unittest.IsolatedAsyncioTestCase):
                 },
                 max_turns=1,
                 driver_factory=factory,
-                quiesce=_noop_quiesce,
+                final_cleanup=_noop_quiesce,
             )
 
             self.assertEqual(len(drivers), 2)
@@ -977,7 +984,7 @@ class ColdCappedEpisodeTests(unittest.IsolatedAsyncioTestCase):
                 },
                 max_turns=1,
                 driver_factory=factory,
-                quiesce=_noop_quiesce,
+                final_cleanup=_noop_quiesce,
                 task_dir=workspace,
                 verify_between=verify_between,
             )
@@ -1015,7 +1022,7 @@ class ColdCappedEpisodeTests(unittest.IsolatedAsyncioTestCase):
                 },
                 max_turns=1,
                 driver_factory=factory,
-                quiesce=_noop_quiesce,
+                final_cleanup=_noop_quiesce,
             )
 
             private = captures.evidence_dir(logs_dir) / "episodes"
@@ -1072,90 +1079,108 @@ class ProcReapTests(unittest.TestCase):
 
 
 class ProductionReapTests(unittest.IsolatedAsyncioTestCase):
-    async def test_detached_writer_is_killed_before_the_next_boundary(self) -> None:
+    async def test_detached_writer_can_mutate_before_next_turn(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir) / "workspace"
             logs_dir = Path(temp_dir) / "trial" / "agent"
             workspace.mkdir()
             logs_dir.mkdir(parents=True)
             target = workspace / "late-mutation.txt"
-            marker = f"yacht-late-writer-{os.getpid()}"
-            script = workspace / "writer.sh"
-            script.write_text(
-                f'#!/bin/sh\n# {marker}\nsleep 3\necho leaked > "$1"\n',
-                encoding="utf-8",
-            )
             environment = DockerShapedEnvironment(workspace)
             driver = ScriptedDriver()
             _wire_success(driver)
             original_send = driver.send
             spawned: list[subprocess.Popen] = []
 
-            async def send(payload: dict) -> None:
-                await original_send(payload)
-                if (
-                    payload.get("type") == "prompt"
-                    and payload.get("turn_id") == "initial"
-                ):
-                    spawned.append(
-                        subprocess.Popen(
-                            ["sh", str(script), str(target)],
+            def _close_pipes(process: subprocess.Popen) -> None:
+                if process.stdin is not None:
+                    process.stdin.close()
+                if process.stdout is not None:
+                    process.stdout.close()
+
+            with contextlib.ExitStack() as stack:
+
+                async def send(payload: dict) -> None:
+                    await original_send(payload)
+                    if (
+                        payload.get("type") == "prompt"
+                        and payload.get("turn_id") == "initial"
+                    ):
+                        proc = subprocess.Popen(
+                            [
+                                "sh",
+                                "-c",
+                                "echo $$; while IFS= read -r cmd; do"
+                                ' if [ "$cmd" = mutate ]; then echo leaked > "$1"; echo done; fi;'
+                                "done",
+                                "writer",
+                                str(target),
+                            ],
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL,
                             start_new_session=True,
+                            text=True,
                         )
+                        stack.enter_context(proc)
+                        ready = (
+                            proc.stdout.readline() if proc.stdout is not None else ""
+                        )
+                        if not str(ready).strip():
+                            proc.kill()
+                            proc.wait(timeout=5)
+                            _close_pipes(proc)
+                            raise AssertionError("writer never advertised readiness")
+                        spawned.append(proc)
+                    if payload.get("type") == "prompt" and payload.get("turn_id") == "Q":
+                        proc = spawned[0]
+                        if proc.poll() is not None:
+                            raise AssertionError(
+                                "writer was killed before the next turn"
+                            )
+                        if proc.stdin is None or proc.stdout is None:
+                            raise AssertionError("writer pipes closed")
+                        proc.stdin.write("mutate\n")
+                        proc.stdin.flush()
+                        if proc.stdout.readline().strip() != "done":
+                            raise AssertionError(
+                                "writer did not acknowledge mutation"
+                            )
+
+                driver.send = send  # type: ignore[method-assign]
+
+                async def reap_writer(**_kwargs) -> None:
+                    for process in spawned:
+                        if process.poll() is None:
+                            quiesce.kill_process_tree(process.pid)
+                            try:
+                                process.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                                process.wait(timeout=5)
+                        _close_pipes(process)
+
+                try:
+                    summary = await _run(
+                        workspace=workspace,
+                        logs_dir=logs_dir,
+                        driver=driver,
+                        environment=environment,
+                        final_cleanup=reap_writer,
                     )
-                    time.sleep(0.2)
-
-            driver.send = send  # type: ignore[method-assign]
-            baseline_entries = quiesce.iter_proc(Path("/proc"))
-            baseline = quiesce.baseline_from_entries(
-                [
-                    {
-                        "pid": entry.pid,
-                        "ppid": entry.ppid,
-                        "starttime": entry.starttime,
-                        "cmdline": entry.cmdline,
-                    }
-                    for entry in baseline_entries
-                ]
-            )
-
-            async def reap_quiesce(**_kwargs) -> None:
-                for _attempt in range(6):
-                    entries = [
-                        {
-                            "pid": entry.pid,
-                            "ppid": entry.ppid,
-                            "starttime": entry.starttime,
-                            "cmdline": entry.cmdline,
-                        }
-                        for entry in quiesce.iter_proc(Path("/proc"))
-                        if marker in entry.cmdline or str(script) in entry.cmdline
-                    ]
-                    reap = quiesce.reap_from_entries(
-                        entries, baseline=baseline, protect_pids=set()
+                    self.assertTrue(summary["valid"])
+                    self.assertTrue(
+                        target.exists(), "late mutation must exist next turn"
                     )
-                    if not reap:
-                        return
-                    for pid, _starttime in reap:
-                        quiesce.kill_process_tree(pid)
-                raise controlled_omp.ControlledOmpError("quiescence failed")
+                    self.assertEqual(target.read_text(encoding="utf-8"), "leaked\n")
+                    self.assertEqual(summary["session_ids"], ["sess-1"])
+                finally:
+                    for process in spawned:
+                        if process.poll() is None:
+                            process.kill()
+                            process.wait(timeout=5)
+                        _close_pipes(process)
 
-            try:
-                summary = await _run(
-                    workspace=workspace,
-                    logs_dir=logs_dir,
-                    driver=driver,
-                    environment=environment,
-                    quiesce_fn=reap_quiesce,
-                )
-                time.sleep(3.2)
-                self.assertTrue(summary["valid"])
-                self.assertFalse(target.exists())
-            finally:
-                for process in spawned:
-                    if process.poll() is None:
-                        process.kill()
-                        process.wait(timeout=5)
 
 
 class ContractGateTests(unittest.IsolatedAsyncioTestCase):
@@ -1247,25 +1272,55 @@ class HandoffTruthTests(unittest.IsolatedAsyncioTestCase):
             answers.write_bytes(b'{"q":1}\n')
             driver = ScriptedDriver()
             _wire_success(driver)
-            calls = {"count": 0}
 
-            async def flaky_quiesce(**_kwargs) -> None:
-                calls["count"] += 1
-                if calls["count"] > 1:
-                    raise controlled_omp.ControlledOmpError("writers still running")
+            async def fail_cleanup(**_kwargs) -> None:
+                raise controlled_omp.ControlledOmpError("writers still running")
 
             summary = await _run(
                 workspace=workspace,
                 logs_dir=logs_dir,
                 driver=driver,
-                quiesce_fn=flaky_quiesce,
+                final_cleanup=fail_cleanup,
             )
 
             self.assertFalse(summary["valid"])
             self.assertFalse(
                 (logs_dir.parent / "verifier" / "yacht-execution").exists(),
-                "an earlier successful reap must not publish after a later failure",
+                "final cleanup failure must not publish",
             )
+
+    async def test_final_cleanup_runs_after_close_before_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            logs_dir = Path(temp_dir) / "trial" / "agent"
+            workspace.mkdir()
+            logs_dir.mkdir(parents=True)
+            answers = workspace / "plans" / "retention-answers.json"
+            answers.parent.mkdir()
+            answers.write_bytes(b'{"q":1}\n')
+            driver = ScriptedDriver()
+            _wire_success(driver)
+            seen: dict[str, bool] = {}
+
+            async def observe_cleanup(**_kwargs) -> None:
+                seen["closed"] = driver.closed
+                seen["handoff"] = (
+                    logs_dir.parent / "verifier" / "yacht-execution"
+                ).exists()
+
+            summary = await _run(
+                workspace=workspace,
+                logs_dir=logs_dir,
+                driver=driver,
+                final_cleanup=observe_cleanup,
+            )
+
+            self.assertTrue(summary["valid"])
+            self.assertTrue(seen.get("closed"))
+            self.assertFalse(seen.get("handoff"))
+            self.assertTrue((logs_dir.parent / "verifier" / "yacht-execution").exists())
+            record = next(item for item in summary["captures"] if item["after"] == "Q")
+            self.assertEqual(record["status"], "captured")
 
     async def test_failed_shutdown_response_invalidates_and_withholds_handoff(
         self,
@@ -1349,7 +1404,7 @@ class ColdEvidencePrivacyTests(unittest.IsolatedAsyncioTestCase):
                 },
                 max_turns=1,
                 driver_factory=factory,
-                quiesce=_noop_quiesce,
+                final_cleanup=_noop_quiesce,
             )
 
             private = captures.evidence_dir(logs_dir) / "episodes"

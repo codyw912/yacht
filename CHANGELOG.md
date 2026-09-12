@@ -10,8 +10,9 @@
   uncapped legacy execution and other harnesses retain their semantics.
 - An awaited model-admission gate enforces loop and wall budgets. Captures,
   effective context, raw events, and per-message endings remain in private
-  controller evidence; detected cleanup failures or missing required evidence
-  mark an infrastructure error. Private
+  controller evidence. SDK idle or abort failures and missing required
+  evidence mark an infrastructure error. Final cleanup after driver close
+  does not prove workspace quiescence. Private
   verifier/solution mounts are rejected and credentials are redacted without
   removing unrelated event fields. Controlled runs disable detached launch
   supervision and image-question side inference.
@@ -23,10 +24,13 @@
   Python-controller/SDK local-HTTP regression.
 - Controlled driver helpers install inside the global OMP package so Bun
   resolves npm's nested transitive dependencies in task containers.
-- Retained capture/cleanup activation remains blocked: OMP intentionally keeps
-  background shell jobs across turns, including in-process continuations that
-  survive `Shell.abort()` and evade OS-process reaping. A `valid: true` summary
-  does not establish between-message quiescence on this pinned runtime.
+- After native SDK prompt settle, retained follow-ups and captures are
+  bounded point-in-time bytes, not a workspace freeze. There is no OS
+  cleanup between messages. Native background mutations after settle are
+  observable agent/harness behavior, never runtime infrastructure. A task
+  verifier may fail the task; that is not an infrastructure error. Model
+  admission stays strict; timeout uses cooperative abort; final
+  driver/container teardown still runs after the driver closes.
 
 ## 0.13.0 - 2026-09-10
 

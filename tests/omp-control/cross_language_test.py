@@ -214,7 +214,7 @@ class CrossLanguageSdkRegression(unittest.IsolatedAsyncioTestCase):
                         model="fixture/fixture-model",
                         plan=plan,
                         driver=driver,
-                        quiesce=no_host_reap,
+                        final_cleanup=no_host_reap,
                     ),
                     timeout=45,
                 )

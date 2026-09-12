@@ -295,13 +295,17 @@ controlled runs go through Yacht-generated Harbor jobs. A newly staged
 launcher image is required; an older cached launcher does not acquire
 these capabilities from a source checkout update.
 
-**Native-shell limitation:** OMP 18.1.17 intentionally preserves background
-shell jobs across turns. Some `&` continuations run inside its native runtime,
-are absent from process snapshots, report zero live background jobs, and can
-write after `Shell.abort()` returns. Yacht reaps external processes, but this
-does not establish quiescence of in-process shell work. `valid: true` therefore
-does not guarantee stopped background mutations or isolated between-message
-captures. Do not rely on those guarantees with this runtime version.
+After the stock upstream prompt settles (SDK idle/abort), the controller
+collects declared paths as bounded point-in-time bytes, then delivers the
+next scripted follow-up. That settle is the SDK prompt boundary, not
+a global workspace freeze: native background mutations after settle remain
+observable agent/harness behavior, never runtime infrastructure. A task
+verifier may fail the task if it requested no-background behavior.
+Yacht does not run OS process cleanup between
+messages. Timeout uses cooperative abort; SDK idle or abort failure is
+infrastructure. After the driver closes, final driver/container teardown
+still runs before verifier handoff; it does not change tool semantics
+during the eval and does not prove the workspace is frozen.
 
 `[execution]` and `[episodes]` on the same task is a conflict. Cold
 OMP episode caps on 18.1.17 use the same controller with a fresh
@@ -323,12 +327,14 @@ rejected. `max_turns` is the per-message loop cap; `message_timeout_seconds`
 is the per-message wall; `timeout_seconds` is the whole-trial wall.
 
 Natural completion, a recoverable cap, or a recoverable message timeout
-does not skip the next retained message. Lost sessions and detected cleanup
-failures invalidate the trial rather than restarting it cold. In-process
-background shell work can escape detection as described above. The overall
-deadline stops further model calls; bounded shutdown and evidence collection
-can continue without model work. Allow that shutdown margin in Harbor's
-outer `[agent].timeout_sec`.
+does not skip the next retained message. Lost sessions and SDK idle or
+abort failures invalidate the trial rather than restarting it cold. Late
+native background mutation after settle is not runtime infrastructure; a
+task verifier may still fail the task if it requested no-background
+behavior.
+The overall deadline stops further model calls; bounded shutdown and
+evidence collection can continue without model work. Allow that shutdown
+margin in Harbor's outer `[agent].timeout_sec`.
 
 ### Retained scripted conversation
 
@@ -387,17 +393,19 @@ unavailable pricing remains unknown. Subscription quota use cannot be
 derived from that dollar estimate.
 
 Captures become available to the verifier under
-`/logs/verifier/yacht-execution/` only after driver shutdown and writer
-cleanup. The canonical copy remains in the private trial directory. A
-manifest distinguishes missing files from successful empty/malformed bytes
-and collection errors; later workspace writes cannot replace captured bytes.
+`/logs/verifier/yacht-execution/` only after driver shutdown and the
+final cleanup that follows driver close. The canonical copy remains in
+the private trial directory. A manifest distinguishes missing files from
+successful empty/malformed bytes and collection errors. Captured bytes
+are immutable once collected; they are not an atomic workspace snapshot,
+and concurrent writes are not stable global state.
 
 The controller preserves configured treatment settings while overriding
 automatic compaction, retries/fallback, advisors, memory learning, and
 automatic background execution. Model-spawning tools and image-question
 reads are unavailable in controlled runs; native tools and configured MCP
-tools otherwise remain enabled. Ordinary detached shell writers are reaped
-at each message boundary before capture or continuation.
+tools otherwise remain enabled. There is no OS process reaping between
+messages; continuation and capture follow native SDK settle only.
 
 This is a cooperative harness boundary, not hostile same-root attestation.
 The evaluated process cannot read future scripts or canonical captures from
@@ -415,11 +423,12 @@ uv run --frozen --no-sync containers/harbor-launcher/prepare_context.py \
   --output /tmp/yacht-launcher-context
 ```
 
-Pass that context to the deployment's configured image builder, then pin its
-immutable image digest in the runtime configuration. The staging command
-does not build an image. Do not overwrite an older reproducibility tag.
-Deterministic source tests and staging do not replace an installation check
-and bounded Yacht-generated Harbor smoke against the resulting image.
+Build with an operator-authorized local rootless builder and pin a
+locally available digest in the runtime configuration. No registry is
+required. The staging command does not build an image. Do not overwrite
+an older reproducibility tag. Deterministic source tests and staging do
+not replace an installation check and bounded Yacht-generated Harbor
+smoke against the resulting image.
 
 ## Configuration
 

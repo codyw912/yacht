@@ -5,7 +5,6 @@ export type QuiescenceReport = {
 	ready: boolean;
 	protected_pids: number[];
 	continuation_possible: boolean;
-	reaped_descendants?: undefined;
 };
 
 export type PromptSettle = {
