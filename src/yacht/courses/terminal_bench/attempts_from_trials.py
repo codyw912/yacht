@@ -14,6 +14,7 @@ from yacht.contracts.schemas import (
     validate_harness_evidence_document,
     validate_task_attempt_document,
 )
+from yacht.courses.execution import render_execution_plan
 from yacht.harnesses.claude_code import (
     SESSION_TRANSCRIPT_EVIDENCE,
     mcp_server_namespace,
@@ -119,10 +120,15 @@ def _attempt_from_trial(
     trial: dict[str, Any] | None,
     native_report_path: Path,
 ) -> dict[str, Any]:
+    execution = trial.get("execution") if isinstance(trial, dict) else None
     completed = (
         trial is not None
         and trial.get("exception") is None
         and trial.get("reward") is not None
+        and not (isinstance(execution, dict) and execution.get("valid") is False)
+        and not (
+            _task_requires_execution(regatta, task) and not isinstance(execution, dict)
+        )
     )
     trial_dir = _trial_dir(trial, native_report_path)
     artifact = {
@@ -553,6 +559,9 @@ def _machine_evidence(trial: dict[str, Any] | None) -> dict[str, Any]:
     episodes = trial.get("episodes")
     if isinstance(episodes, dict) and isinstance(episodes.get("items"), list):
         evidence["episodes"] = episodes["items"]
+    execution = trial.get("execution")
+    if isinstance(execution, dict):
+        evidence["execution"] = execution
     exception = trial.get("exception")
     if isinstance(exception, dict):
         evidence["exception"] = {
@@ -706,6 +715,13 @@ def _runtime(regatta: Regatta, vessel: Vessel) -> RuntimeRecipe:
             f"vessel {vessel.name} references undefined runtime {vessel.runtime}"
         )
     return runtime
+
+
+def _task_requires_execution(regatta: Regatta, task: Task) -> bool:
+    adapter = regatta.course.adapter
+    if adapter is None or adapter.kind != "custom-eval":
+        return False
+    return render_execution_plan(Path(str(adapter.dataset)) / task.id) is not None
 
 
 def _task_to_json(task: Task) -> dict[str, Any]:

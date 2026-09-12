@@ -26,6 +26,13 @@ jobs:
       - name: Install Python
         run: uv python install
 
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/omp-control/package-lock.json
+
       - name: Sync dependencies
         run: uv sync --locked
 
@@ -37,6 +44,9 @@ jobs:
 
       - name: Run tests with coverage
         run: uv run --locked -m coverage run --source=src -m unittest discover -s tests
+
+      - name: Run pinned OMP SDK and cross-language tests
+        run: ./scripts/test_omp_control.sh
 
       - name: Report coverage
         run: |

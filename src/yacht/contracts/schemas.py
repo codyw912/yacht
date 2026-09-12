@@ -4,6 +4,11 @@ import re
 from typing import Any
 
 from yacht.contracts.json_schema import validation_error
+from yacht._execution_contract import (
+    ExecutionContractError,
+    validate_execution_plan,
+    validate_execution_summary,
+)
 from yacht.courses.registry import evaluator_adapter
 from yacht.courses.registry import supported_benchmark_adapter_kinds
 from yacht.courses.registry import supported_course_adapter_harnesses
@@ -1280,6 +1285,8 @@ def validate_terminal_bench_job_document(document: dict[str, Any]) -> None:
         _require_object(agent["declaration"], "terminal-bench job.agent.declaration")
     if "episodes" in agent:
         _validate_job_episode_plans(agent["episodes"], document["tasks"])
+    if "execution" in agent:
+        _validate_job_execution_plans(agent["execution"], document["tasks"])
     _require_non_empty_string(
         document["launcher_image"], "terminal-bench job.launcher_image"
     )
@@ -1316,6 +1323,20 @@ def _validate_job_episode_plans(value: Any, tasks: Any) -> None:
                 bound = plan[key]
                 if isinstance(bound, bool) or not isinstance(bound, int) or bound < 1:
                     raise SchemaValidationError(f"{path}.{key} must be an integer >= 1")
+
+
+def _validate_job_execution_plans(value: Any, tasks: Any) -> None:
+    execution = _require_object(value, "terminal-bench job.agent.execution")
+    task_names = {str(task) for task in tasks} if isinstance(tasks, list) else set()
+    for task_name, plan_value in execution.items():
+        path = f"terminal-bench job.agent.execution[{task_name}]"
+        _require_non_empty_string(task_name, "terminal-bench job.agent.execution key")
+        if task_name not in task_names:
+            raise SchemaValidationError(f"{path} does not match any task in the job")
+        try:
+            validate_execution_plan(plan_value)
+        except ExecutionContractError as error:
+            raise SchemaValidationError(f"{path}: {error}") from error
 
 
 def validate_course_grading_report_document(document: dict[str, Any]) -> None:
@@ -2556,6 +2577,13 @@ def _validate_task_attempt_machine_evidence(value: Any) -> None:
             evidence.get("tool_calls"),
             "agent.machine_evidence.tool_calls",
         )
+    if "execution" in evidence:
+        try:
+            validate_execution_summary(evidence["execution"])
+        except ExecutionContractError as error:
+            raise SchemaValidationError(
+                f"agent.machine_evidence.execution: {error}"
+            ) from error
 
 
 def _validate_numeric_evidence_map(value: Any, path: str) -> None:

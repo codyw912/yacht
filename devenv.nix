@@ -52,6 +52,7 @@ in
   packages = [
     pkgs.git
     pkgs.uv
+    pkgs.nodejs_22
     secretspec
   ];
 
@@ -81,6 +82,7 @@ in
       uv sync --locked
       ./scripts/lint.sh
       uv run --locked -m unittest discover -s tests
+      ./scripts/test_omp_control.sh
       uv run --locked -m compileall src tests
     '';
 

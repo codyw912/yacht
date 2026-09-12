@@ -15,8 +15,12 @@
 #
 # Token-free bar: `uv run yacht internals preflight` (install-only).
 # Requirements: Docker running, uv, OPENAI_API_KEY, and:
+# Stage the context, then build it with your configured image builder:
 #
-#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+#   uv run --frozen --no-sync containers/harbor-launcher/prepare_context.py \
+#     --output /tmp/yacht-launcher-context
+#   docker build -f /tmp/yacht-launcher-context/Dockerfile \
+#     -t yacht/harbor-launcher:harbor-0.20.0 /tmp/yacht-launcher-context
 
 [regatta]
 name = "custom-eval-omp-codex-skill-factorial"

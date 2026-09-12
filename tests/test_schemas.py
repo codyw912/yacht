@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from yacht.contracts.json_schema import schema_text
+from yacht.contracts.json_schema import schema_text, validation_error
 from yacht.contracts.schemas import (
     SchemaValidationError,
     BENCHMARK_AGGREGATE_SCHEMA,
@@ -1698,6 +1698,259 @@ class TerminalBenchJobSchemaTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "episodes\\[task-1\\].verify_between"):
             validate_terminal_bench_job_document(document)
+
+
+def _valid_job_execution_plan() -> dict[str, Any]:
+    return {
+        "mode": "single",
+        "max_turns": 30,
+        "message_timeout_seconds": 900,
+        "timeout_seconds": 900,
+    }
+
+
+class ExecutionContractSchemaTests(unittest.TestCase):
+    def test_job_rejects_execution_plan_for_task_not_in_job(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        document["agent"]["execution"] = {
+            "not-a-real-task": _valid_job_execution_plan()
+        }
+
+        with self.assertRaisesRegex(ValueError, "does not match any task in the job"):
+            validate_terminal_bench_job_document(document)
+
+    def test_job_rejects_invalid_execution_mode(self) -> None:
+        document = _valid_terminal_bench_job_document()
+        document["agent"]["execution"] = {
+            "task-1": {
+                "mode": "episodes",
+                "max_turns": 1,
+                "message_timeout_seconds": 1,
+                "timeout_seconds": 1,
+            }
+        }
+
+        with self.assertRaisesRegex(ValueError, "mode"):
+            validate_terminal_bench_job_document(document)
+
+    def test_task_attempt_rejects_invalid_execution_summary(self) -> None:
+        document = _valid_task_attempt_document()
+        document["agent"]["machine_evidence"]["execution"] = {
+            "schema": "not-execution",
+            "valid": True,
+        }
+
+        with self.assertRaisesRegex(ValueError, "execution"):
+            validate_task_attempt_document(document)
+
+    def test_json_schema_accepts_task_attempt_execution_evidence(self) -> None:
+        document = _valid_task_attempt_document()
+        document["agent"]["machine_evidence"]["execution"] = (
+            _valid_execution_evidence_summary()
+        )
+
+        self.assertIsNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        validate_task_attempt_document(document)
+
+    def test_json_schema_rejects_invalid_task_attempt_execution_evidence(self) -> None:
+        document = _valid_task_attempt_document()
+        document["agent"]["machine_evidence"]["execution"] = {
+            "schema": "not-execution",
+            "valid": True,
+        }
+
+        error = validation_error(document, TASK_ATTEMPT_SCHEMA)
+        self.assertIsNotNone(error)
+
+    def test_json_schema_rejects_captured_file_without_bytes(self) -> None:
+        document = _valid_task_attempt_document()
+        summary = _valid_execution_evidence_summary()
+        summary["captures"] = [
+            {
+                "id": "initial-0",
+                "after": "initial",
+                "path": "plans/retention-answers.json",
+                "status": "captured",
+            }
+        ]
+        document["agent"]["machine_evidence"]["execution"] = summary
+
+        self.assertIsNotNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        with self.assertRaises(ValueError):
+            validate_task_attempt_document(document)
+
+    def test_json_schema_rejects_capture_error_without_detail(self) -> None:
+        document = _valid_task_attempt_document()
+        summary = _valid_execution_evidence_summary()
+        summary["captures"] = [
+            {
+                "id": "initial-0",
+                "after": "initial",
+                "path": "plans/retention-answers.json",
+                "status": "error",
+            }
+        ]
+        document["agent"]["machine_evidence"]["execution"] = summary
+
+        self.assertIsNotNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        with self.assertRaises(ValueError):
+            validate_task_attempt_document(document)
+
+    def test_json_schema_accepts_unknown_cost_and_policy_settings(self) -> None:
+        document = _valid_task_attempt_document()
+        summary = _valid_execution_evidence_summary()
+        summary["cost_usd"] = None
+        summary["usage"] = {}
+        summary["settings"] = {
+            "memory": {"backend": "off"},
+            "tools": ["bash"],
+            "compaction.enabled": False,
+        }
+        summary["ended"] = "cap"
+        summary["handoff"] = {"verifier": "verifier/yacht-execution"}
+        document["agent"]["machine_evidence"]["execution"] = summary
+
+        self.assertIsNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        validate_task_attempt_document(document)
+
+    def test_json_schema_rejects_invalid_turn_ids(self) -> None:
+        document = _valid_task_attempt_document()
+        summary = _valid_execution_evidence_summary()
+        summary["messages"][0]["id"] = "_bad"
+        document["agent"]["machine_evidence"]["execution"] = summary
+
+        self.assertIsNotNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        with self.assertRaises(ValueError):
+            validate_task_attempt_document(document)
+
+    def test_json_schema_rejects_traversal_capture_paths(self) -> None:
+        document = _valid_task_attempt_document()
+        summary = _valid_execution_evidence_summary()
+        summary["captures"] = [
+            {
+                "id": "initial-0",
+                "after": "initial",
+                "path": "../secret.json",
+                "status": "missing",
+            }
+        ]
+        document["agent"]["machine_evidence"]["execution"] = summary
+
+        self.assertIsNotNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        with self.assertRaises(ValueError):
+            validate_task_attempt_document(document)
+
+    def test_json_schema_rejects_captured_digest_that_is_not_sha256(self) -> None:
+        document = _valid_task_attempt_document()
+        summary = _valid_execution_evidence_summary()
+        summary["captures"] = [
+            {
+                "id": "initial-0",
+                "after": "initial",
+                "path": "plans/retention-answers.json",
+                "status": "captured",
+                "bytes": 12,
+                "sha256": "not-a-digest",
+                "artifact": "captures/initial-0",
+            }
+        ]
+        document["agent"]["machine_evidence"]["execution"] = summary
+
+        self.assertIsNotNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        with self.assertRaises(ValueError):
+            validate_task_attempt_document(document)
+
+    def test_json_schema_accepts_derived_capture_ids_longer_than_a_turn_id(
+        self,
+    ) -> None:
+        document = _valid_task_attempt_document()
+        summary = _valid_execution_evidence_summary()
+        turn_id = "A" + ("b" * 63)
+        summary["messages"][0]["id"] = turn_id
+        summary["captures"] = [
+            {
+                "id": f"{turn_id}-0",
+                "after": turn_id,
+                "path": "plans/retention-answers.json",
+                "status": "missing",
+            }
+        ]
+        document["agent"]["machine_evidence"]["execution"] = summary
+
+        self.assertIsNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        validate_task_attempt_document(document)
+
+    def test_json_schema_rejects_capture_path_with_trailing_slash(self) -> None:
+        document = _valid_task_attempt_document()
+        summary = _valid_execution_evidence_summary()
+        summary["captures"] = [
+            {
+                "id": "initial-0",
+                "after": "initial",
+                "path": "plans/",
+                "status": "missing",
+            }
+        ]
+        document["agent"]["machine_evidence"]["execution"] = summary
+
+        self.assertIsNotNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        with self.assertRaises(ValueError):
+            validate_task_attempt_document(document)
+
+    def test_json_schema_rejects_turn_id_with_trailing_newline(self) -> None:
+        document = _valid_task_attempt_document()
+        summary = _valid_execution_evidence_summary()
+        summary["messages"][0]["id"] = "initial\n"
+        document["agent"]["machine_evidence"]["execution"] = summary
+
+        self.assertIsNotNone(validation_error(document, TASK_ATTEMPT_SCHEMA))
+        with self.assertRaises(ValueError):
+            validate_task_attempt_document(document)
+
+
+def _valid_execution_evidence_summary() -> dict[str, Any]:
+    return {
+        "schema": "yacht.execution.v1",
+        "mode": "single",
+        "max_turns": 30,
+        "message_timeout_seconds": 900,
+        "timeout_seconds": 900,
+        "session_ids": ["sess-1"],
+        "messages": [
+            {
+                "id": "initial",
+                "started_at": "2026-09-11T00:00:00Z",
+                "finished_at": "2026-09-11T00:01:00Z",
+                "ended": "cap",
+                "loops_started": 30,
+                "loops_completed": 30,
+                "continuation_possible": False,
+            }
+        ],
+        "captures": [
+            {
+                "id": "initial-0",
+                "after": "initial",
+                "path": "plans/retention-answers.json",
+                "status": "missing",
+            }
+        ],
+        "valid": True,
+        "model": "test-model",
+        "harness": "omp",
+        "harness_version": "18.1.17",
+        "settings": {
+            "compaction": False,
+            "title": False,
+            "advisor": False,
+            "memory": False,
+            "autolearn": False,
+            "background_jobs": False,
+            "auto_model_switching": False,
+        },
+        "usage": {"input_tokens": 10, "output_tokens": 4},
+        "cost_usd": 0.01,
+    }
 
 
 def _valid_course_grading_report_document() -> dict[str, Any]:

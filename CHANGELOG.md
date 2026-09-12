@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+### Bounded OMP evaluation runtime
+
+- Task-owned `[execution]` declarations add single-shot loop caps and
+  retained scripted conversations for the pinned OMP 18.1.17 / Harbor
+  0.20.0 Docker path. OMP cold episode caps use fresh controlled sessions;
+  uncapped legacy execution and other harnesses retain their semantics.
+- An awaited model-admission gate enforces loop and wall budgets. Captures,
+  effective context, raw events, and per-message endings remain in private
+  controller evidence. SDK idle or abort failures and missing required
+  evidence mark an infrastructure error. Final cleanup after driver close
+  does not prove workspace quiescence. Private
+  verifier/solution mounts are rejected and credentials are redacted without
+  removing unrelated event fields. Controlled runs disable detached launch
+  supervision and image-question side inference.
+- Launcher context staging includes the canonical declaration validator;
+  unstaged builds fail immediately. Deployment requires a newly built
+  immutable launcher and installation/Harbor smoke validation; source tests
+  do not update existing images.
+- CI, publication, and `yacht-check` run the locked OMP SDK suite and a real
+  Python-controller/SDK local-HTTP regression.
+- Controlled driver helpers install inside the global OMP package so Bun
+  resolves npm's nested transitive dependencies in task containers.
+- After native SDK prompt settle, retained follow-ups and captures are
+  bounded point-in-time bytes, not a workspace freeze. There is no OS
+  cleanup between messages. Native background mutations after settle are
+  observable agent/harness behavior, never runtime infrastructure. A task
+  verifier may fail the task; that is not an infrastructure error. Model
+  admission stays strict; timeout uses cooperative abort; final
+  driver/container teardown still runs after the driver closes.
+
 ## 0.13.0 - 2026-09-10
 
 ### Reproducible task sampling
