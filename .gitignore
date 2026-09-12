@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 .coverage
+/.runtime/
 
 # Local operator notes and generated benchmark spillover.
 /AGENTS.md

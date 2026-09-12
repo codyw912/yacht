@@ -70,12 +70,12 @@ surfaces a release is judged on.
 uv run python scripts/release_gate.py
 ```
 
-Requires Docker, the pinned launcher image
-(`docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher`),
-and `ANTHROPIC_API_KEY`. Behind a TLS-intercepting proxy, add
-`--secret id=build_ca,src=<proxy-ca.pem>` to the build; the CA is used
-only at build time and is not baked into the image. It spends roughly
-$0.05: the skill A/B runs once in full, then once more as a candidate
+Requires Docker, the pinned launcher image built from the staged context
+described under [Launcher packaging](custom-evals.md#launcher-packaging),
+and `ANTHROPIC_API_KEY`. When using Docker behind a TLS-intercepting proxy,
+pass `--secret id=build_ca,src=<proxy-ca.pem>` while building the staged
+context; the CA is used only at build time and is not baked into the image.
+The gate spends roughly $0.05: the skill A/B runs once in full, then once more as a candidate
 against the first run recorded as a baseline — the cheapest full exercise
 of the pipeline, and the regression-check workflow itself.
 

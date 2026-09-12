@@ -23,8 +23,12 @@
 #
 # Requirements: Docker running, uv, ANTHROPIC_API_KEY exported, and the
 # pinned launcher image built:
+# Stage the context, then build it with your configured image builder:
 #
-#   docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+#   uv run --frozen --no-sync containers/harbor-launcher/prepare_context.py \
+#     --output /tmp/yacht-launcher-context
+#   docker build -f /tmp/yacht-launcher-context/Dockerfile \
+#     -t yacht/harbor-launcher:harbor-0.20.0 /tmp/yacht-launcher-context
 
 [regatta]
 name = "custom-eval-skill-ab-smoke"

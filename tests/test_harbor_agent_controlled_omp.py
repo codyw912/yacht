@@ -808,6 +808,7 @@ class FailureFinalizationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_secret_values_are_absent_from_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
+            escaped_secret = 'secret-"quoted"-é'
             workspace = Path(temp_dir) / "workspace"
             logs_dir = Path(temp_dir) / "trial" / "agent"
             workspace.mkdir()
@@ -824,7 +825,9 @@ class FailureFinalizationTests(unittest.IsolatedAsyncioTestCase):
                         "type": "event",
                         "event": {
                             "type": "agent_start",
-                            "env": {"OPENAI_API_KEY": SECRET_VALUE},
+                            "env": {"OPENAI_API_KEY": escaped_secret},
+                            "message": f"request failed using {escaped_secret}",
+                            "headers": {"Authorization": "Bearer unlisted-token"},
                         },
                     }
                 return await original()
@@ -834,7 +837,7 @@ class FailureFinalizationTests(unittest.IsolatedAsyncioTestCase):
                 workspace=workspace,
                 logs_dir=logs_dir,
                 driver=driver,
-                env={"OPENAI_API_KEY": SECRET_VALUE, "PI_PROXY": "http://proxy"},
+                env={"OPENAI_API_KEY": escaped_secret, "PI_PROXY": "http://proxy"},
             )
 
             evidence = captures.evidence_dir(logs_dir)
@@ -843,7 +846,9 @@ class FailureFinalizationTests(unittest.IsolatedAsyncioTestCase):
                 for path in evidence.rglob("*")
                 if path.is_file()
             )
-            self.assertNotIn(SECRET_VALUE, blob)
+            self.assertNotIn(escaped_secret, blob)
+            self.assertNotIn(json.dumps(escaped_secret)[1:-1], blob)
+            self.assertNotIn("unlisted-token", blob)
             self.assertIn("OPENAI_API_KEY", blob)
 
 

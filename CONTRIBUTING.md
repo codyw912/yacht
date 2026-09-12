@@ -62,15 +62,17 @@ Run the same checks that CI runs:
 uv sync --locked
 ./scripts/lint.sh
 uv run --locked -m unittest discover -s tests
+./scripts/test_omp_control.sh
 uv run --locked -m compileall src tests
 uv run --locked yacht validate examples/container-pi-fff-real-benchmark-smoke.toml
 uv run --locked yacht run examples/memory-smoke-test.toml --logbook /tmp/yacht-smoke-local
 ```
 
-Inside `devenv shell`, `yacht-check` runs the sync, lint, test, and
-compile gates in one go; `yacht-test`, `yacht-lint`, and `yacht-compile`
-run them individually. There is no separate type-checker gate: `ruff
-check` and `compileall` are the repository's static gates.
+Inside `devenv shell`, `yacht-check` runs the sync, lint, Python test,
+pinned OMP SDK and cross-language regression, and compile gates in one go;
+`yacht-test`, `yacht-lint`, and `yacht-compile` run the Python checks
+individually. There is no separate type-checker gate: `ruff check` and
+`compileall` are the repository's static gates.
 
 `scripts/lint.sh` is the same `ruff check` and `ruff format --check`
 CI runs before tests. Run it before `jj git push`; jj does not invoke

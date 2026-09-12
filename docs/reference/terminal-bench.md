@@ -100,9 +100,13 @@ dashboard consume these like any other attempts.
 
 `examples/terminal-bench-claude-code-versions-smoke.toml` compares two
 pinned Claude Code versions on a single task:
+Stage the context, then build it with your configured image builder:
 
 ```sh
-docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+uv run --frozen --no-sync containers/harbor-launcher/prepare_context.py \
+  --output /tmp/yacht-launcher-context
+docker build -f /tmp/yacht-launcher-context/Dockerfile \
+  -t yacht/harbor-launcher:harbor-0.20.0 /tmp/yacht-launcher-context
 
 uv run yacht run examples/terminal-bench-claude-code-versions-smoke.toml \
   --logbook /private/tmp/yacht-terminal-bench-smoke \

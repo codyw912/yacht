@@ -100,8 +100,8 @@ def driver_launch(script: Path) -> tuple[str, dict[str, str]]:
     return f"bun {script}", {}
 
 
-# Files that are private wherever they appear under a task directory.
-SENSITIVE_TASK_FILES = ("task.toml",)
+# Task metadata, verifier inputs, and reference solutions are private.
+SENSITIVE_TASK_FILES = ("task.toml", "tests", "solution")
 
 
 def _contains(source: Path, forbidden: Path) -> bool:

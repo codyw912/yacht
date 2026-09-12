@@ -14,6 +14,7 @@ export const CONTROLLED_SETTINGS = {
 	"bash.autoBackground.enabled": false,
 	"eval.autoBackground.enabled": false,
 	"async.enabled": false,
+	"launch.enabled": false,
 	"goal.enabled": false,
 	"title.refreshOnReplan": false,
 } as const;
@@ -42,6 +43,7 @@ export const MODEL_SPAWNING_TOOLS = ["task", "eval", "browser"] as const;
 export const SIDE_INFERENCE_GUARDS = {
 	"memory.backend": "off",
 	"autolearn.enabled": false,
+	"launch.enabled": false,
 } as const;
 
 export const RESTRICT_TOOL_NAMES = false;
@@ -134,6 +136,8 @@ export function isQuestionRead(toolName: string, args: Record<string, unknown>):
 	if (toolName !== "read") return false;
 	if (args.q != null && args.q !== "") return true;
 	const path = args.path;
-	if (typeof path === "string" && /[?&]q=/.test(path)) return true;
-	return false;
+	if (typeof path !== "string") return false;
+	if (path.includes("://") && !path.startsWith("attachment://") && !path.startsWith("local://")) return false;
+	const queryIndex = path.indexOf("?");
+	return queryIndex !== -1 && Boolean(new URLSearchParams(path.slice(queryIndex + 1)).get("q"));
 }

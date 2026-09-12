@@ -15,6 +15,11 @@
 - Launcher context staging includes the canonical declaration validator.
   Deployment requires a newly built immutable launcher and installation/
   Harbor smoke validation; source tests do not update existing images.
+- CI, publication, and `yacht-check` now run the locked OMP SDK suite and
+  a real Python-controller/SDK local-HTTP regression. Launcher builds reject
+  unstaged contexts; mount privacy covers verifier/reference-solution inputs,
+  encoded image-question requests cannot bypass admission policy, and
+  evidence redaction operates on decoded credential values.
 
 ## 0.13.0 - 2026-09-10
 

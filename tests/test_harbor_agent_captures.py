@@ -359,7 +359,7 @@ class NodeReaderTests(unittest.IsolatedAsyncioTestCase):
         async def exec(self, command: str, cwd: str | None = None, **_kwargs):
             # Hide python3 so the command falls through to the Node reader.
             completed = subprocess.run(
-                ["bash", "-c", command],
+                [shutil.which("bash") or "/bin/bash", "-c", command],
                 cwd=cwd or self.task_env_config.workdir,
                 capture_output=True,
                 text=True,

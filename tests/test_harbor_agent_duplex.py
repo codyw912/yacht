@@ -192,6 +192,24 @@ class BindMountAuditTests(unittest.TestCase):
             with self.assertRaises(duplex.UnsafeMountError):
                 duplex.audit_bind_mounts(mounts, trial_dir=trial_dir)
 
+    def test_rejects_verifier_and_solution_mounts_including_descendants(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / "task"
+            for name in ("tests", "solution"):
+                private = task_dir / name
+                private.mkdir(parents=True)
+                secret = private / "hidden.txt"
+                secret.write_text("hidden task truth", encoding="utf-8")
+                for source in (private, secret):
+                    with self.subTest(source=source):
+                        with self.assertRaises(duplex.UnsafeMountError):
+                            duplex.audit_bind_mounts(
+                                [{"type": "bind", "source": str(source)}],
+                                trial_dir=root / "trial",
+                                task_dir=task_dir,
+                            )
+
     def test_rejects_task_compose_bind_of_task_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             task_dir = Path(temp_dir) / "task"

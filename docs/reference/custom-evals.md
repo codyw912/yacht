@@ -402,7 +402,7 @@ uv run --frozen --no-sync containers/harbor-launcher/prepare_context.py \
   --output /tmp/yacht-launcher-context
 ```
 
-Pass that context to the deployment's approved image builder, then pin its
+Pass that context to the deployment's configured image builder, then pin its
 immutable image digest in the runtime configuration. The staging command
 does not build an image. Do not overwrite an older reproducibility tag.
 Deterministic source tests and staging do not replace an installation check

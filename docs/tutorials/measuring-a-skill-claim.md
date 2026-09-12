@@ -36,9 +36,13 @@ The config declares the whole comparison:
   real task container before any tokens are spent.
 
 ## Run it
+First stage the context and build the launcher with your configured image builder:
 
 ```sh
-docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+uv run --frozen --no-sync containers/harbor-launcher/prepare_context.py \
+  --output /tmp/yacht-launcher-context
+docker build -f /tmp/yacht-launcher-context/Dockerfile \
+  -t yacht/harbor-launcher:harbor-0.20.0 /tmp/yacht-launcher-context
 
 LOGBOOK=/private/tmp/yacht-skill-ab-$(date +%Y%m%d-%H%M%S)
 

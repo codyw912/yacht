@@ -117,10 +117,13 @@ Prerequisites:
 - an Anthropic API key exported as `ANTHROPIC_API_KEY`
 - the pinned Harbor launcher image built with the command below
 
-Build the launcher image:
+Build the launcher image from a staged context:
 
 ```sh
-docker build -t yacht/harbor-launcher:harbor-0.20.0 containers/harbor-launcher
+uv run --frozen --no-sync containers/harbor-launcher/prepare_context.py \
+  --output /tmp/yacht-launcher-context
+docker build -f /tmp/yacht-launcher-context/Dockerfile \
+  -t yacht/harbor-launcher:harbor-0.20.0 /tmp/yacht-launcher-context
 ```
 
 Run it:

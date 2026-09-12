@@ -52,6 +52,8 @@ RUN --mount=type=secret,id=build_ca,target=/tmp/build-ca.pem,required=false,mode
 # yacht_harbor_agents/execution_contract.py is copied from
 # src/yacht/_execution_contract.py. Do not bake a stale duplicate.
 COPY yacht_harbor_agents /opt/yacht/yacht_harbor_agents
+RUN test -f /opt/yacht/yacht_harbor_agents/execution_contract.py \
+    || { echo >&2 "error: canonical execution validator missing; stage the build context with prepare_context.py"; exit 1; }
 
 ENV PYTHONPATH=/opt/yacht
 

@@ -71,16 +71,22 @@ describe("controlled execution policy", () => {
 		expect(isQuestionRead("read", { path: "notes.md" })).toBe(false);
 		expect(isQuestionRead("read", { path: "image.png", q: "what is this" })).toBe(true);
 		expect(isQuestionRead("read", { path: "image.png?q=what" })).toBe(true);
+		expect(isQuestionRead("read", { path: "image.png?%71=what" })).toBe(true);
+		expect(isQuestionRead("read", { path: "image.png?q=" })).toBe(false);
+		expect(isQuestionRead("read", { path: "https://example.com/search?q=ordinary" })).toBe(false);
 		expect(isQuestionRead("bash", { q: "x" })).toBe(false);
 	});
 
 	it("refuses to run when a side-inference guard setting drifted", () => {
-		const effective: Record<string, unknown> = { "memory.backend": "off", "autolearn.enabled": false };
+		const effective: Record<string, unknown> = { "memory.backend": "off", "autolearn.enabled": false, "launch.enabled": false };
 		expect(() => assertSideInferenceGuards((path) => effective[path])).not.toThrow();
 		effective["memory.backend"] = "mnemopi";
 		expect(() => assertSideInferenceGuards((path) => effective[path])).toThrow(/memory\.backend/);
 		effective["memory.backend"] = "off";
 		effective["autolearn.enabled"] = true;
 		expect(() => assertSideInferenceGuards((path) => effective[path])).toThrow(/autolearn\.enabled/);
+		effective["autolearn.enabled"] = false;
+		effective["launch.enabled"] = true;
+		expect(() => assertSideInferenceGuards((path) => effective[path])).toThrow(/launch\.enabled/);
 	});
 });

@@ -103,12 +103,19 @@ def _secret_values(env: dict[str, str] | None) -> set[str]:
 
 
 def _scrub(payload: Any, secrets: set[str]) -> Any:
-    if not secrets:
-        return payload
-    text = json.dumps(payload)
-    for secret in secrets:
-        text = text.replace(secret, "[redacted]")
-    return json.loads(text)
+    if isinstance(payload, dict):
+        return {
+            key: "[redacted]"
+            if isinstance(value, str) and value and _SENSITIVE_KEY.search(key)
+            else _scrub(value, secrets)
+            for key, value in payload.items()
+        }
+    if isinstance(payload, list):
+        return [_scrub(value, secrets) for value in payload]
+    if isinstance(payload, str):
+        for secret in secrets:
+            payload = payload.replace(secret, "[redacted]")
+    return payload
 
 
 def _load_plan_validator() -> Any:
