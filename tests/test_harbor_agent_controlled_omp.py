@@ -1132,7 +1132,10 @@ class ProductionReapTests(unittest.IsolatedAsyncioTestCase):
                             _close_pipes(proc)
                             raise AssertionError("writer never advertised readiness")
                         spawned.append(proc)
-                    if payload.get("type") == "prompt" and payload.get("turn_id") == "Q":
+                    if (
+                        payload.get("type") == "prompt"
+                        and payload.get("turn_id") == "Q"
+                    ):
                         proc = spawned[0]
                         if proc.poll() is not None:
                             raise AssertionError(
@@ -1143,9 +1146,7 @@ class ProductionReapTests(unittest.IsolatedAsyncioTestCase):
                         proc.stdin.write("mutate\n")
                         proc.stdin.flush()
                         if proc.stdout.readline().strip() != "done":
-                            raise AssertionError(
-                                "writer did not acknowledge mutation"
-                            )
+                            raise AssertionError("writer did not acknowledge mutation")
 
                 driver.send = send  # type: ignore[method-assign]
 
@@ -1180,7 +1181,6 @@ class ProductionReapTests(unittest.IsolatedAsyncioTestCase):
                             process.kill()
                             process.wait(timeout=5)
                         _close_pipes(process)
-
 
 
 class ContractGateTests(unittest.IsolatedAsyncioTestCase):
