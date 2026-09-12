@@ -85,6 +85,55 @@ async def no_host_reap(**kwargs: object) -> None:
 
 
 class CrossLanguageSdkRegression(unittest.IsolatedAsyncioTestCase):
+    def test_nested_package_deps_resolve_from_installed_driver(self) -> None:
+        bun_env = os.environ.get("YACHT_OMP_BUN")
+        self.assertIsNotNone(bun_env, "run through scripts/test_omp_control.sh")
+        bun = str(bun_env)
+        marker = "YACHT_NESTED_LAYOUT_OK"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            npm_root = Path(temp_dir) / "node_modules"
+            pi_ai = (
+                npm_root
+                / "@oh-my-pi"
+                / "pi-coding-agent"
+                / "node_modules"
+                / "@oh-my-pi"
+                / "pi-ai"
+            )
+            schema = pi_ai / "utils" / "schema.js"
+            schema.parent.mkdir(parents=True)
+            (pi_ai / "package.json").write_text(
+                json.dumps(
+                    {
+                        "name": "@oh-my-pi/pi-ai",
+                        "type": "module",
+                        "exports": {"./utils/schema": "./utils/schema.js"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            schema.write_text(
+                f'export const YACHT_NESTED_LAYOUT = "{marker}";\n',
+                encoding="utf-8",
+            )
+            driver = duplex.driver_install_path(npm_root)
+            driver.parent.mkdir(parents=True, exist_ok=True)
+            driver.write_text(
+                'import { YACHT_NESTED_LAYOUT } from "@oh-my-pi/pi-ai/utils/schema";\n'
+                "console.log(YACHT_NESTED_LAYOUT);\n",
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [bun, "--no-install", str(driver)],
+                cwd=driver.parent,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stdout.strip(), marker)
+
     async def test_python_controller_retains_real_sdk_session_over_local_http(
         self,
     ) -> None:

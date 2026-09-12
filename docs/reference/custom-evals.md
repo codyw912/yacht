@@ -295,17 +295,13 @@ controlled runs go through Yacht-generated Harbor jobs. A newly staged
 launcher image is required; an older cached launcher does not acquire
 these capabilities from a source checkout update.
 
-**Activation blocked by native-shell quiescence:** the bounded Harbor smoke
-verified single-shot admission caps, fresh cold sessions, and retained message
-delivery, but did not pass the retained capture/cleanup acceptance gate.
-OMP 18.1.17 can run shell `&` continuations inside its native runtime: they
-are absent from process snapshots, can report zero live background jobs, and
-can write after `Shell.abort()` returns. OS-process reaping therefore does
-not prove tool quiescence, and `valid: true` alone is insufficient evidence.
-Do not use this build for evaluations requiring stable between-message
-captures or stopped background mutations. Activation requires reliable native
-shell cancellation/disposal and another approved end-to-end smoke; changing
-native tool semantics or relying on garbage collection is not an accepted fix.
+**Native-shell limitation:** OMP 18.1.17 intentionally preserves background
+shell jobs across turns. Some `&` continuations run inside its native runtime,
+are absent from process snapshots, report zero live background jobs, and can
+write after `Shell.abort()` returns. Yacht reaps external processes, but this
+does not establish quiescence of in-process shell work. `valid: true` therefore
+does not guarantee stopped background mutations or isolated between-message
+captures. Do not rely on those guarantees with this runtime version.
 
 `[execution]` and `[episodes]` on the same task is a conflict. Cold
 OMP episode caps on 18.1.17 use the same controller with a fresh
@@ -327,8 +323,9 @@ rejected. `max_turns` is the per-message loop cap; `message_timeout_seconds`
 is the per-message wall; `timeout_seconds` is the whole-trial wall.
 
 Natural completion, a recoverable cap, or a recoverable message timeout
-does not skip the next retained message. Lost sessions and failed tool
-quiescence invalidate the trial rather than restarting it cold. The overall
+does not skip the next retained message. Lost sessions and detected cleanup
+failures invalidate the trial rather than restarting it cold. In-process
+background shell work can escape detection as described above. The overall
 deadline stops further model calls; bounded shutdown and evidence collection
 can continue without model work. Allow that shutdown margin in Harbor's
 outer `[agent].timeout_sec`.
@@ -358,8 +355,12 @@ max_bytes = 1048576
 
 Turn IDs match `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` and are unique,
 including `initial_turn_id` (default `initial`). Capture paths are
-relative POSIX paths with no `.` / `..` / empty components, no
-absolute paths, and no backslashes. Each capture is at most 16 MiB;
+relative POSIX paths resolved against the task environment's working directory
+(`task_env_config.workdir`, or the image's default working directory when
+unset). The bare Node image used in the smoke defaults to `/`: capturing a
+file written to `/app/plans/answers.json` requires `app/plans/answers.json`,
+not `plans/answers.json`. Paths permit no `.` / `..` / empty components,
+absolute paths, or backslashes. Each capture is at most 16 MiB;
 all captures on a trial at most 64 MiB. Duplicate `(after, path)`
 pairs are rejected. Capture IDs are `{after}-{declaration-index}`.
 
