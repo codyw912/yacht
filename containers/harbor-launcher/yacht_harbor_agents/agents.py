@@ -495,6 +495,9 @@ class YachtOmp(BaseInstalledAgent):
         self._recorded_usage: dict[str, int] | None = None
         self._recorded_cost: float | None = None
         super().__init__(logs_dir, *args, **kwargs)
+        # The configured pin, captured before install() overwrites _version
+        # with the raw `--version` line. None when running @latest.
+        self._configured_version: str | None = self._version
 
     def get_version_command(self) -> str | None:
         return "omp --version"
@@ -563,7 +566,7 @@ class YachtOmp(BaseInstalledAgent):
                 model=str(self.model_name or ""),
                 plan=execution_plan,
                 driver=driver,
-                harness_version=self._version,
+                harness_version=self._configured_version,
             )
             self._record_execution_usage(summary)
             _require_valid_execution(summary, "controlled OMP execution")

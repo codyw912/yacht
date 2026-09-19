@@ -192,6 +192,7 @@ async def _run(
     env: dict | None = None,
     final_cleanup=_noop_quiesce,
     environment: DockerShapedEnvironment | None = None,
+    harness_version: str | None = None,
 ):
     driver.logs_dir = logs_dir
     return await controlled_omp.run_controlled_omp(
@@ -203,6 +204,7 @@ async def _run(
         env=env,
         driver=driver,
         final_cleanup=final_cleanup,
+        harness_version=harness_version,
     )
 
 
@@ -380,6 +382,47 @@ class PolicyEvidenceTests(unittest.IsolatedAsyncioTestCase):
                 )
             )
             self.assertEqual(persisted["settings"], settings)
+
+    async def test_summary_reports_resolved_harness_version(self) -> None:
+        """`harness_version` is the resolved OMP pin, not a raw `--version` line.
+
+        `omp --version` prints `omp/18.2.6`; consumers assert exact equality on
+        the semver, so the controller passes the configured pin through. A
+        value distinct from CONTROLLED_OMP_VERSION proves pass-through rather
+        than the fallback.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            logs_dir = Path(temp_dir) / "trial" / "agent"
+            workspace.mkdir()
+            logs_dir.mkdir(parents=True)
+            driver = ScriptedDriver()
+            _wire_success(driver)
+
+            summary = await _run(
+                workspace=workspace,
+                logs_dir=logs_dir,
+                driver=driver,
+                harness_version="18.2.7",
+            )
+
+            self.assertEqual(summary["harness_version"], "18.2.7")
+
+    async def test_summary_defaults_harness_version_to_contract_pin(self) -> None:
+        """Omitting `harness_version` falls back to the contract constant."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            logs_dir = Path(temp_dir) / "trial" / "agent"
+            workspace.mkdir()
+            logs_dir.mkdir(parents=True)
+            driver = ScriptedDriver()
+            _wire_success(driver)
+
+            summary = await _run(workspace=workspace, logs_dir=logs_dir, driver=driver)
+
+            self.assertEqual(
+                summary["harness_version"], controlled_omp.CONTROLLED_OMP_VERSION
+            )
 
 
 class DeadlineSeamTests(unittest.IsolatedAsyncioTestCase):
