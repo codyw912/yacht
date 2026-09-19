@@ -24,7 +24,7 @@ const DRIVER = join(
 
 async function controlledSession(
 	responses: Parameters<typeof createMockModel>[0]["responses"],
-	options?: { withCredential?: boolean },
+	options?: { withCredential?: boolean; registerAdvisorModel?: boolean },
 ) {
 	const cwd = await mkdtemp(join(tmpdir(), "yacht-driver-"));
 	const mock = createMockModel({ responses });
@@ -39,6 +39,27 @@ async function controlledSession(
 		authStorage.setRuntimeApiKey(mock.provider, "mock-key");
 	}
 	const modelRegistry = new ModelRegistry(authStorage, join(cwd, "models.yml"), { settings });
+	if (options?.registerAdvisorModel) {
+		// The advisor resolves config.model through resolveModelOverride against
+		// the registry's available set — the injected mock model never enters it,
+		// so register the mock provider explicitly or the advisor lands no_model.
+		modelRegistry.registerProvider("mock", {
+			api: "mock",
+			baseUrl: "mock://",
+			apiKey: "mock-key",
+			models: [
+				{
+					id: "mock-model",
+					name: "mock-model",
+					reasoning: false,
+					input: ["text"],
+					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					contextWindow: 200000,
+					maxTokens: 32768,
+				},
+			],
+		} as never);
+	}
 	const created = await createAgentSession({
 		cwd,
 		agentDir: cwd,
@@ -90,6 +111,85 @@ describe("production driver seams", () => {
 		} finally {
 			await created.session.dispose();
 		}
+	});
+
+	it("arms a controller-supplied advisor and reports its stats", async () => {
+		const { created } = await controlledSession([{ content: ["answer"] }], {
+			registerAdvisorModel: true,
+		});
+		try {
+			const session = created.session;
+			// Mirror handleInit's advisor arm: install the restricted roster while
+			// advisor.enabled is still off (so no legacy default advisor builds),
+			// then enable. config.model wins outright via resolveModelOverride —
+			// modelRoles.advisor is only the fallback when config.model is unset.
+			session.applyAdvisorConfigs(
+				[{ name: "controlled", model: "mock/mock-model", tools: ["read", "grep", "glob"] }],
+				undefined,
+			);
+			session.setAdvisorEnabled(true);
+			session.settings.override("advisor.enabled" as never, true as never);
+
+			// The controller roster is installed verbatim — one advisor named
+			// "controlled", not a filesystem-discovered or legacy "default" entry.
+			expect(session.isAdvisorEnabled()).toBe(true);
+			expect(session.isAdvisorActive()).toBe(true);
+			const host = sessionHost(session);
+			const stats = host.advisorStats?.();
+			expect(stats?.enabled).toBe(true);
+			expect(stats?.advisors.map((a) => a.name)).toEqual(["controlled"]);
+			expect(stats?.advisors[0]?.status).toBe("running");
+			expect(stats?.advisors[0]?.model).toBe("mock/mock-model");
+		} finally {
+			await created.session.dispose();
+		}
+	});
+
+	it("reports no advisor block when the arm is not opted in", async () => {
+		const { created } = await controlledSession([{ content: ["answer"] }]);
+		try {
+			const host = sessionHost(created.session);
+			expect(host.advisorStats?.()).toBeUndefined();
+		} finally {
+			await created.session.dispose();
+		}
+	});
+
+	it("marks the advisor error when the pre-settle drain fails", async () => {
+		// A drain that times out or fails means the advisor's final review was
+		// still in flight when the settle was captured — the reported spend is
+		// partial, so the settle must surface "error", not a clean "running".
+		const host = {
+			prompt: () => Promise.resolve(true),
+			abort: () => {},
+			waitForIdle: () => Promise.resolve(),
+			addBeforeModelCall: () => () => {},
+			busy: () => false,
+			messages: () => [{ role: "assistant", content: "done" }],
+			advisorStats: () => ({
+				enabled: true,
+				cost_usd: 0.5,
+				advisors: [
+					{
+						name: "controlled",
+						status: "running",
+						model: "mock/mock-model",
+						tokens: { input: 10, output: 2 },
+						cost: 0.5,
+						messages: { user: 1, assistant: 1, total: 2 },
+					},
+				],
+			}),
+			drainAdvisors: () => Promise.resolve(false),
+		};
+		const admission = new AdmissionController();
+		const settle = await runControlledPrompt(host as never, admission, {
+			turnId: "t1",
+			message: "go",
+			maxTurns: 1,
+			sessionId: "s1",
+		});
+		expect(settle.advisor?.advisors[0]?.status).toBe("error");
 	});
 
 	it("keeps the second scripted message in the same session history", async () => {

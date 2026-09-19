@@ -608,6 +608,73 @@
                     "type": "null"
                   }
                 ]
+              },
+              "advisor": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["enabled", "cost_usd", "advisors"],
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "cost_usd": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "advisors": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["name", "status", "tokens", "cost", "messages"],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "status": {
+                          "enum": ["running", "paused", "quota_exhausted", "error", "no_model"]
+                        },
+                        "model": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "tokens": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number",
+                            "minimum": 0
+                          }
+                        },
+                        "cost": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "messages": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number",
+                            "minimum": 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -726,6 +793,73 @@
           "additionalProperties": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        "advisor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "cost_usd", "advisors"],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "cost_usd": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "advisors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "status", "tokens", "cost", "messages"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "status": {
+                    "enum": ["running", "paused", "quota_exhausted", "error", "no_model"]
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "tokens": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "cost": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "messages": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "error": {

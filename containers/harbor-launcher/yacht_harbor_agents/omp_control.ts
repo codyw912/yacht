@@ -6,6 +6,7 @@ import {
 	Settings,
 	type AgentSession,
 } from "@oh-my-pi/pi-coding-agent";
+import { discoverAdvisorConfigs } from "@oh-my-pi/pi-coding-agent/advisor/config";
 import { AdmissionController } from "./omp_admission.ts";
 import {
 	CONTROLLED_ENV,
@@ -75,6 +76,30 @@ export function sessionHost(session: AgentSession): ControlledHost {
 		busy: () => session.isStreaming,
 		messages: () => agent.state.messages,
 		subscribe: (fn) => agent.subscribe(fn as never),
+		advisorStats: () => {
+			if (!session.isAdvisorEnabled()) return undefined;
+			const stats = session.getAdvisorStats();
+			return {
+				enabled: stats.configured,
+				cost_usd: stats.cost,
+				advisors: stats.advisors.map((a) => ({
+					name: a.name,
+					status: a.status,
+					model: a.model ? `${a.model.provider}/${a.model.id}` : undefined,
+					tokens: { ...a.tokens },
+					cost: a.cost,
+					messages: { ...a.messages },
+				})),
+			};
+		},
+		drainAdvisors: async (timeoutMs) => {
+			if (!session.isAdvisorEnabled()) return true;
+			// Preserve late advisor notes as cards rather than letting a blocker
+			// triggerTurn the primary after its terminal answer, then wait for the
+			// in-flight review to land so the settle's advisor block is complete.
+			session.prepareForHeadlessAdvisorDrain();
+			return session.waitForAdvisorCatchup(timeoutMs);
+		},
 	};
 	Object.defineProperty(host, "beforeToolCall", {
 		get: () => agent.beforeToolCall,
@@ -108,10 +133,16 @@ async function handleInit(cmd: Extract<DriverCommand, { type: "init" }>): Promis
 	if (driver) throw new Error("already initialized");
 	Bun.env.PI_NO_TITLE = CONTROLLED_ENV.PI_NO_TITLE;
 	const parsed = parseExactModelSelector(cmd.model);
+	const advisorSpec = cmd.advisor;
+	const advisorParsed = advisorSpec ? parseExactModelSelector(advisorSpec.model) : undefined;
+	// Hoisted so the init policy response (below) can report the resolved roster;
+	// populated only when the advisor arm runs.
+	let advisorTools: string[] | undefined;
 	const settings = await Settings.loadIsolated({ cwd: process.cwd() });
 	for (const [path, value] of Object.entries(CONTROLLED_SETTINGS)) {
 		settings.override(path as never, value as never);
 	}
+
 	const selector = `${parsed.provider}/${parsed.id}`;
 	const created = await createAgentSession({
 		sessionManager: SessionManager.inMemory(),
@@ -138,6 +169,58 @@ async function handleInit(cmd: Extract<DriverCommand, { type: "init" }>): Promis
 		assertRequiredNativeTools(roster);
 		assertNoModelSpawningTools(roster);
 		await session.setActiveToolsByName(roster);
+		if (advisorSpec && advisorParsed) {
+			// The advisor roster must come from the controller, not the filesystem:
+			// the evaluated agent shares the workspace and could plant a
+			// WATCHDOG.yml to replace the advisor roster at the next runtime
+			// rebuild.
+			const discovered = await discoverAdvisorConfigs(process.cwd());
+			if (discovered.advisors.length > 0) {
+				throw new Error(
+					"project WATCHDOG.yml discovered during controlled execution; " +
+						"an agent-writable advisor roster is an infrastructure error",
+				);
+			}
+			// The advisor's tool set is bounded like the primary's: it must not
+			// reach the model-spawning tools the controlled primary is denied.
+			advisorTools = advisorSpec.tools ?? ["read", "grep", "glob"];
+			assertNoModelSpawningTools(advisorTools);
+			const advisorSelector = `${advisorParsed.provider}/${advisorParsed.id}`;
+			// advisor.enabled was held off through createAgentSession so no legacy
+			// default advisor built. Install the controller's restricted roster
+			// first (stored only while disabled), then enable — enabling first
+			// would build a legacy {name:"default"} advisor before the swap.
+			session.applyAdvisorConfigs(
+				[
+					{
+						name: "controlled",
+						// Full selector (with :level) so the advisor's thinking level
+						// resolves; advisorSelector below is the bare provider/id used
+						// only for the resolved-model comparison.
+						model: advisorSpec.model,
+						tools: advisorTools,
+						instructions: advisorSpec.instructions,
+					},
+				],
+				undefined,
+			);
+			session.setAdvisorEnabled(true);
+			if (!session.isAdvisorEnabled() || !session.isAdvisorActive()) {
+				throw new Error("advisor enabled but no advisor runtime resolved");
+			}
+			// setAdvisorEnabled flips the live runtime but not the recorded
+			// setting; sync it so the reported policy and the runtime agree.
+			session.settings.override("advisor.enabled" as never, true as never);
+			const advisorModel = session.getAdvisorAgent()?.state.model;
+			const advisorResolved = advisorModel
+				? `${advisorModel.provider}/${advisorModel.id}`
+				: undefined;
+			if (advisorResolved !== advisorSelector) {
+				throw new Error(
+					`advisor model mismatch: wanted ${advisorSelector}, got ${advisorResolved ?? "none"}`,
+				);
+			}
+		}
 		const admission = new AdmissionController();
 		const host = sessionHost(session);
 		const detachGate = attachAdmissionGate(host, admission, (gated) => {
@@ -177,7 +260,12 @@ async function handleInit(cmd: Extract<DriverCommand, { type: "init" }>): Promis
 			ready: true,
 			session_id: session.sessionManager.getSessionId(),
 			model: cmd.model,
-			policy: { ...CONTROLLED_SETTINGS, tools: roster },
+			policy: {
+				...CONTROLLED_SETTINGS,
+				"advisor.enabled": advisorSpec !== undefined,
+				tools: roster,
+				...(advisorSpec ? { advisor: { model: advisorSpec.model, tools: advisorTools } } : {}),
+			},
 			protected_pids: driver.protectedPids,
 		});
 	} catch (error) {

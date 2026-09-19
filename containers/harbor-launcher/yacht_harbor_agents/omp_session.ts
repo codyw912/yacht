@@ -7,6 +7,21 @@ export type QuiescenceReport = {
 	continuation_possible: boolean;
 };
 
+export type AdvisorSettleEntry = {
+	name: string;
+	status: string;
+	model?: string;
+	tokens: Record<string, number>;
+	cost: number | null;
+	messages: Record<string, number>;
+};
+
+export type AdvisorSettle = {
+	enabled: boolean;
+	cost_usd: number | null;
+	advisors: AdvisorSettleEntry[];
+};
+
 export type PromptSettle = {
 	ended: Ended;
 	loops_started: number;
@@ -23,6 +38,7 @@ export type PromptSettle = {
 		totalTokens?: number;
 	} | null;
 	cost: number | null;
+	advisor?: AdvisorSettle;
 	quiescence: { ready: boolean; protected_pids: number[] };
 	invalid?: { reason: InvalidReason };
 	/** Present when the prompt call itself threw; never a silent swallow. */
@@ -56,6 +72,15 @@ export type ControlledHost = {
 	messages(): readonly HostMessage[];
 	beforeToolCall?: (ctx: { toolCall: { name: string }; args: Record<string, unknown> }, signal?: AbortSignal) => unknown;
 	subscribe?: (fn: (event: { type: string; message?: HostMessage }) => void) => () => void;
+	/** Per-advisor stats for the settle frame; absent when no advisor ran. */
+	advisorStats?: () => AdvisorSettle | undefined;
+	/**
+	 * Drain in-flight advisor reviews before the settle is built. Preserves
+	 * late advisor notes as cards (not hidden primary turns) and waits for the
+	 * final review to land so the reported advisor spend/status is complete.
+	 * Returns false when the drain timed out or an advisor failed.
+	 */
+	drainAdvisors?: (timeoutMs: number) => Promise<boolean>;
 };
 
 export type RunPromptInput = {
@@ -182,10 +207,19 @@ function buildSettle(
 		startedAt: string;
 		ready?: boolean;
 		error?: string;
+		/** False when the pre-settle advisor drain timed out or failed. */
+		advisorDrainOk?: boolean;
 	},
 ): PromptSettle {
 	const slice = host.messages().slice(admission.messageStartIndex);
 	const ended = classifyEnded(admission, slice);
+	const advisor = host.advisorStats?.();
+	// A failed drain means the advisor's final review was still in flight (or a
+	// late note was abandoned) when the settle was captured — the reported spend
+	// is partial, so surface it as an error rather than a clean "running".
+	if (advisor && input.advisorDrainOk === false) {
+		for (const entry of advisor.advisors) entry.status = "error";
+	}
 	return {
 		ended,
 		loops_started: admission.loopsStarted,
@@ -196,6 +230,7 @@ function buildSettle(
 		ended_at: new Date().toISOString(),
 		usage: usageFromSlice(slice),
 		cost: costFromSlice(slice),
+		advisor,
 		quiescence: {
 			ready: input.ready ?? !admission.halted,
 			protected_pids: input.protectedPids,
@@ -334,6 +369,10 @@ export async function runControlledPrompt(
 			if (settled !== "idle") admission.halt("quiescence");
 			admission.close();
 			admission.recordSettledMessages(host.messages());
+			// Drain in-flight advisor reviews before capturing the settle so the
+			// final turn's advisor spend/status is complete and a late blocker
+			// note is preserved as a card rather than waking the primary.
+			const advisorDrainOk = host.drainAdvisors ? await host.drainAdvisors(5_000) : true;
 			finishInFlight(
 				host,
 				buildSettle(host, admission, {
@@ -342,6 +381,7 @@ export async function runControlledPrompt(
 					startedAt,
 					ready: settled === "idle" && !admission.halted,
 					error: promptError,
+					advisorDrainOk,
 				}),
 			);
 		} else {

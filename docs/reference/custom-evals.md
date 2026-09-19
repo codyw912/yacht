@@ -326,6 +326,23 @@ All integers are positive; booleans are rejected. Unknown keys are
 rejected. `max_turns` is the per-message loop cap; `message_timeout_seconds`
 is the per-message wall; `timeout_seconds` is the whole-trial wall.
 
+An optional `[execution.advisor]` block arms a read-only advisor alongside
+the primary (ADR 0026). `model` is required; `tools` defaults to
+`read`/`grep`/`glob` and `instructions` is optional free text:
+
+```toml
+[execution.advisor]
+model = "anthropic/claude-sonnet-4-5"
+tools = ["read", "grep", "glob"]
+instructions = "Review each primary turn for correctness."
+```
+
+Advisor spend is **reported, not capped**: it lands in the summary's
+separate `advisor` block (per-advisor `status`/`model`/`tokens`/`cost`/
+`messages`), never folded into the primary's `usage`/`cost_usd`. The
+admission gate does not extend to it, so a runaway advisor is real cost the
+trial accepts.
+
 Natural completion, a recoverable cap, or a recoverable message timeout
 does not skip the next retained message. Lost sessions and SDK idle or
 abort failures invalidate the trial rather than restarting it cold. Late
@@ -401,8 +418,12 @@ are immutable once collected; they are not an atomic workspace snapshot,
 and concurrent writes are not stable global state.
 
 The controller preserves configured treatment settings while overriding
-automatic compaction, retries/fallback, advisors, memory learning, and
-automatic background execution. Model-spawning tools and image-question
+automatic compaction, retries/fallback, memory learning, and automatic
+background execution. Advisors are off by default; an execution plan may opt
+one in via an `advisor` block (`model`, optional `tools` defaulting to
+read/grep/glob, optional `instructions`), which runs a single
+controller-supplied advisor whose spend is reported separately in the
+summary's `advisor` block (ADR 0026). Model-spawning tools and image-question
 reads are unavailable in controlled runs; native tools and configured MCP
 tools otherwise remain enabled. There is no OS process reaping between
 messages; continuation and capture follow native SDK settle only.
