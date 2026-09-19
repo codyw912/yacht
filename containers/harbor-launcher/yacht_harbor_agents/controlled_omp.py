@@ -121,7 +121,7 @@ def _scrub(payload: Any, secrets: set[str], *, parent: str = "") -> Any:
     return payload
 
 
-def _load_plan_validator() -> Any:
+def _load_contract_module() -> Any:
     import importlib
 
     last_error: Exception | None = None
@@ -130,14 +130,20 @@ def _load_plan_validator() -> Any:
         "yacht._execution_contract",
     ):
         try:
-            module = importlib.import_module(name)
+            return importlib.import_module(name)
         except ImportError as error:
             last_error = error
-            continue
-        validator = getattr(module, "validate_execution_plan", None)
-        if validator is not None:
-            return validator
     raise ControlledOmpError("canonical execution contract is absent") from last_error
+
+
+def _load_plan_validator() -> Any:
+    validator = getattr(_load_contract_module(), "validate_execution_plan", None)
+    if validator is None:
+        raise ControlledOmpError("canonical execution contract is absent")
+    return validator
+
+
+CONTROLLED_OMP_VERSION: str = _load_contract_module().CONTROLLED_OMP_VERSION
 
 
 def _validate_plan(plan: dict[str, Any]) -> None:
@@ -271,6 +277,7 @@ async def _write_summary_after_close(
     publish_handoff: bool,
     error: str | None,
     final_cleanup: Callable[[], Awaitable[None]] | None = None,
+    harness_version: str | None = None,
 ) -> dict[str, Any]:
     closed = True
     try:
@@ -335,7 +342,7 @@ async def _write_summary_after_close(
         "valid": valid,
         "model": model,
         "harness": "omp",
-        "harness_version": "18.1.17",
+        "harness_version": harness_version or CONTROLLED_OMP_VERSION,
         "settings": dict(settings),
         "usage": usage,
         "cost_usd": cost_usd,
@@ -419,6 +426,7 @@ async def run_controlled_omp(
     env: dict[str, str] | None = None,
     driver: DriverSession | None = None,
     final_cleanup: FinalCleanupFn | None = None,
+    harness_version: str | None = None,
 ) -> dict[str, Any]:
     _validate_plan(plan)
     if driver is None:
@@ -547,6 +555,7 @@ async def run_controlled_omp(
             publish_handoff=disposed,
             error=error,
             final_cleanup=run_final_cleanup,
+            harness_version=harness_version,
         )
 
     try:

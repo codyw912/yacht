@@ -10,7 +10,7 @@ import math
 import re
 from typing import Any
 
-CONTROLLED_OMP_VERSION = "18.1.17"
+CONTROLLED_OMP_VERSION = "18.2.6"
 CONTROLLED_EXECUTION_HARNESSES = frozenset({"omp"})
 EXECUTION_SCHEMA = "yacht.execution.v1"
 EXECUTION_MODES = frozenset({"single", "retained"})

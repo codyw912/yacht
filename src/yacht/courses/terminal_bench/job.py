@@ -183,7 +183,7 @@ def _enforces_max_turns(
     command, which the harbor-side runner substitutes. Being declared is
     not enough: a declaration without the placeholder drops the cap just
     as silently as a first-class harness with no flag for it. Pinned OMP
-    18.1.17 enforces caps through the controlled execution controller.
+    18.2.6 enforces caps through the controlled execution controller.
     """
     if harness in MAX_TURNS_ENFORCING_HARNESSES:
         return True

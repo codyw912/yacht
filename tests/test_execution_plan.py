@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from yacht._execution_contract import (
+    CONTROLLED_OMP_VERSION,
     ExecutionContractError,
     validate_execution_plan,
     validate_execution_summary,
@@ -395,7 +396,7 @@ def _summary(**overrides: object) -> dict:
         "valid": True,
         "model": "test-model",
         "harness": "omp",
-        "harness_version": "18.1.17",
+        "harness_version": CONTROLLED_OMP_VERSION,
         "settings": {
             "compaction.enabled": False,
             "memory.backend": "off",

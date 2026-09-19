@@ -59,7 +59,7 @@ def _valid_execution_summary() -> dict[str, Any]:
         "valid": True,
         "model": "test-model",
         "harness": "omp",
-        "harness_version": "18.1.17",
+        "harness_version": CONTROLLED_OMP,
         "settings": {
             "compaction": False,
             "title": False,

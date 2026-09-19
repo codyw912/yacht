@@ -563,6 +563,7 @@ class YachtOmp(BaseInstalledAgent):
                 model=str(self.model_name or ""),
                 plan=execution_plan,
                 driver=driver,
+                harness_version=self._version,
             )
             self._record_execution_usage(summary)
             _require_valid_execution(summary, "controlled OMP execution")

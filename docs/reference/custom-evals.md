@@ -171,7 +171,7 @@ Declared episodes have no cap signal of their own — `ended` for them is
 
 OMP and Codex have no native turn-cap *flag*, so an `[episodes]`
 `max_turns` on those harnesses is still a render-time error unless the
-harness version is one Yacht actually gates (today: OMP `18.1.17`, via
+harness version is one Yacht actually gates (today: OMP `18.2.6`, via
 the `[execution]` controller below — not a CLI flag). Rather than
 accept the key and drop it — which would make two vessels look like
 they ran under the same budget when only one did — the job render
@@ -286,7 +286,7 @@ resulting tool batch**. Several tools in one response consume one loop.
 Agent-core resamples each consume another admission. Provider-internal
 HTTP retries are not loops and must not be summed as turns.
 
-The controlled path requires **OMP 18.1.17**, **Bun 1.3.14**, and
+The controlled path requires **OMP 18.2.6**, **Bun 1.3.14**, and
 **Harbor 0.20.0 Docker/Linux**. Other harnesses and OMP versions fail
 at full job render; the launcher checks the Harbor/environment capability
 before inference. Yacht does not pass a `--max-turns` flag to OMP. The
@@ -308,7 +308,7 @@ still runs before verifier handoff; it does not change tool semantics
 during the eval and does not prove the workspace is frozen.
 
 `[execution]` and `[episodes]` on the same task is a conflict. Cold
-OMP episode caps on 18.1.17 use the same controller with a fresh
+OMP episode caps on 18.2.6 use the same controller with a fresh
 session per episode; Claude Code and declared `{max_turns}` placeholders
 are unchanged.
 
