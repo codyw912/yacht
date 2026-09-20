@@ -1,0 +1,13 @@
+[metadata]
+author = "yacht"
+description = "Probe: does required_secrets reach the verifier env?"
+difficulty = "easy"
+
+[verifier]
+timeout_sec = 30.0
+# Probe result: TYPESAFE_API_KEY=UNSET — required_secrets reaches the agent only;
+# set the key explicitly in [verifier] env for tests/test.sh.
+# Deliberately no [verifier] env — testing whether required_secrets leaks through.
+
+[agent]
+timeout_sec = 60.0
