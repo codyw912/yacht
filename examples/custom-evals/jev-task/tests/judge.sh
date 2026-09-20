@@ -222,7 +222,7 @@ fi
 
 # Write reward only on a real verdict; human-review/advisory-only stay unresolved.
 if [ -n "$VERDICT" ] && [ "$JUDGE_ON_LOW_CONFIDENCE" != "advisory-only" ]; then
-  R=$(python3 -c "print(1 if float('$VERDICT') >= 0.5 else 0)")
+  R=$(python3 -c "import sys; print(1 if float(sys.argv[1]) >= 0.5 else 0)" "$VERDICT" 2>/dev/null || echo 0)
   write_reward "$R"
 fi
 

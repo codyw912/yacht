@@ -94,7 +94,7 @@ JUDGE_ON_ERROR = "unresolved"      # unresolved | zero | advisory-only
 ## Secrets and env
 
 `TYPESAFE_API_KEY` is already provisioned via Iron Proxy (`api.typesafe.ai`
-route is live). Two delivery paths, one open assumption:
+route is live). Two delivery paths, both required:
 
 - **`secretspec.toml`** gets a `[scopes.typesafe]` block declaring
   `TYPESAFE_API_KEY`, so `secretspec run --scope typesafe` resolves it.
