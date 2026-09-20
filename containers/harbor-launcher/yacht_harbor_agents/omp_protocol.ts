@@ -1,7 +1,19 @@
 export const MAX_FRAME_BYTES = 16 * 1024 * 1024;
 
+export type AdvisorSpec = {
+	model: string;
+	tools?: string[];
+	instructions?: string;
+};
+
 export type DriverCommand =
-	| { id: string; type: "init"; model: string; deadline_ms: number }
+	| {
+			id: string;
+			type: "init";
+			model: string;
+			deadline_ms: number;
+			advisor?: AdvisorSpec;
+	  }
 	| {
 			id: string;
 			type: "prompt";
@@ -33,6 +45,33 @@ function requireNumber(value: unknown, field: string): number {
 	return value;
 }
 
+function parseAdvisorSpec(value: unknown): AdvisorSpec | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== "object" || Array.isArray(value)) {
+		throw new Error("invalid advisor");
+	}
+	const spec = value as Record<string, unknown>;
+	const model = requireString(spec.model, "advisor.model");
+	const advisor: AdvisorSpec = { model };
+	if (spec.tools !== undefined) {
+		if (
+			!Array.isArray(spec.tools) ||
+			!spec.tools.every((item) => typeof item === "string" && item.length > 0)
+		) {
+			throw new Error("invalid advisor.tools");
+		}
+		advisor.tools = spec.tools as string[];
+	}
+	if (spec.instructions !== undefined) {
+		if (typeof spec.instructions !== "string") {
+			throw new Error("invalid advisor.instructions");
+		}
+		advisor.instructions = spec.instructions;
+	}
+	return advisor;
+}
+
+
 export function parseCommand(line: string): DriverCommand {
 	let parsed: unknown;
 	try {
@@ -56,6 +95,10 @@ export function parseCommand(line: string): DriverCommand {
 				type: "init",
 				model: requireString(obj.model, "model"),
 				deadline_ms: requireNumber(obj.deadline_ms, "deadline_ms"),
+				// Spread conditionally so the no-advisor init stays byte-identical
+				// (advisor key absent, not present-as-undefined) for strict
+				// equality and JSON round-trips downstream.
+				...(obj.advisor !== undefined ? { advisor: parseAdvisorSpec(obj.advisor) } : {}),
 			};
 		}
 		case "prompt":

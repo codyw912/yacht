@@ -10,7 +10,7 @@ import math
 import re
 from typing import Any
 
-CONTROLLED_OMP_VERSION = "18.1.17"
+CONTROLLED_OMP_VERSION = "18.2.6"
 CONTROLLED_EXECUTION_HARNESSES = frozenset({"omp"})
 EXECUTION_SCHEMA = "yacht.execution.v1"
 EXECUTION_MODES = frozenset({"single", "retained"})
@@ -31,11 +31,12 @@ _MESSAGE_ENDINGS = frozenset({"natural", "cap", "timeout", "error"})
 _CAPTURE_STATUSES = frozenset({"missing", "captured", "error"})
 
 _SINGLE_KEYS = frozenset(
-    {"mode", "max_turns", "message_timeout_seconds", "timeout_seconds"}
+    {"mode", "max_turns", "message_timeout_seconds", "timeout_seconds", "advisor"}
 )
 _RETAINED_KEYS = _SINGLE_KEYS | {"initial_turn_id", "turns", "captures"}
 _TURN_KEYS = frozenset({"id", "instruction"})
 _CAPTURE_KEYS = frozenset({"id", "after", "path", "max_bytes"})
+_ADVISOR_PLAN_KEYS = frozenset({"model", "tools", "instructions"})
 _SUMMARY_REQUIRED = (
     "schema",
     "mode",
@@ -53,7 +54,7 @@ _SUMMARY_REQUIRED = (
     "usage",
     "cost_usd",
 )
-_SUMMARY_KEYS = frozenset(_SUMMARY_REQUIRED) | {"error", "ended", "handoff"}
+_SUMMARY_KEYS = frozenset(_SUMMARY_REQUIRED) | {"error", "ended", "handoff", "advisor"}
 _MESSAGE_REQUIRED = (
     "id",
     "ended",
@@ -66,6 +67,7 @@ _MESSAGE_REQUIRED = (
 _MESSAGE_KEYS = frozenset(_MESSAGE_REQUIRED) | {
     "usage",
     "cost_usd",
+    "advisor",
 }
 _SUMMARY_CAPTURE_REQUIRED = ("after", "path", "status")
 _SUMMARY_CAPTURE_KEYS = frozenset(_SUMMARY_CAPTURE_REQUIRED) | {
@@ -104,8 +106,87 @@ def validate_execution_plan(plan: object) -> None:
             raise ExecutionContractError(
                 "single mode does not accept " + ", ".join(extra)
             )
+        _validate_advisor_plan(plan.get("advisor"))
         return
+    _validate_advisor_plan(plan.get("advisor"))
     _validate_retained_plan(plan)
+
+
+def _validate_advisor_plan(value: object) -> None:
+    """Validate the optional opt-in advisor arm (ADR 0026).
+
+    An explicit advisor model is required: without it the advisor role falls
+    back to the ``slow`` priority chain and could resolve a paid model the
+    trial never intended. ``tools`` defaults to read/grep/glob driver-side; an
+    explicit empty list grants the advisor no tools.
+    """
+    if value is None:
+        return
+    advisor = _require_object(value, "advisor")
+    unknown = sorted(set(advisor) - _ADVISOR_PLAN_KEYS)
+    if unknown:
+        raise ExecutionContractError("advisor unknown keys: " + ", ".join(unknown))
+    _require_non_empty_string(advisor.get("model"), "advisor.model")
+    tools = advisor.get("tools")
+    if tools is not None and (
+        not isinstance(tools, list)
+        or not all(isinstance(item, str) and item for item in tools)
+    ):
+        raise ExecutionContractError(
+            "advisor.tools must be a list of non-empty strings"
+        )
+    instructions = advisor.get("instructions")
+    if instructions is not None and not isinstance(instructions, str):
+        raise ExecutionContractError("advisor.instructions must be a string")
+
+
+def _validate_summary_advisor(value: object) -> None:
+    """Validate the reported advisor block (ADR 0026).
+
+    Advisor spend is reported per advisor, never folded into the primary's
+    ``usage``/``cost_usd``. ``status`` distinguishes "advisor ran and spent X"
+    from "advisor died and looks free."
+    """
+    block = _require_object(value, "execution summary.advisor")
+    unknown = sorted(set(block) - {"enabled", "advisors", "cost_usd"})
+    if unknown:
+        raise ExecutionContractError(
+            "execution summary.advisor unknown keys: " + ", ".join(unknown)
+        )
+    if not isinstance(block.get("enabled"), bool):
+        raise ExecutionContractError(
+            "execution summary.advisor.enabled must be a boolean"
+        )
+    _require_cost(block.get("cost_usd"), "execution summary.advisor.cost_usd")
+    advisors = block.get("advisors")
+    if not isinstance(advisors, list):
+        raise ExecutionContractError(
+            "execution summary.advisor.advisors must be a list"
+        )
+    statuses = {"running", "paused", "quota_exhausted", "error", "no_model"}
+    entry_keys = {"name", "status", "model", "tokens", "cost", "messages"}
+    for index, item in enumerate(advisors):
+        path = f"execution summary.advisor.advisors[{index}]"
+        entry = _require_object(item, path)
+        unknown = sorted(set(entry) - entry_keys)
+        if unknown:
+            raise ExecutionContractError(f"{path} unknown keys: " + ", ".join(unknown))
+        for key in ("name", "status", "tokens", "cost", "messages"):
+            if key not in entry:
+                raise ExecutionContractError(f"{path}.{key} is required")
+        _require_non_empty_string(entry["name"], f"{path}.name")
+        if entry["status"] not in statuses:
+            raise ExecutionContractError(
+                f"{path}.status must be one of: " + ", ".join(sorted(statuses))
+            )
+        if "model" in entry:
+            _require_non_empty_string(entry["model"], f"{path}.model")
+        _validate_numeric_map(entry["tokens"], f"{path}.tokens")
+        # The cost *key* is required so a missing ledger can't read as "free",
+        # but its value may be null: _normalize_advisor_report maps an unpriced
+        # (subscription) advisor's synthesized 0 to None — unknown, not free.
+        _require_cost(entry["cost"], f"{path}.cost")
+        _validate_numeric_map(entry["messages"], f"{path}.messages")
 
 
 def validate_execution_summary(summary: object) -> None:
@@ -148,6 +229,8 @@ def validate_execution_summary(summary: object) -> None:
         )
     if "handoff" in payload:
         _validate_summary_handoff(payload["handoff"])
+    if "advisor" in payload:
+        _validate_summary_advisor(payload["advisor"])
     _validate_summary_settings(payload["settings"])
     _validate_numeric_map(payload["usage"], "execution summary.usage")
     _require_cost(payload["cost_usd"], "execution summary.cost_usd")

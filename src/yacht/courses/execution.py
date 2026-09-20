@@ -27,6 +27,7 @@ _ALLOWED_KEYS = {
     "initial_turn_id",
     "turns",
     "captures",
+    "advisor",
 }
 _TURN_KEYS = {"id", "instruction"}
 _CAPTURE_KEYS = {"after", "path", "max_bytes"}
@@ -73,6 +74,11 @@ def _normalize_execution_table(table: dict[str, Any]) -> dict[str, Any]:
         "message_timeout_seconds": table.get("message_timeout_seconds"),
         "timeout_seconds": table.get("timeout_seconds"),
     }
+    if "advisor" in table:
+        # Pass the [execution.advisor] table through verbatim; the contract's
+        # _validate_advisor_plan checks its shape (model required, tools a
+        # string list, instructions a string).
+        plan["advisor"] = table["advisor"]
     if mode == "retained":
         plan["initial_turn_id"] = table.get("initial_turn_id", "initial")
         plan["turns"] = _normalize_turns(table.get("turns", []))

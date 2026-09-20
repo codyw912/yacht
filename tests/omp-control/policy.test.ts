@@ -78,7 +78,12 @@ describe("controlled execution policy", () => {
 	});
 
 	it("refuses to run when a side-inference guard setting drifted", () => {
-		const effective: Record<string, unknown> = { "memory.backend": "off", "autolearn.enabled": false, "launch.enabled": false };
+		const effective: Record<string, unknown> = {
+			"memory.backend": "off",
+			"autolearn.enabled": false,
+			"launch.enabled": false,
+			"advisor.enabled": false,
+		};
 		expect(() => assertSideInferenceGuards((path) => effective[path])).not.toThrow();
 		effective["memory.backend"] = "mnemopi";
 		expect(() => assertSideInferenceGuards((path) => effective[path])).toThrow(/memory\.backend/);
@@ -88,5 +93,13 @@ describe("controlled execution policy", () => {
 		effective["autolearn.enabled"] = false;
 		effective["launch.enabled"] = true;
 		expect(() => assertSideInferenceGuards((path) => effective[path])).toThrow(/launch\.enabled/);
+		effective["launch.enabled"] = false;
+		// An advisor the trial did not opt into is drift, not a free arm.
+		effective["advisor.enabled"] = true;
+		expect(() => assertSideInferenceGuards((path) => effective[path])).toThrow(/advisor\.enabled/);
+		// But an opted-in advisor passes when the controller expects it.
+		expect(() =>
+			assertSideInferenceGuards((path) => effective[path], { "advisor.enabled": true }),
+		).not.toThrow();
 	});
 });

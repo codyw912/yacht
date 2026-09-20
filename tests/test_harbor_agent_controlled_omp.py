@@ -22,6 +22,9 @@ if str(LAUNCHER_ROOT) not in sys.path:
 controlled_omp = importlib.import_module("yacht_harbor_agents.controlled_omp")
 captures = importlib.import_module("yacht_harbor_agents.captures")
 quiesce = importlib.import_module("yacht_harbor_agents.quiesce")
+validate_execution_summary = importlib.import_module(
+    "yacht._execution_contract"
+).validate_execution_summary
 
 
 FUTURE_Q = "FUTURE_MARKER_Q_UNIQUE"
@@ -192,6 +195,7 @@ async def _run(
     env: dict | None = None,
     final_cleanup=_noop_quiesce,
     environment: DockerShapedEnvironment | None = None,
+    harness_version: str | None = None,
 ):
     driver.logs_dir = logs_dir
     return await controlled_omp.run_controlled_omp(
@@ -203,6 +207,7 @@ async def _run(
         env=env,
         driver=driver,
         final_cleanup=final_cleanup,
+        harness_version=harness_version,
     )
 
 
@@ -380,6 +385,187 @@ class PolicyEvidenceTests(unittest.IsolatedAsyncioTestCase):
                 )
             )
             self.assertEqual(persisted["settings"], settings)
+
+    async def test_summary_reports_resolved_harness_version(self) -> None:
+        """`harness_version` is the resolved OMP pin, not a raw `--version` line.
+
+        `omp --version` prints `omp/18.2.6`; consumers assert exact equality on
+        the semver, so the controller passes the configured pin through. A
+        value distinct from CONTROLLED_OMP_VERSION proves pass-through rather
+        than the fallback.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            logs_dir = Path(temp_dir) / "trial" / "agent"
+            workspace.mkdir()
+            logs_dir.mkdir(parents=True)
+            driver = ScriptedDriver()
+            _wire_success(driver)
+
+            summary = await _run(
+                workspace=workspace,
+                logs_dir=logs_dir,
+                driver=driver,
+                harness_version="18.2.7",
+            )
+
+            self.assertEqual(summary["harness_version"], "18.2.7")
+
+    async def test_summary_defaults_harness_version_to_contract_pin(self) -> None:
+        """Omitting `harness_version` falls back to the contract constant."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            logs_dir = Path(temp_dir) / "trial" / "agent"
+            workspace.mkdir()
+            logs_dir.mkdir(parents=True)
+            driver = ScriptedDriver()
+            _wire_success(driver)
+
+            summary = await _run(workspace=workspace, logs_dir=logs_dir, driver=driver)
+
+            self.assertEqual(
+                summary["harness_version"], controlled_omp.CONTROLLED_OMP_VERSION
+            )
+
+    async def test_init_carries_advisor_spec_when_plan_opts_in(self) -> None:
+        """An `advisor` plan block is forwarded to the driver init frame."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            logs_dir = Path(temp_dir) / "trial" / "agent"
+            workspace.mkdir()
+            logs_dir.mkdir(parents=True)
+            driver = ScriptedDriver()
+            _wire_success(driver)
+            plan = _retained_plan()
+            plan["advisor"] = {
+                "model": "xai-oauth/grok-4.6:low",
+                "tools": ["read", "grep"],
+                "instructions": "review each turn",
+            }
+
+            await _run(workspace=workspace, logs_dir=logs_dir, driver=driver, plan=plan)
+
+            init = next(item for item in driver.sent if item["type"] == "init")
+            self.assertEqual(
+                init["advisor"],
+                {
+                    "model": "xai-oauth/grok-4.6:low",
+                    "tools": ["read", "grep"],
+                    "instructions": "review each turn",
+                },
+            )
+
+    async def test_init_omits_advisor_when_plan_has_none(self) -> None:
+        """No advisor plan block means no advisor field on the init frame."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            logs_dir = Path(temp_dir) / "trial" / "agent"
+            workspace.mkdir()
+            logs_dir.mkdir(parents=True)
+            driver = ScriptedDriver()
+            _wire_success(driver)
+
+            await _run(workspace=workspace, logs_dir=logs_dir, driver=driver)
+
+            init = next(item for item in driver.sent if item["type"] == "init")
+            self.assertNotIn("advisor", init)
+
+    async def test_summary_reports_advisor_block_separately(self) -> None:
+        """Advisor spend lands in `advisor`, never in primary usage/cost_usd."""
+        advisor_block = {
+            "enabled": True,
+            "cost_usd": 0.5,
+            "advisors": [
+                {
+                    "name": "controlled",
+                    "status": "running",
+                    "model": "xai-oauth/grok-4.6",
+                    "tokens": {"input": 40, "output": 8},
+                    "cost": 0.5,
+                    "messages": {"user": 2, "assistant": 2, "total": 4},
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            logs_dir = Path(temp_dir) / "trial" / "agent"
+            workspace.mkdir()
+            logs_dir.mkdir(parents=True)
+            driver = ScriptedDriver()
+
+            async def recv() -> dict:
+                payload = driver.sent[-1]
+                command_id = payload["id"]
+                if payload["type"] == "init":
+                    return _init_ok(command_id)
+                if payload["type"] == "prompt":
+                    response = _prompt_response(command_id)
+                    response["data"]["advisor"] = advisor_block
+                    return response
+                return {
+                    "type": "response",
+                    "id": command_id,
+                    "success": True,
+                    "data": {},
+                }
+
+            driver.recv = recv  # type: ignore[method-assign]
+
+            summary = await _run(workspace=workspace, logs_dir=logs_dir, driver=driver)
+
+            self.assertEqual(summary["advisor"], advisor_block)
+            # Primary spend is untouched by the advisor's reported cost.
+            self.assertEqual(summary["cost_usd"], 0.75)
+            self.assertNotIn("advisor", summary["usage"])
+
+    async def test_unpriced_advisor_cost_reads_unknown_not_free(self) -> None:
+        """A driver-reported advisor cost of 0 (no pricing) is unknown, not free."""
+        advisor_block = {
+            "enabled": True,
+            "cost_usd": 0,
+            "advisors": [
+                {
+                    "name": "controlled",
+                    "status": "running",
+                    "model": "xai-oauth/grok-4.6",
+                    "tokens": {"input": 40, "output": 8},
+                    "cost": 0,
+                    "messages": {"user": 2, "assistant": 2, "total": 4},
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            logs_dir = Path(temp_dir) / "trial" / "agent"
+            workspace.mkdir()
+            logs_dir.mkdir(parents=True)
+            driver = ScriptedDriver()
+
+            async def recv() -> dict:
+                payload = driver.sent[-1]
+                command_id = payload["id"]
+                if payload["type"] == "init":
+                    return _init_ok(command_id)
+                if payload["type"] == "prompt":
+                    response = _prompt_response(command_id)
+                    response["data"]["advisor"] = advisor_block
+                    return response
+                return {
+                    "type": "response",
+                    "id": command_id,
+                    "success": True,
+                    "data": {},
+                }
+
+            driver.recv = recv  # type: ignore[method-assign]
+
+            summary = await _run(workspace=workspace, logs_dir=logs_dir, driver=driver)
+
+            # Unpriced spend must not read as free: 0 normalizes to None.
+            self.assertIsNone(summary["advisor"]["cost_usd"])
+            self.assertIsNone(summary["advisor"]["advisors"][0]["cost"])
+            # And the normalized block still validates against the contract.
+            validate_execution_summary(summary)
 
 
 class DeadlineSeamTests(unittest.IsolatedAsyncioTestCase):

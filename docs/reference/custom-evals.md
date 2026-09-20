@@ -171,7 +171,7 @@ Declared episodes have no cap signal of their own — `ended` for them is
 
 OMP and Codex have no native turn-cap *flag*, so an `[episodes]`
 `max_turns` on those harnesses is still a render-time error unless the
-harness version is one Yacht actually gates (today: OMP `18.1.17`, via
+harness version is one Yacht actually gates (today: OMP `18.2.6`, via
 the `[execution]` controller below — not a CLI flag). Rather than
 accept the key and drop it — which would make two vessels look like
 they ran under the same budget when only one did — the job render
@@ -286,7 +286,7 @@ resulting tool batch**. Several tools in one response consume one loop.
 Agent-core resamples each consume another admission. Provider-internal
 HTTP retries are not loops and must not be summed as turns.
 
-The controlled path requires **OMP 18.1.17**, **Bun 1.3.14**, and
+The controlled path requires **OMP 18.2.6**, **Bun 1.3.14**, and
 **Harbor 0.20.0 Docker/Linux**. Other harnesses and OMP versions fail
 at full job render; the launcher checks the Harbor/environment capability
 before inference. Yacht does not pass a `--max-turns` flag to OMP. The
@@ -308,7 +308,7 @@ still runs before verifier handoff; it does not change tool semantics
 during the eval and does not prove the workspace is frozen.
 
 `[execution]` and `[episodes]` on the same task is a conflict. Cold
-OMP episode caps on 18.1.17 use the same controller with a fresh
+OMP episode caps on 18.2.6 use the same controller with a fresh
 session per episode; Claude Code and declared `{max_turns}` placeholders
 are unchanged.
 
@@ -325,6 +325,23 @@ timeout_seconds = 900
 All integers are positive; booleans are rejected. Unknown keys are
 rejected. `max_turns` is the per-message loop cap; `message_timeout_seconds`
 is the per-message wall; `timeout_seconds` is the whole-trial wall.
+
+An optional `[execution.advisor]` block arms a read-only advisor alongside
+the primary (ADR 0026). `model` is required; `tools` defaults to
+`read`/`grep`/`glob` and `instructions` is optional free text:
+
+```toml
+[execution.advisor]
+model = "anthropic/claude-sonnet-4-5"
+tools = ["read", "grep", "glob"]
+instructions = "Review each primary turn for correctness."
+```
+
+Advisor spend is **reported, not capped**: it lands in the summary's
+separate `advisor` block (per-advisor `status`/`model`/`tokens`/`cost`/
+`messages`), never folded into the primary's `usage`/`cost_usd`. The
+admission gate does not extend to it, so a runaway advisor is real cost the
+trial accepts.
 
 Natural completion, a recoverable cap, or a recoverable message timeout
 does not skip the next retained message. Lost sessions and SDK idle or
@@ -401,8 +418,12 @@ are immutable once collected; they are not an atomic workspace snapshot,
 and concurrent writes are not stable global state.
 
 The controller preserves configured treatment settings while overriding
-automatic compaction, retries/fallback, advisors, memory learning, and
-automatic background execution. Model-spawning tools and image-question
+automatic compaction, retries/fallback, memory learning, and automatic
+background execution. Advisors are off by default; an execution plan may opt
+one in via an `advisor` block (`model`, optional `tools` defaulting to
+read/grep/glob, optional `instructions`), which runs a single
+controller-supplied advisor whose spend is reported separately in the
+summary's `advisor` block (ADR 0026). Model-spawning tools and image-question
 reads are unavailable in controlled runs; native tools and configured MCP
 tools otherwise remain enabled. There is no OS process reaping between
 messages; continuation and capture follow native SDK settle only.

@@ -6,12 +6,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from yacht._execution_contract import CONTROLLED_OMP_VERSION
 from yacht.courses.terminal_bench.harness import harbor_run_config
 from yacht.courses.terminal_bench.job import render_terminal_bench_job
 from yacht.domain.model import ConfigError, load_regatta
 from yacht.harnesses.omp import OMP_HEADLESS_FLAGS, OmpTaskRequest
 
-CONTROLLED_OMP = "18.1.17"
+CONTROLLED_OMP = CONTROLLED_OMP_VERSION
 LEGACY_OMP = "17.2.15"
 
 
@@ -202,7 +203,9 @@ class ExecutionJobRenderingTests(unittest.TestCase):
                 version=LEGACY_OMP,
                 execution=_SINGLE,
             )
-            with self.assertRaisesRegex(ConfigError, "18\\.1\\.17"):
+            with self.assertRaisesRegex(
+                ConfigError, CONTROLLED_OMP.replace(".", "\\.")
+            ):
                 render_terminal_bench_job(
                     regatta=load_regatta(config_path),
                     vessel_name="baseline",

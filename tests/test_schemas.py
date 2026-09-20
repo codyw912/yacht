@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from yacht._execution_contract import CONTROLLED_OMP_VERSION
 from yacht.contracts.json_schema import schema_text, validation_error
 from yacht.contracts.schemas import (
     SchemaValidationError,
@@ -1938,7 +1939,7 @@ def _valid_execution_evidence_summary() -> dict[str, Any]:
         "valid": True,
         "model": "test-model",
         "harness": "omp",
-        "harness_version": "18.1.17",
+        "harness_version": CONTROLLED_OMP_VERSION,
         "settings": {
             "compaction": False,
             "title": False,

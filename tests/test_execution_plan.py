@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from yacht._execution_contract import (
+    CONTROLLED_OMP_VERSION,
     ExecutionContractError,
     validate_execution_plan,
     validate_execution_summary,
@@ -95,6 +96,44 @@ class RenderExecutionPlanTests(unittest.TestCase):
         self.assertNotIn("turns", plan)
         self.assertNotIn("captures", plan)
         self.assertNotIn("initial_turn_id", plan)
+
+    def test_execution_advisor_table_passes_into_plan(self) -> None:
+        with TemporaryDirectory() as tmp:
+            task_dir = _write_task(
+                Path(tmp),
+                execution=(
+                    _single_table()
+                    + "\n"
+                    + "[execution.advisor]\n"
+                    + 'model = "anthropic/claude-sonnet-4-5"\n'
+                    + 'tools = ["read", "grep", "glob"]\n'
+                    + 'instructions = "Review each turn."\n'
+                ),
+            )
+            plan = render_execution_plan(task_dir)
+
+        self.assertEqual(
+            plan["advisor"],
+            {
+                "model": "anthropic/claude-sonnet-4-5",
+                "tools": ["read", "grep", "glob"],
+                "instructions": "Review each turn.",
+            },
+        )
+
+    def test_execution_advisor_requires_model(self) -> None:
+        with TemporaryDirectory() as tmp:
+            task_dir = _write_task(
+                Path(tmp),
+                execution=(
+                    _single_table()
+                    + "\n"
+                    + "[execution.advisor]\n"
+                    + 'tools = ["read"]\n'
+                ),
+            )
+            with self.assertRaises(ConfigError):
+                render_execution_plan(task_dir)
 
     def test_retained_plan_keeps_stable_ids_and_capture_identity(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -395,7 +434,7 @@ def _summary(**overrides: object) -> dict:
         "valid": True,
         "model": "test-model",
         "harness": "omp",
-        "harness_version": "18.1.17",
+        "harness_version": CONTROLLED_OMP_VERSION,
         "settings": {
             "compaction.enabled": False,
             "memory.backend": "off",

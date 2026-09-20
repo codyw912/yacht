@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Controlled OMP execution pinned to 18.2.6
+
+- `CONTROLLED_OMP_VERSION` moves from 18.1.17 to 18.2.6. The contract is
+  exact-equality, so regattas and examples still pinning `18.1.17` now
+  fail at job render until updated. The launcher image must be rebuilt:
+  `prepare_context.py` bakes the contract module into the image, so a
+  cached launcher still carries the 18.1.17 gate.
+
 ### Bounded OMP evaluation runtime
 
 - Task-owned `[execution]` declarations add single-shot loop caps and

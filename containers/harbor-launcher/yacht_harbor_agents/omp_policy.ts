@@ -44,6 +44,7 @@ export const SIDE_INFERENCE_GUARDS = {
 	"memory.backend": "off",
 	"autolearn.enabled": false,
 	"launch.enabled": false,
+	"advisor.enabled": false,
 } as const;
 
 export const RESTRICT_TOOL_NAMES = false;
@@ -123,11 +124,15 @@ export function assertRequiredNativeTools(roster: readonly string[]): void {
  * Refuse to run when a guard setting drifted, rather than measuring a session
  * whose roster can start unbudgeted model work.
  */
-export function assertSideInferenceGuards(effective: (path: string) => unknown): void {
-	for (const [path, expected] of Object.entries(SIDE_INFERENCE_GUARDS)) {
+export function assertSideInferenceGuards(
+	effective: (path: string) => unknown,
+	expected: Record<string, unknown> = {},
+): void {
+	for (const [path, defaultExpected] of Object.entries(SIDE_INFERENCE_GUARDS)) {
+		const want = path in expected ? expected[path] : defaultExpected;
 		const actual = effective(path);
-		if (actual !== expected) {
-			throw new Error(`side-inference guard ${path} must be ${String(expected)}, got ${String(actual)}`);
+		if (actual !== want) {
+			throw new Error(`side-inference guard ${path} must be ${String(want)}, got ${String(actual)}`);
 		}
 	}
 }

@@ -121,7 +121,7 @@ def _scrub(payload: Any, secrets: set[str], *, parent: str = "") -> Any:
     return payload
 
 
-def _load_plan_validator() -> Any:
+def _load_contract_module() -> Any:
     import importlib
 
     last_error: Exception | None = None
@@ -130,14 +130,20 @@ def _load_plan_validator() -> Any:
         "yacht._execution_contract",
     ):
         try:
-            module = importlib.import_module(name)
+            return importlib.import_module(name)
         except ImportError as error:
             last_error = error
-            continue
-        validator = getattr(module, "validate_execution_plan", None)
-        if validator is not None:
-            return validator
     raise ControlledOmpError("canonical execution contract is absent") from last_error
+
+
+def _load_plan_validator() -> Any:
+    validator = getattr(_load_contract_module(), "validate_execution_plan", None)
+    if validator is None:
+        raise ControlledOmpError("canonical execution contract is absent")
+    return validator
+
+
+CONTROLLED_OMP_VERSION: str = _load_contract_module().CONTROLLED_OMP_VERSION
 
 
 def _validate_plan(plan: dict[str, Any]) -> None:
@@ -210,6 +216,26 @@ def _normalize_cost(cost: Any) -> float | None:
     return None
 
 
+def _normalize_advisor_report(report: dict[str, Any]) -> dict[str, Any]:
+    """Normalize the settle frame's advisor block for the summary.
+
+    Cost fields go through ``_normalize_cost`` so an unpriced ``0`` reads as
+    unknown (None), not free — the SDK synthesizes ``0`` when no pricing is
+    available, and publishing it as spend would fabricate a total.
+    """
+    normalized = dict(report)
+    normalized["cost_usd"] = _normalize_cost(report.get("cost_usd"))
+    advisors = report.get("advisors")
+    if isinstance(advisors, list):
+        normalized["advisors"] = [
+            {**entry, "cost": _normalize_cost(entry.get("cost"))}
+            if isinstance(entry, dict)
+            else entry
+            for entry in advisors
+        ]
+    return normalized
+
+
 def _settle_is_fatal(frame: dict[str, Any]) -> bool:
     if frame.get("success") is False:
         return True
@@ -271,6 +297,8 @@ async def _write_summary_after_close(
     publish_handoff: bool,
     error: str | None,
     final_cleanup: Callable[[], Awaitable[None]] | None = None,
+    harness_version: str | None = None,
+    advisor_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     closed = True
     try:
@@ -335,13 +363,17 @@ async def _write_summary_after_close(
         "valid": valid,
         "model": model,
         "harness": "omp",
-        "harness_version": "18.1.17",
+        "harness_version": harness_version or CONTROLLED_OMP_VERSION,
         "settings": dict(settings),
         "usage": usage,
         "cost_usd": cost_usd,
         "ended": ended,
         "handoff": {"verifier": "verifier/yacht-execution"},
     }
+    if advisor_report is not None:
+        # Advisor spend is reported separately, never folded into the primary's
+        # usage/cost_usd (downstream scorecards read those as primary spend).
+        summary["advisor"] = advisor_report
     if error:
         summary["error"] = error
     elif not valid:
@@ -419,6 +451,7 @@ async def run_controlled_omp(
     env: dict[str, str] | None = None,
     driver: DriverSession | None = None,
     final_cleanup: FinalCleanupFn | None = None,
+    harness_version: str | None = None,
 ) -> dict[str, Any]:
     _validate_plan(plan)
     if driver is None:
@@ -482,6 +515,7 @@ async def run_controlled_omp(
     messages: list[dict[str, Any]] = []
     session_ids: list[str] = []
     settings: dict[str, Any] = {}
+    advisor_report: dict[str, Any] | None = None
     next_id = 1
     protect_pids: set[int] = set()
 
@@ -547,18 +581,23 @@ async def run_controlled_omp(
             publish_handoff=disposed,
             error=error,
             final_cleanup=run_final_cleanup,
+            harness_version=harness_version,
+            advisor_report=advisor_report,
         )
 
     try:
         init_id = allocate_id()
+        init_command: dict[str, Any] = {
+            "id": init_id,
+            "type": "init",
+            "model": model,
+            "deadline_ms": deadline_ms,
+        }
+        if plan.get("advisor") is not None:
+            init_command["advisor"] = plan["advisor"]
         init_frame = await _exchange(
             driver,
-            {
-                "id": init_id,
-                "type": "init",
-                "model": model,
-                "deadline_ms": deadline_ms,
-            },
+            init_command,
             events_path=events_path,
             secrets=secrets,
             timeout_seconds=min(
@@ -618,6 +657,15 @@ async def run_controlled_omp(
             finished_at = _utc_now()
             raw = frame.get("data")
             data: dict[str, Any] = raw if isinstance(raw, dict) else {}
+            advisor_block = (
+                data.get("advisor") if isinstance(data.get("advisor"), dict) else None
+            )
+            if advisor_block is not None:
+                # The settle frame's advisor block is cumulative (getAdvisorCost
+                # is the monotonic ledger), so the latest frame is authoritative
+                # for the summary. Record it per-message too so "when" an
+                # advisor died (quota/error) is preserved across the trial.
+                advisor_report = _normalize_advisor_report(advisor_block)
             usage = _normalize_usage(data.get("usage"))
             cost_usd = _normalize_cost(data.get("cost"))
             record: dict[str, Any] = {
@@ -635,6 +683,8 @@ async def run_controlled_omp(
                 record["usage"] = usage
             if cost_usd is not None:
                 record["cost_usd"] = cost_usd
+            if advisor_block is not None:
+                record["advisor"] = _normalize_advisor_report(advisor_block)
             messages.append(record)
             extra_protect = (data.get("quiescence") or {}).get("protected_pids") or []
             protect_pids.update(int(pid) for pid in extra_protect)
