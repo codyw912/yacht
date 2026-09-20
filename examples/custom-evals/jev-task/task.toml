@@ -5,22 +5,22 @@ difficulty = "easy"
 
 [verifier]
 timeout_sec = 120.0
-# The judge key must be set explicitly in [verifier] env — required_secrets
-# reaches the agent only, not tests/test.sh (see jev-probe-task).
+# Judge config reaches tests/test.sh via [verifier] env as JUDGE_* vars — the
+# only channel that reaches the verifier (required_secrets is agent-only, and
+# task.toml is a sensitive file not mounted into the container). The API key
+# must be set explicitly here; required_secrets does NOT reach the verifier.
 # NOTE: verify_between = true ignores [verifier] env, so Jev judging is
 # incompatible with verify_between unless the key is delivered another way.
 [verifier.env]
 TYPESAFE_API_KEY = "${TYPESAFE_API_KEY}"
-
-[verifier.judge]
-backend = "typesafe"
-base_url = "https://api.typesafe.ai/v1/systemone"
-model = "jev-latest"
-api_key_env = "TYPESAFE_API_KEY"
-confidence_threshold = 0.5
-on_low_confidence = "human-review"   # llm-judge | human-review | advisory-only
-request_timeout_sec = 20.0
-on_error = "unresolved"              # unresolved | zero | advisory-only
+JUDGE_BACKEND = "typesafe"
+JUDGE_BASE_URL = "https://api.typesafe.ai/v1/systemone"
+JUDGE_MODEL = "jev-latest"
+JUDGE_API_KEY_ENV = "TYPESAFE_API_KEY"
+JUDGE_CONFIDENCE_THRESHOLD = "0.5"
+JUDGE_ON_LOW_CONFIDENCE = "human-review"   # llm-judge | human-review | advisory-only
+JUDGE_REQUEST_TIMEOUT_SEC = "20"
+JUDGE_ON_ERROR = "unresolved"              # unresolved | zero | advisory-only
 
 [agent]
 timeout_sec = 300.0

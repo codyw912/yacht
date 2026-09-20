@@ -1,13 +1,14 @@
 #!/bin/bash
-# test.sh — verifier for the jev-task example. Calls the advisory judge on the
-# agent's output and writes reward + judge.json.
+# test.sh — verifier for the jev-task example. Reads the judge config from
+# JUDGE_* env vars (set in task.toml [verifier] env — the only channel that
+# reaches tests/test.sh; task.toml itself is a sensitive file not mounted into
+# the container), then calls the advisory judge on the agent's output.
 set -uo pipefail
 
 mkdir -p /logs/verifier
 
 # The agent's output under test.
-JUDGE_STATE_FILE=/app/output.txt
-export JUDGE_STATE_FILE
+export JUDGE_STATE_FILE=/app/output.txt
 
 # The question the judge answers about the state. Noul = clean yes/no verdict.
 cat > /tmp/judge-question.json <<'EOF'
@@ -24,8 +25,8 @@ cat > /tmp/judge-question.json <<'EOF'
 EOF
 export JUDGE_QUESTION_FILE=/tmp/judge-question.json
 
-# Config — the API key arrives via [verifier] env (required_secrets does NOT
-# reach the verifier; see the jev-probe-task result).
+# JUDGE_* vars arrive via [verifier] env in task.toml. Defaults apply for any
+# the task didn't set.
 export JUDGE_BACKEND="${JUDGE_BACKEND:-typesafe}"
 export JUDGE_MODEL="${JUDGE_MODEL:-jev-latest}"
 export JUDGE_API_KEY_ENV="${JUDGE_API_KEY_ENV:-TYPESAFE_API_KEY}"
