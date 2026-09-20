@@ -562,7 +562,7 @@ timeout_sec = 120.0   # must cover the judge call plus any escalation
 
 [verifier.env]
 TYPESAFE_API_KEY = "${TYPESAFE_API_KEY}"   # the judge key — via required_secrets
-OPENAI_API_KEY = "${OPENAI_API_KEY}"       # escalation judge key (llm-judge)
+OPENAI_API_KEY = "${OPENAI_API_KEY:-}"    # escalation judge key — optional, llm-judge only
 JUDGE_BACKEND = "typesafe"               # typesafe | openai-compat
 JUDGE_BASE_URL = "https://api.typesafe.ai/v1/systemone"
 JUDGE_MODEL = "jev-latest"
