@@ -477,17 +477,20 @@ class TerminalBenchEvaluatorAdapter:
     ) -> list[str]:
         from yacht.courses.terminal_bench.job import TERMINAL_BENCH_JOB_FILENAME
 
+        # The launch subprocess runs with cwd=native_report_dir, so every
+        # path handed to it must be absolute — a relative logbook path would
+        # resolve against the report dir and miss.
         vessel_dir = candidate_path.parent
         return [
             *native_harness_command("yacht.courses.terminal_bench.harness"),
             "--job",
-            str(vessel_dir / TERMINAL_BENCH_JOB_FILENAME),
+            str((vessel_dir / TERMINAL_BENCH_JOB_FILENAME).absolute()),
             "--roster",
-            str(candidate_path),
+            str(candidate_path.absolute()),
             "--trials-dir",
-            str(vessel_dir / "harbor-trials"),
+            str((vessel_dir / "harbor-trials").absolute()),
             "--report-dir",
-            str(native_report_dir),
+            str(native_report_dir.absolute()),
             "--run-id",
             run_id,
             "--vessel",
