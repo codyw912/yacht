@@ -94,19 +94,29 @@ PY
 # answer (noul probability, choice option, score value) preserved for judge.json.
 parse_response() {
   python3 - "$1" "$2" <<'PY'
-import json, sys
+import json, math, sys
 backend, body = sys.argv[1], sys.argv[2]
 try:
     data = json.loads(body)
 except Exception:
     sys.exit(1)
 model = data.get("model", "")
+
+def finite(x):
+    try:
+        v = float(x)
+        return v if math.isfinite(v) else None
+    except (TypeError, ValueError):
+        return None
+
 if backend == "openai-compat":
     try:
         content = data["choices"][0]["message"]["content"]
         parsed = json.loads(content)
-        verdict = float(parsed["verdict"])       # required — absent/malformed is an error
-        confidence = float(parsed["confidence"])
+        verdict = finite(parsed["verdict"])       # required, finite
+        confidence = finite(parsed["confidence"])
+        if verdict is None or confidence is None:
+            sys.exit(1)
         print(verdict, confidence, model, verdict)
         sys.exit(0)
     except Exception:
@@ -116,18 +126,28 @@ if not answers:
     sys.exit(1)
 qid, ans = next(iter(answers.items()))
 if ans.get("type") == "noul":
-    noul = float(ans["noul"])            # required
+    noul = finite(ans["noul"])           # required, finite
+    if noul is None:
+        sys.exit(1)
     # Noul carries no confidence field; derive it as distance from 0.5
     # (0.5 = maximally uncertain, 0.0/1.0 = fully confident). Verdict is noul>=0.5.
     confidence = 2 * abs(noul - 0.5)
     print(1 if noul >= 0.5 else 0, confidence, model, noul)
 elif ans.get("type") == "choice":
     choice = ans["choice"]               # required — the chosen option string
+    conf = finite(ans["confidence"])
+    if conf is None:
+        sys.exit(1)
     verdict = 1 if str(choice).lower() in ("pass", "yes", "true") else 0
-    print(verdict, float(ans["confidence"]), model, choice)
+    # Emit the raw choice as a JSON string so numeric-looking options ("1")
+    # survive to judge.json without float coercion.
+    print(verdict, conf, model, json.dumps(str(choice)))
 elif ans.get("type") == "score":
-    score = float(ans["score"])          # required
-    print(score, float(ans["confidence"]), model, score)
+    score = finite(ans["score"])         # required, finite
+    conf = finite(ans["confidence"])
+    if score is None or conf is None:
+        sys.exit(1)
+    print(score, conf, model, score)
 else:
     sys.exit(1)
 PY
@@ -209,12 +229,16 @@ fi
 write_judge "$(python3 - "$JUDGE_BACKEND" "$MODEL" "$RAW_ANSWER" "$CONFIDENCE" "$ESCALATED" "$ESC_VERDICT" "$ESC_MODEL" "$QUESTION_TEXT" <<'PY'
 import json, sys
 backend, model, raw, confidence, escalated, esc, esc_model, question = sys.argv[1:9]
-# raw is the original typed answer (noul prob, choice option, score) — not the
-# normalized 0/1 reward verdict — so reviewers see what Jev actually advised.
+# raw is the original typed answer. For Choice it arrives JSON-encoded (so a
+# numeric-looking option like "1" stays a string); decode it, else keep the
+# noul/score number as-is.
 try:
-    answer = float(raw)
+    answer = json.loads(raw)
 except (TypeError, ValueError):
-    answer = raw  # choice option strings stay strings
+    try:
+        answer = float(raw)
+    except (TypeError, ValueError):
+        answer = raw
 print(json.dumps({
     "backend": backend,
     "model": model,
