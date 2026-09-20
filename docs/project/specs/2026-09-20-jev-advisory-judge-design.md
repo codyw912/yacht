@@ -144,6 +144,21 @@ the scorecard can show "advisory: pass (0.9)" distinct from "resolved: 1.0":
 resolution, mirroring how the advisor arm's spend stays out of primary
 usage/cost_usd.
 
+Two reproducibility caveats:
+
+- **`reward.json` shape:** the reward reader (episodes.py:468-472, mirroring
+  terminal_bench's `_trial_reward`) takes the `"reward"` key, else the sole key
+  only when the dict has exactly one. A verifier writing `{"reward": 1,
+  "judge_confidence": 0.9}` is fine, but writing the Jev verdict into
+  `reward.json` without a `"reward"` key silently yields `None`. Keep the
+  advisory verdict in a separate `judge.json` — never fold it into `reward.json`.
+- **Model pinning:** the content digest (task_directory.py:9-30) pins task
+  files, but a Jev verdict from `model = "jev-latest"` is not pinned — the API
+  returns a concrete version (e.g. `jev-1.13.0`) and identical digests can then
+  score differently across runs. Record the response's `model` in `judge.json`,
+  and note that comparable runs should pin an explicit model version, not the
+  alias.
+
 ## What Yacht core ships
 
 1. `[scopes.typesafe]` in `secretspec.toml` declaring `TYPESAFE_API_KEY`.
