@@ -222,8 +222,14 @@ fi
 
 # Write reward only on a real verdict; human-review/advisory-only stay unresolved.
 if [ -n "$VERDICT" ] && [ "$JUDGE_ON_LOW_CONFIDENCE" != "advisory-only" ]; then
-  R=$(python3 -c "import sys; print(1 if float(sys.argv[1]) >= 0.5 else 0)" "$VERDICT" 2>/dev/null || echo 0)
-  write_reward "$R"
+  # A malformed verdict (e.g. non-numeric escalation output) must not become a
+  # written reward — skip write_reward so the trial stays unresolved, matching
+  # the on_error contract.
+  if R=$(python3 -c "import sys; print(1 if float(sys.argv[1]) >= 0.5 else 0)" "$VERDICT" 2>/dev/null); then
+    write_reward "$R"
+  else
+    log "verdict '$VERDICT' not numeric — no reward written"
+  fi
 fi
 
 write_judge "$(python3 - "$JUDGE_BACKEND" "$MODEL" "$RAW_ANSWER" "$CONFIDENCE" "$ESCALATED" "$ESC_VERDICT" "$ESC_MODEL" "$QUESTION_TEXT" <<'PY'
