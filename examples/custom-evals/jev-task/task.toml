@@ -1,0 +1,26 @@
+[metadata]
+author = "yacht"
+description = "Advisory-judge example: Jev scores the agent's output where a deterministic verifier cannot decide."
+difficulty = "easy"
+
+[verifier]
+timeout_sec = 120.0
+# The judge key must be set explicitly in [verifier] env — required_secrets
+# reaches the agent only, not tests/test.sh (see jev-probe-task).
+# NOTE: verify_between = true ignores [verifier] env, so Jev judging is
+# incompatible with verify_between unless the key is delivered another way.
+[verifier.env]
+TYPESAFE_API_KEY = "${TYPESAFE_API_KEY}"
+
+[verifier.judge]
+backend = "typesafe"
+base_url = "https://api.typesafe.ai/v1/systemone"
+model = "jev-latest"
+api_key_env = "TYPESAFE_API_KEY"
+confidence_threshold = 0.5
+on_low_confidence = "human-review"   # llm-judge | human-review | advisory-only
+request_timeout_sec = 20.0
+on_error = "unresolved"              # unresolved | zero | advisory-only
+
+[agent]
+timeout_sec = 300.0
