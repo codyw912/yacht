@@ -189,7 +189,7 @@ ESC_VERDICT=""
 ESC_MODEL=""
 
 # Escalation: low confidence -> configured path.
-LOW=$(python3 -c "print(1 if float('$CONFIDENCE') < float('$JUDGE_CONFIDENCE_THRESHOLD') else 0)")
+LOW=$(python3 -c "import sys; c=sys.argv[1]; t=sys.argv[2]; print(1 if float(c) < float(t) else 0)" "$CONFIDENCE" "$JUDGE_CONFIDENCE_THRESHOLD" 2>/dev/null || echo 0)
 if [ "$LOW" = "1" ]; then
   case "$JUDGE_ON_LOW_CONFIDENCE" in
     llm-judge)

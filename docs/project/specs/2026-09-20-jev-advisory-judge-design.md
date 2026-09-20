@@ -57,31 +57,29 @@ Flow inside `test.sh`:
 ## Configurable escalation policy
 
 Per the operator's note, the escalation is user-configurable, not hardcoded. The
-verifier reads a policy from `task.toml` `[verifier.judge]` (or env vars the
-helper reads):
+verifier reads a policy from `task.toml` `[verifier] env` as `JUDGE_*` vars
+(the only channel that reaches `tests/test.sh`):
 
 ```toml
 [verifier]
 timeout_sec = 120.0          # must cover Jev + any escalation call
 
-[verifier.judge]
+[verifier.env]
 # Which backend the judge calls. Default "typesafe"; "openai-compat" points at
 # any OpenAI-compatible endpoint for self-hosted/open-weight substitutes.
-backend = "typesafe"
-base_url = "https://api.typesafe.ai/v1/systemone"   # overridable
-model = "jev-latest"
-api_key_env = "TYPESAFE_API_KEY"                     # env var the helper reads
+JUDGE_BACKEND = "typesafe"
+JUDGE_BASE_URL = "https://api.typesafe.ai/v1/systemone"   # overridable
+JUDGE_MODEL = "jev-latest"
+JUDGE_API_KEY_ENV = "TYPESAFE_API_KEY"                     # env var the helper reads
 
 # Escalation policy
-confidence_threshold = 0.5   # below this, escalate
-on_low_confidence = "llm-judge"   # llm-judge | human-review | advisory-only
-judge_model = "xai-oauth/grok-4.6" # model for llm-judge escalation
-judge_base_url = "http://omp-subscriptions.home.lan:4000/v1"  # escalation endpoint
-judge_api_key_env = "OPENAI_API_KEY"
-
-# Failure handling
-request_timeout_sec = 20.0   # per-call timeout for Jev and the escalation
-on_error = "unresolved"      # unresolved | zero | advisory-only
+JUDGE_CONFIDENCE_THRESHOLD = "0.5"   # below this, escalate
+JUDGE_ON_LOW_CONFIDENCE = "llm-judge"   # llm-judge | human-review | advisory-only
+JUDGE_MODEL_ESCALATION = "xai-oauth/grok-4.6" # model for llm-judge escalation
+JUDGE_BASE_URL_ESCALATION = "http://omp-subscriptions.home.lan:4000/v1"
+JUDGE_API_KEY_ENV_ESCALATION = "OPENAI_API_KEY"
+JUDGE_REQUEST_TIMEOUT_SEC = "20"
+JUDGE_ON_ERROR = "unresolved"      # unresolved | zero | advisory-only
 ```
 
 - **`on_low_confidence = "llm-judge"`** — call a full LLM (Grok/Claude via the
@@ -101,13 +99,13 @@ route is live). Two delivery paths, one open assumption:
 - **`secretspec.toml`** gets a `[scopes.typesafe]` block declaring
   `TYPESAFE_API_KEY`, so `secretspec run --scope typesafe` resolves it.
 - **Reaching `tests/test.sh`:** the verifier reads `[verifier] env` from
-  `task.toml`. **Open assumption:** whether `secret_env`/`required_secrets`
-  reaches the verifier's environment, or whether the key must be set explicitly
-  in `[verifier] env`. `secret_env` demonstrably reaches the *agent* config env
-  (harness.py:261-263); the verifier path is unconfirmed. **Probe task:** run a
-  custom eval whose `test.sh` echoes whether `TYPESAFE_API_KEY` is set, with the
-  key delivered via `required_secrets` vs `[verifier] env`, and record which
-  reaches the verifier.
+  `task.toml`. **Settled by probe:** `secret_env`/`required_secrets` does NOT
+  reach the verifier's environment — the probe task's `test.sh` saw
+  `TYPESAFE_API_KEY` unset even with the secret declared. The key must be set
+  explicitly in `[verifier] env` (which Harbor interpolates in the launcher
+  process, where `required_secrets` does deliver it). Both are needed:
+  `required_secrets` gets the value to the launcher; `[verifier] env` maps it
+  into the verifier.
 
 ## Edge cases baked in
 
@@ -162,16 +160,15 @@ Two reproducibility caveats:
 ## What Yacht core ships
 
 1. `[scopes.typesafe]` in `secretspec.toml` declaring `TYPESAFE_API_KEY`.
-2. A `tests/judge.sh` (or `judge.py`) helper snippet + a documented
-   `[verifier.judge]` config block for custom-eval tasks.
+2. A `tests/judge.sh` helper snippet + a documented `[verifier] env` config
+   block for custom-eval tasks.
 3. A `docs/reference/custom-evals.md` section on advisory judging: the seam,
    the config knobs, the `verify_between` caveat, and the evidence contract.
-4. The probe task above to settle the verifier-env open assumption.
+4. The probe task above (settled: `required_secrets` does not reach the
+   verifier; `[verifier] env` is required).
 
 ## Open questions
 
-- Does `secret_env`/`required_secrets` reach the verifier, or must the key be
-  set in `[verifier] env`? (probe task)
 - For `verify_between` tasks, is Jev judging rejected at render, or is the key
   delivered by a route that survives mid-relay execs?
 - Which primitive is the default for pass/fail — Noul or Choice?
