@@ -8,7 +8,7 @@
 
 **Tech Stack:** bash + curl (dependency-free helper), `task.toml` `[verifier.judge]` config, `secretspec.toml` `[scopes.typesafe]`, TypeSafe System One API / OpenAI-compatible endpoint.
 
-**Spec:** docs/project/specs/2026-09-20-jev-advisory-judge-design.md
+**Spec:** `docs/project/specs/2026-09-20-jev-advisory-judge-design.md`
 
 **Source:** plane:YACHT-28
 
