@@ -89,7 +89,9 @@ PY
     -d "$body" "$url" 2>/dev/null
 }
 
-# parse_response <backend> <body> -> "<verdict> <confidence> <model>" or nothing
+# parse_response <backend> <body> -> "<verdict> <confidence> <model> <raw_answer>" or nothing.
+# verdict is the normalized 0/1 reward signal; raw_answer is the original typed
+# answer (noul probability, choice option, score value) preserved for judge.json.
 parse_response() {
   python3 - "$1" "$2" <<'PY'
 import json, sys
@@ -103,7 +105,9 @@ if backend == "openai-compat":
     try:
         content = data["choices"][0]["message"]["content"]
         parsed = json.loads(content)
-        print(parsed.get("verdict", 0), parsed.get("confidence", 0), model)
+        verdict = float(parsed["verdict"])       # required — absent/malformed is an error
+        confidence = float(parsed["confidence"])
+        print(verdict, confidence, model, verdict)
         sys.exit(0)
     except Exception:
         sys.exit(1)
@@ -112,16 +116,18 @@ if not answers:
     sys.exit(1)
 qid, ans = next(iter(answers.items()))
 if ans.get("type") == "noul":
-    noul = float(ans.get("noul", 0))
+    noul = float(ans["noul"])            # required
     # Noul carries no confidence field; derive it as distance from 0.5
     # (0.5 = maximally uncertain, 0.0/1.0 = fully confident). Verdict is noul>=0.5.
     confidence = 2 * abs(noul - 0.5)
-    print(1 if noul >= 0.5 else 0, confidence, model)
-elif ans.get("type") in ("choice", "score"):
-    verdict = ans.get("choice") or ans.get("score", 0)
-    if isinstance(verdict, str):
-        verdict = 1 if verdict.lower() in ("pass", "yes", "true") else 0
-    print(verdict, ans.get("confidence", 0), model)
+    print(1 if noul >= 0.5 else 0, confidence, model, noul)
+elif ans.get("type") == "choice":
+    choice = ans["choice"]               # required — the chosen option string
+    verdict = 1 if str(choice).lower() in ("pass", "yes", "true") else 0
+    print(verdict, float(ans["confidence"]), model, choice)
+elif ans.get("type") == "score":
+    score = float(ans["score"])          # required
+    print(score, float(ans["confidence"]), model, score)
 else:
     sys.exit(1)
 PY
@@ -156,8 +162,7 @@ if [ -z "$PARSED" ]; then
   exit 0
 fi
 
-read -r VERDICT CONFIDENCE MODEL <<<"$PARSED"
-ORIG_VERDICT="$VERDICT"   # preserve Jev's own answer for judge.json
+read -r VERDICT CONFIDENCE MODEL RAW_ANSWER <<<"$PARSED"
 
 ESCALATED="false"
 ESC_VERDICT=""
@@ -175,7 +180,7 @@ if [ "$LOW" = "1" ]; then
       ESC_RESP="$(call_judge "openai-compat" "${JUDGE_BASE_URL_ESCALATION:-$JUDGE_BASE_URL}" "$ESC_KEY" "${JUDGE_MODEL_ESCALATION:-$JUDGE_MODEL}" "$STATE_JSON" "$QUESTIONS_JSON")"
       ESC_PARSED="$(parse_response "openai-compat" "$ESC_RESP")"
       if [ -n "$ESC_PARSED" ]; then
-        read -r ESC_VERDICT _ ESC_MODEL <<<"$ESC_PARSED"
+        read -r ESC_VERDICT _ ESC_MODEL _ESC_RAW <<<"$ESC_PARSED"
         VERDICT="$ESC_VERDICT"  # escalation verdict decides
       else
         # Escalation failed — apply on_error rather than resolve the uncertain verdict.
@@ -201,14 +206,20 @@ if [ -n "$VERDICT" ] && [ "$JUDGE_ON_LOW_CONFIDENCE" != "advisory-only" ]; then
   write_reward "$R"
 fi
 
-write_judge "$(python3 - "$JUDGE_BACKEND" "$MODEL" "$ORIG_VERDICT" "$CONFIDENCE" "$ESCALATED" "$ESC_VERDICT" "$ESC_MODEL" "$QUESTION_TEXT" <<'PY'
+write_judge "$(python3 - "$JUDGE_BACKEND" "$MODEL" "$RAW_ANSWER" "$CONFIDENCE" "$ESCALATED" "$ESC_VERDICT" "$ESC_MODEL" "$QUESTION_TEXT" <<'PY'
 import json, sys
-backend, model, verdict, confidence, escalated, esc, esc_model, question = sys.argv[1:9]
+backend, model, raw, confidence, escalated, esc, esc_model, question = sys.argv[1:9]
+# raw is the original typed answer (noul prob, choice option, score) — not the
+# normalized 0/1 reward verdict — so reviewers see what Jev actually advised.
+try:
+    answer = float(raw)
+except (TypeError, ValueError):
+    answer = raw  # choice option strings stay strings
 print(json.dumps({
     "backend": backend,
     "model": model,
     "question": question,
-    "answer": float(verdict) if verdict else None,
+    "answer": answer,
     "confidence": float(confidence) if confidence else None,
     "escalated": escalated == "true",
     "escalation_verdict": float(esc) if esc else None,

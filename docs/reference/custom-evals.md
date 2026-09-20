@@ -540,17 +540,29 @@ calls. It reads its config from `JUDGE_*` environment variables, POSTs the
 ### Configuration
 
 The judge config reaches `tests/test.sh` via `[verifier] env` as `JUDGE_*`
-vars — the only channel that reaches the verifier. `required_secrets` is
-agent-only (it does not reach `tests/test.sh`), and `task.toml` is a sensitive
-file not mounted into the container, so the key and the knobs must be set
-explicitly in `[verifier] env`:
+vars — the only channel that reaches the verifier. `task.toml` is a sensitive
+file not mounted into the container, so the knobs must be set explicitly in
+`[verifier] env`. Two secrets are involved, and both need a runtime
+`required_secrets` declaration to reach the launcher process where
+`[verifier] env` interpolates them:
+
+- **`TYPESAFE_API_KEY`** — the Jev key. Declare `[secrets.typesafe]` +
+  `required_secrets = ["typesafe"]` on the runtime so the value reaches the
+  launcher; `[verifier] env` then maps it into the verifier.
+- **`OPENAI_API_KEY`** — the escalation judge key, needed only for
+  `on_low_confidence = "llm-judge"`. Declare `[secrets.openai]` +
+  `required_secrets = ["openai"]` and map it in `[verifier] env` the same way.
+
+`required_secrets` alone is agent-only (it does not reach `tests/test.sh`);
+`[verifier] env` alone has nothing to expand. Both are needed.
 
 ```toml
 [verifier]
 timeout_sec = 120.0   # must cover the judge call plus any escalation
 
 [verifier.env]
-TYPESAFE_API_KEY = "${TYPESAFE_API_KEY}"   # the judge key — set explicitly
+TYPESAFE_API_KEY = "${TYPESAFE_API_KEY}"   # the judge key — via required_secrets
+OPENAI_API_KEY = "${OPENAI_API_KEY}"       # escalation judge key (llm-judge)
 JUDGE_BACKEND = "typesafe"               # typesafe | openai-compat
 JUDGE_BASE_URL = "https://api.typesafe.ai/v1/systemone"
 JUDGE_MODEL = "jev-latest"
