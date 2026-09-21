@@ -35,13 +35,14 @@ class SecretSpecManifestTests(unittest.TestCase):
         self.assertEqual(self.manifest["project"]["revision"], "1.0")
         self.assertEqual(
             sorted(self.manifest["profiles"]["default"]),
-            ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"],
+            ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "TYPESAFE_API_KEY"],
         )
         self.assertEqual(
             self.manifest["scopes"],
             {
                 "anthropic": {"secrets": ["ANTHROPIC_API_KEY"]},
                 "openai": {"secrets": ["OPENAI_API_KEY"]},
+                "typesafe": {"secrets": ["TYPESAFE_API_KEY"]},
             },
         )
 
