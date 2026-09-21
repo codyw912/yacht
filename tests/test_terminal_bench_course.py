@@ -616,6 +616,7 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                 "REQUESTS_CA_BUNDLE",
                 "CURL_CA_BUNDLE",
                 "NODE_EXTRA_CA_CERTS",
+                "GIT_SSL_CAINFO",
             ):
                 self.assertEqual(agent["env"][name], HARBOR_TASK_CA_PATH)
 
@@ -634,6 +635,7 @@ class TerminalBenchHarnessTests(unittest.TestCase):
                 "REQUESTS_CA_BUNDLE",
                 "CURL_CA_BUNDLE",
                 "NODE_EXTRA_CA_CERTS",
+                "GIT_SSL_CAINFO",
             ):
                 self.assertIn(f"{name}={HARBOR_LAUNCHER_CA_PATH}", command)
             self.assertIn("OPENAI_API_KEY", command)
