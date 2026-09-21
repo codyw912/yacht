@@ -6,6 +6,7 @@ import {
 	Settings,
 	type AgentSession,
 } from "@oh-my-pi/pi-coding-agent";
+import { initializeExtensions } from "@oh-my-pi/pi-coding-agent/modes/runtime-init";
 import { discoverAdvisorConfigs } from "@oh-my-pi/pi-coding-agent/advisor/config";
 import { AdmissionController } from "./omp_admission.ts";
 import {
@@ -221,6 +222,16 @@ async function handleInit(cmd: Extract<DriverCommand, { type: "init" }>): Promis
 				);
 			}
 		}
+		// Emit session_start so extensions (e.g. the advisor-gate provider
+		// plugin) capture their ExtensionContext. The controlled driver bypasses
+		// the mode layer that normally emits this, so without it the plugin's
+		// streamSimple sees an undefined ctx and fails the advisor arm.
+		await initializeExtensions(session, {
+			reportSendError: (action, error) =>
+				console.error(`[extension ${action}]`, error),
+			reportRuntimeError: (error) => console.error("[extension]", error),
+			mode: "print",
+		});
 		const admission = new AdmissionController();
 		const host = sessionHost(session);
 		const detachGate = attachAdmissionGate(host, admission, (gated) => {

@@ -512,6 +512,117 @@ what did the verifier actually credit? Revise the task, environment, or
 verifier, bump `split`, and rerun; the digest records that the eval
 changed.
 
+## Advisory judging
+
+A deterministic verifier is not always the right tool: free-text or
+design-quality output has no string to assert against. YACHT supports an
+**advisory judge** — a scoring stage inside `tests/test.sh` that calls a fast
+"System One" model (TypeSafe's Jev, or any OpenAI-compatible substitute) to
+classify the agent's output, escalating to a full LLM judge only when the
+model's own confidence is low.
+
+The judge is **not** a new evaluator adapter — it is a scoring stage that
+produces evidence the verifier consumes when writing
+`/logs/verifier/reward.{txt,json}`. It feeds the report; it is not the report
+reader. The verdict stays advisory: it lands in a separate
+`/logs/verifier/judge.json`, never substitutes for verifier resolution, and is
+never read as ground truth (vision.md:90-92, 156).
+
+### The helper
+
+`examples/custom-evals/jev-task/tests/judge.sh` is a self-contained,
+dependency-free helper (curl + python3) a verifier drops into `tests/` and
+calls. It reads its config from `JUDGE_*` environment variables, POSTs the
+`state` + typed `questions` to the judge endpoint, reads the verdict +
+`confidence`, applies the escalation policy, and writes `reward.txt` +
+`judge.json`.
+
+### Configuration
+
+The judge config reaches `tests/test.sh` via `[verifier] env` as `JUDGE_*`
+vars — the only channel that reaches the verifier. `task.toml` is a sensitive
+file not mounted into the container, so the knobs must be set explicitly in
+`[verifier] env`. Two secrets are involved, and both need a runtime
+`required_secrets` declaration to reach the launcher process where
+`[verifier] env` interpolates them:
+
+- **`TYPESAFE_API_KEY`** — the Jev key. Declare `[secrets.typesafe]` +
+  `required_secrets = ["typesafe"]` on the runtime so the value reaches the
+  launcher; `[verifier] env` then maps it into the verifier.
+- **`OPENAI_API_KEY`** — the escalation judge key, needed only for
+  `on_low_confidence = "llm-judge"`. Declare `[secrets.openai]` +
+  `required_secrets = ["openai"]` and map it in `[verifier] env` the same way.
+
+`required_secrets` alone is agent-only (it does not reach `tests/test.sh`);
+`[verifier] env` alone has nothing to expand. Both are needed.
+
+```toml
+[verifier]
+timeout_sec = 120.0   # must cover the judge call plus any escalation
+
+[verifier.env]
+TYPESAFE_API_KEY = "${TYPESAFE_API_KEY}"   # the judge key — via required_secrets
+OPENAI_API_KEY = "${OPENAI_API_KEY:-}"    # escalation judge key — optional, llm-judge only
+JUDGE_BACKEND = "typesafe"               # typesafe | openai-compat
+JUDGE_BASE_URL = "https://api.typesafe.ai/v1/systemone"
+JUDGE_MODEL = "jev-latest"
+JUDGE_API_KEY_ENV = "TYPESAFE_API_KEY"
+JUDGE_CONFIDENCE_THRESHOLD = "0.5"       # below this, escalate
+JUDGE_ON_LOW_CONFIDENCE = "human-review" # llm-judge | human-review | advisory-only
+JUDGE_MODEL_ESCALATION = "xai-oauth/grok-4.6"   # model for llm-judge escalation
+JUDGE_BASE_URL_ESCALATION = "http://omp-subscriptions.home.lan:4000/v1"
+JUDGE_API_KEY_ENV_ESCALATION = "OPENAI_API_KEY"
+JUDGE_REQUEST_TIMEOUT_SEC = "20"         # per-call timeout
+JUDGE_ON_ERROR = "unresolved"            # unresolved | zero | advisory-only
+```
+
+- **`on_low_confidence = "llm-judge"`** — call a full LLM (any
+  OpenAI-compatible endpoint) for a second opinion; the escalation verdict
+  decides the reward.
+- **`"human-review"`** — leave the reward unresolved and flag the trial.
+- **`"advisory-only"`** — record the verdict as evidence but never decide the
+  reward; a deterministic verifier still owns resolution.
+- **`on_error`** — what the helper writes when the judge or escalation call
+  fails or times out: `unresolved` (no reward), `zero` (reward 0), or
+  `advisory-only` (record the failure, don't decide).
+- **`backend = "openai-compat"`** + `base_url` lets you substitute a
+  self-hosted/open-weight model for Jev — same `state` + `questions` in, same
+  verdict + confidence out, posted to `<base_url>/chat/completions`.
+
+### Edge cases
+
+- **`verify_between = true`:** the inter-episode exec runs `tests/test.sh`
+  directly and **ignores `[verifier] env`** — Jev judging is incompatible with
+  `verify_between` unless the key is delivered by a route that survives
+  mid-relay execs.
+- **Verifier timeout:** `[verifier] timeout_sec` must cover the judge call
+  plus any escalation; the helper sets its own `request_timeout_sec` per call
+  and writes the `on_error` fallback rather than letting the verifier be
+  killed and lose the reward entirely.
+- **`reward.json` shape:** the reward reader takes the `"reward"` key, else
+  the sole key only when the dict has exactly one. Keep the advisory verdict
+  in `judge.json` — never fold it into `reward.json` without a `"reward"` key.
+- **Model pinning:** the content digest pins task files, but a verdict from
+  `model = "jev-latest"` is not pinned — the API returns a concrete version
+  (e.g. `jev-1.13.0`) and identical digests can score differently across runs.
+  `judge.json` records the response's `model`; comparable runs should pin an
+  explicit model version, not the alias.
+
+### Evidence contract
+
+```
+/logs/verifier/
+├── reward.txt          # the grading truth (or absent if unresolved)
+├── reward.json
+└── judge.json          # advisory: {backend, model, question, answer,
+                        #            confidence, escalated,
+                        #            escalation_verdict, escalation_model}
+```
+
+`judge.json` preserves the original Jev answer separately from the final
+reward decision, so the scorecard can show "advisory: pass (0.9)" distinct
+from "resolved: 1.0".
+
 ## Validating a task at zero token cost
 
 ```sh

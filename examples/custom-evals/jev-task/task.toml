@@ -1,0 +1,33 @@
+[metadata]
+author = "yacht"
+description = "Advisory-judge example: Jev scores the agent's output where a deterministic verifier cannot decide."
+difficulty = "easy"
+
+[verifier]
+timeout_sec = 120.0
+# Judge config reaches tests/test.sh via [verifier] env as JUDGE_* vars — the
+# only channel that reaches the verifier. The key must ALSO be declared as a
+# required secret on the runtime so it reaches the launcher process, where
+# ${TYPESAFE_API_KEY} is interpolated into this env block. required_secrets
+# alone is agent-only; [verifier] env alone has nothing to expand. Both are
+# needed. The escalation key (OPENAI_API_KEY) must be mapped here too for
+# llm-judge mode.
+# NOTE: verify_between = true ignores [verifier] env, so Jev judging is
+# incompatible with verify_between unless the key is delivered another way.
+[verifier.env]
+TYPESAFE_API_KEY = "${TYPESAFE_API_KEY}"
+# Escalation judge key — only needed for on_low_confidence = "llm-judge".
+# Optional: ${VAR:-} resolves to empty when unset, so human-review tasks that
+# never escalate don't fail env resolution on a missing key.
+OPENAI_API_KEY = "${OPENAI_API_KEY:-}"
+JUDGE_BACKEND = "typesafe"
+JUDGE_BASE_URL = "https://api.typesafe.ai/v1/systemone"
+JUDGE_MODEL = "jev-latest"
+JUDGE_API_KEY_ENV = "TYPESAFE_API_KEY"
+JUDGE_CONFIDENCE_THRESHOLD = "0.5"
+JUDGE_ON_LOW_CONFIDENCE = "human-review"   # llm-judge | human-review | advisory-only
+JUDGE_REQUEST_TIMEOUT_SEC = "20"
+JUDGE_ON_ERROR = "unresolved"              # unresolved | zero | advisory-only
+
+[agent]
+timeout_sec = 300.0
