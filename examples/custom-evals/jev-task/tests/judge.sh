@@ -7,7 +7,7 @@
 # advisory /logs/verifier/judge.json.
 #
 # Dependency-free: needs only curl + python3 in the task image.
-# Config via JUDGE_* env vars (exported by test.sh from [verifier.judge]).
+# Config via JUDGE_* env vars (set in task.toml [verifier] env).
 # See docs/reference/custom-evals.md "Advisory judging".
 set -uo pipefail
 

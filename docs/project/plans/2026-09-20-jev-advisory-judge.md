@@ -6,7 +6,7 @@
 
 **Architecture:** Jev is a scoring stage inside a custom eval's `tests/test.sh`, not a new `EvaluatorAdapterInterface` kind. A self-contained `tests/judge.sh` helper (digest-pinned with the task) POSTs `state` + typed `questions` to the System One endpoint, reads the verdict + `confidence`, and applies a configurable escalation policy before writing `/logs/verifier/reward.{txt,json}` and a separate advisory `judge.json`.
 
-**Tech Stack:** bash + curl (dependency-free helper), `task.toml` `[verifier.judge]` config, `secretspec.toml` `[scopes.typesafe]`, TypeSafe System One API / OpenAI-compatible endpoint.
+**Tech Stack:** bash + curl (dependency-free helper), `task.toml` `[verifier] env` with `JUDGE_*` vars, `secretspec.toml` `[scopes.typesafe]`, TypeSafe System One API / OpenAI-compatible endpoint.
 
 **Spec:** `docs/project/specs/2026-09-20-jev-advisory-judge-design.md`
 
@@ -19,7 +19,7 @@
 - Record the response's concrete `model` (e.g. `jev-1.13.0`) in `judge.json`; comparable runs pin an explicit model version, not `jev-latest`.
 - `verify_between = true` runs `tests/test.sh` directly and ignores `[verifier] env` (custom-evals.md:219) — Jev judging under `verify_between` is a named edge case, not silently supported.
 - `[verifier] timeout_sec` must cover the Jev call plus any escalation; the helper sets its own `request_timeout_sec` and writes the `on_error` fallback rather than letting the verifier be killed.
-- `TYPESAFE_API_KEY` is provisioned via Iron Proxy (`api.typesafe.ai` route live). Whether `required_secrets` reaches the verifier is an **open assumption** settled by a probe task.
+- `TYPESAFE_API_KEY` is provisioned via Iron Proxy (`api.typesafe.ai` route live). **Settled by probe:** `required_secrets` does NOT reach the verifier — the key must be set explicitly in `[verifier] env` (which Harbor interpolates in the launcher process, where `required_secrets` does deliver it). Both are needed.
 
 ---
 
@@ -88,7 +88,7 @@ jj commit examples/custom-evals/jev-probe-task -m "Add verifier-env probe task f
 
 ### Task 2: The `judge.sh` helper
 
-A dependency-free `curl` helper a custom-eval verifier drops into `tests/` and calls. Reads `[verifier.judge]` config via env vars the task sets, POSTs to the System One endpoint, applies the escalation policy, writes `reward` + `judge.json`.
+A dependency-free `curl` helper a custom-eval verifier drops into `tests/` and calls. Reads `JUDGE_*` config from `[verifier] env` vars the task sets, POSTs to the System One endpoint, applies the escalation policy, writes `reward` + `judge.json`.
 
 **Files:**
 - Create: `examples/custom-evals/jev-task/tests/judge.sh`
@@ -106,7 +106,7 @@ A dependency-free `curl` helper a custom-eval verifier drops into `tests/` and c
 
 - [ ] **Step 2: Write the example task**
 
-`test.sh` calls `judge.sh` with a Noul question ("does the output satisfy criterion X"); `task.toml` sets `[verifier.judge]` + `[verifier] env` for the API key; `environment/Dockerfile` provides `curl` + `python3`.
+`test.sh` calls `judge.sh` with a Noul question ("does the output satisfy criterion X"); `task.toml` sets `[verifier] env` with `JUDGE_*` vars + the API key; `environment/Dockerfile` provides `curl` + `python3`.
 
 - [ ] **Step 3: Test the helper offline**
 
@@ -135,7 +135,7 @@ secrets = ["TYPESAFE_API_KEY"]
 
 - [ ] **Step 2: Document advisory judging**
 
-Add a "Advisory judging" section to `custom-evals.md`: the seam (scoring stage in `test.sh`, not an evaluator adapter), the `[verifier.judge]` config knobs, the `verify_between` caveat, the `judge.json` evidence contract, the `reward.json` `"reward"`-key caveat, and the model-pinning note.
+Add a "Advisory judging" section to `custom-evals.md`: the seam (scoring stage in `test.sh`, not an evaluator adapter), the `[verifier] env` `JUDGE_*` config knobs, the `verify_between` caveat, the `judge.json` evidence contract, the `reward.json` `"reward"`-key caveat, and the model-pinning note.
 
 - [ ] **Step 3: Commit**
 
