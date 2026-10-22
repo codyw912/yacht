@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# yacht is a short-lived CLI: launch = build once. Each drive starts its own
+# isolated tmux session. Ready = the entry point imports and the smoke config
+# validates.
+set -euo pipefail
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+ROOT=$(cd "$HERE/../../../.." && pwd -P)
+cd "$ROOT"
+uv sync --locked
+uv run --locked yacht validate examples/local-agent-preflight-smoke.toml
+echo "ready: yacht built from $ROOT"

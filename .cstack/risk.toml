@@ -1,0 +1,7 @@
+version = 1
+default = "medium"
+test = "uv run --locked -m unittest discover -s tests"
+check = "uv run --locked ruff check src tests && uv run --locked ruff format --check src tests"
+ship = "pr"
+involvement = "process"
+merge_method = "squash"
