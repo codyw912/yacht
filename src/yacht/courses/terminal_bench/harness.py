@@ -31,6 +31,9 @@ CA_BUNDLE_ENV_NAMES = (
     "REQUESTS_CA_BUNDLE",
     "CURL_CA_BUNDLE",
     "NODE_EXTRA_CA_CERTS",
+    # git clone/fetch (e.g. nvm install during agent setup) honors only
+    # GIT_SSL_CAINFO, not the curl/node bundles above.
+    "GIT_SSL_CAINFO",
 )
 _DOCKER_PROXY_ENV_BY_KEY = {
     "httpProxy": ("HTTP_PROXY", "http_proxy"),
