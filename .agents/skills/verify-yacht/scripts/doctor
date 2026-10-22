@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Read-only: is this checkout worth driving? Exits non-zero naming the fix.
+set -euo pipefail
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+ROOT=$(cd "$HERE/../../../.." && pwd -P)
+BASE=/tmp/verify-yacht
+fail=0
+bad() { printf 'FAIL  %s\n      fix: %s\n' "$1" "$2"; fail=1; }
+ok() { printf 'ok    %s\n' "$1"; }
+
+command -v tmux >/dev/null && ok "tmux $(tmux -V)" || bad "tmux missing" "install tmux (the driver runs one isolated tmux server per run)"
+command -v uv >/dev/null && ok "uv $(uv --version)" || bad "uv missing" "install uv (https://docs.astral.sh/uv/)"
+command -v git >/dev/null && ok "git present" || bad "git missing" "install git (drive uses it to prove the workspace is untouched)"
+
+[ -f "$ROOT/pyproject.toml" ] && grep -q '^name = "yacht-eval"' "$ROOT/pyproject.toml" \
+  && ok "repo root is yacht-eval: $ROOT" || bad "not the yacht-eval checkout ($ROOT)" "keep this skill under <repo>/.agents/skills/verify-yacht"
+[ -f "$ROOT/examples/local-agent-preflight-smoke.toml" ] \
+  && ok "smoke config present" || bad "examples/local-agent-preflight-smoke.toml missing" "restore it; the smoke-run drive reads this config"
+[ -f "$ROOT/preflights/local-agent-smoke.md" ] \
+  && ok "preflight prompt present" || bad "preflights/local-agent-smoke.md missing" "restore it; the config references it"
+[ -x "$ROOT/.venv/bin/yacht" ] \
+  && ok ".venv has the yacht entry point" || bad ".venv/bin/yacht missing" "run scripts/launch (uv sync --locked)"
+(cd "$ROOT" && uv lock --check >/dev/null 2>&1) \
+  && ok "uv.lock matches pyproject.toml" || bad "uv.lock out of date" "run: uv lock, or restore the lockfile; drives use --locked"
+
+# Credential-free mode: the drive runs the pane shell under `env -i`, so no
+# credential reaches yacht. Report (do not fail on) credentials in this shell.
+leaky=$(env | cut -d= -f1 | grep -Ei '(API_?KEY|TOKEN|SECRET|PASSWORD)' || true)
+if [ -n "$leaky" ]; then
+  printf 'note  credential-looking variables in this shell (stripped by the drive, never read): %s\n' "$(echo $leaky)"
+else
+  ok "no credential-looking variables in this shell"
+fi
+
+[ -w /tmp ] && ok "/tmp writable (evidence under $BASE)" || bad "/tmp not writable" "the driver and evidence live under /tmp"
+
+# Isolation: each run owns its session, logbook and handle file; leftovers are
+# not a conflict, only a reminder to run scripts/cleanup.
+live=$( (ls "$BASE"/handles/*.session 2>/dev/null || true) | wc -l | tr -d ' ')
+[ "$live" = 0 ] && ok "no recorded runs outstanding" || printf 'note  %s recorded run handle(s) under %s/handles; scripts/cleanup stops them\n' "$live" "$BASE"
+
+exit $fail

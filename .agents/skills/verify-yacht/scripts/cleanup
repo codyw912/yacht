@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Stops every recorded run's tmux server (by recorded session handle, never by
+# process name) and removes the handle files. Safe to run twice. Evidence
+# under /tmp/verify-yacht/evidence is never touched.
+set -euo pipefail
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+source "$HERE/lib/tmux-tty.sh"
+BASE=/tmp/verify-yacht
+shopt -s nullglob
+n=0
+for handle in "$BASE"/handles/*.session; do
+  session=$(cat "$handle")
+  tty_stop "$session"
+  rm -f "$handle"
+  echo "stopped $session"
+  n=$((n+1))
+done
+echo "cleanup: $n run(s) stopped; evidence kept under $BASE/evidence"

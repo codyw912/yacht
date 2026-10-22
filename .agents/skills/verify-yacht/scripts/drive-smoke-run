@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Drives features/smoke-run.md: validate -> run -> status -> report on the
+# credential-free smoke regatta, inside an isolated tmux session whose shell
+# runs under `env -i`. Last line printed = the evidence directory.
+set -euo pipefail
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+SKILL=$(cd "$HERE/.." && pwd -P)
+ROOT=$(cd "$SKILL/../../.." && pwd -P)
+source "$HERE/lib/tmux-tty.sh"
+
+BASE=/tmp/verify-yacht
+RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
+SESSION="yacht-$RUN_ID"
+EV="$BASE/evidence/$RUN_ID"
+CONFIG=examples/local-agent-preflight-smoke.toml
+
+mkdir -p "$BASE/handles" "$BASE/evidence"
+# Freeze first: rubric.md + rubric.sha256 go into the evidence before anything runs.
+tty_freeze "$EV" "$SKILL/features/smoke-run.md"
+# Record the handle before starting, so a failed drive is still cleanable.
+printf '%s\n' "$SESSION" > "$BASE/handles/$RUN_ID.session"
+
+# Pane shell: no inherited environment except HOME and PATH, so no credential
+# can reach yacht; simple prompt for liveness waits.
+tty_start "$SESSION" "$EV" env -i HOME="$HOME" PATH="$PATH" TERM=xterm-256color PS1='verify$ ' bash --norc --noprofile
+tty_wait "$SESSION" 'verify\$' 15
+
+n=0
+# step <label> <command...>: clear, run the command, print its end marker, wait
+# for the marker (the command finished), capture. Waits on liveness only.
+step() {
+  local label=$1 cmd=$2
+  n=$((n+1))
+  tmux -L "$(_tty_sock "$SESSION")" clear-history -t "$SESSION"
+  tty_send "$SESSION" -l "clear"; tty_send "$SESSION" Enter
+  tty_wait_quiet "$SESSION" 1 15
+  tty_send "$SESSION" -l "$cmd; printf '__DONE_%s__\\n' $n"; tty_send "$SESSION" Enter
+  tty_wait "$SESSION" "^__DONE_${n}__\$" 120
+  tty_capture "$SESSION" "$label" >/dev/null
+}
+
+# setup (no capture): where we are, where evidence goes, workspace baseline
+tty_send "$SESSION" -l "cd '$ROOT' && EV='$EV' && git status --porcelain > \"\$EV/workspace-before.txt\"; echo setup-exit=\$?"
+tty_send "$SESSION" Enter
+tty_wait "$SESSION" 'setup-exit=' 15
+
+step credentials "env | grep -Ei 'API_?KEY|TOKEN|SECRET|PASSWORD' || echo none"
+step validate "uv run --locked yacht validate $CONFIG; echo \"validate exit=\$?\""
+step run "uv run --locked yacht run $CONFIG --logbook \"\$EV/logbook\" --workspace . --format json > \"\$EV/run-summary.json\" 2> \"\$EV/run.stderr\"; echo \"run exit=\$?\"; jq -c '{status,regatta,course,agent}' \"\$EV/run-summary.json\"; echo '--- stderr ---'; cat \"\$EV/run.stderr\"; echo '--- end stderr ---'"
+step status "uv run --locked yacht status --logbook \"\$EV/logbook\"; echo \"status exit=\$?\""
+step report "uv run --locked yacht report --logbook \"\$EV/logbook\"; echo \"report exit=\$?\""
+step logbook-files "(cd \"\$EV/logbook\" && find . -type f | sort)"
+step attempts "(cd \"\$EV/logbook\" && jq -c '{vessel,status,tool_calls:.agent.tool_calls,tokens:.metrics.tokens}' task-attempts/*/*/*.json)"
+step preflight "(cd \"\$EV/logbook\" && jq -c '{file:input_filename,checks:[.checks[]|{name,status}]}' preflight/*/*.json)"
+step tool-state "(cd \"\$EV/logbook/runtime\" && find . -name local-tool-state.json | sort && for f in \$(find . -name local-tool-state.json | sort); do jq -c . \"\$f\"; done)"
+step workspace "git status --porcelain > \"\$EV/workspace-after.txt\"; if diff \"\$EV/workspace-before.txt\" \"\$EV/workspace-after.txt\"; then echo 'workspace unchanged'; fi"
+
+printf '%s\n' "$EV"
